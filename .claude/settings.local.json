@@ -1,0 +1,7 @@
+{
+  "enabledMcpjsonServers": [
+    "shadcn",
+    "sequential-thinking",
+    "context7"
+  ]
+}

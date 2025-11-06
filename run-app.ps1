@@ -1,0 +1,45 @@
+# Docling Parse App Launch Script
+# Runs both Backend (FastAPI) and Frontend (Next.js) simultaneously
+
+Write-Host "Starting Docling Parse App..." -ForegroundColor Green
+Write-Host ""
+
+# Save current directory
+$rootDir = Get-Location
+
+# Check and create virtual environment
+if (-Not (Test-Path "venv")) {
+    Write-Host "Creating Python virtual environment..." -ForegroundColor Yellow
+    python -m venv venv
+}
+
+# Check .env file
+if (-Not (Test-Path "backend\.env")) {
+    Write-Host "Creating .env file from .env.example..." -ForegroundColor Yellow
+    Copy-Item "backend\.env.example" "backend\.env"
+}
+
+# Install Python dependencies
+Write-Host "Installing Python dependencies..." -ForegroundColor Yellow
+& "venv\Scripts\python.exe" -m pip install -r backend\requirements.txt -q
+
+# Check Node.js dependencies
+if (-Not (Test-Path "node_modules")) {
+    Write-Host "Installing Node.js dependencies..." -ForegroundColor Yellow
+    npm install
+}
+
+Write-Host ""
+Write-Host "Starting servers..." -ForegroundColor Green
+Write-Host "Backend: http://localhost:8000" -ForegroundColor Cyan
+Write-Host "Frontend: http://localhost:3000" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "Press Ctrl+C to stop" -ForegroundColor Yellow
+Write-Host ""
+
+# Start backend in separate window
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$rootDir'; .\venv\Scripts\activate; python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000"
+
+# Start frontend in current window
+Start-Sleep -Seconds 2
+npm run dev
