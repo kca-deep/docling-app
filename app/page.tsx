@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { FileText, Network, ArrowRight } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { PageContainer } from "@/components/page-container"
 
 export default function HomePage() {
   const features = [
@@ -19,7 +20,7 @@ export default function HomePage() {
   ]
 
   return (
-    <div className="container mx-auto px-4 md:px-6 py-16 max-w-5xl">
+    <PageContainer maxWidth="narrow">
       <div className="text-center mb-12">
         <h1 className="text-4xl font-bold mb-4">
           문서 파싱 플랫폼
@@ -52,6 +53,6 @@ export default function HomePage() {
           )
         })}
       </div>
-    </div>
+    </PageContainer>
   )
 }

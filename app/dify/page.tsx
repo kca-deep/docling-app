@@ -1,8 +1,9 @@
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { PageContainer } from "@/components/page-container"
 
 export default function DifyPage() {
   return (
-    <div className="container mx-auto px-4 md:px-6 py-16 max-w-3xl">
+    <PageContainer maxWidth="narrow">
       <div className="text-center mb-8">
         <h1 className="text-4xl font-bold mb-4">
           Dify 연동
@@ -17,6 +18,6 @@ export default function DifyPage() {
           Dify 연동 기능은 현재 개발 중입니다.
         </AlertDescription>
       </Alert>
-    </div>
+    </PageContainer>
   )
 }

@@ -7,10 +7,10 @@ Write-Host ""
 # Save current directory
 $rootDir = Get-Location
 
-# Check and create virtual environment
-if (-Not (Test-Path "venv")) {
-    Write-Host "Creating Python virtual environment..." -ForegroundColor Yellow
-    python -m venv venv
+# Check and create virtual environment in backend folder
+if (-Not (Test-Path "backend\venv")) {
+    Write-Host "Creating Python virtual environment in backend folder..." -ForegroundColor Yellow
+    python -m venv backend\venv
 }
 
 # Check .env file
@@ -21,7 +21,7 @@ if (-Not (Test-Path "backend\.env")) {
 
 # Install Python dependencies
 Write-Host "Installing Python dependencies..." -ForegroundColor Yellow
-& "venv\Scripts\python.exe" -m pip install -r backend\requirements.txt -q
+& "backend\venv\Scripts\python.exe" -m pip install -r backend\requirements.txt -q
 
 # Check Node.js dependencies
 if (-Not (Test-Path "node_modules")) {
@@ -38,7 +38,7 @@ Write-Host "Press Ctrl+C to stop" -ForegroundColor Yellow
 Write-Host ""
 
 # Start backend in separate window
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$rootDir'; .\venv\Scripts\activate; python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$rootDir'; .\backend\venv\Scripts\activate; python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000"
 
 # Start frontend in current window
 Start-Sleep -Seconds 2

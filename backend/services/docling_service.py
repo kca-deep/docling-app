@@ -24,7 +24,17 @@ class DoclingService:
         self,
         file_content: bytes,
         filename: str,
-        target_type: str = "inbody"
+        target_type: str = "inbody",
+        to_formats: str = "md",
+        do_ocr: bool = True,
+        do_table_structure: bool = True,
+        include_images: bool = True,
+        table_mode: str = "accurate",
+        image_export_mode: str = "embedded",
+        page_range_start: int = 1,
+        page_range_end: int = 9223372036854776000,
+        do_formula_enrichment: bool = False,
+        pipeline: str = "standard"
     ) -> ConvertResult:
         """
         문서 변환 (비동기 방식)
@@ -32,16 +42,37 @@ class DoclingService:
         Args:
             file_content: 파일 내용 (바이트)
             filename: 파일명
-            target_type: 변환 타겟 타입
+            target_type: 변환 타겟 타입 (inbody, zip)
+            to_formats: 출력 형식 (md, json, html, text, doctags)
+            do_ocr: OCR 인식 활성화
+            do_table_structure: 테이블 구조 인식
+            include_images: 이미지 포함
+            table_mode: 테이블 모드 (fast, accurate)
+            image_export_mode: 이미지 내보내기 모드 (placeholder, embedded, referenced)
+            page_range_start: 페이지 시작
+            page_range_end: 페이지 끝
+            do_formula_enrichment: 수식 인식
+            pipeline: 처리 파이프라인 (legacy, standard, vlm, asr)
 
         Returns:
             ConvertResult: 변환 결과
         """
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=120.0) as client:
             try:
                 # 1단계: 비동기 변환 작업 시작
                 files = {"files": (filename, file_content, "application/pdf")}
-                data = {"target_type": target_type}
+                data = {
+                    "target_type": target_type,
+                    "to_formats": [to_formats],
+                    "do_ocr": do_ocr,
+                    "do_table_structure": do_table_structure,
+                    "include_images": include_images,
+                    "table_mode": table_mode,
+                    "image_export_mode": image_export_mode,
+                    "page_range": [page_range_start, page_range_end],
+                    "do_formula_enrichment": do_formula_enrichment,
+                    "pipeline": pipeline
+                }
 
                 response = await client.post(
                     self.async_api_url,

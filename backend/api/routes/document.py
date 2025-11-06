@@ -20,14 +20,34 @@ docling_service = DoclingService()
 @router.post("/convert", response_model=ConvertResult)
 async def convert_document(
     file: UploadFile = File(...),
-    target_type: str = Form(default="inbody")
+    target_type: str = Form(default="inbody"),
+    to_formats: str = Form(default="md"),
+    do_ocr: str = Form(default="true"),
+    do_table_structure: str = Form(default="true"),
+    include_images: str = Form(default="true"),
+    table_mode: str = Form(default="accurate"),
+    image_export_mode: str = Form(default="embedded"),
+    page_range_start: str = Form(default="1"),
+    page_range_end: str = Form(default="9223372036854776000"),
+    do_formula_enrichment: str = Form(default="false"),
+    pipeline: str = Form(default="standard")
 ):
     """
     문서 변환 API
 
     Args:
         file: 업로드할 파일 (PDF, DOCX 등)
-        target_type: 변환 타겟 타입 (inbody, markdown, json)
+        target_type: 변환 타겟 타입 (inbody, zip)
+        to_formats: 출력 형식 (md, json, html, text, doctags)
+        do_ocr: OCR 인식 활성화
+        do_table_structure: 테이블 구조 인식
+        include_images: 이미지 포함
+        table_mode: 테이블 모드 (fast, accurate)
+        image_export_mode: 이미지 내보내기 모드 (placeholder, embedded, referenced)
+        page_range_start: 페이지 시작
+        page_range_end: 페이지 끝
+        do_formula_enrichment: 수식 인식
+        pipeline: 처리 파이프라인 (legacy, standard, vlm, asr)
 
     Returns:
         ConvertResult: 변환 결과
@@ -43,11 +63,30 @@ async def convert_document(
         if len(file_content) == 0:
             raise HTTPException(status_code=400, detail="파일이 비어있습니다")
 
+        # 파라미터 변환
+        do_ocr_bool = do_ocr.lower() == "true"
+        do_table_bool = do_table_structure.lower() == "true"
+        include_images_bool = include_images.lower() == "true"
+        do_formula_bool = do_formula_enrichment.lower() == "true"
+
+        page_start = int(page_range_start) if page_range_start else 1
+        page_end = int(page_range_end) if page_range_end else 9223372036854776000
+
         # Docling Service 호출
         result = await docling_service.convert_document(
             file_content=file_content,
             filename=file.filename,
-            target_type=target_type
+            target_type=target_type,
+            to_formats=to_formats,
+            do_ocr=do_ocr_bool,
+            do_table_structure=do_table_bool,
+            include_images=include_images_bool,
+            table_mode=table_mode,
+            image_export_mode=image_export_mode,
+            page_range_start=page_start,
+            page_range_end=page_end,
+            do_formula_enrichment=do_formula_bool,
+            pipeline=pipeline
         )
 
         return result
