@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { FileText, Home, Network } from "lucide-react"
+import { FileText, Home, Network, Files } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { cn } from "@/lib/utils"
 
@@ -12,6 +12,7 @@ export function NavHeader() {
   const navItems = [
     { href: "/", label: "Home", icon: Home },
     { href: "/parse", label: "문서 파싱", icon: FileText },
+    { href: "/batch-parse", label: "일괄 파싱", icon: Files },
     { href: "/dify", label: "Dify 연동", icon: Network },
   ]
 

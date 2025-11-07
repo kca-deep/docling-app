@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { PageContainer } from "@/components/page-container";
 
 interface ConvertResult {
@@ -120,7 +121,7 @@ export default function ParsePage() {
       </div>
 
       <div className="grid lg:grid-cols-[1fr_300px] gap-6">
-        <Card>
+        <Card className="min-w-0 overflow-hidden">
           <CardContent className="pt-6">
             {!result ? (
               <form onSubmit={handleSubmit} className="space-y-6">
@@ -222,8 +223,8 @@ export default function ParsePage() {
 
                 {/* 문서 정보 */}
                 {result.document && (
-                  <div className="space-y-4">
-                    <Card>
+                  <div className="space-y-4 w-full">
+                    <Card className="w-full">
                       <CardHeader>
                         <CardTitle>문서 정보</CardTitle>
                         <CardDescription>변환된 문서의 상세 정보</CardDescription>
@@ -252,32 +253,36 @@ export default function ParsePage() {
 
                     {/* 마크다운 내용 - Tabs로 표시 */}
                     {result.document.md_content && (
-                      <Card>
+                      <Card className="w-full">
                         <CardHeader>
                           <CardTitle>변환된 마크다운</CardTitle>
                           <CardDescription>문서가 마크다운 형식으로 변환되었습니다</CardDescription>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="w-full">
                           <Tabs defaultValue="preview" className="w-full">
                             <TabsList className="grid w-full grid-cols-2">
                               <TabsTrigger value="preview">미리보기</TabsTrigger>
                               <TabsTrigger value="full">전체 내용</TabsTrigger>
                             </TabsList>
                             <TabsContent value="preview" className="mt-4">
-                              <div className="max-h-96 overflow-y-auto bg-muted/50 p-4 rounded-lg border">
-                                <pre className="text-sm whitespace-pre-wrap font-mono">
-                                  {result.document.md_content.substring(0, 2000)}
-                                  {result.document.md_content.length > 2000 && "\n\n... (내용이 잘렸습니다. '전체 내용' 탭을 확인하세요)"}
-                                </pre>
-                              </div>
+                              <ScrollArea className="h-96 w-full rounded-lg border bg-muted/50">
+                                <div className="p-4">
+                                  <pre className="text-sm whitespace-pre-wrap break-words font-mono overflow-x-auto">
+                                    {result.document.md_content.substring(0, 2000)}
+                                    {result.document.md_content.length > 2000 && "\n\n... (내용이 잘렸습니다. '전체 내용' 탭을 확인하세요)"}
+                                  </pre>
+                                </div>
+                              </ScrollArea>
                             </TabsContent>
-                            <TabsContent value="full" className="mt-4">
-                              <div className="max-h-96 overflow-y-auto bg-muted/50 p-4 rounded-lg border">
-                                <pre className="text-sm whitespace-pre-wrap font-mono">
-                                  {result.document.md_content}
-                                </pre>
-                              </div>
-                              <div className="flex justify-end mt-4">
+                            <TabsContent value="full" className="mt-4 space-y-4">
+                              <ScrollArea className="h-96 w-full rounded-lg border bg-muted/50">
+                                <div className="p-4">
+                                  <pre className="text-sm whitespace-pre-wrap break-words font-mono overflow-x-auto">
+                                    {result.document.md_content}
+                                  </pre>
+                                </div>
+                              </ScrollArea>
+                              <div className="flex justify-end">
                                 <Button
                                   variant="outline"
                                   size="sm"
