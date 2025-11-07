@@ -6,6 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config.settings import settings
 from backend.api.routes import document
+from backend.database import init_db
+from backend.models import document as document_model  # Import to register models
 
 # FastAPI 앱 생성
 app = FastAPI(
@@ -13,6 +15,14 @@ app = FastAPI(
     version=settings.API_VERSION,
     description="Docling Serve를 활용한 문서 파싱 API"
 )
+
+
+# 앱 시작 시 DB 초기화
+@app.on_event("startup")
+async def startup_event():
+    """앱 시작 시 실행되는 이벤트 핸들러"""
+    init_db()
+    print("✅ Database initialized successfully")
 
 # CORS 설정
 app.add_middleware(

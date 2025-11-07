@@ -61,3 +61,22 @@ backend/venv/
 
 # Documents
 docu/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# OS
+Thumbs.db

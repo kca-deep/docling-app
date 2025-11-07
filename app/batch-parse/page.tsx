@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Upload, FileText, Loader2, CheckCircle2, XCircle, Download, Trash2, FolderOpen } from "lucide-react";
+import { Upload, FileText, Loader2, CheckCircle2, XCircle, Download, Trash2, FolderOpen, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -139,6 +140,91 @@ export default function BatchParsePage() {
         URL.revokeObjectURL(url);
       }
     });
+  };
+
+  const handleSaveDocument = async (fileStatus: FileStatus) => {
+    if (!fileStatus.result?.document?.md_content) return;
+
+    const saveRequest = {
+      task_id: fileStatus.result.task_id,
+      original_filename: fileStatus.result.document.filename,
+      file_size: fileStatus.file.size,
+      file_type: fileStatus.file.name.split('.').pop() || '',
+      md_content: fileStatus.result.document.md_content,
+      processing_time: fileStatus.result.processing_time,
+      parse_options: null,
+    };
+
+    toast.promise(
+      fetch("http://localhost:8000/api/documents/save", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(saveRequest),
+      }).then(async (response) => {
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.detail || "문서 저장에 실패했습니다");
+        }
+        return response.json();
+      }),
+      {
+        loading: "문서 저장 중...",
+        success: `"${fileStatus.result.document.filename}" 저장 완료!`,
+        error: (err) => err.message || "문서 저장에 실패했습니다.",
+      }
+    );
+  };
+
+  const handleSaveAllDocuments = async () => {
+    const successFiles = files.filter(f => f.status === "success" && f.result?.document?.md_content);
+
+    if (successFiles.length === 0) return;
+
+    // 모든 파일을 순차적으로 저장
+    const savePromises = successFiles.map(fileStatus => {
+      const saveRequest = {
+        task_id: fileStatus.result!.task_id,
+        original_filename: fileStatus.result!.document!.filename,
+        file_size: fileStatus.file.size,
+        file_type: fileStatus.file.name.split('.').pop() || '',
+        md_content: fileStatus.result!.document!.md_content!,
+        processing_time: fileStatus.result!.processing_time,
+        parse_options: null,
+      };
+
+      return fetch("http://localhost:8000/api/documents/save", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(saveRequest),
+      }).then(async (response) => {
+        if (!response.ok) {
+          const error = await response.json();
+          // 이미 저장된 문서는 무시
+          if (error.detail?.includes("이미 저장된 문서")) {
+            return { skipped: true };
+          }
+          throw new Error(error.detail || "문서 저장 실패");
+        }
+        return response.json();
+      });
+    });
+
+    toast.promise(
+      Promise.all(savePromises),
+      {
+        loading: `${successFiles.length}개 문서 저장 중...`,
+        success: (results) => {
+          const saved = results.filter(r => !r.skipped).length;
+          const skipped = results.filter(r => r.skipped).length;
+          return `${saved}개 저장 완료${skipped > 0 ? `, ${skipped}개 이미 저장됨` : ''}!`;
+        },
+        error: "일부 문서 저장에 실패했습니다.",
+      }
+    );
   };
 
   const successCount = files.filter(f => f.status === "success").length;
@@ -322,14 +408,24 @@ export default function BatchParsePage() {
                     )}
                   </Button>
                   {successCount > 0 && !processing && (
-                    <Button
-                      variant="outline"
-                      onClick={downloadAll}
-                      size="lg"
-                    >
-                      <Download className="w-5 h-5" />
-                      전체 다운로드
-                    </Button>
+                    <>
+                      <Button
+                        variant="outline"
+                        onClick={handleSaveAllDocuments}
+                        size="lg"
+                      >
+                        <Save className="w-5 h-5" />
+                        전체 저장
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={downloadAll}
+                        size="lg"
+                      >
+                        <Download className="w-5 h-5" />
+                        전체 다운로드
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -408,7 +504,7 @@ export default function BatchParsePage() {
                                     <TabsTrigger value="preview">미리보기</TabsTrigger>
                                     <TabsTrigger value="full">전체 내용</TabsTrigger>
                                   </TabsList>
-                                  <TabsContent value="preview" className="mt-4">
+                                  <TabsContent value="preview" className="mt-4 space-y-4">
                                     <ScrollArea className="h-64 w-full rounded-lg border bg-muted/50">
                                       <div className="p-4">
                                         <pre className="text-sm whitespace-pre-wrap break-words font-mono overflow-x-auto">
@@ -419,6 +515,35 @@ export default function BatchParsePage() {
                                         </pre>
                                       </div>
                                     </ScrollArea>
+                                    <div className="flex justify-end gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleSaveDocument(fileStatus)}
+                                      >
+                                        <Save className="w-4 h-4 mr-2" />
+                                        문서 저장
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                          const blob = new Blob(
+                                            [fileStatus.result!.document!.md_content!],
+                                            { type: 'text/markdown' }
+                                          );
+                                          const url = URL.createObjectURL(blob);
+                                          const a = document.createElement('a');
+                                          a.href = url;
+                                          a.download = `${fileStatus.result!.document!.filename}.md`;
+                                          a.click();
+                                          URL.revokeObjectURL(url);
+                                        }}
+                                      >
+                                        <Download className="w-4 h-4 mr-2" />
+                                        다운로드
+                                      </Button>
+                                    </div>
                                   </TabsContent>
                                   <TabsContent value="full" className="mt-4 space-y-4">
                                     <ScrollArea className="h-64 w-full rounded-lg border bg-muted/50">
@@ -428,7 +553,15 @@ export default function BatchParsePage() {
                                         </pre>
                                       </div>
                                     </ScrollArea>
-                                    <div className="flex justify-end">
+                                    <div className="flex justify-end gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleSaveDocument(fileStatus)}
+                                      >
+                                        <Save className="w-4 h-4 mr-2" />
+                                        문서 저장
+                                      </Button>
                                       <Button
                                         variant="outline"
                                         size="sm"

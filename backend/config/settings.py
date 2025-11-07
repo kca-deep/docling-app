@@ -1,34 +1,63 @@
 """
 애플리케이션 설정
+.env 파일에서 환경변수를 읽어옵니다.
 """
 from pydantic_settings import BaseSettings
+from typing import List
 
 
 class Settings(BaseSettings):
     """애플리케이션 설정"""
 
+    # Database 설정
+    DATABASE_URL: str = "sqlite:///./docling.db"
+
     # Docling Serve API 설정
     DOCLING_BASE_URL: str = "http://kca-ai.kro.kr:8007"
-    DOCLING_ASYNC_API_URL: str = f"{DOCLING_BASE_URL}/v1/convert/file/async"
-    DOCLING_STATUS_API_URL: str = f"{DOCLING_BASE_URL}/v1/status/poll"
-    DOCLING_RESULT_API_URL: str = f"{DOCLING_BASE_URL}/v1/result"
 
     # API 설정
     API_TITLE: str = "Docling Parse API"
     API_VERSION: str = "1.0.0"
 
-    # CORS 설정
-    ALLOWED_ORIGINS: list = ["http://localhost:3000", "http://localhost:3001"]
+    # CORS 설정 (JSON 배열로 파싱됨)
+    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:3001"]
 
     # 파일 업로드 설정
-    MAX_UPLOAD_SIZE: int = 50 * 1024 * 1024  # 50MB
-    ALLOWED_EXTENSIONS: set = {".pdf", ".docx", ".doc", ".pptx", ".ppt"}
+    MAX_UPLOAD_SIZE_MB: int = 50  # MB 단위
+    ALLOWED_EXTENSIONS: List[str] = [".pdf", ".docx", ".doc", ".pptx", ".ppt"]
 
     # 폴링 설정
     POLL_INTERVAL: int = 2  # 초
 
+    # === Computed Properties ===
+
+    @property
+    def MAX_UPLOAD_SIZE(self) -> int:
+        """바이트 단위로 변환된 최대 업로드 크기"""
+        return self.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+
+    @property
+    def ALLOWED_EXTENSIONS_SET(self) -> set:
+        """Set 형태로 변환된 허용 확장자"""
+        return set(self.ALLOWED_EXTENSIONS)
+
+    @property
+    def DOCLING_ASYNC_API_URL(self) -> str:
+        """Docling Serve 비동기 변환 API URL"""
+        return f"{self.DOCLING_BASE_URL}/v1/convert/file/async"
+
+    @property
+    def DOCLING_STATUS_API_URL(self) -> str:
+        """Docling Serve 상태 조회 API URL"""
+        return f"{self.DOCLING_BASE_URL}/v1/status/poll"
+
+    @property
+    def DOCLING_RESULT_API_URL(self) -> str:
+        """Docling Serve 결과 조회 API URL"""
+        return f"{self.DOCLING_BASE_URL}/v1/result"
+
     class Config:
-        env_file = ".env"
+        env_file = "backend/.env"
         case_sensitive = True
 
 

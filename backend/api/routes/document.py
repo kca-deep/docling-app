@@ -1,16 +1,23 @@
 """
 문서 변환 API 라우트
 """
-from fastapi import APIRouter, UploadFile, File, HTTPException, Form
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Depends
 from fastapi.responses import JSONResponse
-from typing import Optional
+from sqlalchemy.orm import Session
+from typing import Optional, List
 
 from backend.services.docling_service import DoclingService
+from backend.services import document_crud
+from backend.database import get_db
 from backend.models.schemas import (
     ConvertResult,
     TaskStatusResponse,
     ErrorResponse,
-    TargetType
+    TargetType,
+    DocumentSaveRequest,
+    DocumentSaveResponse,
+    DocumentListResponse,
+    DocumentDetailResponse,
 )
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
@@ -129,3 +136,170 @@ async def get_task_status(task_id: str):
 async def health_check():
     """헬스 체크 API"""
     return {"status": "ok", "service": "docling-parse-api"}
+
+
+# === 문서 저장/관리 API ===
+
+@router.post("/save", response_model=DocumentSaveResponse)
+async def save_document(
+    request: DocumentSaveRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    문서 저장 API
+
+    Args:
+        request: 문서 저장 요청 데이터
+        db: DB 세션
+
+    Returns:
+        DocumentSaveResponse: 저장된 문서 정보
+    """
+    try:
+        # 이미 저장된 문서인지 확인 (task_id 중복 체크)
+        existing_doc = document_crud.get_document_by_task_id(db, request.task_id)
+        if existing_doc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"이미 저장된 문서입니다 (task_id: {request.task_id})"
+            )
+
+        # 문서 저장
+        saved_doc = document_crud.create_document(db, request)
+
+        return DocumentSaveResponse(
+            id=saved_doc.id,
+            task_id=saved_doc.task_id,
+            original_filename=saved_doc.original_filename,
+            message="문서가 성공적으로 저장되었습니다"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"문서 저장 중 오류 발생: {str(e)}"
+        )
+
+
+@router.get("/saved", response_model=List[DocumentListResponse])
+async def get_saved_documents(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """
+    저장된 문서 목록 조회 API
+
+    Args:
+        skip: 건너뛸 개수 (페이징)
+        limit: 가져올 최대 개수
+        db: DB 세션
+
+    Returns:
+        List[DocumentListResponse]: 문서 목록 (메타데이터만)
+    """
+    try:
+        documents = document_crud.get_documents(db, skip=skip, limit=limit)
+
+        # Pydantic 모델로 변환
+        return [
+            DocumentListResponse(
+                id=doc.id,
+                task_id=doc.task_id,
+                original_filename=doc.original_filename,
+                content_length=doc.content_length,
+                content_preview=doc.content_preview,
+                processing_time=doc.processing_time,
+                created_at=doc.created_at.isoformat() if doc.created_at else ""
+            )
+            for doc in documents
+        ]
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"문서 목록 조회 중 오류 발생: {str(e)}"
+        )
+
+
+@router.get("/saved/{document_id}", response_model=DocumentDetailResponse)
+async def get_saved_document(
+    document_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    저장된 문서 상세 조회 API (전체 내용 포함)
+
+    Args:
+        document_id: 문서 ID
+        db: DB 세션
+
+    Returns:
+        DocumentDetailResponse: 문서 상세 정보 (전체 md_content 포함)
+    """
+    try:
+        document = document_crud.get_document_by_id(db, document_id)
+
+        if not document:
+            raise HTTPException(
+                status_code=404,
+                detail=f"문서를 찾을 수 없습니다 (ID: {document_id})"
+            )
+
+        return DocumentDetailResponse(
+            id=document.id,
+            task_id=document.task_id,
+            original_filename=document.original_filename,
+            file_size=document.file_size,
+            file_type=document.file_type,
+            md_content=document.md_content,
+            processing_time=document.processing_time,
+            content_length=document.content_length,
+            download_count=document.download_count,
+            created_at=document.created_at.isoformat() if document.created_at else ""
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"문서 조회 중 오류 발생: {str(e)}"
+        )
+
+
+@router.delete("/saved/{document_id}")
+async def delete_saved_document(
+    document_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    저장된 문서 삭제 API
+
+    Args:
+        document_id: 문서 ID
+        db: DB 세션
+
+    Returns:
+        삭제 성공 메시지
+    """
+    try:
+        success = document_crud.delete_document(db, document_id)
+
+        if not success:
+            raise HTTPException(
+                status_code=404,
+                detail=f"문서를 찾을 수 없습니다 (ID: {document_id})"
+            )
+
+        return {"message": "문서가 성공적으로 삭제되었습니다", "id": document_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"문서 삭제 중 오류 발생: {str(e)}"
+        )
