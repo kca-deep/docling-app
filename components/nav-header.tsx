@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { FileText, Home, Network, Files } from "lucide-react"
+import { FileText, Home, Network, Files, Link2 } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { cn } from "@/lib/utils"
 
@@ -11,9 +11,9 @@ export function NavHeader() {
 
   const navItems = [
     { href: "/", label: "Home", icon: Home },
-    { href: "/parse", label: "문서 파싱", icon: FileText },
-    { href: "/batch-parse", label: "일괄 파싱", icon: Files },
-    { href: "/dify", label: "Dify 연동", icon: Network },
+    { href: "/parse", label: "문서변환", icon: FileText },
+    { href: "/url-parse", label: "URL", icon: Link2 },
+    { href: "/dify", label: "Dify", icon: Network },
   ]
 
   return (
@@ -28,7 +28,7 @@ export function NavHeader() {
         </div>
 
         {/* Navigation - Center */}
-        <nav className="hidden md:flex items-center justify-center gap-1">
+        <nav className="hidden md:flex items-center justify-center gap-0.5">
           {navItems.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href
@@ -38,12 +38,12 @@ export function NavHeader() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
+                  "inline-flex items-center justify-center whitespace-nowrap rounded-md px-2.5 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
                   isActive && "bg-accent"
                 )}
               >
-                <Icon className="mr-1.5 h-4 w-4" />
-                {item.label}
+                <Icon className="mr-1.5 h-4 w-4 flex-shrink-0" />
+                <span>{item.label}</span>
               </Link>
             )
           })}
@@ -52,7 +52,7 @@ export function NavHeader() {
         {/* Mobile Navigation & Theme Toggle - Right */}
         <div className="flex items-center justify-end gap-1">
           {/* Mobile menu */}
-          <div className="md:hidden flex gap-1">
+          <div className="md:hidden flex gap-0.5">
             {navItems.map((item) => {
               const Icon = item.icon
               const isActive = pathname === item.href
@@ -67,6 +67,7 @@ export function NavHeader() {
                       ? "bg-accent text-accent-foreground"
                       : "hover:bg-accent hover:text-accent-foreground"
                   )}
+                  title={item.label}
                 >
                   <Icon className="h-4 w-4" />
                   <span className="sr-only">{item.label}</span>

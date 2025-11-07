@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { FileText, Network, ArrowRight, Files, Upload, Brain, FileCode, Bot, MessageSquare } from "lucide-react"
+import { FileText, Network, ArrowRight, Files, Upload, Brain, FileCode, Bot, MessageSquare, Link2 } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { PageContainer } from "@/components/page-container"
 import { Badge } from "@/components/ui/badge"
@@ -9,15 +9,15 @@ export default function HomePage() {
   const features = [
     {
       icon: FileText,
-      title: "문서 파싱",
-      description: "PDF, DOCX, PPTX 파일을 마크다운으로 변환합니다",
+      title: "문서 변환",
+      description: "PDF, DOCX, PPTX 파일을 마크다운으로 변환합니다 (단일/일괄)",
       href: "/parse",
     },
     {
-      icon: Files,
-      title: "다중 파일 일괄 파싱",
-      description: "여러 개의 파일을 한 번에 업로드하여 일괄 변환합니다",
-      href: "/batch-parse",
+      icon: Link2,
+      title: "URL 기반 파싱",
+      description: "웹 문서 URL을 입력하여 마크다운으로 변환합니다",
+      href: "/url-parse",
     },
     {
       icon: Network,
@@ -78,13 +78,13 @@ export default function HomePage() {
           <Link href="/parse">
             <Button size="lg" className="gap-2">
               <FileText className="w-5 h-5" />
-              시작하기
+              문서 변환 시작
             </Button>
           </Link>
-          <Link href="/batch-parse">
+          <Link href="/url-parse">
             <Button size="lg" variant="outline" className="gap-2">
-              <Files className="w-5 h-5" />
-              일괄 파싱
+              <Link2 className="w-5 h-5" />
+              URL 파싱
             </Button>
           </Link>
         </div>
@@ -145,7 +145,7 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
           {features.map((feature) => {
             const Icon = feature.icon
             return (
