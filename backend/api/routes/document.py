@@ -18,6 +18,7 @@ from backend.models.schemas import (
     DocumentSaveResponse,
     DocumentListResponse,
     DocumentDetailResponse,
+    URLConvertRequest,
 )
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
@@ -104,6 +105,49 @@ async def convert_document(
         raise HTTPException(
             status_code=500,
             detail=f"문서 변환 중 오류 발생: {str(e)}"
+        )
+
+
+@router.post("/convert-url", response_model=ConvertResult)
+async def convert_url(request: URLConvertRequest):
+    """
+    URL 문서 변환 API
+
+    Args:
+        request: URL 변환 요청 (JSON)
+
+    Returns:
+        ConvertResult: 변환 결과
+    """
+    try:
+        # URL 검증
+        if not request.url or not request.url.strip():
+            raise HTTPException(status_code=400, detail="URL이 비어있습니다")
+
+        # Docling Service 호출
+        result = await docling_service.convert_url(
+            url=request.url,
+            target_type=request.target_type,
+            to_formats=request.to_formats,
+            do_ocr=request.do_ocr,
+            do_table_structure=request.do_table_structure,
+            include_images=request.include_images,
+            table_mode=request.table_mode,
+            image_export_mode=request.image_export_mode,
+            page_range_start=request.page_range_start,
+            page_range_end=request.page_range_end,
+            do_formula_enrichment=request.do_formula_enrichment,
+            pipeline=request.pipeline
+        )
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"URL 문서 변환 중 오류 발생: {str(e)}"
         )
 
 

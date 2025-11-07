@@ -93,22 +93,27 @@ export default function UrlParsePage() {
     setResult(null);
 
     try {
-      const formData = new FormData();
-      formData.append("source_url", sourceUrl);
-      formData.append("to_formats", parseOptions.to_formats);
-      formData.append("do_ocr", parseOptions.do_ocr.toString());
-      formData.append("do_table_structure", parseOptions.do_table_structure.toString());
-      formData.append("include_images", parseOptions.include_images.toString());
-      formData.append("table_mode", parseOptions.table_mode);
-      formData.append("image_export_mode", parseOptions.image_export_mode);
-      formData.append("page_range_start", parseOptions.page_range_start.toString());
-      formData.append("page_range_end", parseOptions.page_range_end.toString());
-      formData.append("do_formula_enrichment", parseOptions.do_formula_enrichment.toString());
-      formData.append("pipeline", parseOptions.pipeline);
+      const requestBody = {
+        url: sourceUrl,
+        target_type: "inbody",
+        to_formats: parseOptions.to_formats,
+        do_ocr: parseOptions.do_ocr,
+        do_table_structure: parseOptions.do_table_structure,
+        include_images: parseOptions.include_images,
+        table_mode: parseOptions.table_mode,
+        image_export_mode: parseOptions.image_export_mode,
+        page_range_start: parseOptions.page_range_start,
+        page_range_end: parseOptions.page_range_end,
+        do_formula_enrichment: parseOptions.do_formula_enrichment,
+        pipeline: parseOptions.pipeline,
+      };
 
       const response = await fetch("http://localhost:8000/api/documents/convert-url", {
         method: "POST",
-        body: formData,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -556,9 +561,10 @@ export default function UrlParsePage() {
                   </div>
 
                   {/* Markdown Content */}
-                  {result.document.md_content && (
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-medium">변환된 마크다운</h4>
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-medium">변환된 마크다운</h4>
+                    {result.document.md_content ? (
+                      <>
                       <Tabs defaultValue="preview" className="w-full">
                         <TabsList className="grid w-full grid-cols-2">
                           <TabsTrigger value="preview">미리보기</TabsTrigger>
@@ -605,8 +611,18 @@ export default function UrlParsePage() {
                           </div>
                         </TabsContent>
                       </Tabs>
-                    </div>
-                  )}
+                      </>
+                    ) : (
+                      <Alert>
+                        <FileText className="h-4 w-4" />
+                        <AlertTitle>내용이 비어있습니다</AlertTitle>
+                        <AlertDescription>
+                          URL에서 파싱 가능한 문서 내용을 찾을 수 없습니다.
+                          PDF, DOCX, PPTX 등의 문서 URL을 입력해주세요.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <Alert variant="destructive">

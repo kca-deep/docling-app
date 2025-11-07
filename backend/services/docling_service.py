@@ -16,6 +16,7 @@ class DoclingService:
     def __init__(self):
         self.base_url = settings.DOCLING_BASE_URL
         self.async_api_url = f"{self.base_url}/v1/convert/file/async"
+        self.source_async_api_url = f"{self.base_url}/v1/convert/source/async"
         self.status_api_url = f"{self.base_url}/v1/status/poll"
         self.result_api_url = f"{self.base_url}/v1/result"
         self.poll_interval = settings.POLL_INTERVAL
@@ -183,6 +184,111 @@ class DoclingService:
                 status=TaskStatus.FAILURE,
                 error="문서 정보를 찾을 수 없습니다"
             )
+
+    async def convert_url(
+        self,
+        url: str,
+        target_type: str = "inbody",
+        to_formats: str = "md",
+        do_ocr: bool = True,
+        do_table_structure: bool = True,
+        include_images: bool = True,
+        table_mode: str = "accurate",
+        image_export_mode: str = "embedded",
+        page_range_start: int = 1,
+        page_range_end: int = 9223372036854776000,
+        do_formula_enrichment: bool = False,
+        pipeline: str = "standard"
+    ) -> ConvertResult:
+        """
+        URL 문서 변환 (비동기 방식)
+
+        Args:
+            url: 파싱할 URL
+            target_type: 변환 타겟 타입 (inbody, zip)
+            to_formats: 출력 형식 (md, json, html, text, doctags)
+            do_ocr: OCR 인식 활성화
+            do_table_structure: 테이블 구조 인식
+            include_images: 이미지 포함
+            table_mode: 테이블 모드 (fast, accurate)
+            image_export_mode: 이미지 내보내기 모드 (placeholder, embedded, referenced)
+            page_range_start: 페이지 시작
+            page_range_end: 페이지 끝
+            do_formula_enrichment: 수식 인식
+            pipeline: 처리 파이프라인 (legacy, standard, vlm, asr)
+
+        Returns:
+            ConvertResult: 변환 결과
+        """
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            try:
+                # 1단계: 비동기 변환 작업 시작 (JSON 형식)
+                request_body = {
+                    "options": {
+                        "to_formats": [to_formats],
+                        "image_export_mode": image_export_mode,
+                        "do_ocr": do_ocr,
+                        "do_table_structure": do_table_structure,
+                        "include_images": include_images,
+                        "table_mode": table_mode,
+                        "page_range": [page_range_start, page_range_end],
+                        "do_formula_enrichment": do_formula_enrichment,
+                        "pipeline": pipeline
+                    },
+                    "sources": [
+                        {
+                            "kind": "http",
+                            "url": url
+                        }
+                    ],
+                    "target": {
+                        "kind": target_type
+                    }
+                }
+
+                response = await client.post(
+                    self.source_async_api_url,
+                    json=request_body
+                )
+
+                if response.status_code != 200:
+                    return ConvertResult(
+                        task_id="",
+                        status=TaskStatus.FAILURE,
+                        error=f"API 호출 실패: {response.status_code} - {response.text}"
+                    )
+
+                task_response = response.json()
+
+                if "task_id" not in task_response:
+                    return ConvertResult(
+                        task_id="",
+                        status=TaskStatus.FAILURE,
+                        error="Task ID를 받지 못했습니다"
+                    )
+
+                task_id = task_response["task_id"]
+
+                # 2단계: Task 상태 폴링
+                await self._wait_for_task_completion(client, task_id)
+
+                # 3단계: 결과 조회
+                result = await self._get_task_result(client, task_id)
+
+                return result
+
+            except httpx.TimeoutException:
+                return ConvertResult(
+                    task_id="",
+                    status=TaskStatus.FAILURE,
+                    error="API 요청 타임아웃"
+                )
+            except Exception as e:
+                return ConvertResult(
+                    task_id="",
+                    status=TaskStatus.FAILURE,
+                    error=f"예상치 못한 오류: {str(e)}"
+                )
 
     async def get_task_status(self, task_id: str) -> Dict[str, Any]:
         """Task 상태 조회"""

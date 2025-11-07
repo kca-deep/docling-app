@@ -258,3 +258,20 @@ class DifyConfigListResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# URL 파싱 관련 스키마
+class URLConvertRequest(BaseModel):
+    """URL 문서 변환 요청"""
+    url: str
+    target_type: str = "inbody"
+    to_formats: str = "md"
+    do_ocr: bool = True
+    do_table_structure: bool = True
+    include_images: bool = True
+    table_mode: str = "accurate"
+    image_export_mode: str = "embedded"
+    page_range_start: int = 1
+    page_range_end: int = 9223372036854776000
+    do_formula_enrichment: bool = False
+    pipeline: str = "standard"

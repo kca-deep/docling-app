@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { FileText, Home, Network, Files, Link2 } from "lucide-react"
+import { FileText, Home, Network, Files, Link2, Database } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { cn } from "@/lib/utils"
 
@@ -14,6 +14,7 @@ export function NavHeader() {
     { href: "/parse", label: "문서변환", icon: FileText },
     { href: "/url-parse", label: "URL", icon: Link2 },
     { href: "/dify", label: "Dify", icon: Network },
+    { href: "/qdrant", label: "Qdrant", icon: Database },
   ]
 
   return (
