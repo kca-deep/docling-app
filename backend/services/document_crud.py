@@ -85,21 +85,33 @@ def get_document_by_task_id(db: Session, task_id: str) -> Optional[Document]:
 
 
 def get_documents(
-    db: Session, skip: int = 0, limit: int = 100, order_by: str = "created_at"
-) -> List[Document]:
+    db: Session,
+    skip: int = 0,
+    limit: int = 100,
+    order_by: str = "created_at",
+    search: Optional[str] = None
+) -> tuple[List[Document], int]:
     """
-    문서 목록 조회
+    문서 목록 조회 (검색 및 페이징)
 
     Args:
         db: DB 세션
         skip: 건너뛸 개수 (페이징)
         limit: 가져올 최대 개수
         order_by: 정렬 기준 ("created_at", "updated_at")
+        search: 검색어 (파일명 검색)
 
     Returns:
-        Document 리스트
+        (Document 리스트, 전체 개수)
     """
     query = db.query(Document)
+
+    # 검색 필터
+    if search:
+        query = query.filter(Document.original_filename.contains(search))
+
+    # 전체 개수 조회 (페이징 전)
+    total = query.count()
 
     # 정렬
     if order_by == "updated_at":
@@ -107,7 +119,10 @@ def get_documents(
     else:
         query = query.order_by(Document.created_at.desc())
 
-    return query.offset(skip).limit(limit).all()
+    # 페이징
+    documents = query.offset(skip).limit(limit).all()
+
+    return documents, total
 
 
 def delete_document(db: Session, document_id: int) -> bool:

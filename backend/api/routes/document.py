@@ -183,28 +183,32 @@ async def save_document(
         )
 
 
-@router.get("/saved", response_model=List[DocumentListResponse])
+@router.get("/saved")
 async def get_saved_documents(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 20,
+    search: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     """
-    저장된 문서 목록 조회 API
+    저장된 문서 목록 조회 API (검색 및 페이징 지원)
 
     Args:
         skip: 건너뛸 개수 (페이징)
         limit: 가져올 최대 개수
+        search: 검색어 (파일명 검색)
         db: DB 세션
 
     Returns:
-        List[DocumentListResponse]: 문서 목록 (메타데이터만)
+        dict: 문서 목록, 전체 개수, 페이지 정보
     """
     try:
-        documents = document_crud.get_documents(db, skip=skip, limit=limit)
+        documents, total = document_crud.get_documents(
+            db, skip=skip, limit=limit, search=search
+        )
 
         # Pydantic 모델로 변환
-        return [
+        items = [
             DocumentListResponse(
                 id=doc.id,
                 task_id=doc.task_id,
@@ -213,9 +217,17 @@ async def get_saved_documents(
                 content_preview=doc.content_preview,
                 processing_time=doc.processing_time,
                 created_at=doc.created_at.isoformat() if doc.created_at else ""
-            )
+            ).model_dump()
             for doc in documents
         ]
+
+        return {
+            "items": items,
+            "total": total,
+            "page": (skip // limit) + 1,
+            "page_size": limit,
+            "total_pages": (total + limit - 1) // limit
+        }
 
     except Exception as e:
         raise HTTPException(

@@ -11,7 +11,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Docling App - 문서 파싱 플랫폼",
+  title: "KCA-RAG 파이프라인 - 문서 파싱 플랫폼",
   description: "PDF, DOCX, PPTX 파일을 마크다운으로 변환하고 Dify AI와 연동합니다",
 };
 

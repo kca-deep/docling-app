@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Upload, FileText, Loader2, CheckCircle2, XCircle, Download, Trash2, FolderOpen, Save } from "lucide-react";
+import { Upload, FileText, Loader2, CheckCircle2, XCircle, Download, Trash2, FolderOpen, Save, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -13,6 +13,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { PageContainer } from "@/components/page-container";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
 
 interface FileStatus {
   file: File;
@@ -30,9 +35,37 @@ interface FileStatus {
   };
 }
 
+interface ParseOptions {
+  to_formats: string;
+  do_ocr: boolean;
+  do_table_structure: boolean;
+  include_images: boolean;
+  table_mode: string;
+  image_export_mode: string;
+  page_range_start: number;
+  page_range_end: number;
+  do_formula_enrichment: boolean;
+  pipeline: string;
+}
+
 export default function BatchParsePage() {
   const [files, setFiles] = useState<FileStatus[]>([]);
   const [processing, setProcessing] = useState(false);
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+
+  // 파싱 옵션 상태
+  const [parseOptions, setParseOptions] = useState<ParseOptions>({
+    to_formats: "md",
+    do_ocr: true,
+    do_table_structure: true,
+    include_images: true,
+    table_mode: "accurate",
+    image_export_mode: "embedded",
+    page_range_start: 1,
+    page_range_end: 9223372036854776000,
+    do_formula_enrichment: false,
+    pipeline: "standard",
+  });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -58,15 +91,16 @@ export default function BatchParsePage() {
     try {
       const formData = new FormData();
       formData.append("file", fileStatus.file);
-      formData.append("to_formats", "md");
-      formData.append("do_ocr", "true");
-      formData.append("do_table_structure", "true");
-      formData.append("include_images", "true");
-      formData.append("table_mode", "accurate");
-      formData.append("image_export_mode", "embedded");
-      formData.append("page_range_start", "1");
-      formData.append("page_range_end", "9223372036854776000");
-      formData.append("do_formula_enrichment", "false");
+      formData.append("to_formats", parseOptions.to_formats);
+      formData.append("do_ocr", parseOptions.do_ocr.toString());
+      formData.append("do_table_structure", parseOptions.do_table_structure.toString());
+      formData.append("include_images", parseOptions.include_images.toString());
+      formData.append("table_mode", parseOptions.table_mode);
+      formData.append("image_export_mode", parseOptions.image_export_mode);
+      formData.append("page_range_start", parseOptions.page_range_start.toString());
+      formData.append("page_range_end", parseOptions.page_range_end.toString());
+      formData.append("do_formula_enrichment", parseOptions.do_formula_enrichment.toString());
+      formData.append("pipeline", parseOptions.pipeline);
 
       // Simulate progress
       setFiles(prev => prev.map((f, i) =>
@@ -152,7 +186,7 @@ export default function BatchParsePage() {
       file_type: fileStatus.file.name.split('.').pop() || '',
       md_content: fileStatus.result.document.md_content,
       processing_time: fileStatus.result.processing_time,
-      parse_options: null,
+      parse_options: parseOptions,
     };
 
     toast.promise(
@@ -191,7 +225,7 @@ export default function BatchParsePage() {
         file_type: fileStatus.file.name.split('.').pop() || '',
         md_content: fileStatus.result!.document!.md_content!,
         processing_time: fileStatus.result!.processing_time,
-        parse_options: null,
+        parse_options: parseOptions,
       };
 
       return fetch("http://localhost:8000/api/documents/save", {
@@ -244,6 +278,191 @@ export default function BatchParsePage() {
       </div>
 
       <div className="space-y-6">
+        {/* Parsing Options Section */}
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="w-5 h-5" />
+              파싱 옵션
+            </CardTitle>
+            <CardDescription>문서 파싱 시 적용할 옵션을 설정하세요</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Basic Options */}
+            <div className="grid grid-cols-4 gap-3">
+              <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+                <Label htmlFor="do_ocr" className="flex flex-col gap-1 cursor-pointer flex-1">
+                  <span className="font-medium text-sm">OCR 인식</span>
+                  <span className="text-xs text-muted-foreground font-normal">
+                    이미지 내 텍스트
+                  </span>
+                </Label>
+                <Switch
+                  id="do_ocr"
+                  checked={parseOptions.do_ocr}
+                  onCheckedChange={(checked) =>
+                    setParseOptions({ ...parseOptions, do_ocr: checked })
+                  }
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+                <Label htmlFor="do_table_structure" className="flex flex-col gap-1 cursor-pointer flex-1">
+                  <span className="font-medium text-sm">테이블 구조</span>
+                  <span className="text-xs text-muted-foreground font-normal">
+                    표 형식 데이터
+                  </span>
+                </Label>
+                <Switch
+                  id="do_table_structure"
+                  checked={parseOptions.do_table_structure}
+                  onCheckedChange={(checked) =>
+                    setParseOptions({ ...parseOptions, do_table_structure: checked })
+                  }
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+                <Label htmlFor="include_images" className="flex flex-col gap-1 cursor-pointer flex-1">
+                  <span className="font-medium text-sm">이미지 포함</span>
+                  <span className="text-xs text-muted-foreground font-normal">
+                    문서 내 이미지
+                  </span>
+                </Label>
+                <Switch
+                  id="include_images"
+                  checked={parseOptions.include_images}
+                  onCheckedChange={(checked) =>
+                    setParseOptions({ ...parseOptions, include_images: checked })
+                  }
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+                <Label htmlFor="do_formula_enrichment" className="flex flex-col gap-1 cursor-pointer flex-1">
+                  <span className="font-medium text-sm">수식 인식</span>
+                  <span className="text-xs text-muted-foreground font-normal">
+                    수학 공식
+                  </span>
+                </Label>
+                <Switch
+                  id="do_formula_enrichment"
+                  checked={parseOptions.do_formula_enrichment}
+                  onCheckedChange={(checked) =>
+                    setParseOptions({ ...parseOptions, do_formula_enrichment: checked })
+                  }
+                />
+              </div>
+            </div>
+
+            {/* Advanced Options (Collapsible) */}
+            <Collapsible open={isAdvancedOpen} onOpenChange={setIsAdvancedOpen}>
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className="w-full flex items-center justify-between p-2 hover:bg-accent hover:text-accent-foreground"
+                >
+                  <span className="text-sm font-medium">고급 옵션</span>
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform duration-200 ${
+                      isAdvancedOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-4">
+                <div className="grid grid-cols-4 gap-3">
+                  <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+                    <Label htmlFor="to_formats" className="text-sm whitespace-nowrap mr-2">
+                      출력 형식
+                    </Label>
+                    <Select
+                      value={parseOptions.to_formats}
+                      onValueChange={(value) =>
+                        setParseOptions({ ...parseOptions, to_formats: value })
+                      }
+                    >
+                      <SelectTrigger id="to_formats" className="h-9 w-auto min-w-[100px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="md">Markdown</SelectItem>
+                        <SelectItem value="json">JSON</SelectItem>
+                        <SelectItem value="html">HTML</SelectItem>
+                        <SelectItem value="text">Text</SelectItem>
+                        <SelectItem value="doctags">Doctags</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+                    <Label htmlFor="table_mode" className="text-sm whitespace-nowrap mr-2">
+                      테이블 모드
+                    </Label>
+                    <Select
+                      value={parseOptions.table_mode}
+                      onValueChange={(value) =>
+                        setParseOptions({ ...parseOptions, table_mode: value })
+                      }
+                    >
+                      <SelectTrigger id="table_mode" className="h-9 w-auto min-w-[100px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="fast">Fast</SelectItem>
+                        <SelectItem value="accurate">Accurate</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+                    <Label htmlFor="image_export_mode" className="text-sm whitespace-nowrap mr-2">
+                      이미지 모드
+                    </Label>
+                    <Select
+                      value={parseOptions.image_export_mode}
+                      onValueChange={(value) =>
+                        setParseOptions({ ...parseOptions, image_export_mode: value })
+                      }
+                    >
+                      <SelectTrigger id="image_export_mode" className="h-9 w-auto min-w-[100px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="placeholder">Placeholder</SelectItem>
+                        <SelectItem value="embedded">Embedded</SelectItem>
+                        <SelectItem value="referenced">Referenced</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+                    <Label htmlFor="pipeline" className="text-sm whitespace-nowrap mr-2">
+                      파이프라인
+                    </Label>
+                    <Select
+                      value={parseOptions.pipeline}
+                      onValueChange={(value) =>
+                        setParseOptions({ ...parseOptions, pipeline: value })
+                      }
+                    >
+                      <SelectTrigger id="pipeline" className="h-9 w-auto min-w-[100px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="standard">Standard</SelectItem>
+                        <SelectItem value="legacy">Legacy</SelectItem>
+                        <SelectItem value="vlm">VLM</SelectItem>
+                        <SelectItem value="asr">ASR</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          </CardContent>
+        </Card>
+
         {/* File Upload Section */}
         <Card className="min-w-0 overflow-hidden">
           <CardHeader>

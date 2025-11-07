@@ -31,15 +31,19 @@ if (-Not (Test-Path "node_modules")) {
 
 Write-Host ""
 Write-Host "Starting servers..." -ForegroundColor Green
-Write-Host "Backend: http://localhost:8000" -ForegroundColor Cyan
-Write-Host "Frontend: http://localhost:3000" -ForegroundColor Cyan
+Write-Host "Backend: http://localhost:8000 (로그는 현재 터미널에 표시됩니다)" -ForegroundColor Cyan
+Write-Host "Frontend: http://localhost:3000 (별도 창에서 실행됩니다)" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Press Ctrl+C to stop" -ForegroundColor Yellow
+Write-Host "Press Ctrl+C to stop both servers" -ForegroundColor Yellow
 Write-Host ""
 
-# Start backend in separate window
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$rootDir'; .\backend\venv\Scripts\activate; python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000"
+# Start frontend in separate window
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$rootDir'; npm run dev"
 
-# Start frontend in current window
+# Start backend in current window (so we can see logs)
 Start-Sleep -Seconds 2
-npm run dev
+Write-Host "=== Backend Server Starting ===" -ForegroundColor Green
+Write-Host ""
+
+& ".\backend\venv\Scripts\activate.ps1"
+python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000

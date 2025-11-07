@@ -5,9 +5,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config.settings import settings
-from backend.api.routes import document
+from backend.api.routes import document, dify
 from backend.database import init_db
 from backend.models import document as document_model  # Import to register models
+from backend.models import dify_upload_history, dify_config  # Import Dify models
 
 # FastAPI 앱 생성
 app = FastAPI(
@@ -35,6 +36,7 @@ app.add_middleware(
 
 # 라우터 등록
 app.include_router(document.router)
+app.include_router(dify.router)
 
 
 @app.get("/")
