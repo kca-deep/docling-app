@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { FileText, Network, ArrowRight, Files, Upload, Brain, FileCode, Bot, MessageSquare, Link2 } from "lucide-react"
+import { FileText, Network, ArrowRight, Upload, Brain, FileCode, Bot, MessageSquare, Link2, Database } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { PageContainer } from "@/components/page-container"
 import { Badge } from "@/components/ui/badge"
@@ -18,6 +18,12 @@ export default function HomePage() {
       title: "URL 기반 파싱",
       description: "웹 문서 URL을 입력하여 마크다운으로 변환합니다",
       href: "/url-parse",
+    },
+    {
+      icon: Database,
+      title: "Qdrant Vector DB",
+      description: "문서를 벡터 데이터베이스에 임베딩하여 저장합니다",
+      href: "/qdrant",
     },
     {
       icon: Network,
@@ -47,14 +53,20 @@ export default function HomePage() {
       description: "구조화된 텍스트로 변환",
     },
     {
-      icon: Bot,
+      icon: Database,
       number: "04",
+      title: "벡터 임베딩",
+      description: "Qdrant에 문서 저장",
+    },
+    {
+      icon: Bot,
+      number: "05",
       title: "Dify 연동",
       description: "AI 플랫폼 통합 (선택)",
     },
     {
       icon: MessageSquare,
-      number: "05",
+      number: "06",
       title: "RAG 활용",
       description: "문서 기반 질의응답",
     },
@@ -74,7 +86,7 @@ export default function HomePage() {
           문서를 AI로 분석하고 마크다운으로 변환하여 <br />
           RAG 기반 지능형 질의응답 시스템을 구축하세요
         </p>
-        <div className="flex gap-4 justify-center mt-8">
+        <div className="flex gap-4 justify-center mt-8 flex-wrap">
           <Link href="/parse">
             <Button size="lg" className="gap-2">
               <FileText className="w-5 h-5" />
@@ -87,6 +99,12 @@ export default function HomePage() {
               URL 파싱
             </Button>
           </Link>
+          <Link href="/qdrant">
+            <Button size="lg" variant="outline" className="gap-2">
+              <Database className="w-5 h-5" />
+              Vector DB
+            </Button>
+          </Link>
         </div>
       </div>
 
@@ -95,7 +113,7 @@ export default function HomePage() {
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold mb-4">전체 프로세스</h2>
           <p className="text-muted-foreground">
-            5단계로 문서를 AI 기반 지식베이스로 전환합니다
+            6단계로 문서를 AI 기반 지식베이스로 전환합니다
           </p>
         </div>
 
@@ -103,7 +121,7 @@ export default function HomePage() {
           {/* Connection Line */}
           <div className="hidden lg:block absolute top-1/2 left-0 right-0 h-0.5 bg-gradient-to-r from-primary/20 via-primary to-primary/20 -translate-y-1/2 z-0" />
 
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 relative z-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 relative z-10">
             {processSteps.map((step, index) => {
               const Icon = step.icon
               return (
@@ -145,7 +163,7 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
           {features.map((feature) => {
             const Icon = feature.icon
             return (

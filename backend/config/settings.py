@@ -29,6 +29,20 @@ class Settings(BaseSettings):
     # 폴링 설정
     POLL_INTERVAL: int = 2  # 초
 
+    # Qdrant Vector DB 설정
+    QDRANT_URL: str = "http://kca-ai.kro.kr:6333"
+    DEFAULT_COLLECTION_NAME: str = "documents"
+
+    # Docling Serve 청킹 서버 설정
+    DOCLING_CHUNKING_URL: str = "http://kca-ai.kro.kr:8007"
+    DEFAULT_CHUNK_SIZE: int = 500
+    DEFAULT_CHUNK_OVERLAP: int = 50
+
+    # BGE-M3 임베딩 서버 설정
+    EMBEDDING_URL: str = "http://kca-ai.kro.kr:8080"
+    EMBEDDING_MODEL: str = "bge-m3-korean"
+    EMBEDDING_DIMENSION: int = 1024
+
     # === Computed Properties ===
 
     @property
