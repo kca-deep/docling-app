@@ -3,7 +3,7 @@
 .env 파일에서 환경변수를 읽어옵니다.
 """
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Optional
 
 
 class Settings(BaseSettings):
@@ -31,6 +31,7 @@ class Settings(BaseSettings):
 
     # Qdrant Vector DB 설정
     QDRANT_URL: str = "http://kca-ai.kro.kr:6333"
+    QDRANT_API_KEY: Optional[str] = None
     DEFAULT_COLLECTION_NAME: str = "documents"
 
     # Docling Serve 청킹 서버 설정

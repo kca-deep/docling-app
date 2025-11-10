@@ -275,3 +275,58 @@ class URLConvertRequest(BaseModel):
     page_range_end: int = 9223372036854776000
     do_formula_enrichment: bool = False
     pipeline: str = "standard"
+
+
+# Qdrant Vector DB 관련 스키마
+class QdrantCollectionInfo(BaseModel):
+    """Qdrant Collection 정보"""
+    name: str
+    vectors_count: int
+    points_count: int
+    vector_size: int
+    distance: str
+
+
+class QdrantCollectionCreateRequest(BaseModel):
+    """Qdrant Collection 생성 요청"""
+    collection_name: str
+    vector_size: int = 1024
+    distance: str = "Cosine"  # Cosine, Euclidean, Dot
+
+
+class QdrantCollectionResponse(BaseModel):
+    """Qdrant Collection 생성/삭제 응답"""
+    success: bool
+    collection_name: str
+    message: str
+
+
+class QdrantCollectionsResponse(BaseModel):
+    """Qdrant Collection 목록 응답"""
+    collections: List[QdrantCollectionInfo]
+
+
+class QdrantUploadRequest(BaseModel):
+    """Qdrant 문서 업로드 요청"""
+    collection_name: str
+    document_ids: List[int]
+    chunk_size: int = 500
+    chunk_overlap: int = 50
+
+
+class QdrantUploadResult(BaseModel):
+    """Qdrant 문서 업로드 결과 (개별)"""
+    document_id: int
+    filename: str
+    success: bool
+    chunk_count: int = 0
+    vector_ids: List[str] = []
+    error: Optional[str] = None
+
+
+class QdrantUploadResponse(BaseModel):
+    """Qdrant 문서 업로드 응답 (전체)"""
+    total: int
+    success_count: int
+    failure_count: int
+    results: List[QdrantUploadResult]
