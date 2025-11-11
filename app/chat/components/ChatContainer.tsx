@@ -214,16 +214,7 @@ export function ChatContainer() {
       const aiMessageId = (Date.now() + 1).toString();
       let aiContent = "";
       let sources: Source[] = [];
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: aiMessageId,
-          role: "assistant",
-          content: "",
-          timestamp: new Date(),
-        },
-      ]);
+      let messageCreated = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -260,13 +251,29 @@ export function ChatContainer() {
               if (delta?.content) {
                 aiContent += delta.content;
 
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === aiMessageId
-                      ? { ...msg, content: aiContent, sources }
-                      : msg
-                  )
-                );
+                // 첫 컨텐츠가 도착했을 때만 메시지 생성
+                if (!messageCreated) {
+                  messageCreated = true;
+                  setMessages((prev) => [
+                    ...prev,
+                    {
+                      id: aiMessageId,
+                      role: "assistant",
+                      content: aiContent,
+                      timestamp: new Date(),
+                      sources,
+                    },
+                  ]);
+                } else {
+                  // 이후에는 업데이트
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === aiMessageId
+                        ? { ...msg, content: aiContent, sources }
+                        : msg
+                    )
+                  );
+                }
               }
             } catch (e) {
               console.debug("Failed to parse chunk:", data);

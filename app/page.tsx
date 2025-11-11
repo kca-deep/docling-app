@@ -197,34 +197,13 @@ export default function HomePage() {
         <div className="hidden lg:block max-w-[1400px] mx-auto px-8">
           <div className="relative">
             {/* Animated connection lines */}
-            <div className="absolute top-24 left-0 right-0 h-1 flex items-center gap-4 px-[4.5rem]">
-              {[0, 1, 2, 3].map((index) => {
-                const isCompleted = index < 1
-                const isActive = index === 1
-
-                return (
-                  <div key={index} className="flex-1 relative h-1 rounded-full overflow-hidden bg-muted">
-                    <div
-                      className={cn(
-                        "absolute inset-0 h-full transition-all duration-1000",
-                        isCompleted && "bg-gradient-to-r from-green-500 to-green-400",
-                        isActive && "bg-gradient-to-r from-primary to-primary/60 animate-pulse",
-                        !isCompleted && !isActive && "bg-muted"
-                      )}
-                      style={{
-                        width: isCompleted ? "100%" : isActive ? "50%" : "0%"
-                      }}
-                    />
-                    {/* Arrow */}
-                    <div className={cn(
-                      "absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 rotate-45 border-r-2 border-t-2 transition-colors",
-                      isCompleted && "border-green-500",
-                      isActive && "border-primary",
-                      !isCompleted && !isActive && "border-muted-foreground/20"
-                    )} />
-                  </div>
-                )
-              })}
+            <div className="absolute top-20 left-0 right-0 h-1 flex items-center gap-4 px-[4.5rem]">
+              {[0, 1, 2, 3].map((index) => (
+                <div key={index} className="flex-1 relative h-1 rounded-full overflow-hidden bg-blue-500">
+                  {/* Arrow */}
+                  <div className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 rotate-45 border-r-2 border-t-2 border-blue-500" />
+                </div>
+              ))}
             </div>
 
             {/* Process Cards - 개선된 3D 효과 */}
@@ -236,89 +215,42 @@ export default function HomePage() {
                     key={index}
                     className="group relative"
                   >
-                    {/* Glow effect on hover */}
-                    <div className={cn(
-                      "absolute -inset-4 rounded-2xl opacity-0 group-hover:opacity-100 transition-all duration-500 blur-2xl -z-10",
-                      step.status === "completed" && "bg-green-500/20",
-                      step.status === "active" && "bg-primary/30",
-                      step.status === "pending" && "bg-muted/20"
-                    )} />
+                    {/* Glow effect */}
+                    <div className="absolute -inset-4 rounded-2xl bg-blue-500/20 opacity-75 blur-2xl -z-10" />
 
-                    <Card className={cn(
-                      "relative h-full border-2 transition-all duration-300 backdrop-blur-sm",
-                      "transform group-hover:scale-105 group-hover:-translate-y-2",
-                      "shadow-lg group-hover:shadow-2xl",
-                      step.status === "completed" && "border-green-500/40 bg-gradient-to-br from-green-50/80 to-green-100/50 dark:from-green-950/40 dark:to-green-900/20",
-                      step.status === "active" && "border-primary/60 bg-gradient-to-br from-primary/10 to-primary/5 shadow-xl shadow-primary/20 ring-2 ring-primary/20",
-                      step.status === "pending" && "border-border bg-card/50 opacity-60"
-                    )}>
-                      <CardHeader className="text-center p-6 items-center space-y-4">
+                    <Card className="relative h-full border-2 border-blue-500/60 bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/60 dark:to-blue-900/30 shadow-xl backdrop-blur-sm">
+                      <CardHeader className="text-center p-4 items-center space-y-2">
                         {/* Step Number Badge */}
-                        <div className="absolute -top-4 -right-4 z-10">
-                          <div className={cn(
-                            "relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-lg",
-                            "ring-4 ring-background",
-                            step.status === "completed" && "bg-gradient-to-br from-green-500 to-green-600 text-white",
-                            step.status === "active" && "bg-gradient-to-br from-primary to-primary/80 text-primary-foreground animate-pulse",
-                            step.status === "pending" && "bg-muted text-muted-foreground"
-                          )}>
+                        <div className="absolute -top-3 -right-3 z-10">
+                          <div className="relative w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-lg ring-2 ring-background bg-gradient-to-br from-blue-500 to-blue-600 text-white">
                             {step.number}
-                            {step.status === "completed" && (
-                              <CheckCircle className="absolute -bottom-1 -right-1 w-4 h-4 text-green-600 bg-white rounded-full" />
-                            )}
                           </div>
                         </div>
 
                         {/* Icon with better styling */}
-                        <div className={cn(
-                          "relative w-20 h-20 rounded-2xl flex items-center justify-center",
-                          "transition-all duration-300 group-hover:scale-110 group-hover:rotate-3",
-                          "shadow-inner",
-                          step.status === "completed" && "bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900/50 dark:to-green-800/30",
-                          step.status === "active" && "bg-gradient-to-br from-primary/20 to-primary/10",
-                          step.status === "pending" && "bg-muted/50"
-                        )}>
-                          <Icon className={cn(
-                            "w-10 h-10 transition-transform group-hover:scale-110",
-                            step.status === "completed" && "text-green-600 dark:text-green-400",
-                            step.status === "active" && "text-primary",
-                            step.status === "pending" && "text-muted-foreground"
-                          )} />
+                        <div className="relative w-16 h-16 rounded-xl flex items-center justify-center shadow-inner bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/50 dark:to-blue-800/30">
+                          <Icon className="w-8 h-8 text-blue-600 dark:text-blue-400" />
                         </div>
 
                         {/* Title */}
-                        <div className="space-y-2 flex flex-col items-center">
-                          <CardTitle className="text-base font-bold text-center leading-tight">
+                        <div className="space-y-1.5 flex flex-col items-center">
+                          <CardTitle className="text-sm font-bold text-center leading-tight">
                             {step.title}
                           </CardTitle>
 
                           {/* Description */}
-                          <p className="text-xs text-muted-foreground text-center leading-relaxed px-2">
+                          <p className="text-[0.7rem] text-muted-foreground text-center leading-snug px-1">
                             {step.description}
                           </p>
 
                           {/* Tech Badge */}
                           <Badge
                             variant="secondary"
-                            className={cn(
-                              "text-[0.7rem] px-2.5 py-1 font-medium shadow-sm",
-                              step.status === "active" && "bg-primary/10 text-primary border-primary/20"
-                            )}
+                            className="text-[0.65rem] px-2 py-0.5 font-medium shadow-sm bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20"
                           >
                             {step.tech}
                           </Badge>
                         </div>
-
-                        {/* Status Indicator */}
-                        {step.status === "active" && (
-                          <div className="flex items-center gap-2 text-xs font-medium text-primary">
-                            <div className="relative flex h-3 w-3">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
-                            </div>
-                            진행 중
-                          </div>
-                        )}
                       </CardHeader>
                     </Card>
                   </div>
@@ -333,7 +265,7 @@ export default function HomePage() {
           <div className="relative">
             {/* Animated Vertical Connection Line */}
             <div className="absolute left-10 top-8 bottom-8 w-1 rounded-full overflow-hidden bg-muted">
-              <div className="absolute top-0 left-0 right-0 h-1/3 bg-gradient-to-b from-green-500 to-primary" />
+              <div className="absolute top-0 left-0 right-0 h-full bg-gradient-to-b from-blue-500 to-blue-600" />
             </div>
 
             {/* Process Cards */}
@@ -343,60 +275,23 @@ export default function HomePage() {
                 return (
                   <div key={index} className="relative flex gap-5 items-start">
                     {/* Enhanced Step Circle */}
-                    <div className={cn(
-                      "relative z-10 w-20 h-20 rounded-full flex items-center justify-center shrink-0",
-                      "border-4 shadow-lg transition-all duration-300",
-                      "ring-4 ring-background",
-                      step.status === "completed" && "border-green-500 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/20",
-                      step.status === "active" && "border-primary bg-gradient-to-br from-primary/10 to-primary/5 shadow-primary/20",
-                      step.status === "pending" && "border-muted-foreground/30 bg-muted/50"
-                    )}>
-                      <Icon className={cn(
-                        "w-9 h-9 transition-transform",
-                        step.status === "completed" && "text-green-600 dark:text-green-400",
-                        step.status === "active" && "text-primary animate-pulse",
-                        step.status === "pending" && "text-muted-foreground"
-                      )} />
-
-                      {/* Pulse animation for active */}
-                      {step.status === "active" && (
-                        <>
-                          <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
-                          <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-primary animate-pulse" />
-                        </>
-                      )}
-
-                      {/* Check mark for completed */}
-                      {step.status === "completed" && (
-                        <div className="absolute -bottom-1 -right-1">
-                          <CheckCircle className="w-6 h-6 text-green-500 bg-white dark:bg-background rounded-full" />
-                        </div>
-                      )}
+                    <div className="relative z-10 w-20 h-20 rounded-full flex items-center justify-center shrink-0 border-4 border-blue-500 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/20 shadow-lg ring-4 ring-background">
+                      <Icon className="w-9 h-9 text-blue-600 dark:text-blue-400" />
 
                       {/* Step number */}
-                      <div className={cn(
-                        "absolute -top-2 -right-2 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-md",
-                        step.status === "completed" && "bg-green-500 text-white",
-                        step.status === "active" && "bg-primary text-primary-foreground",
-                        step.status === "pending" && "bg-muted text-muted-foreground"
-                      )}>
+                      <div className="absolute -top-2 -right-2 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-md bg-blue-500 text-white">
                         {step.number}
                       </div>
                     </div>
 
                     {/* Enhanced Content Card */}
-                    <Card className={cn(
-                      "flex-1 border-2 shadow-md transition-all duration-300",
-                      step.status === "completed" && "border-green-500/40 bg-gradient-to-br from-green-50/50 to-transparent dark:from-green-950/20",
-                      step.status === "active" && "border-primary/60 shadow-lg shadow-primary/10 bg-gradient-to-br from-primary/5 to-transparent",
-                      step.status === "pending" && "border-border opacity-60"
-                    )}>
-                      <CardHeader className="p-5 text-center space-y-3">
-                        <div className="space-y-2">
-                          <CardTitle className="text-lg font-bold leading-tight">
+                    <Card className="flex-1 border-2 border-blue-500/60 bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/60 dark:to-blue-900/30 shadow-md">
+                      <CardHeader className="p-3 text-center space-y-2">
+                        <div className="space-y-1">
+                          <CardTitle className="text-base font-bold leading-tight">
                             {step.title}
                           </CardTitle>
-                          <CardDescription className="text-xs leading-relaxed">
+                          <CardDescription className="text-[0.7rem] leading-snug">
                             {step.description}
                           </CardDescription>
                         </div>
@@ -404,24 +299,10 @@ export default function HomePage() {
                         {/* Tech Badge */}
                         <Badge
                           variant="secondary"
-                          className={cn(
-                            "text-[0.7rem] px-3 py-1 font-medium shadow-sm mx-auto",
-                            step.status === "active" && "bg-primary/10 text-primary border-primary/20"
-                          )}
+                          className="text-[0.65rem] px-2 py-0.5 font-medium shadow-sm mx-auto bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20"
                         >
                           {step.tech}
                         </Badge>
-
-                        {/* Status indicator */}
-                        {step.status === "active" && (
-                          <div className="flex items-center justify-center gap-2 text-xs font-medium text-primary pt-1">
-                            <div className="relative flex h-3 w-3">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
-                            </div>
-                            진행 중
-                          </div>
-                        )}
                       </CardHeader>
                     </Card>
                   </div>
