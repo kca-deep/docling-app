@@ -213,6 +213,58 @@ class QdrantService:
             print(f"[ERROR] Failed to upsert vectors: {e}")
             raise Exception(f"벡터 업로드 실패: {str(e)}")
 
+    async def search(
+        self,
+        collection_name: str,
+        query_vector: List[float],
+        limit: int = 5,
+        score_threshold: Optional[float] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        벡터 유사도 검색
+
+        Args:
+            collection_name: Collection 이름
+            query_vector: 검색 쿼리 벡터
+            limit: 반환할 최대 결과 수
+            score_threshold: 최소 유사도 점수 (None이면 제한 없음)
+
+        Returns:
+            List[Dict[str, Any]]: 검색 결과 리스트
+                - id: 벡터 ID
+                - score: 유사도 점수
+                - payload: 메타데이터 (text 포함)
+
+        Raises:
+            Exception: 검색 실패 시
+        """
+        try:
+            # Qdrant 검색 수행
+            search_results = await self.client.search(
+                collection_name=collection_name,
+                query_vector=query_vector,
+                limit=limit,
+                score_threshold=score_threshold,
+                with_payload=True,
+                with_vectors=False
+            )
+
+            # 결과 포맷팅
+            results = []
+            for result in search_results:
+                results.append({
+                    "id": result.id,
+                    "score": result.score,
+                    "payload": result.payload
+                })
+
+            print(f"[INFO] Found {len(results)} results in collection '{collection_name}'")
+            return results
+
+        except Exception as e:
+            print(f"[ERROR] Failed to search vectors: {e}")
+            raise Exception(f"벡터 검색 실패: {str(e)}")
+
     async def close(self):
         """클라이언트 연결 종료"""
         await self.client.close()

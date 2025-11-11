@@ -265,10 +265,10 @@ export default function UrlParsePage() {
   };
 
   return (
-    <PageContainer maxWidth="wide">
-      <div className="text-center mb-8">
-        <h1 className="text-4xl font-bold mb-4">URL 기반 문서 파싱</h1>
-        <p className="text-lg text-muted-foreground">
+    <PageContainer maxWidth="wide" className="py-6">
+      <div className="text-center mb-4">
+        <h1 className="text-3xl font-bold mb-2">URL 기반 문서 파싱</h1>
+        <p className="text-sm text-muted-foreground">
           웹 문서 URL을 입력하여 마크다운으로 변환하세요
         </p>
       </div>

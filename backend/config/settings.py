@@ -40,9 +40,21 @@ class Settings(BaseSettings):
     DEFAULT_CHUNK_OVERLAP: int = 50
 
     # BGE-M3 임베딩 서버 설정
-    EMBEDDING_URL: str = "http://kca-ai.kro.kr:8080"
+    EMBEDDING_URL: str = "http://kca-ai.kro.kr:8083"
     EMBEDDING_MODEL: str = "bge-m3-korean"
     EMBEDDING_DIMENSION: int = 1024
+
+    # LLM API 설정 (GPT-OSS-20B)
+    LLM_BASE_URL: str = "http://kca-ai.kro.kr:8080"
+    LLM_MODEL: str = "gpt-oss-20b"
+    LLM_DEFAULT_TEMPERATURE: float = 0.7
+    LLM_DEFAULT_MAX_TOKENS: int = 2000
+    LLM_DEFAULT_TOP_P: float = 0.9
+
+    # RAG 설정
+    RAG_DEFAULT_TOP_K: int = 5
+    RAG_DEFAULT_SCORE_THRESHOLD: Optional[float] = None
+    RAG_DEFAULT_REASONING_LEVEL: str = "medium"
 
     # === Computed Properties ===
 

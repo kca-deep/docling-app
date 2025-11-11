@@ -1,6 +1,11 @@
 # Docling Parse App Launch Script
 # Runs both Backend (FastAPI) and Frontend (Next.js) simultaneously
 
+# UTF-8 encoding setup for proper Korean character display
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+chcp 65001 | Out-Null
+
 Write-Host "Starting Docling Parse App..." -ForegroundColor Green
 Write-Host ""
 
@@ -31,8 +36,8 @@ if (-Not (Test-Path "node_modules")) {
 
 Write-Host ""
 Write-Host "Starting servers..." -ForegroundColor Green
-Write-Host "Backend: http://localhost:8000 (로그는 현재 터미널에 표시됩니다)" -ForegroundColor Cyan
-Write-Host "Frontend: http://localhost:3000 (별도 창에서 실행됩니다)" -ForegroundColor Cyan
+Write-Host "Backend: http://localhost:8000 (logs shown in current terminal)" -ForegroundColor Cyan
+Write-Host "Frontend: http://localhost:3000 (running in separate window)" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Press Ctrl+C to stop both servers" -ForegroundColor Yellow
 Write-Host ""

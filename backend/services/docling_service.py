@@ -35,7 +35,8 @@ class DoclingService:
         page_range_start: int = 1,
         page_range_end: int = 9223372036854776000,
         do_formula_enrichment: bool = False,
-        pipeline: str = "standard"
+        pipeline: str = "standard",
+        vlm_pipeline_model: Optional[str] = None
     ) -> ConvertResult:
         """
         문서 변환 (비동기 방식)
@@ -58,7 +59,9 @@ class DoclingService:
         Returns:
             ConvertResult: 변환 결과
         """
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        # VLM 파이프라인은 더 긴 타임아웃 필요
+        timeout_value = 300.0 if pipeline == "vlm" else 120.0
+        async with httpx.AsyncClient(timeout=timeout_value) as client:
             try:
                 # 1단계: 비동기 변환 작업 시작
                 files = {"files": (filename, file_content, "application/pdf")}
@@ -74,6 +77,10 @@ class DoclingService:
                     "do_formula_enrichment": do_formula_enrichment,
                     "pipeline": pipeline
                 }
+
+                # VLM 파이프라인 사용 시 모델 지정
+                if pipeline == "vlm" and vlm_pipeline_model:
+                    data["vlm_pipeline_model"] = vlm_pipeline_model
 
                 response = await client.post(
                     self.async_api_url,
@@ -100,10 +107,10 @@ class DoclingService:
                 task_id = task_response["task_id"]
 
                 # 2단계: Task 상태 폴링
-                await self._wait_for_task_completion(client, task_id)
+                await self._wait_for_task_completion(client, task_id, pipeline)
 
                 # 3단계: 결과 조회
-                result = await self._get_task_result(client, task_id)
+                result = await self._get_task_result(client, task_id, pipeline)
 
                 return result
 
@@ -123,14 +130,17 @@ class DoclingService:
     async def _wait_for_task_completion(
         self,
         client: httpx.AsyncClient,
-        task_id: str
+        task_id: str,
+        pipeline: str = "standard"
     ) -> None:
         """Task 완료 대기"""
+        # VLM 파이프라인은 더 긴 폴링 시간 필요
+        poll_timeout = 30 if pipeline == "vlm" else self.poll_interval + 5
         while True:
             status_response = await client.get(
                 f"{self.status_api_url}/{task_id}",
                 params={"wait": self.poll_interval},
-                timeout=self.poll_interval + 5
+                timeout=poll_timeout
             )
 
             if status_response.status_code == 200:
@@ -147,12 +157,15 @@ class DoclingService:
     async def _get_task_result(
         self,
         client: httpx.AsyncClient,
-        task_id: str
+        task_id: str,
+        pipeline: str = "standard"
     ) -> ConvertResult:
         """Task 결과 조회"""
+        # VLM 파이프라인은 더 긴 결과 조회 타임아웃 필요
+        result_timeout = 60 if pipeline == "vlm" else 30
         result_response = await client.get(
             f"{self.result_api_url}/{task_id}",
-            timeout=30
+            timeout=result_timeout
         )
 
         if result_response.status_code != 200:
@@ -198,7 +211,8 @@ class DoclingService:
         page_range_start: int = 1,
         page_range_end: int = 9223372036854776000,
         do_formula_enrichment: bool = False,
-        pipeline: str = "standard"
+        pipeline: str = "standard",
+        vlm_pipeline_model: Optional[str] = None
     ) -> ConvertResult:
         """
         URL 문서 변환 (비동기 방식)
@@ -220,21 +234,29 @@ class DoclingService:
         Returns:
             ConvertResult: 변환 결과
         """
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        # VLM 파이프라인은 더 긴 타임아웃 필요
+        timeout_value = 300.0 if pipeline == "vlm" else 120.0
+        async with httpx.AsyncClient(timeout=timeout_value) as client:
             try:
                 # 1단계: 비동기 변환 작업 시작 (JSON 형식)
+                options = {
+                    "to_formats": [to_formats],
+                    "image_export_mode": image_export_mode,
+                    "do_ocr": do_ocr,
+                    "do_table_structure": do_table_structure,
+                    "include_images": include_images,
+                    "table_mode": table_mode,
+                    "page_range": [page_range_start, page_range_end],
+                    "do_formula_enrichment": do_formula_enrichment,
+                    "pipeline": pipeline
+                }
+
+                # VLM 파이프라인 사용 시 모델 지정
+                if pipeline == "vlm" and vlm_pipeline_model:
+                    options["vlm_pipeline_model"] = vlm_pipeline_model
+
                 request_body = {
-                    "options": {
-                        "to_formats": [to_formats],
-                        "image_export_mode": image_export_mode,
-                        "do_ocr": do_ocr,
-                        "do_table_structure": do_table_structure,
-                        "include_images": include_images,
-                        "table_mode": table_mode,
-                        "page_range": [page_range_start, page_range_end],
-                        "do_formula_enrichment": do_formula_enrichment,
-                        "pipeline": pipeline
-                    },
+                    "options": options,
                     "sources": [
                         {
                             "kind": "http",
@@ -270,10 +292,10 @@ class DoclingService:
                 task_id = task_response["task_id"]
 
                 # 2단계: Task 상태 폴링
-                await self._wait_for_task_completion(client, task_id)
+                await self._wait_for_task_completion(client, task_id, pipeline)
 
                 # 3단계: 결과 조회
-                result = await self._get_task_result(client, task_id)
+                result = await self._get_task_result(client, task_id, pipeline)
 
                 return result
 

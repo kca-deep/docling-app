@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config.settings import settings
-from backend.api.routes import document, dify, qdrant
+from backend.api.routes import document, dify, qdrant, chat
 from backend.database import init_db
 from backend.models import document as document_model  # Import to register models
 from backend.models import dify_upload_history, dify_config  # Import Dify models
@@ -39,6 +39,7 @@ app.add_middleware(
 app.include_router(document.router)
 app.include_router(dify.router)
 app.include_router(qdrant.router)
+app.include_router(chat.router)
 
 
 @app.get("/")

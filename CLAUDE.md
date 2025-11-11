@@ -273,7 +273,31 @@ python test_dify_api.py
 ## Development Guidelines for Claude Code
 
 **Critical Rules**:
-- **NO HARDCODING**: Never hardcode values like URLs, API keys, ports, or configuration values in code. Always use environment variables or configuration files.
+- **[CRITICAL] ABSOLUTELY NO HARDCODING**:
+  - **NEVER** hardcode ANY fixed values in code. This includes:
+    - URLs, API endpoints, ports
+    - API keys, secrets, credentials
+    - Configuration values, timeouts, limits
+    - **Specific data values (e.g., "10:00", "2년", "1회")**
+    - **Domain-specific text that should be dynamic**
+  - **WHY THIS MATTERS**: Hardcoded values make code inflexible, unmaintainable, and can cause unexpected behavior with different data
+  - **ALWAYS** use:
+    - Environment variables for configuration
+    - Configuration files for settings
+    - Dynamic pattern matching instead of fixed replacements
+    - Context-aware processing instead of fixed values
+  - **Example of WRONG approach**:
+    ```python
+    # NEVER DO THIS
+    content = content.replace("년간", "2년간")  # Hardcoded replacement
+    ```
+  - **Example of CORRECT approach**:
+    ```python
+    # DO THIS INSTEAD
+    # Detect missing patterns and handle dynamically
+    if detect_missing_number_pattern(content):
+        content = apply_context_aware_recovery(content)
+    ```
 - **NO EMOJIS**: Do not use emojis in code, comments, commit messages, or documentation unless explicitly requested by the user.
 
 **MCP Tool Usage**:

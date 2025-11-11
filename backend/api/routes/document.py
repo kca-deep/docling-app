@@ -38,7 +38,8 @@ async def convert_document(
     page_range_start: str = Form(default="1"),
     page_range_end: str = Form(default="9223372036854776000"),
     do_formula_enrichment: str = Form(default="false"),
-    pipeline: str = Form(default="standard")
+    pipeline: str = Form(default="standard"),
+    vlm_pipeline_model: Optional[str] = Form(default=None)
 ):
     """
     문서 변환 API
@@ -94,7 +95,8 @@ async def convert_document(
             page_range_start=page_start,
             page_range_end=page_end,
             do_formula_enrichment=do_formula_bool,
-            pipeline=pipeline
+            pipeline=pipeline,
+            vlm_pipeline_model=vlm_pipeline_model
         )
 
         return result
@@ -137,7 +139,8 @@ async def convert_url(request: URLConvertRequest):
             page_range_start=request.page_range_start,
             page_range_end=request.page_range_end,
             do_formula_enrichment=request.do_formula_enrichment,
-            pipeline=request.pipeline
+            pipeline=request.pipeline,
+            vlm_pipeline_model=request.vlm_pipeline_model
         )
 
         return result

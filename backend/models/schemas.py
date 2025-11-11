@@ -275,6 +275,7 @@ class URLConvertRequest(BaseModel):
     page_range_end: int = 9223372036854776000
     do_formula_enrichment: bool = False
     pipeline: str = "standard"
+    vlm_pipeline_model: Optional[str] = None
 
 
 # Qdrant Vector DB 관련 스키마
@@ -330,3 +331,42 @@ class QdrantUploadResponse(BaseModel):
     success_count: int
     failure_count: int
     results: List[QdrantUploadResult]
+
+
+# ==================== Chat API Schemas ====================
+
+class ChatMessage(BaseModel):
+    """채팅 메시지"""
+    role: str  # "user" or "assistant"
+    content: str
+
+
+class ChatRequest(BaseModel):
+    """채팅 요청"""
+    collection_name: str
+    message: str
+    reasoning_level: str = "medium"  # "low", "medium", "high"
+    temperature: float = 0.7
+    max_tokens: int = 2000
+    top_p: float = 0.9
+    frequency_penalty: float = 0.0
+    presence_penalty: float = 0.0
+    top_k: int = 5
+    score_threshold: Optional[float] = None
+    chat_history: Optional[List[ChatMessage]] = None
+    stream: bool = False
+
+
+class RetrievedDocument(BaseModel):
+    """검색된 문서"""
+    id: str
+    score: float
+    text: str
+    metadata: Optional[dict] = None
+
+
+class ChatResponse(BaseModel):
+    """채팅 응답"""
+    answer: str
+    retrieved_docs: List[RetrievedDocument]
+    usage: Optional[dict] = None

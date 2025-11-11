@@ -312,10 +312,10 @@ export default function DifyPage() {
   }
 
   return (
-    <PageContainer maxWidth="wide">
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-4">Dify 연동</h1>
-        <p className="text-lg text-muted-foreground">
+    <PageContainer maxWidth="wide" className="py-6">
+      <div className="mb-4">
+        <h1 className="text-3xl font-bold mb-2">Dify 연동</h1>
+        <p className="text-sm text-muted-foreground">
           저장된 문서를 Dify 데이터셋에 업로드합니다
         </p>
       </div>

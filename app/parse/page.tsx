@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown } from "lucide-react";
+import { MarkdownMessage } from "@/components/markdown-message";
 
 interface ConvertResult {
   task_id: string;
@@ -43,6 +44,7 @@ interface ParseOptions {
   page_range_end: number;
   do_formula_enrichment: boolean;
   pipeline: string;
+  vlm_pipeline_model?: string;
 }
 
 interface FileStatus {
@@ -75,6 +77,7 @@ export default function ParsePage() {
     page_range_end: 9223372036854776000,
     do_formula_enrichment: false,
     pipeline: "standard",
+    vlm_pipeline_model: "granite_vision",
   });
 
   // 단일 파일 핸들러
@@ -105,6 +108,9 @@ export default function ParsePage() {
       formData.append("page_range_end", parseOptions.page_range_end.toString());
       formData.append("do_formula_enrichment", String(parseOptions.do_formula_enrichment));
       formData.append("pipeline", parseOptions.pipeline);
+      if (parseOptions.pipeline === "vlm" && parseOptions.vlm_pipeline_model) {
+        formData.append("vlm_pipeline_model", parseOptions.vlm_pipeline_model);
+      }
 
       const response = await fetch("http://localhost:8000/api/documents/convert", {
         method: "POST",
@@ -209,6 +215,9 @@ export default function ParsePage() {
       formData.append("page_range_end", parseOptions.page_range_end.toString());
       formData.append("do_formula_enrichment", parseOptions.do_formula_enrichment.toString());
       formData.append("pipeline", parseOptions.pipeline);
+      if (parseOptions.pipeline === "vlm" && parseOptions.vlm_pipeline_model) {
+        formData.append("vlm_pipeline_model", parseOptions.vlm_pipeline_model);
+      }
 
       setFiles(prev => prev.map((f, i) =>
         i === index ? { ...f, progress: 30 } : f
@@ -373,10 +382,10 @@ export default function ParsePage() {
   const pendingCount = files.filter(f => f.status === "pending").length;
 
   return (
-    <PageContainer maxWidth="wide">
-      <div className="text-center mb-8">
-        <h1 className="text-4xl font-bold mb-4">문서 변환</h1>
-        <p className="text-lg text-muted-foreground">
+    <PageContainer maxWidth="wide" className="py-6">
+      <div className="text-center mb-4">
+        <h1 className="text-3xl font-bold mb-2">문서 변환</h1>
+        <p className="text-sm text-muted-foreground">
           PDF, DOCX, PPTX 파일을 마크다운으로 변환하세요
         </p>
       </div>
@@ -561,6 +570,34 @@ export default function ParsePage() {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {parseOptions.pipeline === "vlm" && (
+                    <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+                      <Label htmlFor="vlm_model" className="text-sm whitespace-nowrap mr-2">
+                        VLM 모델
+                      </Label>
+                      <Select
+                        value={parseOptions.vlm_pipeline_model}
+                        onValueChange={(value) =>
+                          setParseOptions({ ...parseOptions, vlm_pipeline_model: value })
+                        }
+                      >
+                        <SelectTrigger id="vlm_model" className="h-9 w-auto min-w-[180px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="granite_vision">Granite Vision (추천)</SelectItem>
+                          <SelectItem value="granite_vision_vllm">Granite Vision VLLM</SelectItem>
+                          <SelectItem value="granite_vision_ollama">Granite Vision Ollama</SelectItem>
+                          <SelectItem value="granite_docling">Granite Docling</SelectItem>
+                          <SelectItem value="granite_docling_vllm">Granite Docling VLLM</SelectItem>
+                          <SelectItem value="smoldocling">Smoldocling</SelectItem>
+                          <SelectItem value="smoldocling_vllm">Smoldocling VLLM</SelectItem>
+                          <SelectItem value="got_ocr_2">GOT OCR 2</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                 </div>
               </CollapsibleContent>
             </Collapsible>
@@ -703,11 +740,14 @@ export default function ParsePage() {
                                   <TabsContent value="preview" className="mt-4 space-y-4">
                                     <ScrollArea className="h-96 w-full rounded-lg border bg-muted/50">
                                       <div className="p-4">
-                                        <pre className="text-sm whitespace-pre-wrap break-words font-mono overflow-x-auto">
-                                          {result.document.md_content.substring(0, 2000)}
-                                          {result.document.md_content.length > 2000 &&
-                                            "\n\n... (내용이 잘렸습니다. '전체 내용' 탭을 확인하세요)"}
-                                        </pre>
+                                        <MarkdownMessage
+                                          content={
+                                            result.document.md_content.substring(0, 2000) +
+                                            (result.document.md_content.length > 2000
+                                              ? "\n\n... (내용이 잘렸습니다. '전체 내용' 탭을 확인하세요)"
+                                              : "")
+                                          }
+                                        />
                                       </div>
                                     </ScrollArea>
                                     <div className="flex justify-end gap-2">
@@ -736,9 +776,7 @@ export default function ParsePage() {
                                   <TabsContent value="full" className="mt-4 space-y-4">
                                     <ScrollArea className="h-96 w-full rounded-lg border bg-muted/50">
                                       <div className="p-4">
-                                        <pre className="text-sm whitespace-pre-wrap break-words font-mono overflow-x-auto">
-                                          {result.document.md_content}
-                                        </pre>
+                                        <MarkdownMessage content={result.document.md_content} />
                                       </div>
                                     </ScrollArea>
                                     <div className="flex justify-end gap-2">
@@ -1052,12 +1090,14 @@ export default function ParsePage() {
                                       <TabsContent value="preview" className="mt-4 space-y-4">
                                         <ScrollArea className="h-64 w-full rounded-lg border bg-muted/50">
                                           <div className="p-4">
-                                            <pre className="text-sm whitespace-pre-wrap break-words font-mono overflow-x-auto">
-                                              {fileStatus.result.document.md_content.substring(0, 1000)}
-                                              {fileStatus.result.document.md_content.length > 1000 &&
-                                                "\n\n... (내용이 잘렸습니다. '전체 내용' 탭을 확인하세요)"
+                                            <MarkdownMessage
+                                              content={
+                                                fileStatus.result.document.md_content.substring(0, 1000) +
+                                                (fileStatus.result.document.md_content.length > 1000
+                                                  ? "\n\n... (내용이 잘렸습니다. '전체 내용' 탭을 확인하세요)"
+                                                  : "")
                                               }
-                                            </pre>
+                                            />
                                           </div>
                                         </ScrollArea>
                                         <div className="flex justify-end gap-2">
@@ -1093,9 +1133,7 @@ export default function ParsePage() {
                                       <TabsContent value="full" className="mt-4 space-y-4">
                                         <ScrollArea className="h-64 w-full rounded-lg border bg-muted/50">
                                           <div className="p-4">
-                                            <pre className="text-sm whitespace-pre-wrap break-words font-mono overflow-x-auto">
-                                              {fileStatus.result.document.md_content}
-                                            </pre>
+                                            <MarkdownMessage content={fileStatus.result.document.md_content} />
                                           </div>
                                         </ScrollArea>
                                         <div className="flex justify-end gap-2">

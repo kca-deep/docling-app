@@ -279,10 +279,10 @@ export default function QdrantPage() {
   }, [])
 
   return (
-    <PageContainer maxWidth="wide">
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-4">Qdrant Vector DB</h1>
-        <p className="text-lg text-muted-foreground">
+    <PageContainer maxWidth="wide" className="py-6">
+      <div className="mb-4">
+        <h1 className="text-3xl font-bold mb-2">Qdrant Vector DB</h1>
+        <p className="text-sm text-muted-foreground">
           저장된 문서를 벡터 데이터베이스에 임베딩하여 저장합니다
         </p>
       </div>
