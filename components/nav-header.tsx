@@ -20,17 +20,35 @@ export function NavHeader() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="grid grid-cols-3 h-14 items-center px-4 md:px-6 max-w-7xl mx-auto">
+      <div className="grid grid-cols-[auto_1fr_auto] h-14 items-center px-4 md:px-6 max-w-7xl mx-auto gap-4">
         {/* Logo - Left */}
         <div className="flex items-center">
-          <Link href="/" className="flex items-center space-x-2">
-            <FileText className="h-5 w-5" />
-            <span className="font-semibold hidden sm:inline-block">KCA-RAG 파이프라인</span>
+          <Link href="/" className="group flex items-center gap-3 relative">
+            {/* Icon Container with Gradient Background */}
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary/80 to-primary/60 rounded-lg blur-sm opacity-75 group-hover:opacity-100 transition-opacity" />
+              <div className="relative bg-gradient-to-br from-primary to-primary/80 p-2 rounded-lg shadow-lg group-hover:shadow-xl transition-all">
+                <FileText className="h-5 w-5 text-primary-foreground" strokeWidth={2.5} />
+              </div>
+            </div>
+
+            {/* Text Container */}
+            <div className="hidden sm:flex flex-col">
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-bold text-lg bg-gradient-to-r from-primary via-primary/90 to-primary/70 bg-clip-text text-transparent leading-none tracking-tight">
+                  KCA
+                </span>
+                <span className="font-bold text-lg text-foreground leading-none">RAG</span>
+              </div>
+              <span className="text-[0.65rem] text-muted-foreground font-medium leading-tight tracking-wider mt-0.5">
+                AI PIPELINE
+              </span>
+            </div>
           </Link>
         </div>
 
         {/* Navigation - Center */}
-        <nav className="hidden md:flex items-center justify-center gap-0.5">
+        <nav className="hidden md:flex items-center justify-center gap-1">
           {navItems.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href
@@ -40,7 +58,7 @@ export function NavHeader() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "inline-flex items-center justify-center whitespace-nowrap rounded-md px-2.5 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
+                  "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
                   isActive && "bg-accent"
                 )}
               >

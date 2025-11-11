@@ -1,7 +1,6 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
 import {
   FileText,
   Network,
@@ -14,7 +13,6 @@ import {
   Link2,
   Database,
   CheckCircle,
-  Circle,
   ChevronRight,
   Sparkles,
   Zap,
@@ -26,15 +24,12 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { PageContainer } from "@/components/page-container"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Progress } from "@/components/ui/progress"
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
 import { cn } from "@/lib/utils"
 import { ChatPreview } from "@/components/chat-preview"
 import { FloatingChatButton } from "@/components/floating-chat-button"
 
 export default function HomePage() {
-  const [activeStep, setActiveStep] = useState(0)
 
   const features = [
     {
@@ -77,51 +72,48 @@ export default function HomePage() {
 
   const processSteps = [
     {
-      icon: Upload,
-      number: "01",
-      title: "문서 업로드",
-      description: "PDF, DOCX, PPTX 등 다양한 형식의 문서를 업로드합니다",
-      details: "지원 형식: PDF, DOCX, DOC, PPTX, PPT\n최대 크기: 50MB\n일괄 업로드 지원",
-      status: "completed"
-    },
-    {
-      icon: Brain,
-      number: "02",
-      title: "AI 파싱",
-      description: "Docling AI가 문서를 심층 분석합니다",
-      details: "OCR 텍스트 추출\n테이블 구조 인식\n이미지 분석\n메타데이터 추출",
-      status: "completed"
-    },
-    {
       icon: FileCode,
-      number: "03",
-      title: "마크다운 변환",
-      description: "구조화된 마크다운 형식으로 변환합니다",
-      details: "헤딩 계층 구조 유지\n테이블 포맷 보존\n코드 블록 인식\n링크 자동 생성",
+      number: "01",
+      title: "문서 파싱",
+      description: "AI 기반으로 문서를 분석하여 마크다운으로 변환",
+      details: "PDF, DOCX, PPTX 지원\nOCR 텍스트 추출\n테이블 구조 인식\n마크다운 변환",
+      tech: "Docling Serve API (IBM)",
       status: "completed"
     },
     {
       icon: Database,
-      number: "04",
+      number: "02",
       title: "벡터 임베딩",
       description: "BGE-M3 모델로 벡터화하여 Qdrant에 저장",
       details: "1024차원 벡터 생성\n다국어 지원\n의미적 유사도 계산\n실시간 인덱싱",
+      tech: "BGE-M3 + Qdrant Vector DB",
       status: "active"
     },
     {
       icon: Bot,
-      number: "05",
+      number: "03",
       title: "Dify 연동",
       description: "Dify 지식베이스에 문서 업로드 (선택)",
       details: "데이터셋 자동 분류\nAPI 통합\n버전 관리\n권한 설정",
+      tech: "Dify Knowledge Base API",
       status: "pending"
     },
     {
       icon: MessageSquare,
-      number: "06",
+      number: "04",
       title: "RAG 활용",
       description: "문서 기반 지능형 질의응답 시스템",
-      details: "컨텍스트 기반 응답\n출처 표시\n멀티턴 대화\n정확도 향상",
+      details: "벡터 검색 + BGE Rerank\n컨텍스트 기반 응답\n출처 표시\n멀티턴 대화\n정확도 향상",
+      tech: "RAG Pipeline + BGE Reranker",
+      status: "pending"
+    },
+    {
+      icon: Brain,
+      number: "05",
+      title: "멀티 LLM 지원",
+      description: "다양한 LLM으로 최적의 답변 생성",
+      details: "OpenAI GPT-4, GPT-4 Turbo, GPT-3.5\nNaver HyperCLOVA X\nLG EXAONE 3.0\nAnthropic Claude 3.5 Sonnet\nGoogle Gemini Pro\n모델별 특화 응답",
+      tech: "Multi-LLM Integration",
       status: "pending"
     },
   ]
@@ -162,118 +154,132 @@ export default function HomePage() {
           {stats.map((stat, index) => {
             const Icon = stat.icon
             return (
-              <div
-                key={index}
-                className={`flex items-center gap-3 animate-scale-up animate-delay-${(index + 3) * 100}`}
-              >
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <Icon className="w-4 h-4 text-primary" />
-                </div>
-                <div className="text-left">
-                  <div className="text-xl sm:text-2xl font-bold">
-                    {stat.value}
-                    <span className="text-xs sm:text-sm text-muted-foreground ml-1">{stat.unit}</span>
+              <Link key={index} href="/qdrant">
+                <div
+                  className={`flex items-center gap-3 animate-scale-up animate-delay-${(index + 3) * 100} cursor-pointer group transition-all hover:scale-105`}
+                >
+                  <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                    <Icon className="w-4 h-4 text-primary group-hover:scale-110 transition-transform" />
                   </div>
-                  <div className="text-xs text-muted-foreground">{stat.label}</div>
+                  <div className="text-left">
+                    <div className="text-xl sm:text-2xl font-bold group-hover:text-primary transition-colors">
+                      {stat.value}
+                      <span className="text-xs sm:text-sm text-muted-foreground ml-1">{stat.unit}</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">{stat.label}</div>
+                  </div>
                 </div>
-              </div>
+              </Link>
             )
           })}
-        </div>
-
-        {/* CTA 버튼 - 개선된 스타일 */}
-        <div className="flex gap-4 justify-center flex-wrap">
-          <Link href="/parse">
-            <Button size="lg" className="gap-2 h-12 px-6 shadow-lg hover:shadow-xl transition-all">
-              <FileText className="w-5 h-5" />
-              문서 변환 시작
-              <ArrowRight className="w-4 h-4" />
-            </Button>
-          </Link>
-          <Link href="/chat">
-            <Button size="lg" variant="outline" className="gap-2 h-12 px-6 border-2">
-              <MessageSquare className="w-5 h-5" />
-              RAG 채팅
-              <Badge variant="secondary" className="ml-1">New</Badge>
-            </Button>
-          </Link>
         </div>
       </div>
 
       {/* Process Flow Diagram - 히어로 섹션 바로 아래 추가 */}
-      <div className="mb-16 py-12 bg-gradient-to-b from-background to-muted/20">
-        <div className="text-center mb-12">
-          <Badge variant="outline" className="mb-4">
+      <div className="mb-16 py-16 bg-gradient-to-b from-background via-muted/10 to-background relative overflow-hidden">
+        {/* Background decoration */}
+        <div className="absolute inset-0 bg-grid-slate-100 [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.6))] dark:bg-grid-slate-700/25 -z-10" />
+
+        <div className="text-center mb-16 relative">
+          <Badge variant="outline" className="mb-4 shadow-sm">
             <BrainCircuit className="w-3 h-3 mr-1" />
             전체 프로세스
           </Badge>
-          <h2 className="text-3xl font-bold mb-4">문서에서 지식으로, 한눈에 보는 워크플로우</h2>
-          <p className="text-muted-foreground max-w-2xl mx-auto">
-            업로드부터 RAG 활용까지 KCA-RAG의 6단계 프로세스
+          <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+            문서에서 지식으로, 한눈에 보는 워크플로우
+          </h2>
+          <p className="text-muted-foreground max-w-2xl mx-auto text-lg">
+            파싱부터 멀티 LLM까지 KCA-RAG의 5단계 프로세스
           </p>
         </div>
 
-        {/* Desktop Flow Chart */}
-        <div className="hidden lg:block max-w-7xl mx-auto px-4">
-          <div className="relative isolate">
-            {/* Connection Lines Layer - 가장 뒤쪽 레이어 */}
-            <div className="absolute inset-0 flex items-center justify-between px-20 -z-10">
-              {[1, 2, 3, 4, 5].map((_, index) => (
-                <div
-                  key={index}
-                  className="flex-1 flex items-center"
-                >
-                  <div className="flex-1 h-0.5 bg-gradient-to-r from-muted-foreground/20 via-muted-foreground/10 to-transparent">
-                    <ChevronRight className="absolute -right-2 -top-2.5 w-5 h-5 text-muted-foreground/20" />
+        {/* Desktop Flow Chart - 개선된 버전 */}
+        <div className="hidden lg:block max-w-[1400px] mx-auto px-8">
+          <div className="relative">
+            {/* Animated connection lines */}
+            <div className="absolute top-24 left-0 right-0 h-1 flex items-center gap-4 px-[4.5rem]">
+              {[0, 1, 2, 3].map((index) => {
+                const isCompleted = index < 1
+                const isActive = index === 1
+
+                return (
+                  <div key={index} className="flex-1 relative h-1 rounded-full overflow-hidden bg-muted">
+                    <div
+                      className={cn(
+                        "absolute inset-0 h-full transition-all duration-1000",
+                        isCompleted && "bg-gradient-to-r from-green-500 to-green-400",
+                        isActive && "bg-gradient-to-r from-primary to-primary/60 animate-pulse",
+                        !isCompleted && !isActive && "bg-muted"
+                      )}
+                      style={{
+                        width: isCompleted ? "100%" : isActive ? "50%" : "0%"
+                      }}
+                    />
+                    {/* Arrow */}
+                    <div className={cn(
+                      "absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 rotate-45 border-r-2 border-t-2 transition-colors",
+                      isCompleted && "border-green-500",
+                      isActive && "border-primary",
+                      !isCompleted && !isActive && "border-muted-foreground/20"
+                    )} />
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
 
-            {/* Process Cards Layer - 앞쪽 레이어 */}
-            <div className="relative grid grid-cols-6 gap-8 z-10">
+            {/* Process Cards - 개선된 3D 효과 */}
+            <div className="relative grid grid-cols-5 gap-6 pt-4">
               {processSteps.map((step, index) => {
                 const Icon = step.icon
                 return (
                   <div
                     key={index}
-                    className="group relative isolate"
+                    className="group relative"
                   >
-                    <div className="absolute -inset-2 bg-gradient-to-r from-primary/20 to-primary/5 rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-300 blur-xl -z-10" />
+                    {/* Glow effect on hover */}
+                    <div className={cn(
+                      "absolute -inset-4 rounded-2xl opacity-0 group-hover:opacity-100 transition-all duration-500 blur-2xl -z-10",
+                      step.status === "completed" && "bg-green-500/20",
+                      step.status === "active" && "bg-primary/30",
+                      step.status === "pending" && "bg-muted/20"
+                    )} />
 
                     <Card className={cn(
-                      "relative h-full border-2 transition-all duration-300",
-                      "bg-background dark:bg-card", // 확실한 배경색
-                      "hover:shadow-xl hover:-translate-y-1",
-                      step.status === "completed" && "border-green-500/30 bg-green-50/5 dark:bg-green-900/10",
-                      step.status === "active" && "border-primary shadow-lg shadow-primary/20 bg-primary/5",
-                      step.status === "pending" && "border-muted-foreground/30 opacity-75"
+                      "relative h-full border-2 transition-all duration-300 backdrop-blur-sm",
+                      "transform group-hover:scale-105 group-hover:-translate-y-2",
+                      "shadow-lg group-hover:shadow-2xl",
+                      step.status === "completed" && "border-green-500/40 bg-gradient-to-br from-green-50/80 to-green-100/50 dark:from-green-950/40 dark:to-green-900/20",
+                      step.status === "active" && "border-primary/60 bg-gradient-to-br from-primary/10 to-primary/5 shadow-xl shadow-primary/20 ring-2 ring-primary/20",
+                      step.status === "pending" && "border-border bg-card/50 opacity-60"
                     )}>
-                      <CardHeader className="text-center p-4">
-                        {/* Step Number */}
-                        <div className="absolute -top-3 -right-3">
-                          <Badge
-                            variant={step.status === "active" ? "default" : "outline"}
-                            className={cn(
-                              "rounded-full w-8 h-8 p-0 flex items-center justify-center font-bold",
-                              step.status === "completed" && "bg-green-500 text-white border-green-500",
-                              step.status === "active" && "animate-pulse"
-                            )}
-                          >
+                      <CardHeader className="text-center p-6 items-center space-y-4">
+                        {/* Step Number Badge */}
+                        <div className="absolute -top-4 -right-4 z-10">
+                          <div className={cn(
+                            "relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-lg",
+                            "ring-4 ring-background",
+                            step.status === "completed" && "bg-gradient-to-br from-green-500 to-green-600 text-white",
+                            step.status === "active" && "bg-gradient-to-br from-primary to-primary/80 text-primary-foreground animate-pulse",
+                            step.status === "pending" && "bg-muted text-muted-foreground"
+                          )}>
                             {step.number}
-                          </Badge>
+                            {step.status === "completed" && (
+                              <CheckCircle className="absolute -bottom-1 -right-1 w-4 h-4 text-green-600 bg-white rounded-full" />
+                            )}
+                          </div>
                         </div>
 
-                        {/* Icon */}
+                        {/* Icon with better styling */}
                         <div className={cn(
-                          "w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-3",
-                          "transition-all duration-300 group-hover:scale-110",
-                          step.status === "completed" && "bg-green-100 dark:bg-green-900/30",
-                          step.status === "active" && "bg-primary/10",
-                          step.status === "pending" && "bg-muted"
+                          "relative w-20 h-20 rounded-2xl flex items-center justify-center",
+                          "transition-all duration-300 group-hover:scale-110 group-hover:rotate-3",
+                          "shadow-inner",
+                          step.status === "completed" && "bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900/50 dark:to-green-800/30",
+                          step.status === "active" && "bg-gradient-to-br from-primary/20 to-primary/10",
+                          step.status === "pending" && "bg-muted/50"
                         )}>
                           <Icon className={cn(
-                            "w-8 h-8",
+                            "w-10 h-10 transition-transform group-hover:scale-110",
                             step.status === "completed" && "text-green-600 dark:text-green-400",
                             step.status === "active" && "text-primary",
                             step.status === "pending" && "text-muted-foreground"
@@ -281,22 +287,36 @@ export default function HomePage() {
                         </div>
 
                         {/* Title */}
-                        <CardTitle className="text-sm font-semibold">
-                          {step.title}
-                        </CardTitle>
+                        <div className="space-y-2 flex flex-col items-center">
+                          <CardTitle className="text-base font-bold text-center leading-tight">
+                            {step.title}
+                          </CardTitle>
+
+                          {/* Description */}
+                          <p className="text-xs text-muted-foreground text-center leading-relaxed px-2">
+                            {step.description}
+                          </p>
+
+                          {/* Tech Badge */}
+                          <Badge
+                            variant="secondary"
+                            className={cn(
+                              "text-[0.7rem] px-2.5 py-1 font-medium shadow-sm",
+                              step.status === "active" && "bg-primary/10 text-primary border-primary/20"
+                            )}
+                          >
+                            {step.tech}
+                          </Badge>
+                        </div>
 
                         {/* Status Indicator */}
                         {step.status === "active" && (
-                          <div className="mt-2">
-                            <span className="inline-flex items-center gap-1 text-xs text-primary">
-                              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                              진행 중
-                            </span>
-                          </div>
-                        )}
-                        {step.status === "completed" && (
-                          <div className="mt-2">
-                            <CheckCircle className="w-4 h-4 text-green-500 mx-auto" />
+                          <div className="flex items-center gap-2 text-xs font-medium text-primary">
+                            <div className="relative flex h-3 w-3">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
+                            </div>
+                            진행 중
                           </div>
                         )}
                       </CardHeader>
@@ -308,59 +328,100 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Mobile/Tablet Flow - Vertical */}
-        <div className="lg:hidden max-w-md mx-auto px-4">
+        {/* Mobile/Tablet Flow - 개선된 버전 */}
+        <div className="lg:hidden max-w-lg mx-auto px-4">
           <div className="relative">
-            {/* Vertical Connection Line */}
-            <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gradient-to-b from-primary/40 via-primary/20 to-transparent" />
+            {/* Animated Vertical Connection Line */}
+            <div className="absolute left-10 top-8 bottom-8 w-1 rounded-full overflow-hidden bg-muted">
+              <div className="absolute top-0 left-0 right-0 h-1/3 bg-gradient-to-b from-green-500 to-primary" />
+            </div>
 
             {/* Process Cards */}
-            <div className="space-y-6">
+            <div className="space-y-8">
               {processSteps.map((step, index) => {
                 const Icon = step.icon
                 return (
-                  <div key={index} className="relative flex gap-4 items-start">
-                    {/* Step Circle */}
+                  <div key={index} className="relative flex gap-5 items-start">
+                    {/* Enhanced Step Circle */}
                     <div className={cn(
-                      "relative z-10 w-16 h-16 rounded-full flex items-center justify-center",
-                      "border-4 bg-background",
-                      step.status === "completed" && "border-green-500 bg-green-50 dark:bg-green-900/20",
-                      step.status === "active" && "border-primary bg-primary/10",
-                      step.status === "pending" && "border-muted-foreground/30 bg-muted"
+                      "relative z-10 w-20 h-20 rounded-full flex items-center justify-center shrink-0",
+                      "border-4 shadow-lg transition-all duration-300",
+                      "ring-4 ring-background",
+                      step.status === "completed" && "border-green-500 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/20",
+                      step.status === "active" && "border-primary bg-gradient-to-br from-primary/10 to-primary/5 shadow-primary/20",
+                      step.status === "pending" && "border-muted-foreground/30 bg-muted/50"
                     )}>
                       <Icon className={cn(
-                        "w-7 h-7",
+                        "w-9 h-9 transition-transform",
                         step.status === "completed" && "text-green-600 dark:text-green-400",
-                        step.status === "active" && "text-primary",
+                        step.status === "active" && "text-primary animate-pulse",
                         step.status === "pending" && "text-muted-foreground"
                       )} />
 
                       {/* Pulse animation for active */}
                       {step.status === "active" && (
-                        <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
+                        <>
+                          <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
+                          <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-primary animate-pulse" />
+                        </>
                       )}
+
+                      {/* Check mark for completed */}
+                      {step.status === "completed" && (
+                        <div className="absolute -bottom-1 -right-1">
+                          <CheckCircle className="w-6 h-6 text-green-500 bg-white dark:bg-background rounded-full" />
+                        </div>
+                      )}
+
+                      {/* Step number */}
+                      <div className={cn(
+                        "absolute -top-2 -right-2 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-md",
+                        step.status === "completed" && "bg-green-500 text-white",
+                        step.status === "active" && "bg-primary text-primary-foreground",
+                        step.status === "pending" && "bg-muted text-muted-foreground"
+                      )}>
+                        {step.number}
+                      </div>
                     </div>
 
-                    {/* Content Card */}
+                    {/* Enhanced Content Card */}
                     <Card className={cn(
-                      "flex-1",
-                      step.status === "completed" && "border-green-500/30",
-                      step.status === "active" && "border-primary shadow-md",
-                      step.status === "pending" && "opacity-75"
+                      "flex-1 border-2 shadow-md transition-all duration-300",
+                      step.status === "completed" && "border-green-500/40 bg-gradient-to-br from-green-50/50 to-transparent dark:from-green-950/20",
+                      step.status === "active" && "border-primary/60 shadow-lg shadow-primary/10 bg-gradient-to-br from-primary/5 to-transparent",
+                      step.status === "pending" && "border-border opacity-60"
                     )}>
-                      <CardHeader className="p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <Badge variant={step.status === "active" ? "default" : "outline"} className="text-xs">
-                            Step {step.number}
-                          </Badge>
-                          {step.status === "completed" && (
-                            <CheckCircle className="w-4 h-4 text-green-500" />
-                          )}
+                      <CardHeader className="p-5 text-center space-y-3">
+                        <div className="space-y-2">
+                          <CardTitle className="text-lg font-bold leading-tight">
+                            {step.title}
+                          </CardTitle>
+                          <CardDescription className="text-xs leading-relaxed">
+                            {step.description}
+                          </CardDescription>
                         </div>
-                        <CardTitle className="text-base">{step.title}</CardTitle>
-                        <CardDescription className="text-xs mt-1">
-                          {step.description}
-                        </CardDescription>
+
+                        {/* Tech Badge */}
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            "text-[0.7rem] px-3 py-1 font-medium shadow-sm mx-auto",
+                            step.status === "active" && "bg-primary/10 text-primary border-primary/20"
+                          )}
+                        >
+                          {step.tech}
+                        </Badge>
+
+                        {/* Status indicator */}
+                        {step.status === "active" && (
+                          <div className="flex items-center justify-center gap-2 text-xs font-medium text-primary pt-1">
+                            <div className="relative flex h-3 w-3">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
+                            </div>
+                            진행 중
+                          </div>
+                        )}
                       </CardHeader>
                     </Card>
                   </div>
@@ -370,145 +431,8 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Quick Navigation */}
-        <div className="mt-12 flex justify-center gap-3 flex-wrap px-4">
-          <Link href="/parse">
-            <Button size="sm" variant="outline" className="gap-2">
-              <Upload className="w-4 h-4" />
-              시작하기
-            </Button>
-          </Link>
-          {processSteps.map((step, index) => {
-            if (index === 0) return null // Skip first step as we have 시작하기
-            const href = index === 3 ? "/qdrant" : index === 4 ? "/dify" : index === 5 ? "/chat" : "#"
-            if (href === "#") return null
-
-            return (
-              <Link key={index} href={href}>
-                <Button size="sm" variant="ghost" className="gap-2 text-xs">
-                  <step.icon className="w-4 h-4" />
-                  {step.title}
-                </Button>
-              </Link>
-            )
-          })}
-        </div>
       </div>
 
-      {/* Process Steps - 탭과 프로그레스 바로 개선 */}
-      <div className="mb-16">
-        <div className="text-center mb-12">
-          <Badge variant="outline" className="mb-4">6단계 프로세스</Badge>
-          <h2 className="text-4xl font-bold mb-4">문서를 지식으로 전환하는 과정</h2>
-          <p className="text-lg text-muted-foreground">
-            AI 기반 문서 처리부터 RAG 활용까지 전체 워크플로우
-          </p>
-        </div>
-
-        {/* 프로그레스 바 */}
-        <div className="mb-8">
-          <Progress value={(activeStep + 1) * 16.67} className="h-2" />
-        </div>
-
-        {/* 탭 기반 프로세스 스텝 */}
-        <Tabs value={`step-${activeStep}`} onValueChange={(value) => {
-          const step = parseInt(value.split('-')[1])
-          setActiveStep(step)
-        }} className="w-full">
-          <TabsList className="grid grid-cols-3 sm:grid-cols-6 w-full h-auto p-1 bg-muted/50">
-            {processSteps.map((step, index) => {
-              const Icon = step.icon
-              const isCompleted = step.status === "completed"
-              const isActive = step.status === "active"
-              const isPending = step.status === "pending"
-
-              return (
-                <TabsTrigger
-                  key={index}
-                  value={`step-${index}`}
-                  className={cn(
-                    "flex flex-col gap-2 py-4 data-[state=active]:bg-background",
-                    isCompleted && "text-green-600 dark:text-green-400",
-                    isActive && "text-primary",
-                    isPending && "text-muted-foreground"
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    {isCompleted ? (
-                      <CheckCircle className="w-5 h-5" />
-                    ) : isActive ? (
-                      <div className="relative">
-                        <Circle className="w-5 h-5" />
-                        <div className="absolute inset-0 w-5 h-5 rounded-full bg-primary/20 animate-ping" />
-                      </div>
-                    ) : (
-                      <Circle className="w-5 h-5" />
-                    )}
-                    <span className="hidden xl:inline font-medium">{step.title}</span>
-                    <span className="xl:hidden font-medium">{step.number}</span>
-                  </div>
-                </TabsTrigger>
-              )
-            })}
-          </TabsList>
-
-          {processSteps.map((step, index) => {
-            const Icon = step.icon
-            return (
-              <TabsContent key={index} value={`step-${index}`} className="mt-8">
-                <Card className="border-2">
-                  <CardHeader className="text-center pb-4">
-                    <div className="mx-auto mb-4">
-                      <div className={cn(
-                        "w-20 h-20 rounded-full flex items-center justify-center",
-                        step.status === "completed" && "bg-green-100 dark:bg-green-900/30",
-                        step.status === "active" && "bg-primary/10",
-                        step.status === "pending" && "bg-muted"
-                      )}>
-                        <Icon className={cn(
-                          "w-10 h-10",
-                          step.status === "completed" && "text-green-600 dark:text-green-400",
-                          step.status === "active" && "text-primary",
-                          step.status === "pending" && "text-muted-foreground"
-                        )} />
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-center gap-2">
-                      <Badge variant={step.status === "active" ? "default" : "outline"}>
-                        Step {step.number}
-                      </Badge>
-                      {step.status === "completed" && (
-                        <Badge variant="outline" className="bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400">
-                          완료
-                        </Badge>
-                      )}
-                      {step.status === "active" && (
-                        <Badge className="bg-primary/10 text-primary">
-                          진행 중
-                        </Badge>
-                      )}
-                    </div>
-                    <CardTitle className="text-2xl mt-4">{step.title}</CardTitle>
-                    <CardDescription className="text-base mt-2">
-                      {step.description}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="bg-muted/50 rounded-lg p-6 space-y-3">
-                      {step.details.split('\n').map((detail, idx) => (
-                        <div key={idx} className="flex items-start gap-2">
-                          <ChevronRight className="w-4 h-4 mt-0.5 text-primary" />
-                          <span className="text-sm">{detail}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            )
-          })}
-        </Tabs>
-      </div>
 
       {/* AI 챗봇 섹션 - 새로 추가 */}
       <div className="mb-16">
@@ -591,21 +515,6 @@ export default function HomePage() {
                 </div>
               </div>
 
-              {/* CTA 버튼 */}
-              <div className="flex gap-4 flex-wrap pt-4">
-                <Link href="/chat">
-                  <Button size="lg" className="gap-2">
-                    <MessageSquare className="w-5 h-5" />
-                    챗봇 시작하기
-                  </Button>
-                </Link>
-                <Link href="/parse">
-                  <Button size="lg" variant="outline" className="gap-2">
-                    <Upload className="w-5 h-5" />
-                    문서 업로드
-                  </Button>
-                </Link>
-              </div>
             </div>
           </div>
         </div>
@@ -625,81 +534,34 @@ export default function HomePage() {
           {features.map((feature) => {
             const Icon = feature.icon
             return (
-              <HoverCard key={feature.href}>
-                <HoverCardTrigger asChild>
-                  <Link href={feature.href}>
-                    <Card className="h-full hover:shadow-xl transition-all hover:-translate-y-2 group overflow-hidden border-2">
-                      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                      <CardHeader>
-                        <div className={cn(
-                          "w-14 h-14 rounded-xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110",
-                          feature.bgColor
-                        )}>
-                          <Icon className={cn("w-7 h-7", feature.color)} />
-                        </div>
-                        <CardTitle className="flex items-center justify-between">
-                          {feature.title}
-                          <ArrowRight className="w-5 h-5 opacity-0 group-hover:opacity-100 transition-all group-hover:translate-x-1" />
-                        </CardTitle>
-                        <CardDescription className="mt-2">
-                          {feature.description}
-                        </CardDescription>
-                      </CardHeader>
-                    </Card>
-                  </Link>
-                </HoverCardTrigger>
-                <HoverCardContent className="w-80">
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Icon className={cn("w-5 h-5", feature.color)} />
-                      <h4 className="font-semibold">{feature.title}</h4>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {feature.description}
-                    </p>
-                    <div className="pt-3 border-t space-y-2">
-                      <p className="text-xs font-medium text-muted-foreground">주요 기능</p>
-                      {feature.features.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-2 text-sm">
-                          <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400" />
-                          <span>{item}</span>
-                        </div>
-                      ))}
-                    </div>
+              <Card key={feature.href} className="h-full border-2">
+                <CardHeader>
+                  <div className={cn(
+                    "w-14 h-14 rounded-xl flex items-center justify-center mb-4",
+                    feature.bgColor
+                  )}>
+                    <Icon className={cn("w-7 h-7", feature.color)} />
                   </div>
-                </HoverCardContent>
-              </HoverCard>
+                  <CardTitle>
+                    {feature.title}
+                  </CardTitle>
+                  <CardDescription className="mt-2">
+                    {feature.description}
+                  </CardDescription>
+                  <div className="pt-4 space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">주요 기능</p>
+                    {feature.features.map((item, idx) => (
+                      <div key={idx} className="flex items-center gap-2 text-sm">
+                        <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400" />
+                        <span className="text-sm text-muted-foreground">{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardHeader>
+              </Card>
             )
           })}
         </div>
-      </div>
-
-      {/* CTA Section */}
-      <div className="mt-20 text-center">
-        <Card className="bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20 max-w-3xl mx-auto">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-3xl">지금 시작하세요</CardTitle>
-            <CardDescription className="text-base mt-2">
-              문서를 업로드하고 AI의 힘으로 지식베이스를 구축하세요
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-4 justify-center">
-              <Link href="/parse">
-                <Button size="lg" className="gap-2">
-                  <Upload className="w-5 h-5" />
-                  문서 업로드
-                </Button>
-              </Link>
-              <Link href="/chat">
-                <Button size="lg" variant="outline" className="gap-2">
-                  <MessageSquare className="w-5 h-5" />
-                  데모 체험
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* 플로팅 챗봇 버튼 */}

@@ -31,7 +31,7 @@ export default function RootLayout({
         >
           <div className="min-h-screen bg-background">
             <NavHeader />
-            <main>{children}</main>
+            <main className="w-full overflow-x-hidden">{children}</main>
           </div>
           <Toaster />
         </ThemeProvider>
