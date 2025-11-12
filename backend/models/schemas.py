@@ -136,7 +136,7 @@ class DifyDatasetResponse(BaseModel):
     word_count: int
     created_by: str
     created_at: int
-    updated_by: str
+    updated_by: Optional[str] = None  # None 허용 (새로 생성된 데이터셋의 경우 None일 수 있음)
     updated_at: int
 
     # nullable 필드

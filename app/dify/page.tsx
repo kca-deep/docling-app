@@ -378,7 +378,7 @@ export default function DifyPage() {
                         저장
                       </Button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="sm:max-w-lg">
                       <DialogHeader>
                         <DialogTitle>Dify 설정 저장</DialogTitle>
                         <DialogDescription>

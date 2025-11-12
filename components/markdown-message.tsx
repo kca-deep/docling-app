@@ -49,7 +49,7 @@ function MarkdownTable({ children }: { children: React.ReactNode }) {
       </div>
       <CollapsibleContent>
         <div className="w-full rounded-md border overflow-x-auto max-w-full">
-          <table className="w-auto divide-y divide-border border-collapse text-sm">
+          <table className="w-full min-w-fit divide-y divide-border border-collapse text-sm">
             {children}
           </table>
         </div>
@@ -78,7 +78,7 @@ export function MarkdownMessage({ content }: MarkdownMessageProps) {
     ),
     td: ({ children }) => (
       <td className="px-3 py-2 text-sm text-foreground align-top">
-        <div className="max-w-[200px] break-words whitespace-normal">
+        <div className="max-w-[400px] break-words whitespace-normal">
           {children}
         </div>
       </td>

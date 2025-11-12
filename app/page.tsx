@@ -204,22 +204,21 @@ export default function HomePage() {
           {stats.map((stat, index) => {
             const Icon = stat.icon
             return (
-              <Link key={index} href="/qdrant">
-                <div
-                  className={`flex items-center gap-3 animate-scale-up animate-delay-${(index + 3) * 100} cursor-pointer group transition-all hover:scale-105`}
-                >
-                  <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                    <Icon className="w-4 h-4 text-primary group-hover:scale-110 transition-transform" />
-                  </div>
-                  <div className="text-left">
-                    <div className="text-xl sm:text-2xl font-bold group-hover:text-primary transition-colors">
-                      {stat.value}
-                      <span className="text-xs sm:text-sm text-muted-foreground ml-1">{stat.unit}</span>
-                    </div>
-                    <div className="text-xs text-muted-foreground">{stat.label}</div>
-                  </div>
+              <div
+                key={index}
+                className={`flex items-center gap-3 animate-scale-up animate-delay-${(index + 3) * 100}`}
+              >
+                <div className="p-2 rounded-lg bg-primary/10 transition-colors">
+                  <Icon className="w-4 h-4 text-primary transition-transform" />
                 </div>
-              </Link>
+                <div className="text-left">
+                  <div className="text-xl sm:text-2xl font-bold">
+                    {stat.value}
+                    <span className="text-xs sm:text-sm text-muted-foreground ml-1">{stat.unit}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">{stat.label}</div>
+                </div>
+              </div>
             )
           })}
         </div>

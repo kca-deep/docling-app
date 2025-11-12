@@ -341,7 +341,7 @@ export default function QdrantPage() {
                         생성
                       </Button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="sm:max-w-lg">
                       <DialogHeader>
                         <DialogTitle>새 Collection 생성</DialogTitle>
                         <DialogDescription>

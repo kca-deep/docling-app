@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, KeyboardEvent } from "react";
+import { useState, useRef, KeyboardEvent, useEffect } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,6 +41,13 @@ export function InputArea({
   const [isComposing, setIsComposing] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 로딩이 끝나고 활성화되면 포커스
+  useEffect(() => {
+    if (!isLoading && !disabled && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [isLoading, disabled]);
 
   const handleKeyPress = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     // 한글 입력 중에는 무시

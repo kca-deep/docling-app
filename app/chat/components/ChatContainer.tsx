@@ -3,15 +3,20 @@
 import { useState, useEffect, useRef } from "react";
 import { MessageList } from "./MessageList";
 import { InputArea } from "./InputArea";
-import { SourcePanel } from "./SourcePanel";
 import { SettingsPanel } from "./SettingsPanel";
 import { Card } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Settings, FileText } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Settings, Database } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 
 interface Message {
   id: string;
@@ -75,7 +80,6 @@ export function ChatContainer() {
 
   // 우측 패널 상태
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"settings" | "sources">("settings");
 
   // AI 설정
   const [settings, setSettings] = useState<ChatSettings>({
@@ -144,7 +148,7 @@ export function ChatContainer() {
       const sources: Source[] = (data.retrieved_docs || []).map((doc: any) => ({
         id: doc.id,
         title: doc.metadata?.title || `문서 ${doc.id}`,
-        content: doc.text.substring(0, 300) + "...",
+        content: doc.text,
         score: doc.score,
         metadata: doc.metadata,
       }));
@@ -241,7 +245,7 @@ export function ChatContainer() {
                 sources = parsed.sources.map((doc: any) => ({
                   id: doc.id,
                   title: doc.metadata?.title || `문서 ${doc.id}`,
-                  content: doc.text.substring(0, 300) + "...",
+                  content: doc.text,
                   score: doc.score,
                   metadata: doc.metadata,
                 }));
@@ -339,36 +343,51 @@ export function ChatContainer() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden relative">
-      {/* 상단 헤더 - 토글 버튼 */}
+      {/* 상단 헤더 - 컬렉션 선택 및 고급설정 */}
       <div className="flex items-center justify-between px-3 py-2 border-b flex-shrink-0 bg-background">
         <h2 className="text-lg font-semibold">RAG기반 AI Chat</h2>
         <div className="flex items-center gap-2">
+          {/* 컬렉션 선택 */}
+          <div className="flex items-center gap-2">
+            <Database className="h-4 w-4 text-muted-foreground" />
+            <Select
+              value={selectedCollection}
+              onValueChange={setSelectedCollection}
+            >
+              <SelectTrigger className="w-[200px] h-8">
+                <SelectValue placeholder="컬렉션 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                {collections.length === 0 ? (
+                  <div className="p-2 text-center text-sm text-muted-foreground">
+                    컬렉션이 없습니다
+                  </div>
+                ) : (
+                  collections.map((collection) => (
+                    <SelectItem key={collection.name} value={collection.name}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span>{collection.name}</span>
+                        <Badge variant="secondary" className="ml-2 text-xs">
+                          {collection.points_count.toLocaleString()}
+                        </Badge>
+                      </div>
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* 고급설정 */}
           <Sheet open={rightPanelOpen} onOpenChange={setRightPanelOpen}>
             <SheetTrigger asChild>
               <Button
                 variant="outline"
                 size="sm"
                 className="gap-2"
-                onClick={() => setActiveTab("settings")}
               >
                 <Settings className="h-4 w-4" />
-                <span className="hidden sm:inline">설정</span>
-              </Button>
-            </SheetTrigger>
-            <SheetTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2 relative"
-                onClick={() => setActiveTab("sources")}
-              >
-                <FileText className="h-4 w-4" />
-                <span className="hidden sm:inline">참조 문서</span>
-                {currentSources.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1">
-                    {currentSources.length}
-                  </Badge>
-                )}
+                <span className="hidden sm:inline">고급설정</span>
               </Button>
             </SheetTrigger>
 
@@ -377,35 +396,12 @@ export function ChatContainer() {
               className="w-[90vw] sm:w-[450px] md:w-[500px] p-0"
             >
               <SheetHeader className="sr-only">
-                <SheetTitle>
-                  {activeTab === "settings" ? "AI 설정" : "참조 문서"}
-                </SheetTitle>
+                <SheetTitle>고급설정</SheetTitle>
               </SheetHeader>
-              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "settings" | "sources")} className="h-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="settings">설정</TabsTrigger>
-                  <TabsTrigger value="sources">
-                    참조 문서
-                    {currentSources.length > 0 && (
-                      <Badge variant="secondary" className="ml-2 h-5 min-w-5 px-1.5">
-                        {currentSources.length}
-                      </Badge>
-                    )}
-                  </TabsTrigger>
-                </TabsList>
-                <TabsContent value="settings" className="h-[calc(100%-45px)] overflow-y-auto m-0">
-                  <SettingsPanel
-                    collections={collections}
-                    selectedCollection={selectedCollection}
-                    onCollectionChange={setSelectedCollection}
-                    settings={settings}
-                    onSettingsChange={setSettings}
-                  />
-                </TabsContent>
-                <TabsContent value="sources" className="h-[calc(100%-45px)] overflow-y-auto m-0">
-                  <SourcePanel sources={currentSources} />
-                </TabsContent>
-              </Tabs>
+              <SettingsPanel
+                settings={settings}
+                onSettingsChange={setSettings}
+              />
             </SheetContent>
           </Sheet>
         </div>
@@ -416,11 +412,7 @@ export function ChatContainer() {
         <MessageList
           messages={messages}
           isLoading={isLoading}
-          onSourceClick={(sources) => {
-            setCurrentSources(sources);
-            setActiveTab("sources");
-            setRightPanelOpen(true);
-          }}
+          isStreaming={settings.streamMode}
         />
       </div>
 

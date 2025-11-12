@@ -35,10 +35,10 @@ interface Source {
 interface MessageListProps {
   messages: Message[];
   isLoading: boolean;
-  onSourceClick?: (sources: Source[]) => void;
+  isStreaming?: boolean;
 }
 
-export function MessageList({ messages, isLoading, onSourceClick }: MessageListProps) {
+export function MessageList({ messages, isLoading, isStreaming }: MessageListProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [userScrolled, setUserScrolled] = useState(false);
@@ -127,15 +127,18 @@ export function MessageList({ messages, isLoading, onSourceClick }: MessageListP
               timestamp={message.timestamp}
               sources={message.sources}
               metadata={message.metadata}
-              onSourceClick={onSourceClick}
               onCopy={() => handleCopy(message.content)}
               onRegenerate={handleRegenerate}
               isLast={index === messages.length - 1}
+              isStreaming={isLoading && index === messages.length - 1}
             />
           ))}
 
-          {/* 로딩 인디케이터 */}
+          {/* 로딩 인디케이터 (스트리밍 중 메시지가 없을 때 또는 비스트리밍 모드) */}
           {isLoading && (
+            !isStreaming ||
+            (isStreaming && (messages.length === 0 || messages[messages.length - 1].role !== 'assistant'))
+          ) && (
             <div className="flex gap-3">
               <Avatar className="h-8 w-8 flex-shrink-0">
                 <AvatarFallback className="bg-muted">

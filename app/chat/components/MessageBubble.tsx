@@ -7,6 +7,22 @@ import { Bot, User, FileText, Copy, Check, RefreshCw } from "lucide-react";
 import { MarkdownMessage } from "@/components/markdown-message";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { ChevronDown, ChevronUp, ExternalLink, Link } from "lucide-react";
 
 interface Source {
   id: string;
@@ -29,10 +45,10 @@ interface MessageBubbleProps {
     tokens?: number;
     processingTime?: number;
   };
-  onSourceClick?: (sources: Source[]) => void;
   onCopy?: () => void;
   onRegenerate?: () => void;
   isLast?: boolean;
+  isStreaming?: boolean;
 }
 
 export function MessageBubble({
@@ -41,16 +57,36 @@ export function MessageBubble({
   timestamp,
   sources,
   metadata,
-  onSourceClick,
   onCopy,
   onRegenerate,
   isLast,
+  isStreaming,
 }: MessageBubbleProps) {
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString("ko-KR", {
       hour: "2-digit",
       minute: "2-digit",
     });
+  };
+
+  const toggleExpanded = (id: string) => {
+    setExpandedIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const getScoreColor = (score: number) => {
+    if (score >= 0.8) return "text-green-600 bg-green-50 dark:text-green-400 dark:bg-green-950";
+    if (score >= 0.6) return "text-yellow-600 bg-yellow-50 dark:text-yellow-400 dark:bg-yellow-950";
+    return "text-orange-600 bg-orange-50 dark:text-orange-400 dark:bg-orange-950";
   };
 
   return (
@@ -97,7 +133,7 @@ export function MessageBubble({
               : "bg-card border border-border"
           )}
         >
-          <div className="w-full min-w-0 overflow-hidden">
+          <div className="w-full min-w-0">
             {role === "assistant" || role === "system" ? (
               <MarkdownMessage content={content} />
             ) : (
@@ -107,16 +143,125 @@ export function MessageBubble({
             )}
           </div>
 
-          {/* 참조 문서 표시 */}
-          {sources && sources.length > 0 && (
+          {/* 참조 문서 표시 - 모달로 변경 (스트리밍 중에는 숨김) */}
+          {!isStreaming && sources && sources.length > 0 && (
             <div className="mt-3 pt-3 border-t">
-              <button
-                onClick={() => onSourceClick?.(sources)}
-                className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <FileText className="h-3 w-3" />
-                <span>{sources.length}개의 참조 문서</span>
-              </button>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <button className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                    <FileText className="h-3 w-3" />
+                    <span>{sources.length}개의 참조 문서</span>
+                  </button>
+                </DialogTrigger>
+                <DialogContent className="max-w-6xl w-[95vw] max-h-[80vh] p-0">
+                  <DialogHeader className="p-6 pb-3">
+                    <DialogTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-primary" />
+                      참조 문서
+                    </DialogTitle>
+                    <DialogDescription>
+                      {sources.length}개의 관련 문서를 찾았습니다
+                    </DialogDescription>
+                  </DialogHeader>
+                  <ScrollArea className="max-h-[calc(80vh-120px)] px-6 pb-6">
+                    <div className="space-y-3">
+                      {sources.map((source, index) => {
+                        const isExpanded = expandedIds.has(source.id);
+
+                        return (
+                          <Card key={source.id} className={cn(
+                            "transition-all cursor-pointer",
+                            "hover:shadow-lg hover:border-primary/50",
+                            isExpanded && "ring-2 ring-primary/20"
+                          )}>
+                            <CardHeader className="pb-3">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <CardTitle className="text-sm font-medium line-clamp-2 group-hover:text-primary transition-colors">
+                                    <span className="text-muted-foreground mr-2">
+                                      #{index + 1}
+                                    </span>
+                                    {source.title}
+                                  </CardTitle>
+                                  {source.metadata && (
+                                    <CardDescription className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                                      {source.metadata.file && (
+                                        <span className="flex items-center gap-1">
+                                          <FileText className="h-3 w-3" />
+                                          {source.metadata.file}
+                                        </span>
+                                      )}
+                                      {source.metadata.page && (
+                                        <span>페이지 {source.metadata.page}</span>
+                                      )}
+                                      {source.metadata.url && (
+                                        <a
+                                          href={source.metadata.url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center gap-1 text-primary hover:underline hover:text-primary/80 transition-colors"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <Link className="h-3 w-3" />
+                                          <span>원본 링크</span>
+                                          <ExternalLink className="h-3 w-3" />
+                                        </a>
+                                      )}
+                                    </CardDescription>
+                                  )}
+                                </div>
+                                <Badge
+                                  variant="outline"
+                                  className={cn("flex-shrink-0", getScoreColor(source.score))}
+                                >
+                                  <span className="font-semibold">
+                                    {(source.score * 100).toFixed(0)}%
+                                  </span>
+                                </Badge>
+                              </div>
+                            </CardHeader>
+                            <CardContent>
+                              <Collapsible
+                                open={isExpanded}
+                                onOpenChange={() => toggleExpanded(source.id)}
+                              >
+                                <div className="space-y-2">
+                                  <div className={cn(
+                                    "text-sm text-muted-foreground",
+                                    !isExpanded && "line-clamp-3"
+                                  )}>
+                                    {source.content}
+                                  </div>
+                                  <div className="flex items-center justify-between pt-2">
+                                    <CollapsibleTrigger asChild>
+                                      <Button variant="ghost" size="sm" className="h-8">
+                                        {isExpanded ? (
+                                          <>
+                                            <ChevronUp className="h-4 w-4 mr-1" />
+                                            접기
+                                          </>
+                                        ) : (
+                                          <>
+                                            <ChevronDown className="h-4 w-4 mr-1" />
+                                            더 보기
+                                          </>
+                                        )}
+                                      </Button>
+                                    </CollapsibleTrigger>
+                                  </div>
+                                </div>
+                                <CollapsibleContent>
+                                  {/* 관련도 점수는 상단 Badge에 이미 표시되어 있으므로 제거 */}
+                                </CollapsibleContent>
+                              </Collapsible>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  </ScrollArea>
+                </DialogContent>
+              </Dialog>
             </div>
           )}
 

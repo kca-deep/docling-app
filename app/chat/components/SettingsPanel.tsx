@@ -1,6 +1,5 @@
 "use client";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
@@ -13,11 +12,8 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 import {
-  Database,
   Settings,
-  AlertCircle,
 } from "lucide-react";
 import {
   Tooltip,
@@ -25,14 +21,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-
-interface Collection {
-  name: string;
-  vectors_count: number;
-  points_count: number;
-  vector_size: number;
-  distance: string;
-}
 
 interface ChatSettings {
   reasoningLevel: string;
@@ -47,17 +35,11 @@ interface ChatSettings {
 }
 
 interface SettingsPanelProps {
-  collections: Collection[];
-  selectedCollection: string;
-  onCollectionChange: (value: string) => void;
   settings: ChatSettings;
   onSettingsChange: (settings: ChatSettings) => void;
 }
 
 export function SettingsPanel({
-  collections,
-  selectedCollection,
-  onCollectionChange,
   settings,
   onSettingsChange,
 }: SettingsPanelProps) {
@@ -75,83 +57,6 @@ export function SettingsPanel({
     <div className="h-full flex flex-col">
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-4">
-          {/* 컬렉션 선택 */}
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-2">
-                <Database className="h-5 w-5 text-primary" />
-                <CardTitle className="text-sm">문서 컬렉션</CardTitle>
-              </div>
-              <CardDescription className="text-xs">
-                대화할 문서 컬렉션을 선택하세요
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Select
-                value={selectedCollection}
-                onValueChange={onCollectionChange}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="컬렉션을 선택하세요" />
-                </SelectTrigger>
-                <SelectContent>
-                  {collections.length === 0 ? (
-                    <div className="p-4 text-center">
-                      <AlertCircle className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground">
-                        사용 가능한 컬렉션이 없습니다
-                      </p>
-                    </div>
-                  ) : (
-                    collections.map((collection) => (
-                      <SelectItem key={collection.name} value={collection.name}>
-                        <div className="flex items-center justify-between w-full">
-                          <span>{collection.name}</span>
-                          <Badge variant="secondary" className="ml-2">
-                            {collection.points_count.toLocaleString()} 문서
-                          </Badge>
-                        </div>
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-
-              {/* 선택된 컬렉션 정보 */}
-              {selectedCollection && collections.length > 0 && (
-                <div className="mt-3 p-2 bg-muted rounded-md">
-                  {(() => {
-                    const col = collections.find(
-                      (c) => c.name === selectedCollection
-                    );
-                    if (!col) return null;
-
-                    return (
-                      <div className="space-y-1 text-xs">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">문서 수:</span>
-                          <span className="font-mono">
-                            {col.points_count.toLocaleString()}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">벡터 차원:</span>
-                          <span className="font-mono">{col.vector_size}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">거리 메트릭:</span>
-                          <span className="font-mono">{col.distance}</span>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Separator />
-
           {/* AI 설정 */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
@@ -293,7 +198,7 @@ export function SettingsPanel({
             </div>
 
             {/* 고급 설정 (접기 가능) */}
-            <details className="space-y-3">
+            <details className="space-y-3" open>
               <summary className="cursor-pointer text-sm font-medium">
                 고급 설정
               </summary>

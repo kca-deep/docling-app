@@ -74,7 +74,7 @@ export function MarkdownViewerModal({ documentId, open, onOpenChange }: Markdown
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="!max-w-[90vw] sm:!max-w-[90vw] md:!max-w-[85vw] lg:!max-w-[80vw] !h-[90vh] !flex !flex-col overflow-hidden !p-0 !gap-0">
+      <DialogContent className="max-w-[90vw] sm:max-w-[90vw] md:max-w-[85vw] lg:max-w-[80vw] h-[90vh] flex flex-col overflow-hidden p-0 gap-0">
         <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
