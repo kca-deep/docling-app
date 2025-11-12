@@ -87,6 +87,7 @@ export function ChatContainer() {
     frequencyPenalty: 0,
     presencePenalty: 0,
     streamMode: true,
+    useReranking: true,
   });
 
   // 컬렉션 목록 로드
@@ -128,6 +129,7 @@ export function ChatContainer() {
           presence_penalty: settings.presencePenalty,
           top_k: settings.topK,
           stream: false,
+          use_reranking: settings.useReranking,
           chat_history: messages.filter(m => m.role !== "system").slice(-10),
         }),
       });
@@ -195,6 +197,7 @@ export function ChatContainer() {
           presence_penalty: settings.presencePenalty,
           top_k: settings.topK,
           stream: true,
+          use_reranking: settings.useReranking,
           chat_history: messages.filter(m => m.role !== "system").slice(-10),
         }),
       });
@@ -337,7 +340,7 @@ export function ChatContainer() {
   return (
     <div className="flex flex-col h-full overflow-hidden relative">
       {/* 상단 헤더 - 토글 버튼 */}
-      <div className="flex items-center justify-between p-3 border-b flex-shrink-0 bg-background">
+      <div className="flex items-center justify-between px-3 py-2 border-b flex-shrink-0 bg-background">
         <h2 className="text-lg font-semibold">RAG기반 AI Chat</h2>
         <div className="flex items-center gap-2">
           <Sheet open={rightPanelOpen} onOpenChange={setRightPanelOpen}>

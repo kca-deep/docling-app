@@ -7,6 +7,8 @@ from typing import List, Dict, Any, Optional, AsyncGenerator
 from backend.services.embedding_service import EmbeddingService
 from backend.services.qdrant_service import QdrantService
 from backend.services.llm_service import LLMService
+from backend.services.reranker_service import RerankerService
+from backend.config.settings import settings
 
 
 class RAGService:
@@ -16,7 +18,8 @@ class RAGService:
         self,
         embedding_service: EmbeddingService,
         qdrant_service: QdrantService,
-        llm_service: LLMService
+        llm_service: LLMService,
+        reranker_service: Optional[RerankerService] = None
     ):
         """
         RAGService 초기화
@@ -25,10 +28,12 @@ class RAGService:
             embedding_service: 임베딩 서비스
             qdrant_service: Qdrant 서비스
             llm_service: LLM 서비스
+            reranker_service: Reranker 서비스 (선택)
         """
         self.embedding_service = embedding_service
         self.qdrant_service = qdrant_service
         self.llm_service = llm_service
+        self.reranker_service = reranker_service
 
     async def retrieve(
         self,
@@ -211,7 +216,8 @@ class RAGService:
         presence_penalty: float = 0.0,
         top_k: int = 5,
         score_threshold: Optional[float] = None,
-        chat_history: Optional[List[Dict[str, str]]] = None
+        chat_history: Optional[List[Dict[str, str]]] = None,
+        use_reranking: bool = False
     ) -> Dict[str, Any]:
         """
         RAG 기반 채팅 (검색 + 생성 통합)
@@ -228,6 +234,7 @@ class RAGService:
             top_k: 검색할 문서 수
             score_threshold: 최소 유사도 점수
             chat_history: 이전 대화 기록
+            use_reranking: Reranking 사용 여부
 
         Returns:
             Dict[str, Any]: 응답
@@ -240,10 +247,16 @@ class RAGService:
         """
         try:
             # 1. Retrieve: 관련 문서 검색
+            # Reranking 사용 시 top_k를 배수만큼 증가
+            initial_top_k = top_k
+            if use_reranking and self.reranker_service:
+                initial_top_k = top_k * settings.RERANK_TOP_K_MULTIPLIER
+                print(f"[INFO] Reranking enabled: expanding top_k from {top_k} to {initial_top_k}")
+
             retrieved_docs = await self.retrieve(
                 collection_name=collection_name,
                 query=query,
-                top_k=top_k,
+                top_k=initial_top_k,
                 score_threshold=score_threshold
             )
 
@@ -253,6 +266,42 @@ class RAGService:
                     "retrieved_docs": [],
                     "usage": None
                 }
+
+            # 1.5. Reranking (선택)
+            if use_reranking and self.reranker_service and retrieved_docs:
+                try:
+                    print(f"[INFO] Reranking {len(retrieved_docs)} documents")
+
+                    # 문서 텍스트 추출
+                    documents = [doc["payload"]["text"] for doc in retrieved_docs]
+
+                    # Reranker 호출
+                    reranked_results = await self.reranker_service.rerank_with_fallback(
+                        query=query,
+                        documents=documents,
+                        top_n=settings.RERANK_FINAL_TOP_K,
+                        return_documents=False
+                    )
+
+                    # Reranking 성공 시 재정렬
+                    if reranked_results:
+                        # Reranker 순서로 재정렬하고 relevance_score를 score에 반영
+                        reranked_docs = []
+                        for r in reranked_results:
+                            doc = retrieved_docs[r.index].copy()
+                            doc["score"] = r.relevance_score  # Reranker score로 덮어쓰기
+                            reranked_docs.append(doc)
+                        retrieved_docs = reranked_docs
+                        top_score = reranked_results[0].relevance_score
+                        print(f"[INFO] Reranking completed: top score={top_score:.4f}")
+                    else:
+                        print(f"[WARNING] Reranking failed, using original vector search results")
+                        # Fallback: 원본 결과를 top_k개만 사용
+                        retrieved_docs = retrieved_docs[:top_k]
+
+                except Exception as e:
+                    print(f"[WARNING] Reranking error: {e}, using original results")
+                    retrieved_docs = retrieved_docs[:top_k]
 
             # 2. Generate: 답변 생성
             llm_response = await self.generate(
@@ -293,7 +342,8 @@ class RAGService:
         presence_penalty: float = 0.0,
         top_k: int = 5,
         score_threshold: Optional[float] = None,
-        chat_history: Optional[List[Dict[str, str]]] = None
+        chat_history: Optional[List[Dict[str, str]]] = None,
+        use_reranking: bool = False
     ) -> AsyncGenerator[str, None]:
         """
         RAG 기반 스트리밍 채팅
@@ -310,6 +360,7 @@ class RAGService:
             top_k: 검색할 문서 수
             score_threshold: 최소 유사도 점수
             chat_history: 이전 대화 기록
+            use_reranking: Reranking 사용 여부
 
         Yields:
             str: SSE 이벤트 라인
@@ -319,10 +370,16 @@ class RAGService:
         """
         try:
             # 1. Retrieve: 관련 문서 검색
+            # Reranking 사용 시 top_k를 배수만큼 증가
+            initial_top_k = top_k
+            if use_reranking and self.reranker_service:
+                initial_top_k = top_k * settings.RERANK_TOP_K_MULTIPLIER
+                print(f"[INFO] Reranking enabled: expanding top_k from {top_k} to {initial_top_k}")
+
             retrieved_docs = await self.retrieve(
                 collection_name=collection_name,
                 query=query,
-                top_k=top_k,
+                top_k=initial_top_k,
                 score_threshold=score_threshold
             )
 
@@ -331,7 +388,43 @@ class RAGService:
                 yield 'data: {"error": "관련된 문서를 찾을 수 없습니다."}\n\n'
                 return
 
-            # 1.5. 검색된 문서를 먼저 전송 (스트리밍 시작 전)
+            # 1.5. Reranking (선택)
+            if use_reranking and self.reranker_service and retrieved_docs:
+                try:
+                    print(f"[INFO] Reranking {len(retrieved_docs)} documents")
+
+                    # 문서 텍스트 추출
+                    documents = [doc["payload"]["text"] for doc in retrieved_docs]
+
+                    # Reranker 호출
+                    reranked_results = await self.reranker_service.rerank_with_fallback(
+                        query=query,
+                        documents=documents,
+                        top_n=settings.RERANK_FINAL_TOP_K,
+                        return_documents=False
+                    )
+
+                    # Reranking 성공 시 재정렬
+                    if reranked_results:
+                        # Reranker 순서로 재정렬하고 relevance_score를 score에 반영
+                        reranked_docs = []
+                        for r in reranked_results:
+                            doc = retrieved_docs[r.index].copy()
+                            doc["score"] = r.relevance_score  # Reranker score로 덮어쓰기
+                            reranked_docs.append(doc)
+                        retrieved_docs = reranked_docs
+                        top_score = reranked_results[0].relevance_score
+                        print(f"[INFO] Reranking completed: top score={top_score:.4f}")
+                    else:
+                        print(f"[WARNING] Reranking failed, using original vector search results")
+                        # Fallback: 원본 결과를 top_k개만 사용
+                        retrieved_docs = retrieved_docs[:top_k]
+
+                except Exception as e:
+                    print(f"[WARNING] Reranking error: {e}, using original results")
+                    retrieved_docs = retrieved_docs[:top_k]
+
+            # 2. 검색된 문서를 먼저 전송 (스트리밍 시작 전)
             sources_data = []
             for doc in retrieved_docs:
                 sources_data.append({
@@ -343,7 +436,7 @@ class RAGService:
 
             yield f'data: {json.dumps({"sources": sources_data}, ensure_ascii=False)}\n\n'
 
-            # 2. Generate: 스트리밍 답변 생성
+            # 3. Generate: 스트리밍 답변 생성
             async for chunk in self.generate_stream(
                 query=query,
                 retrieved_docs=retrieved_docs,

@@ -9,6 +9,7 @@ from backend.services.embedding_service import EmbeddingService
 from backend.services.qdrant_service import QdrantService
 from backend.services.llm_service import LLMService
 from backend.services.rag_service import RAGService
+from backend.services.reranker_service import RerankerService
 from backend.config.settings import settings
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
@@ -29,10 +30,14 @@ llm_service = LLMService(
     model=settings.LLM_MODEL
 )
 
+# Reranker 서비스 초기화 (USE_RERANKING 설정에 따라)
+reranker_service = RerankerService() if settings.USE_RERANKING else None
+
 rag_service = RAGService(
     embedding_service=embedding_service,
     qdrant_service=qdrant_service,
-    llm_service=llm_service
+    llm_service=llm_service,
+    reranker_service=reranker_service
 )
 
 
@@ -86,7 +91,8 @@ async def chat(request: ChatRequest):
             presence_penalty=request.presence_penalty,
             top_k=request.top_k,
             score_threshold=request.score_threshold,
-            chat_history=chat_history
+            chat_history=chat_history,
+            use_reranking=request.use_reranking
         )
 
         # 응답 포맷팅
@@ -148,7 +154,8 @@ async def chat_stream(request: ChatRequest):
                     presence_penalty=request.presence_penalty,
                     top_k=request.top_k,
                     score_threshold=request.score_threshold,
-                    chat_history=chat_history
+                    chat_history=chat_history,
+                    use_reranking=request.use_reranking
                 ):
                     yield chunk
             except Exception as e:

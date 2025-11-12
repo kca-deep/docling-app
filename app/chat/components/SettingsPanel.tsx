@@ -43,6 +43,7 @@ interface ChatSettings {
   frequencyPenalty: number;
   presencePenalty: number;
   streamMode: boolean;
+  useReranking: boolean;
 }
 
 interface SettingsPanelProps {
@@ -193,6 +194,24 @@ export function SettingsPanel({
                 checked={settings.streamMode}
                 onCheckedChange={(checked) =>
                   updateSetting("streamMode", checked)
+                }
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="use-reranking" className="text-sm">
+                  재순위 검색 (Reranking)
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  검색 정확도 향상
+                </p>
+              </div>
+              <Switch
+                id="use-reranking"
+                checked={settings.useReranking}
+                onCheckedChange={(checked) =>
+                  updateSetting("useReranking", checked)
                 }
               />
             </div>
