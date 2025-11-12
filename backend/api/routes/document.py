@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from typing import Optional, List
 
 from backend.services.docling_service import DoclingService
+from backend.services.qwen3_service import qwen3_service
 from backend.services import document_crud
 from backend.database import get_db
 from backend.models.schemas import (
@@ -28,6 +29,7 @@ docling_service = DoclingService()
 @router.post("/convert", response_model=ConvertResult)
 async def convert_document(
     file: UploadFile = File(...),
+    strategy: str = Form(default="docling"),
     target_type: str = Form(default="inbody"),
     to_formats: str = Form(default="md"),
     do_ocr: str = Form(default="true"),
@@ -46,6 +48,7 @@ async def convert_document(
 
     Args:
         file: 업로드할 파일 (PDF, DOCX 등)
+        strategy: 파싱 전략 (docling, qwen3-vl)
         target_type: 변환 타겟 타입 (inbody, zip)
         to_formats: 출력 형식 (md, json, html, text, doctags)
         do_ocr: OCR 인식 활성화
@@ -81,23 +84,36 @@ async def convert_document(
         page_start = int(page_range_start) if page_range_start else 1
         page_end = int(page_range_end) if page_range_end else 9223372036854776000
 
-        # Docling Service 호출
-        result = await docling_service.convert_document(
-            file_content=file_content,
-            filename=file.filename,
-            target_type=target_type,
-            to_formats=to_formats,
-            do_ocr=do_ocr_bool,
-            do_table_structure=do_table_bool,
-            include_images=include_images_bool,
-            table_mode=table_mode,
-            image_export_mode=image_export_mode,
-            page_range_start=page_start,
-            page_range_end=page_end,
-            do_formula_enrichment=do_formula_bool,
-            pipeline=pipeline,
-            vlm_pipeline_model=vlm_pipeline_model
-        )
+        # 파싱 전략에 따라 서비스 선택
+        if strategy == "qwen3-vl":
+            # Qwen3 VL OCR Service 호출
+            result = await qwen3_service.convert_document(
+                file_content=file_content,
+                filename=file.filename
+            )
+        elif strategy == "docling":
+            # Docling Service 호출
+            result = await docling_service.convert_document(
+                file_content=file_content,
+                filename=file.filename,
+                target_type=target_type,
+                to_formats=to_formats,
+                do_ocr=do_ocr_bool,
+                do_table_structure=do_table_bool,
+                include_images=include_images_bool,
+                table_mode=table_mode,
+                image_export_mode=image_export_mode,
+                page_range_start=page_start,
+                page_range_end=page_end,
+                do_formula_enrichment=do_formula_bool,
+                pipeline=pipeline,
+                vlm_pipeline_model=vlm_pipeline_model
+            )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"지원하지 않는 파싱 전략입니다: {strategy}"
+            )
 
         return result
 

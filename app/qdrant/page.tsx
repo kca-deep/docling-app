@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination"
 import { Loader2, CheckCircle2, XCircle, Upload, Database, FileText, Search, X, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
+import { MarkdownViewerModal } from "@/components/markdown-viewer-modal"
 
 interface Document {
   id: number
@@ -76,6 +77,10 @@ export default function QdrantPage() {
   const [loadingDocuments, setLoadingDocuments] = useState(false)
   const [loadingCollections, setLoadingCollections] = useState(false)
   const [uploading, setUploading] = useState(false)
+
+  // Markdown Viewer 모달 상태
+  const [viewerOpen, setViewerOpen] = useState(false)
+  const [selectedDocumentId, setSelectedDocumentId] = useState<number | null>(null)
 
   // 저장된 문서 목록 가져오기
   const fetchDocuments = async (page = 1, search = "") => {
@@ -246,6 +251,12 @@ export default function QdrantPage() {
     setSelectedDocsInfo(newInfo)
   }
 
+  // 문서 뷰어 열기
+  const openDocumentViewer = (documentId: number) => {
+    setSelectedDocumentId(documentId)
+    setViewerOpen(true)
+  }
+
   // 전체 선택/해제
   const toggleAll = () => {
     if (selectedDocs.size === documents.length) {
@@ -280,13 +291,6 @@ export default function QdrantPage() {
 
   return (
     <PageContainer maxWidth="wide" className="py-6">
-      <div className="mb-4">
-        <h1 className="text-3xl font-bold mb-2">Qdrant Vector DB</h1>
-        <p className="text-sm text-muted-foreground">
-          저장된 문서를 벡터 데이터베이스에 임베딩하여 저장합니다
-        </p>
-      </div>
-
       <div className="space-y-6">
         {/* Collection 설정 섹션 */}
         <Card>
@@ -551,7 +555,12 @@ export default function QdrantPage() {
                             />
                           </TableCell>
                           <TableCell className="font-medium">
-                            {doc.original_filename}
+                            <button
+                              onClick={() => openDocumentViewer(doc.id)}
+                              className="text-left hover:text-primary hover:underline transition-colors"
+                            >
+                              {doc.original_filename}
+                            </button>
                           </TableCell>
                           <TableCell className="text-right text-muted-foreground">
                             {doc.content_length ? `${Math.round(doc.content_length / 1000)}KB` : "-"}
@@ -681,6 +690,13 @@ export default function QdrantPage() {
           </Card>
         )}
       </div>
+
+      {/* Markdown Viewer 모달 */}
+      <MarkdownViewerModal
+        documentId={selectedDocumentId}
+        open={viewerOpen}
+        onOpenChange={setViewerOpen}
+      />
     </PageContainer>
   )
 }

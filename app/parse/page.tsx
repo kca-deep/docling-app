@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Upload, FileText, Loader2, CheckCircle2, XCircle, Download, Trash2, FolderOpen, Save, Settings, Files } from "lucide-react";
+import { Upload, FileText, Loader2, CheckCircle2, XCircle, Download, Trash2, FolderOpen, Save, Settings, Files, Zap, Shield, Sparkles, Layout, Image } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -15,8 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { PageContainer } from "@/components/page-container";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown } from "lucide-react";
 import { MarkdownMessage } from "@/components/markdown-message";
@@ -34,17 +33,11 @@ interface ConvertResult {
 }
 
 interface ParseOptions {
-  to_formats: string;
+  strategy: "docling" | "qwen3-vl";
   do_ocr: boolean;
   do_table_structure: boolean;
   include_images: boolean;
-  table_mode: string;
-  image_export_mode: string;
-  page_range_start: number;
-  page_range_end: number;
   do_formula_enrichment: boolean;
-  pipeline: string;
-  vlm_pipeline_model?: string;
 }
 
 interface FileStatus {
@@ -59,31 +52,53 @@ export default function ParsePage() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ConvertResult | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   // 일괄 파일 상태
   const [files, setFiles] = useState<FileStatus[]>([]);
   const [processing, setProcessing] = useState(false);
+  const [isBatchDragging, setIsBatchDragging] = useState(false);
 
   // 공통 옵션 상태
-  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const [isOptionsOpen, setIsOptionsOpen] = useState(false);
   const [parseOptions, setParseOptions] = useState<ParseOptions>({
-    to_formats: "md",
+    strategy: "docling",
     do_ocr: true,
     do_table_structure: true,
     include_images: true,
-    table_mode: "accurate",
-    image_export_mode: "embedded",
-    page_range_start: 1,
-    page_range_end: 9223372036854776000,
     do_formula_enrichment: false,
-    pipeline: "standard",
-    vlm_pipeline_model: "granite_vision",
   });
 
   // 단일 파일 핸들러
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
+      setResult(null);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    if (loading) return;
+
+    const droppedFiles = e.dataTransfer.files;
+    if (droppedFiles && droppedFiles[0]) {
+      setFile(droppedFiles[0]);
       setResult(null);
     }
   };
@@ -98,19 +113,11 @@ export default function ParsePage() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("to_formats", parseOptions.to_formats);
+      formData.append("strategy", parseOptions.strategy);
       formData.append("do_ocr", String(parseOptions.do_ocr));
       formData.append("do_table_structure", String(parseOptions.do_table_structure));
       formData.append("include_images", String(parseOptions.include_images));
-      formData.append("table_mode", parseOptions.table_mode);
-      formData.append("image_export_mode", parseOptions.image_export_mode);
-      formData.append("page_range_start", parseOptions.page_range_start.toString());
-      formData.append("page_range_end", parseOptions.page_range_end.toString());
       formData.append("do_formula_enrichment", String(parseOptions.do_formula_enrichment));
-      formData.append("pipeline", parseOptions.pipeline);
-      if (parseOptions.pipeline === "vlm" && parseOptions.vlm_pipeline_model) {
-        formData.append("vlm_pipeline_model", parseOptions.vlm_pipeline_model);
-      }
 
       const response = await fetch("http://localhost:8000/api/documents/convert", {
         method: "POST",
@@ -193,6 +200,36 @@ export default function ParsePage() {
     }
   };
 
+  const handleBatchDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsBatchDragging(true);
+  };
+
+  const handleBatchDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsBatchDragging(false);
+  };
+
+  const handleBatchDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsBatchDragging(false);
+
+    if (processing) return;
+
+    const droppedFiles = e.dataTransfer.files;
+    if (droppedFiles && droppedFiles.length > 0) {
+      const newFiles = Array.from(droppedFiles).map(file => ({
+        file,
+        status: "pending" as const,
+        progress: 0,
+      }));
+      setFiles(prev => [...prev, ...newFiles]);
+    }
+  };
+
   const removeFile = (index: number) => {
     setFiles(prev => prev.filter((_, i) => i !== index));
   };
@@ -205,19 +242,11 @@ export default function ParsePage() {
     try {
       const formData = new FormData();
       formData.append("file", fileStatus.file);
-      formData.append("to_formats", parseOptions.to_formats);
+      formData.append("strategy", parseOptions.strategy);
       formData.append("do_ocr", parseOptions.do_ocr.toString());
       formData.append("do_table_structure", parseOptions.do_table_structure.toString());
       formData.append("include_images", parseOptions.include_images.toString());
-      formData.append("table_mode", parseOptions.table_mode);
-      formData.append("image_export_mode", parseOptions.image_export_mode);
-      formData.append("page_range_start", parseOptions.page_range_start.toString());
-      formData.append("page_range_end", parseOptions.page_range_end.toString());
       formData.append("do_formula_enrichment", parseOptions.do_formula_enrichment.toString());
-      formData.append("pipeline", parseOptions.pipeline);
-      if (parseOptions.pipeline === "vlm" && parseOptions.vlm_pipeline_model) {
-        formData.append("vlm_pipeline_model", parseOptions.vlm_pipeline_model);
-      }
 
       setFiles(prev => prev.map((f, i) =>
         i === index ? { ...f, progress: 30 } : f
@@ -383,13 +412,6 @@ export default function ParsePage() {
 
   return (
     <PageContainer maxWidth="wide" className="py-6">
-      <div className="text-center mb-4">
-        <h1 className="text-3xl font-bold mb-2">문서 변환</h1>
-        <p className="text-sm text-muted-foreground">
-          PDF, DOCX, PPTX 파일을 마크다운으로 변환하세요
-        </p>
-      </div>
-
       <div className="space-y-6">
         {/* Parsing Options Section */}
         <Card className="min-w-0 overflow-hidden">
@@ -401,203 +423,149 @@ export default function ParsePage() {
             <CardDescription>문서 파싱 시 적용할 옵션을 설정하세요</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Basic Options */}
-            <div className="grid grid-cols-4 gap-3">
-              <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                <Label htmlFor="do_ocr" className="flex flex-col gap-1 cursor-pointer flex-1">
-                  <span className="font-medium text-sm">OCR 인식</span>
-                  <span className="text-xs text-muted-foreground font-normal">
-                    이미지 내 텍스트
-                  </span>
-                </Label>
-                <Switch
-                  id="do_ocr"
-                  checked={parseOptions.do_ocr}
-                  onCheckedChange={(checked) =>
-                    setParseOptions({ ...parseOptions, do_ocr: checked })
-                  }
-                />
-              </div>
-
-              <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                <Label htmlFor="do_table_structure" className="flex flex-col gap-1 cursor-pointer flex-1">
-                  <span className="font-medium text-sm">테이블 구조</span>
-                  <span className="text-xs text-muted-foreground font-normal">
-                    표 형식 데이터
-                  </span>
-                </Label>
-                <Switch
-                  id="do_table_structure"
-                  checked={parseOptions.do_table_structure}
-                  onCheckedChange={(checked) =>
-                    setParseOptions({ ...parseOptions, do_table_structure: checked })
-                  }
-                />
-              </div>
-
-              <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                <Label htmlFor="include_images" className="flex flex-col gap-1 cursor-pointer flex-1">
-                  <span className="font-medium text-sm">이미지 포함</span>
-                  <span className="text-xs text-muted-foreground font-normal">
-                    문서 내 이미지
-                  </span>
-                </Label>
-                <Switch
-                  id="include_images"
-                  checked={parseOptions.include_images}
-                  onCheckedChange={(checked) =>
-                    setParseOptions({ ...parseOptions, include_images: checked })
-                  }
-                />
-              </div>
-
-              <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                <Label htmlFor="do_formula_enrichment" className="flex flex-col gap-1 cursor-pointer flex-1">
-                  <span className="font-medium text-sm">수식 인식</span>
-                  <span className="text-xs text-muted-foreground font-normal">
-                    수학 공식
-                  </span>
-                </Label>
-                <Switch
-                  id="do_formula_enrichment"
-                  checked={parseOptions.do_formula_enrichment}
-                  onCheckedChange={(checked) =>
-                    setParseOptions({ ...parseOptions, do_formula_enrichment: checked })
-                  }
-                />
-              </div>
+            {/* Parsing Strategy Selection */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">파싱 전략</Label>
+              <RadioGroup
+                value={parseOptions.strategy}
+                onValueChange={(value: "docling" | "qwen3-vl") =>
+                  setParseOptions({ ...parseOptions, strategy: value })
+                }
+                className="grid grid-cols-2 gap-3"
+              >
+                <div className="relative">
+                  <RadioGroupItem
+                    value="docling"
+                    id="strategy-docling"
+                    className="peer sr-only"
+                  />
+                  <Label
+                    htmlFor="strategy-docling"
+                    className="flex flex-col gap-2 rounded-lg border-2 border-muted bg-muted/30 p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5 cursor-pointer transition-all"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                        <span className="text-sm font-semibold">Docling</span>
+                      </div>
+                      <Badge variant="secondary" className="text-xs font-normal bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                        빠름
+                      </Badge>
+                    </div>
+                    <ul className="text-xs text-muted-foreground space-y-1.5">
+                      <li className="flex items-center gap-2">
+                        <Zap className="w-3 h-3 flex-shrink-0" />
+                        <span>빠른 처리 속도 및 안정성</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <FileText className="w-3 h-3 flex-shrink-0" />
+                        <span>일반 PDF, DOCX 문서 최적화</span>
+                      </li>
+                    </ul>
+                  </Label>
+                </div>
+                <div className="relative">
+                  <RadioGroupItem
+                    value="qwen3-vl"
+                    id="strategy-qwen3-vl"
+                    className="peer sr-only"
+                  />
+                  <Label
+                    htmlFor="strategy-qwen3-vl"
+                    className="flex flex-col gap-2 rounded-lg border-2 border-muted bg-muted/30 p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5 cursor-pointer transition-all"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                        <span className="text-sm font-semibold">Qwen3-VL</span>
+                      </div>
+                      <Badge variant="secondary" className="text-xs font-normal bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                        보통
+                      </Badge>
+                    </div>
+                    <ul className="text-xs text-muted-foreground space-y-1.5">
+                      <li className="flex items-center gap-2">
+                        <Sparkles className="w-3 h-3 flex-shrink-0" />
+                        <span>AI 기반 고급 문서 분석</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Image className="w-3 h-3 flex-shrink-0" />
+                        <span>복잡한 레이아웃 및 이미지 특화</span>
+                      </li>
+                    </ul>
+                  </Label>
+                </div>
+              </RadioGroup>
             </div>
 
-            {/* Advanced Options (Collapsible) */}
-            <Collapsible open={isAdvancedOpen} onOpenChange={setIsAdvancedOpen}>
+            {/* Collapsible Advanced Options */}
+            <Collapsible open={isOptionsOpen} onOpenChange={setIsOptionsOpen}>
               <CollapsibleTrigger asChild>
                 <Button
                   variant="ghost"
                   className="w-full flex items-center justify-between p-2 hover:bg-accent hover:text-accent-foreground"
                 >
-                  <span className="text-sm font-medium">고급 옵션</span>
+                  <span className="text-sm font-medium">상세 옵션</span>
                   <ChevronDown
                     className={`w-4 h-4 transition-transform duration-200 ${
-                      isAdvancedOpen ? "rotate-180" : ""
+                      isOptionsOpen ? "rotate-180" : ""
                     }`}
                   />
                 </Button>
               </CollapsibleTrigger>
-              <CollapsibleContent className="pt-4">
+              <CollapsibleContent className="pt-3">
                 <div className="grid grid-cols-4 gap-3">
-                  <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                    <Label htmlFor="to_formats" className="text-sm whitespace-nowrap mr-2">
-                      출력 형식
+                  <div className="flex items-center justify-between p-2.5 rounded-lg border bg-muted/30">
+                    <Label htmlFor="do_ocr" className="text-sm cursor-pointer">
+                      OCR 인식
                     </Label>
-                    <Select
-                      value={parseOptions.to_formats}
-                      onValueChange={(value) =>
-                        setParseOptions({ ...parseOptions, to_formats: value })
+                    <Switch
+                      id="do_ocr"
+                      checked={parseOptions.do_ocr}
+                      onCheckedChange={(checked) =>
+                        setParseOptions({ ...parseOptions, do_ocr: checked })
                       }
-                    >
-                      <SelectTrigger id="to_formats" className="h-9 w-auto min-w-[100px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="md">Markdown</SelectItem>
-                        <SelectItem value="json">JSON</SelectItem>
-                        <SelectItem value="html">HTML</SelectItem>
-                        <SelectItem value="text">Text</SelectItem>
-                        <SelectItem value="doctags">Doctags</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    />
                   </div>
 
-                  <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                    <Label htmlFor="table_mode" className="text-sm whitespace-nowrap mr-2">
-                      테이블 모드
+                  <div className="flex items-center justify-between p-2.5 rounded-lg border bg-muted/30">
+                    <Label htmlFor="do_table_structure" className="text-sm cursor-pointer">
+                      테이블 구조
                     </Label>
-                    <Select
-                      value={parseOptions.table_mode}
-                      onValueChange={(value) =>
-                        setParseOptions({ ...parseOptions, table_mode: value })
+                    <Switch
+                      id="do_table_structure"
+                      checked={parseOptions.do_table_structure}
+                      onCheckedChange={(checked) =>
+                        setParseOptions({ ...parseOptions, do_table_structure: checked })
                       }
-                    >
-                      <SelectTrigger id="table_mode" className="h-9 w-auto min-w-[100px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="fast">Fast</SelectItem>
-                        <SelectItem value="accurate">Accurate</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    />
                   </div>
 
-                  <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                    <Label htmlFor="image_export_mode" className="text-sm whitespace-nowrap mr-2">
-                      이미지 모드
+                  <div className="flex items-center justify-between p-2.5 rounded-lg border bg-muted/30">
+                    <Label htmlFor="include_images" className="text-sm cursor-pointer">
+                      이미지 포함
                     </Label>
-                    <Select
-                      value={parseOptions.image_export_mode}
-                      onValueChange={(value) =>
-                        setParseOptions({ ...parseOptions, image_export_mode: value })
+                    <Switch
+                      id="include_images"
+                      checked={parseOptions.include_images}
+                      onCheckedChange={(checked) =>
+                        setParseOptions({ ...parseOptions, include_images: checked })
                       }
-                    >
-                      <SelectTrigger id="image_export_mode" className="h-9 w-auto min-w-[100px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="placeholder">Placeholder</SelectItem>
-                        <SelectItem value="embedded">Embedded</SelectItem>
-                        <SelectItem value="referenced">Referenced</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    />
                   </div>
 
-                  <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                    <Label htmlFor="pipeline" className="text-sm whitespace-nowrap mr-2">
-                      파이프라인
+                  <div className="flex items-center justify-between p-2.5 rounded-lg border bg-muted/30">
+                    <Label htmlFor="do_formula_enrichment" className="text-sm cursor-pointer">
+                      수식 인식
                     </Label>
-                    <Select
-                      value={parseOptions.pipeline}
-                      onValueChange={(value) =>
-                        setParseOptions({ ...parseOptions, pipeline: value })
+                    <Switch
+                      id="do_formula_enrichment"
+                      checked={parseOptions.do_formula_enrichment}
+                      onCheckedChange={(checked) =>
+                        setParseOptions({ ...parseOptions, do_formula_enrichment: checked })
                       }
-                    >
-                      <SelectTrigger id="pipeline" className="h-9 w-auto min-w-[100px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="standard">Standard</SelectItem>
-                        <SelectItem value="legacy">Legacy</SelectItem>
-                        <SelectItem value="vlm">VLM</SelectItem>
-                        <SelectItem value="asr">ASR</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    />
                   </div>
-
-                  {parseOptions.pipeline === "vlm" && (
-                    <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                      <Label htmlFor="vlm_model" className="text-sm whitespace-nowrap mr-2">
-                        VLM 모델
-                      </Label>
-                      <Select
-                        value={parseOptions.vlm_pipeline_model}
-                        onValueChange={(value) =>
-                          setParseOptions({ ...parseOptions, vlm_pipeline_model: value })
-                        }
-                      >
-                        <SelectTrigger id="vlm_model" className="h-9 w-auto min-w-[180px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="granite_vision">Granite Vision (추천)</SelectItem>
-                          <SelectItem value="granite_vision_vllm">Granite Vision VLLM</SelectItem>
-                          <SelectItem value="granite_vision_ollama">Granite Vision Ollama</SelectItem>
-                          <SelectItem value="granite_docling">Granite Docling</SelectItem>
-                          <SelectItem value="granite_docling_vllm">Granite Docling VLLM</SelectItem>
-                          <SelectItem value="smoldocling">Smoldocling</SelectItem>
-                          <SelectItem value="smoldocling_vllm">Smoldocling VLLM</SelectItem>
-                          <SelectItem value="got_ocr_2">GOT OCR 2</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
                 </div>
               </CollapsibleContent>
             </Collapsible>
@@ -627,7 +595,16 @@ export default function ParsePage() {
               <CardContent className="pt-6">
                 {!result ? (
                   <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center hover:border-primary/50 transition-colors">
+                    <div
+                      className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                        isDragging
+                          ? "border-primary bg-primary/10"
+                          : "border-muted-foreground/25 hover:border-primary/50"
+                      }`}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                    >
                       <input
                         type="file"
                         id="file-upload"
@@ -640,7 +617,7 @@ export default function ParsePage() {
                         htmlFor="file-upload"
                         className="cursor-pointer flex flex-col items-center space-y-3"
                       >
-                        <Upload className="w-12 h-12 text-muted-foreground" />
+                        <Upload className={`w-12 h-12 ${isDragging ? "text-primary" : "text-muted-foreground"}`} />
                         <div>
                           <p className="text-base font-medium">
                             파일 선택 또는 드래그 앤 드롭
@@ -842,7 +819,16 @@ export default function ParsePage() {
                 <CardDescription>변환할 문서 파일을 선택하세요 (다중 선택 가능)</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center hover:border-primary/50 transition-colors">
+                <div
+                  className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                    isBatchDragging
+                      ? "border-primary bg-primary/10"
+                      : "border-muted-foreground/25 hover:border-primary/50"
+                  }`}
+                  onDragOver={handleBatchDragOver}
+                  onDragLeave={handleBatchDragLeave}
+                  onDrop={handleBatchDrop}
+                >
                   <input
                     type="file"
                     id="batch-file-upload"
@@ -856,7 +842,7 @@ export default function ParsePage() {
                     htmlFor="batch-file-upload"
                     className="cursor-pointer flex flex-col items-center space-y-3"
                   >
-                    <FolderOpen className="w-12 h-12 text-muted-foreground" />
+                    <FolderOpen className={`w-12 h-12 ${isBatchDragging ? "text-primary" : "text-muted-foreground"}`} />
                     <div>
                       <p className="text-base font-medium">
                         파일 선택 또는 드래그 앤 드롭

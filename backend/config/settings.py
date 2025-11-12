@@ -56,6 +56,15 @@ class Settings(BaseSettings):
     RAG_DEFAULT_SCORE_THRESHOLD: Optional[float] = None
     RAG_DEFAULT_REASONING_LEVEL: str = "medium"
 
+    # Qwen3 VL OCR 설정
+    QWEN3_VL_BASE_URL: str = "http://localhost:8084"
+    QWEN3_VL_MODEL: str = "qwen3-vl-8b"
+    QWEN3_VL_TIMEOUT: int = 120
+    QWEN3_VL_MAX_PAGES: int = 50
+    QWEN3_VL_MAX_TOKENS: int = 4096
+    QWEN3_VL_TEMPERATURE: float = 0.1
+    QWEN3_VL_OCR_PROMPT: str = "이미지에 있는 모든 텍스트를 정확하게 추출해주세요. 표, 날짜, 숫자 등 모든 내용을 원본 형식 그대로 보존하여 추출해주세요. Extract all text from this image accurately, preserving tables, dates, numbers, and formatting."
+
     # === Computed Properties ===
 
     @property
@@ -82,6 +91,11 @@ class Settings(BaseSettings):
     def DOCLING_RESULT_API_URL(self) -> str:
         """Docling Serve 결과 조회 API URL"""
         return f"{self.DOCLING_BASE_URL}/v1/result"
+
+    @property
+    def QWEN3_VL_API_URL(self) -> str:
+        """Qwen3 VL API URL"""
+        return f"{self.QWEN3_VL_BASE_URL}/v1/chat/completions"
 
     class Config:
         env_file = "backend/.env"

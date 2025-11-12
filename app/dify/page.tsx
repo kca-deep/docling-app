@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/components/ui/pagination"
 import { Loader2, CheckCircle2, XCircle, Upload, Settings, FileText, Save, Search, X } from "lucide-react"
 import { toast } from "sonner"
+import { MarkdownViewerModal } from "@/components/markdown-viewer-modal"
 
 interface Document {
   id: number
@@ -71,6 +72,10 @@ export default function DifyPage() {
   const [loadingDocuments, setLoadingDocuments] = useState(false)
   const [loadingDatasets, setLoadingDatasets] = useState(false)
   const [uploading, setUploading] = useState(false)
+
+  // Markdown Viewer 모달 상태
+  const [viewerOpen, setViewerOpen] = useState(false)
+  const [selectedDocumentId, setSelectedDocumentId] = useState<number | null>(null)
 
   // 저장된 문서 목록 가져오기
   const fetchDocuments = async (page = 1, search = "") => {
@@ -298,6 +303,12 @@ export default function DifyPage() {
     setSelectedDocsInfo(newInfo)
   }
 
+  // 문서 뷰어 열기
+  const openDocumentViewer = (documentId: number) => {
+    setSelectedDocumentId(documentId)
+    setViewerOpen(true)
+  }
+
   // 전체 선택/해제
   const toggleAllDocuments = () => {
     if (selectedDocs.size === documents.length) {
@@ -313,13 +324,6 @@ export default function DifyPage() {
 
   return (
     <PageContainer maxWidth="wide" className="py-6">
-      <div className="mb-4">
-        <h1 className="text-3xl font-bold mb-2">Dify 연동</h1>
-        <p className="text-sm text-muted-foreground">
-          저장된 문서를 Dify 데이터셋에 업로드합니다
-        </p>
-      </div>
-
       <div className="space-y-6">
         {/* Dify 설정 섹션 */}
         <Card>
@@ -580,7 +584,12 @@ export default function DifyPage() {
                               />
                             </TableCell>
                             <TableCell className="font-medium">
-                              {doc.original_filename}
+                              <button
+                                onClick={() => openDocumentViewer(doc.id)}
+                                className="text-left hover:text-primary hover:underline transition-colors"
+                              >
+                                {doc.original_filename}
+                              </button>
                             </TableCell>
                             <TableCell className="text-right text-muted-foreground">
                               {doc.content_length ? `${Math.round(doc.content_length / 1000)}KB` : "-"}
@@ -709,6 +718,13 @@ export default function DifyPage() {
           </Card>
         )}
       </div>
+
+      {/* Markdown Viewer 모달 */}
+      <MarkdownViewerModal
+        documentId={selectedDocumentId}
+        open={viewerOpen}
+        onOpenChange={setViewerOpen}
+      />
     </PageContainer>
   )
 }

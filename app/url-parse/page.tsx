@@ -266,13 +266,6 @@ export default function UrlParsePage() {
 
   return (
     <PageContainer maxWidth="wide" className="py-6">
-      <div className="text-center mb-4">
-        <h1 className="text-3xl font-bold mb-2">URL 기반 문서 파싱</h1>
-        <p className="text-sm text-muted-foreground">
-          웹 문서 URL을 입력하여 마크다운으로 변환하세요
-        </p>
-      </div>
-
       <div className="space-y-6">
         {/* Parsing Options Section */}
         <Card className="min-w-0 overflow-hidden">
