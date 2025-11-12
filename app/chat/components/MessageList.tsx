@@ -42,10 +42,14 @@ export function MessageList({ messages, isLoading, onSourceClick }: MessageListP
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [userScrolled, setUserScrolled] = useState(false);
+  const prevLoadingRef = useRef(isLoading);
+  const prevMessageCountRef = useRef(messages.length);
 
-  // 자동 스크롤 - 사용자가 수동으로 스크롤하지 않았을 때만
+  // 자동 스크롤 - 스트리밍 중이거나 사용자가 수동으로 스크롤하지 않았을 때
   useEffect(() => {
-    if (!userScrolled && scrollAreaRef.current) {
+    const shouldAutoScroll = isLoading || !userScrolled;
+
+    if (shouldAutoScroll && scrollAreaRef.current) {
       const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
       if (scrollContainer) {
         // 스크롤을 최하단으로
@@ -53,6 +57,31 @@ export function MessageList({ messages, isLoading, onSourceClick }: MessageListP
       }
     }
   }, [messages, isLoading, userScrolled]);
+
+  // 답변 완료 시 (isLoading: true -> false) 자동 스크롤
+  useEffect(() => {
+    if (prevLoadingRef.current && !isLoading) {
+      // 답변이 완료되었을 때
+      const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+      if (scrollContainer) {
+        scrollContainer.scrollTo({
+          top: scrollContainer.scrollHeight,
+          behavior: 'smooth'
+        });
+        setUserScrolled(false); // 자동 스크롤 상태 리셋
+      }
+    }
+    prevLoadingRef.current = isLoading;
+  }, [isLoading]);
+
+  // 새 메시지 추가 시 자동 스크롤 상태 리셋
+  useEffect(() => {
+    if (messages.length > prevMessageCountRef.current) {
+      // 새 메시지가 추가되었을 때 (질문 또는 답변 시작)
+      setUserScrolled(false);
+    }
+    prevMessageCountRef.current = messages.length;
+  }, [messages.length]);
 
   // 스크롤 이벤트 감지
   useEffect(() => {
