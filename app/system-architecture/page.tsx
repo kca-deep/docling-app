@@ -44,25 +44,103 @@ export default function SystemArchitecturePage() {
                       </div>
                     </AccordionTrigger>
                     <AccordionContent>
-                      <div className="flex gap-4 justify-center pb-4">
-                        <div className="bg-background border-2 border-purple-500 rounded-lg p-4 text-center flex-1 max-w-[260px]">
-                          <Globe className="h-7 w-7 mx-auto mb-2 text-purple-600" />
-                          <p className="font-semibold text-sm mb-1">Dify Platform</p>
-                          <p className="text-xs text-muted-foreground mb-2">kca-ai.kro.kr</p>
-                          <Badge variant="secondary" className="text-xs">:80, :443</Badge>
+                      <div className="space-y-4 pb-4">
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="bg-background border-2 border-purple-500 rounded-lg p-4 text-center">
+                            <Server className="h-7 w-7 mx-auto mb-2 text-purple-600" />
+                            <p className="font-semibold text-sm mb-1">KCA RAG 파이프라인</p>
+                            <p className="text-xs text-muted-foreground mb-2">localhost</p>
+                            <Badge variant="secondary" className="text-xs">:3000</Badge>
+                          </div>
+                          <div className="bg-background border-2 border-purple-500 rounded-lg p-4 text-center">
+                            <Globe className="h-7 w-7 mx-auto mb-2 text-purple-600" />
+                            <p className="font-semibold text-sm mb-1">Dify Platform</p>
+                            <p className="text-xs text-muted-foreground mb-2">kca-ai.kro.kr</p>
+                            <Badge variant="secondary" className="text-xs">:80, :443</Badge>
+                          </div>
+                          <div className="bg-background border-2 border-purple-500 rounded-lg p-4 text-center">
+                            <MonitorPlay className="h-7 w-7 mx-auto mb-2 text-purple-600" />
+                            <p className="font-semibold text-sm mb-1">Open WebUI</p>
+                            <p className="text-xs text-muted-foreground mb-2">localhost</p>
+                            <Badge variant="secondary" className="text-xs">:3001</Badge>
+                          </div>
                         </div>
-                        <div className="bg-background border-2 border-purple-500 rounded-lg p-4 text-center flex-1 max-w-[260px]">
-                          <MonitorPlay className="h-7 w-7 mx-auto mb-2 text-purple-600" />
-                          <p className="font-semibold text-sm mb-1">Open WebUI</p>
-                          <p className="text-xs text-muted-foreground mb-2">localhost</p>
-                          <Badge variant="secondary" className="text-xs">:3000</Badge>
-                        </div>
-                        <div className="bg-background border-2 border-purple-500 rounded-lg p-4 text-center flex-1 max-w-[260px]">
-                          <Network className="h-7 w-7 mx-auto mb-2 text-purple-600" />
-                          <p className="font-semibold text-sm mb-1">Direct LLM API</p>
-                          <p className="text-xs text-muted-foreground mb-2">112.173.179.199</p>
-                          <Badge variant="secondary" className="text-xs">:808X</Badge>
-                        </div>
+
+                        {/* Direct LLM API with expandable details */}
+                        <Collapsible defaultOpen className="max-w-full mx-auto">
+                          <div className="bg-background border-2 border-purple-500 rounded-lg overflow-hidden">
+                            <div className="flex items-center justify-between p-4">
+                              <div className="flex items-center gap-4 flex-1">
+                                <Network className="h-7 w-7 text-purple-600" />
+                                <div className="text-left">
+                                  <p className="font-semibold text-sm mb-1">Direct LLM API</p>
+                                  <p className="text-xs text-muted-foreground">112.173.179.199</p>
+                                </div>
+                                <Badge variant="secondary" className="text-xs">:808X</Badge>
+                              </div>
+                              <CollapsibleTrigger asChild>
+                                <button className="p-2 hover:bg-muted rounded-md transition-colors">
+                                  <ChevronDown className="h-5 w-5 transition-transform duration-200 data-[state=open]:rotate-180" />
+                                </button>
+                              </CollapsibleTrigger>
+                            </div>
+
+                            <CollapsibleContent>
+                              <div className="border-t-2 border-purple-500/30 p-4 bg-purple-500/5">
+                                <h4 className="font-bold text-sm mb-3 text-purple-700 dark:text-purple-400">LLM 모델 서비스 상세</h4>
+                                <div className="grid grid-cols-4 gap-3">
+                                  <div className="border-2 border-green-500/50 rounded-lg p-3 bg-green-500/5">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <p className="font-semibold text-sm">GPT-OSS 20B</p>
+                                      <Badge className="bg-green-500 text-xs">Running</Badge>
+                                    </div>
+                                    <div className="space-y-1 text-xs text-muted-foreground">
+                                      <p>포트: 8080</p>
+                                      <p>VRAM: ~16GB</p>
+                                      <p>서버: llama.cpp</p>
+                                    </div>
+                                  </div>
+
+                                  <div className="border-2 rounded-lg p-3 bg-muted/20">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <p className="font-semibold text-sm">EXAONE 32B</p>
+                                      <Badge variant="outline" className="text-xs">Inactive</Badge>
+                                    </div>
+                                    <div className="space-y-1 text-xs text-muted-foreground">
+                                      <p>포트: 8081</p>
+                                      <p>VRAM: ~20GB</p>
+                                      <p>특징: 131K 컨텍스트</p>
+                                    </div>
+                                  </div>
+
+                                  <div className="border-2 rounded-lg p-3 bg-muted/20">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <p className="font-semibold text-sm">HyperCLOVA X</p>
+                                      <Badge variant="outline" className="text-xs">Inactive</Badge>
+                                    </div>
+                                    <div className="space-y-1 text-xs text-muted-foreground">
+                                      <p>포트: 8082</p>
+                                      <p>VRAM: ~29GB</p>
+                                      <p>서버: vLLM 0.10.2</p>
+                                    </div>
+                                  </div>
+
+                                  <div className="border-2 border-green-500/50 rounded-lg p-3 bg-green-500/5">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <p className="font-semibold text-sm">Qwen3-VL 8B</p>
+                                      <Badge className="bg-green-500 text-xs">Running</Badge>
+                                    </div>
+                                    <div className="space-y-1 text-xs text-muted-foreground">
+                                      <p>포트: 8084</p>
+                                      <p>VRAM: ~2GB</p>
+                                      <p>특징: 멀티모달 (Vision)</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </CollapsibleContent>
+                          </div>
+                        </Collapsible>
                       </div>
                     </AccordionContent>
                   </AccordionItem>
@@ -76,98 +154,54 @@ export default function SystemArchitecturePage() {
                       </div>
                     </AccordionTrigger>
                     <AccordionContent>
-                      <div className="flex gap-4 pb-4">
-                        {/* Docker 컨테이너 */}
-                        <div className="border-2 border-dashed border-green-500/50 rounded-lg p-5 bg-green-500/5 flex-1">
-                          <h3 className="font-bold text-center mb-4 text-sm text-green-700 dark:text-green-400 flex items-center justify-center gap-2">
-                            <Boxes className="h-4 w-4" />
-                            Docker Container
-                          </h3>
-
-                          {/* Dify Services */}
-                          <div className="space-y-3 mb-4">
-                            <div className="bg-background border-2 border-green-600 rounded-lg p-3">
-                              <p className="font-semibold text-sm mb-2">Dify Platform</p>
-                              <div className="space-y-1.5 text-xs">
-                                <div className="flex justify-between items-center">
-                                  <span>Nginx</span>
-                                  <Badge variant="secondary" className="text-xs">80, 443</Badge>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                  <span>Web UI</span>
-                                  <Badge variant="secondary" className="text-xs">3002</Badge>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                  <span>API</span>
-                                  <Badge variant="secondary" className="text-xs">5001</Badge>
-                                </div>
-                              </div>
+                      <div className="pb-4">
+                        {/* AI Services - 지원 서비스 상세 카드 */}
+                        <div className="grid grid-cols-4 gap-4">
+                          <div className="border-2 border-orange-500/50 rounded-lg p-4 bg-orange-500/5">
+                            <div className="flex items-center justify-between mb-3">
+                              <p className="font-semibold text-sm">BGE-M3 Embedding</p>
+                              <Badge className="bg-green-500 text-xs">Running</Badge>
                             </div>
-
-                            {/* Data Stores */}
-                            <div className="bg-background border-2 border-green-600 rounded-lg p-3">
-                              <p className="font-semibold text-sm mb-2">Data Stores</p>
-                              <div className="flex gap-2 justify-around text-xs">
-                                <div className="text-center">
-                                  <Database className="h-5 w-5 mx-auto mb-1" />
-                                  <p>PostgreSQL</p>
-                                </div>
-                                <div className="text-center">
-                                  <Database className="h-5 w-5 mx-auto mb-1" />
-                                  <p>Redis</p>
-                                </div>
-                                <div className="text-center">
-                                  <Database className="h-5 w-5 mx-auto mb-1" />
-                                  <p>Weaviate</p>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* AI Services */}
-                        <div className="border-2 border-dashed border-orange-500/50 rounded-lg p-5 bg-orange-500/5 flex-1">
-                          <h3 className="font-bold text-center mb-4 text-sm text-orange-700 dark:text-orange-400">AI Services Layer</h3>
-
-                          {/* LLM Models */}
-                          <div className="space-y-2 mb-3">
-                            <p className="font-semibold text-sm">LLM Models</p>
-                            <div className="bg-background border-2 border-orange-600 rounded-lg p-3 space-y-1.5 text-xs">
-                              <div className="flex justify-between items-center">
-                                <span>GPT-OSS 20B</span>
-                                <Badge variant="outline" className="text-xs">8080</Badge>
-                              </div>
-                              <div className="flex justify-between items-center">
-                                <span>EXAONE 32B</span>
-                                <Badge variant="outline" className="text-xs">8081</Badge>
-                              </div>
-                              <div className="flex justify-between items-center">
-                                <span>HyperCLOVA X</span>
-                                <Badge variant="outline" className="text-xs">8082</Badge>
-                              </div>
-                              <div className="flex justify-between items-center">
-                                <span>Qwen3-VL 8B</span>
-                                <Badge className="bg-green-500 text-xs">8084 ✓</Badge>
-                              </div>
+                            <div className="space-y-1 text-xs text-muted-foreground">
+                              <p>포트: 8083</p>
+                              <p>VRAM: &lt;1GB</p>
+                              <p>용도: 벡터 임베딩</p>
                             </div>
                           </div>
 
-                          {/* Support Services */}
-                          <div className="space-y-2">
-                            <p className="font-semibold text-sm">Support Services</p>
-                            <div className="bg-background border-2 border-orange-600 rounded-lg p-3 space-y-1.5 text-xs">
-                              <div className="flex justify-between items-center">
-                                <span>BGE Embedding</span>
-                                <Badge className="bg-green-500 text-xs">8083 ✓</Badge>
-                              </div>
-                              <div className="flex justify-between items-center">
-                                <span>BGE Reranker</span>
-                                <Badge variant="outline" className="text-xs">8006</Badge>
-                              </div>
-                              <div className="flex justify-between items-center">
-                                <span>Docling API</span>
-                                <Badge variant="outline" className="text-xs">8007</Badge>
-                              </div>
+                          <div className="border-2 border-orange-500/50 rounded-lg p-4 bg-orange-500/5">
+                            <div className="flex items-center justify-between mb-3">
+                              <p className="font-semibold text-sm">BGE Reranker</p>
+                              <Badge className="bg-green-500 text-xs">Running</Badge>
+                            </div>
+                            <div className="space-y-1 text-xs text-muted-foreground">
+                              <p>포트: 8006</p>
+                              <p>VRAM: ~1-2GB</p>
+                              <p>용도: 검색 재정렬</p>
+                            </div>
+                          </div>
+
+                          <div className="border-2 border-orange-500/50 rounded-lg p-4 bg-orange-500/5">
+                            <div className="flex items-center justify-between mb-3">
+                              <p className="font-semibold text-sm">Docling API</p>
+                              <Badge className="bg-green-500 text-xs">Running</Badge>
+                            </div>
+                            <div className="space-y-1 text-xs text-muted-foreground">
+                              <p>포트: 8007</p>
+                              <p>기술: Python</p>
+                              <p>기능: 문서 변환</p>
+                            </div>
+                          </div>
+
+                          <div className="border-2 border-orange-500/50 rounded-lg p-4 bg-orange-500/5">
+                            <div className="flex items-center justify-between mb-3">
+                              <p className="font-semibold text-sm">Qdrant Vector DB</p>
+                              <Badge className="bg-green-500 text-xs">Running</Badge>
+                            </div>
+                            <div className="space-y-1 text-xs text-muted-foreground">
+                              <p>포트: 6333</p>
+                              <p>기술: Vector DB</p>
+                              <p>기능: 벡터 저장소</p>
                             </div>
                           </div>
                         </div>
@@ -188,29 +222,9 @@ export default function SystemArchitecturePage() {
                         {/* GPU Layer */}
                         <div className="border-2 border-dashed border-red-500/50 rounded-lg p-5 bg-red-500/5 flex-1">
                           <div className="bg-background border-2 border-red-600 rounded-lg p-5">
-                            <div className="text-center mb-4">
-                              <Cpu className="h-10 w-10 mx-auto mb-2 text-red-600" />
+                            <div className="flex items-center justify-center gap-2 mb-4">
+                              <Cpu className="h-6 w-6 text-red-600" />
                               <h3 className="font-bold text-base">GPU Status</h3>
-                            </div>
-
-                            {/* GPU 기본 정보 */}
-                            <div className="grid grid-cols-2 gap-3 mb-4">
-                              <div className="border rounded-lg p-2 bg-muted/30 text-center">
-                                <p className="text-muted-foreground text-xs mb-1">사용률</p>
-                                <p className="font-semibold text-sm">0%</p>
-                              </div>
-                              <div className="border rounded-lg p-2 bg-muted/30 text-center">
-                                <p className="text-muted-foreground text-xs mb-1">온도</p>
-                                <p className="font-semibold text-sm">37°C</p>
-                              </div>
-                              <div className="border rounded-lg p-2 bg-muted/30 text-center">
-                                <p className="text-muted-foreground text-xs mb-1">전력</p>
-                                <p className="font-semibold text-sm">7W / 600W</p>
-                              </div>
-                              <div className="border rounded-lg p-2 bg-muted/30 text-center">
-                                <p className="text-muted-foreground text-xs mb-1">VRAM</p>
-                                <p className="font-semibold text-sm">87%</p>
-                              </div>
                             </div>
 
                             {/* VRAM 전체 사용량 */}
@@ -312,137 +326,6 @@ export default function SystemArchitecturePage() {
             </CardContent>
           </Card>
 
-        {/* LLM 서비스 상세 */}
-        <Collapsible defaultOpen>
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>LLM 모델 서비스 상세</CardTitle>
-                  <CardDescription>대형 모델 (상호 배타적) 및 소형 모델 정보</CardDescription>
-                </div>
-                <CollapsibleTrigger asChild>
-                  <button className="p-2 hover:bg-muted rounded-md transition-colors">
-                    <ChevronDown className="h-5 w-5 transition-transform duration-200 data-[state=open]:rotate-180" />
-                  </button>
-                </CollapsibleTrigger>
-              </div>
-            </CardHeader>
-            <CollapsibleContent>
-              <CardContent>
-                <div className="grid grid-cols-4 gap-3">
-                  <div className="border-2 border-green-500/50 rounded-lg p-3 bg-green-500/5">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="font-semibold text-sm">GPT-OSS 20B</p>
-                      <Badge className="bg-green-500 text-xs">Running</Badge>
-                    </div>
-                    <div className="space-y-1 text-xs text-muted-foreground">
-                      <p>포트: 8080</p>
-                      <p>VRAM: ~16GB</p>
-                      <p>서버: llama.cpp</p>
-                    </div>
-                  </div>
-
-                  <div className="border-2 rounded-lg p-3 bg-muted/20">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="font-semibold text-sm">EXAONE 32B</p>
-                      <Badge variant="outline" className="text-xs">Inactive</Badge>
-                    </div>
-                    <div className="space-y-1 text-xs text-muted-foreground">
-                      <p>포트: 8081</p>
-                      <p>VRAM: ~20GB</p>
-                      <p>특징: 131K 컨텍스트</p>
-                    </div>
-                  </div>
-
-                  <div className="border-2 rounded-lg p-3 bg-muted/20">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="font-semibold text-sm">HyperCLOVA X</p>
-                      <Badge variant="outline" className="text-xs">Inactive</Badge>
-                    </div>
-                    <div className="space-y-1 text-xs text-muted-foreground">
-                      <p>포트: 8082</p>
-                      <p>VRAM: ~29GB</p>
-                      <p>서버: vLLM 0.10.2</p>
-                    </div>
-                  </div>
-
-                  <div className="border-2 border-green-500/50 rounded-lg p-3 bg-green-500/5">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="font-semibold text-sm">Qwen3-VL 8B</p>
-                      <Badge className="bg-green-500 text-xs">Running</Badge>
-                    </div>
-                    <div className="space-y-1 text-xs text-muted-foreground">
-                      <p>포트: 8084</p>
-                      <p>VRAM: ~2GB</p>
-                      <p>특징: 멀티모달 (Vision)</p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
-
-        {/* 지원 서비스 상세 */}
-        <Collapsible defaultOpen>
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>지원 서비스 상세</CardTitle>
-                  <CardDescription>임베딩, 리랭킹, 문서 처리 서비스</CardDescription>
-                </div>
-                <CollapsibleTrigger asChild>
-                  <button className="p-2 hover:bg-muted rounded-md transition-colors">
-                    <ChevronDown className="h-5 w-5 transition-transform duration-200 data-[state=open]:rotate-180" />
-                  </button>
-                </CollapsibleTrigger>
-              </div>
-            </CardHeader>
-            <CollapsibleContent>
-              <CardContent>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="border-2 border-green-500/50 rounded-lg p-3 bg-green-500/5">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="font-semibold text-sm">BGE-M3 Embedding</p>
-                      <Badge className="bg-green-500 text-xs">Running</Badge>
-                    </div>
-                    <div className="space-y-1 text-xs text-muted-foreground">
-                      <p>포트: 8083</p>
-                      <p>VRAM: &lt;1GB</p>
-                      <p>용도: 벡터 임베딩</p>
-                    </div>
-                  </div>
-
-                  <div className="border-2 border-green-500/50 rounded-lg p-3 bg-green-500/5">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="font-semibold text-sm">BGE Reranker</p>
-                      <Badge className="bg-green-500 text-xs">Running</Badge>
-                    </div>
-                    <div className="space-y-1 text-xs text-muted-foreground">
-                      <p>포트: 8006</p>
-                      <p>VRAM: ~1-2GB</p>
-                      <p>용도: 검색 재정렬</p>
-                    </div>
-                  </div>
-
-                  <div className="border-2 border-green-500/50 rounded-lg p-3 bg-green-500/5">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="font-semibold text-sm">Docling API</p>
-                      <Badge className="bg-green-500 text-xs">Running</Badge>
-                    </div>
-                    <div className="space-y-1 text-xs text-muted-foreground">
-                      <p>포트: 8007</p>
-                      <p>기술: Python</p>
-                      <p>기능: 문서 변환</p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
       </div>
     </PageContainer>
   )
