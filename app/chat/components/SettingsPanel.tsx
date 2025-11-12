@@ -4,7 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -18,10 +17,6 @@ import { Badge } from "@/components/ui/badge";
 import {
   Database,
   Settings,
-  Sparkles,
-  Zap,
-  Brain,
-  Gauge,
   AlertCircle,
 } from "lucide-react";
 import {
@@ -164,68 +159,21 @@ export function SettingsPanel({
             </div>
 
             {/* 추론 수준 */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-muted-foreground" />
-                <Label className="text-sm">추론 수준</Label>
-              </div>
-              <RadioGroup
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="reasoning-level" className="text-sm whitespace-nowrap">추론 수준</Label>
+              <Select
                 value={settings.reasoningLevel}
                 onValueChange={(value) => updateSetting("reasoningLevel", value)}
-                className="space-y-2"
               >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="low" id="low" />
-                  <Label
-                    htmlFor="low"
-                    className="font-normal cursor-pointer text-xs"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Zap className="h-3 w-3" />
-                      <div>
-                        <div>빠른 응답</div>
-                        <div className="text-muted-foreground">
-                          간단한 답변, 빠른 처리
-                        </div>
-                      </div>
-                    </div>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="medium" id="medium" />
-                  <Label
-                    htmlFor="medium"
-                    className="font-normal cursor-pointer text-xs"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Gauge className="h-3 w-3" />
-                      <div>
-                        <div>균형</div>
-                        <div className="text-muted-foreground">
-                          적절한 깊이의 답변
-                        </div>
-                      </div>
-                    </div>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="high" id="high" />
-                  <Label
-                    htmlFor="high"
-                    className="font-normal cursor-pointer text-xs"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Brain className="h-3 w-3" />
-                      <div>
-                        <div>깊은 추론</div>
-                        <div className="text-muted-foreground">
-                          상세하고 정확한 답변
-                        </div>
-                      </div>
-                    </div>
-                  </Label>
-                </div>
-              </RadioGroup>
+                <SelectTrigger id="reasoning-level" className="w-[140px]">
+                  <SelectValue placeholder="선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">빠른 응답</SelectItem>
+                  <SelectItem value="medium">균형</SelectItem>
+                  <SelectItem value="high">깊은 추론</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <Separator />
@@ -366,7 +314,7 @@ export function SettingsPanel({
                   <Slider
                     id="top-k"
                     min={1}
-                    max={100}
+                    max={20}
                     step={1}
                     value={[settings.topK]}
                     onValueChange={([value]) => updateSetting("topK", value)}

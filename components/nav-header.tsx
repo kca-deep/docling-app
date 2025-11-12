@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { FileText, Home, Network, Files, Link2, Database, MessageSquare, Server } from "lucide-react"
+import { FileText, Home, Network, Files, Database, MessageSquare, Server } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { cn } from "@/lib/utils"
 
@@ -13,7 +13,6 @@ export function NavHeader() {
     { href: "/", label: "Home", icon: Home },
     { href: "/system-architecture", label: "구성도", icon: Server },
     { href: "/parse", label: "문서변환", icon: FileText },
-    { href: "/url-parse", label: "URL", icon: Link2 },
     { href: "/dify", label: "Dify", icon: Network },
     { href: "/qdrant", label: "Qdrant", icon: Database },
     { href: "/chat", label: "AI 챗봇", icon: MessageSquare },

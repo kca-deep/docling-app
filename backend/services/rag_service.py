@@ -2,6 +2,7 @@
 RAG (Retrieval-Augmented Generation) 서비스
 Qdrant 검색 + LLM 생성을 통합하는 서비스
 """
+import json
 from typing import List, Dict, Any, Optional, AsyncGenerator
 from backend.services.embedding_service import EmbeddingService
 from backend.services.qdrant_service import QdrantService
@@ -329,6 +330,18 @@ class RAGService:
                 # 문서가 없을 경우 단일 메시지 전송
                 yield 'data: {"error": "관련된 문서를 찾을 수 없습니다."}\n\n'
                 return
+
+            # 1.5. 검색된 문서를 먼저 전송 (스트리밍 시작 전)
+            sources_data = []
+            for doc in retrieved_docs:
+                sources_data.append({
+                    "id": str(doc.get("id", "")),
+                    "score": doc.get("score", 0.0),
+                    "text": doc.get("payload", {}).get("text", ""),
+                    "metadata": {k: v for k, v in doc.get("payload", {}).items() if k != "text"}
+                })
+
+            yield f'data: {json.dumps({"sources": sources_data}, ensure_ascii=False)}\n\n'
 
             # 2. Generate: 스트리밍 답변 생성
             async for chunk in self.generate_stream(

@@ -78,7 +78,17 @@ export default function HomePage() {
       description: "AI 기반으로 문서를 분석하여 마크다운으로 변환",
       details: "PDF, DOCX, PPTX 지원\nOCR 텍스트 추출\n테이블 구조 인식\n마크다운 변환",
       tech: "Docling Serve API (IBM)",
-      status: "completed"
+      status: "completed",
+      color: "blue",
+      gradient: "from-blue-500 to-blue-600",
+      borderColor: "border-blue-500/60",
+      bgGradient: "from-blue-50 to-blue-100/50 dark:from-blue-950/60 dark:to-blue-900/30",
+      glowColor: "bg-blue-500/20",
+      iconBg: "from-blue-100 to-blue-200 dark:from-blue-900/50 dark:to-blue-800/30",
+      iconColor: "text-blue-600 dark:text-blue-400",
+      badgeBg: "bg-blue-500/10",
+      badgeText: "text-blue-700 dark:text-blue-400",
+      badgeBorder: "border-blue-500/20"
     },
     {
       icon: Database,
@@ -87,7 +97,17 @@ export default function HomePage() {
       description: "BGE-M3 모델로 벡터화하여 Qdrant에 저장",
       details: "1024차원 벡터 생성\n다국어 지원\n의미적 유사도 계산\n실시간 인덱싱",
       tech: "BGE-M3 + Qdrant Vector DB",
-      status: "active"
+      status: "active",
+      color: "purple",
+      gradient: "from-purple-500 to-purple-600",
+      borderColor: "border-purple-500/60",
+      bgGradient: "from-purple-50 to-purple-100/50 dark:from-purple-950/60 dark:to-purple-900/30",
+      glowColor: "bg-purple-500/20",
+      iconBg: "from-purple-100 to-purple-200 dark:from-purple-900/50 dark:to-purple-800/30",
+      iconColor: "text-purple-600 dark:text-purple-400",
+      badgeBg: "bg-purple-500/10",
+      badgeText: "text-purple-700 dark:text-purple-400",
+      badgeBorder: "border-purple-500/20"
     },
     {
       icon: Bot,
@@ -96,7 +116,17 @@ export default function HomePage() {
       description: "Dify 지식베이스에 문서 업로드 (선택)",
       details: "데이터셋 자동 분류\nAPI 통합\n버전 관리\n권한 설정",
       tech: "Dify Knowledge Base API",
-      status: "pending"
+      status: "pending",
+      color: "orange",
+      gradient: "from-orange-500 to-orange-600",
+      borderColor: "border-orange-500/60",
+      bgGradient: "from-orange-50 to-orange-100/50 dark:from-orange-950/60 dark:to-orange-900/30",
+      glowColor: "bg-orange-500/20",
+      iconBg: "from-orange-100 to-orange-200 dark:from-orange-900/50 dark:to-orange-800/30",
+      iconColor: "text-orange-600 dark:text-orange-400",
+      badgeBg: "bg-orange-500/10",
+      badgeText: "text-orange-700 dark:text-orange-400",
+      badgeBorder: "border-orange-500/20"
     },
     {
       icon: MessageSquare,
@@ -105,7 +135,17 @@ export default function HomePage() {
       description: "문서 기반 지능형 질의응답 시스템",
       details: "벡터 검색 + BGE Rerank\n컨텍스트 기반 응답\n출처 표시\n멀티턴 대화\n정확도 향상",
       tech: "RAG Pipeline + BGE Reranker",
-      status: "pending"
+      status: "pending",
+      color: "green",
+      gradient: "from-green-500 to-green-600",
+      borderColor: "border-green-500/60",
+      bgGradient: "from-green-50 to-green-100/50 dark:from-green-950/60 dark:to-green-900/30",
+      glowColor: "bg-green-500/20",
+      iconBg: "from-green-100 to-green-200 dark:from-green-900/50 dark:to-green-800/30",
+      iconColor: "text-green-600 dark:text-green-400",
+      badgeBg: "bg-green-500/10",
+      badgeText: "text-green-700 dark:text-green-400",
+      badgeBorder: "border-green-500/20"
     },
     {
       icon: Brain,
@@ -114,7 +154,17 @@ export default function HomePage() {
       description: "다양한 LLM으로 최적의 답변 생성",
       details: "OpenAI GPT-4, GPT-4 Turbo, GPT-3.5\nNaver HyperCLOVA X\nLG EXAONE 3.0\nAnthropic Claude 3.5 Sonnet\nGoogle Gemini Pro\n모델별 특화 응답",
       tech: "Multi-LLM Integration",
-      status: "pending"
+      status: "pending",
+      color: "rose",
+      gradient: "from-rose-500 to-rose-600",
+      borderColor: "border-rose-500/60",
+      bgGradient: "from-rose-50 to-rose-100/50 dark:from-rose-950/60 dark:to-rose-900/30",
+      glowColor: "bg-rose-500/20",
+      iconBg: "from-rose-100 to-rose-200 dark:from-rose-900/50 dark:to-rose-800/30",
+      iconColor: "text-rose-600 dark:text-rose-400",
+      badgeBg: "bg-rose-500/10",
+      badgeText: "text-rose-700 dark:text-rose-400",
+      badgeBorder: "border-rose-500/20"
     },
   ]
 
@@ -198,10 +248,10 @@ export default function HomePage() {
           <div className="relative">
             {/* Animated connection lines */}
             <div className="absolute top-20 left-0 right-0 h-1 flex items-center gap-4 px-[4.5rem]">
-              {[0, 1, 2, 3].map((index) => (
-                <div key={index} className="flex-1 relative h-1 rounded-full overflow-hidden bg-blue-500">
+              {processSteps.slice(0, 4).map((step, index) => (
+                <div key={index} className={cn("flex-1 relative h-1 rounded-full overflow-hidden bg-gradient-to-r", step.gradient)}>
                   {/* Arrow */}
-                  <div className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 rotate-45 border-r-2 border-t-2 border-blue-500" />
+                  <div className={cn("absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 rotate-45 border-r-2 border-t-2", `border-${step.color}-500`)} />
                 </div>
               ))}
             </div>
@@ -216,20 +266,20 @@ export default function HomePage() {
                     className="group relative"
                   >
                     {/* Glow effect */}
-                    <div className="absolute -inset-4 rounded-2xl bg-blue-500/20 opacity-75 blur-2xl -z-10" />
+                    <div className={cn("absolute -inset-4 rounded-2xl opacity-75 blur-2xl -z-10", step.glowColor)} />
 
-                    <Card className="relative h-full border-2 border-blue-500/60 bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/60 dark:to-blue-900/30 shadow-xl backdrop-blur-sm">
+                    <Card className={cn("relative h-full border-2 bg-gradient-to-br shadow-xl backdrop-blur-sm", step.borderColor, step.bgGradient)}>
                       <CardHeader className="text-center p-4 items-center space-y-2">
                         {/* Step Number Badge */}
                         <div className="absolute -top-3 -right-3 z-10">
-                          <div className="relative w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-lg ring-2 ring-background bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+                          <div className={cn("relative w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-lg ring-2 ring-background bg-gradient-to-br text-white", step.gradient)}>
                             {step.number}
                           </div>
                         </div>
 
                         {/* Icon with better styling */}
-                        <div className="relative w-16 h-16 rounded-xl flex items-center justify-center shadow-inner bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/50 dark:to-blue-800/30">
-                          <Icon className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                        <div className={cn("relative w-16 h-16 rounded-xl flex items-center justify-center shadow-inner bg-gradient-to-br", step.iconBg)}>
+                          <Icon className={cn("w-8 h-8", step.iconColor)} />
                         </div>
 
                         {/* Title */}
@@ -246,7 +296,7 @@ export default function HomePage() {
                           {/* Tech Badge */}
                           <Badge
                             variant="secondary"
-                            className="text-[0.65rem] px-2 py-0.5 font-medium shadow-sm bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20"
+                            className={cn("text-[0.65rem] px-2 py-0.5 font-medium shadow-sm", step.badgeBg, step.badgeText, step.badgeBorder)}
                           >
                             {step.tech}
                           </Badge>
@@ -263,10 +313,8 @@ export default function HomePage() {
         {/* Mobile/Tablet Flow - 개선된 버전 */}
         <div className="lg:hidden max-w-lg mx-auto px-4">
           <div className="relative">
-            {/* Animated Vertical Connection Line */}
-            <div className="absolute left-10 top-8 bottom-8 w-1 rounded-full overflow-hidden bg-muted">
-              <div className="absolute top-0 left-0 right-0 h-full bg-gradient-to-b from-blue-500 to-blue-600" />
-            </div>
+            {/* Animated Vertical Connection Line - 그라데이션으로 변경 */}
+            <div className="absolute left-10 top-8 bottom-8 w-1 rounded-full overflow-hidden bg-gradient-to-b from-blue-500 via-purple-500 via-orange-500 via-green-500 to-rose-500" />
 
             {/* Process Cards */}
             <div className="space-y-8">
@@ -275,17 +323,17 @@ export default function HomePage() {
                 return (
                   <div key={index} className="relative flex gap-5 items-start">
                     {/* Enhanced Step Circle */}
-                    <div className="relative z-10 w-20 h-20 rounded-full flex items-center justify-center shrink-0 border-4 border-blue-500 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/20 shadow-lg ring-4 ring-background">
-                      <Icon className="w-9 h-9 text-blue-600 dark:text-blue-400" />
+                    <div className={cn("relative z-10 w-20 h-20 rounded-full flex items-center justify-center shrink-0 border-4 bg-gradient-to-br shadow-lg ring-4 ring-background", `border-${step.color}-500`, step.bgGradient)}>
+                      <Icon className={cn("w-9 h-9", step.iconColor)} />
 
                       {/* Step number */}
-                      <div className="absolute -top-2 -right-2 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-md bg-blue-500 text-white">
+                      <div className={cn("absolute -top-2 -right-2 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-md text-white bg-gradient-to-br", step.gradient)}>
                         {step.number}
                       </div>
                     </div>
 
                     {/* Enhanced Content Card */}
-                    <Card className="flex-1 border-2 border-blue-500/60 bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/60 dark:to-blue-900/30 shadow-md">
+                    <Card className={cn("flex-1 border-2 bg-gradient-to-br shadow-md", step.borderColor, step.bgGradient)}>
                       <CardHeader className="p-3 text-center space-y-2">
                         <div className="space-y-1">
                           <CardTitle className="text-base font-bold leading-tight">
@@ -299,7 +347,7 @@ export default function HomePage() {
                         {/* Tech Badge */}
                         <Badge
                           variant="secondary"
-                          className="text-[0.65rem] px-2 py-0.5 font-medium shadow-sm mx-auto bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20"
+                          className={cn("text-[0.65rem] px-2 py-0.5 font-medium shadow-sm mx-auto", step.badgeBg, step.badgeText, step.badgeBorder)}
                         >
                           {step.tech}
                         </Badge>

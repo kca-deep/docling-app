@@ -6,12 +6,11 @@ import { InputArea } from "./InputArea";
 import { SourcePanel } from "./SourcePanel";
 import { SettingsPanel } from "./SettingsPanel";
 import { Card } from "@/components/ui/card";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Settings, FileText, ChevronRight } from "lucide-react";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { Settings, FileText } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
 interface Message {
@@ -74,9 +73,9 @@ export function ChatContainer() {
   const [currentSources, setCurrentSources] = useState<Source[]>([]);
   const [sessionId] = useState(() => `session_${Date.now()}`);
 
-  // 모바일 감지
-  const isMobile = useMediaQuery("(max-width: 768px)");
+  // 우측 패널 상태
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"settings" | "sources">("settings");
 
   // AI 설정
   const [settings, setSettings] = useState<ChatSettings>({
@@ -84,7 +83,7 @@ export function ChatContainer() {
     temperature: 0.7,
     maxTokens: 2000,
     topP: 0.9,
-    topK: 50,
+    topK: 5,
     frequencyPenalty: 0,
     presencePenalty: 0,
     streamMode: true,
@@ -335,26 +334,63 @@ export function ChatContainer() {
     toast.success("대화가 초기화되었습니다");
   };
 
-  // 모바일 레이아웃
-  if (isMobile) {
-    return (
-      <div className="flex flex-col h-full overflow-hidden">
-        {/* 모바일 헤더 */}
-        <div className="flex items-center justify-between p-4 border-b flex-shrink-0">
-          <h2 className="text-lg font-semibold">AI 채팅</h2>
+  return (
+    <div className="flex flex-col h-full overflow-hidden relative">
+      {/* 상단 헤더 - 토글 버튼 */}
+      <div className="flex items-center justify-between p-3 border-b flex-shrink-0 bg-background">
+        <h2 className="text-lg font-semibold">RAG기반 AI Chat</h2>
+        <div className="flex items-center gap-2">
           <Sheet open={rightPanelOpen} onOpenChange={setRightPanelOpen}>
             <SheetTrigger asChild>
-              <Button variant="outline" size="icon">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => setActiveTab("settings")}
+              >
                 <Settings className="h-4 w-4" />
+                <span className="hidden sm:inline">설정</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-[320px] p-0">
-              <Tabs defaultValue="settings" className="h-full">
+            <SheetTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 relative"
+                onClick={() => setActiveTab("sources")}
+              >
+                <FileText className="h-4 w-4" />
+                <span className="hidden sm:inline">참조 문서</span>
+                {currentSources.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1">
+                    {currentSources.length}
+                  </Badge>
+                )}
+              </Button>
+            </SheetTrigger>
+
+            <SheetContent
+              side="right"
+              className="w-[90vw] sm:w-[450px] md:w-[500px] p-0"
+            >
+              <SheetHeader className="sr-only">
+                <SheetTitle>
+                  {activeTab === "settings" ? "AI 설정" : "참조 문서"}
+                </SheetTitle>
+              </SheetHeader>
+              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "settings" | "sources")} className="h-full">
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="settings">설정</TabsTrigger>
-                  <TabsTrigger value="sources">참조 문서</TabsTrigger>
+                  <TabsTrigger value="sources">
+                    참조 문서
+                    {currentSources.length > 0 && (
+                      <Badge variant="secondary" className="ml-2 h-5 min-w-5 px-1.5">
+                        {currentSources.length}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
                 </TabsList>
-                <TabsContent value="settings" className="h-[calc(100%-45px)] overflow-y-auto">
+                <TabsContent value="settings" className="h-[calc(100%-45px)] overflow-y-auto m-0">
                   <SettingsPanel
                     collections={collections}
                     selectedCollection={selectedCollection}
@@ -363,84 +399,37 @@ export function ChatContainer() {
                     onSettingsChange={setSettings}
                   />
                 </TabsContent>
-                <TabsContent value="sources" className="h-[calc(100%-45px)] overflow-y-auto">
+                <TabsContent value="sources" className="h-[calc(100%-45px)] overflow-y-auto m-0">
                   <SourcePanel sources={currentSources} />
                 </TabsContent>
               </Tabs>
             </SheetContent>
           </Sheet>
         </div>
+      </div>
 
-        {/* 메시지 목록 */}
-        <div className="flex-1 overflow-hidden">
-          <MessageList
-            messages={messages}
-            isLoading={isLoading}
-            onSourceClick={(sources) => {
-              setCurrentSources(sources);
-              setRightPanelOpen(true);
-            }}
-          />
-        </div>
-
-        {/* 입력 영역 */}
-        <InputArea
-          input={input}
-          setInput={setInput}
-          onSend={handleSend}
+      {/* 메시지 목록 */}
+      <div className="flex-1 overflow-hidden">
+        <MessageList
+          messages={messages}
           isLoading={isLoading}
-          disabled={!selectedCollection}
-          onClear={handleClearChat}
+          onSourceClick={(sources) => {
+            setCurrentSources(sources);
+            setActiveTab("sources");
+            setRightPanelOpen(true);
+          }}
         />
       </div>
-    );
-  }
 
-  // 데스크탑 레이아웃
-  return (
-    <ResizablePanelGroup direction="horizontal" className="h-full">
-      <ResizablePanel defaultSize={70} minSize={50}>
-        <Card className="h-full flex flex-col overflow-hidden">
-          <div className="flex-1 overflow-hidden">
-            <MessageList
-              messages={messages}
-              isLoading={isLoading}
-              onSourceClick={setCurrentSources}
-            />
-          </div>
-          <InputArea
-            input={input}
-            setInput={setInput}
-            onSend={handleSend}
-            isLoading={isLoading}
-            disabled={!selectedCollection}
-            onClear={handleClearChat}
-          />
-        </Card>
-      </ResizablePanel>
-
-      <ResizableHandle withHandle />
-
-      <ResizablePanel defaultSize={30} minSize={20}>
-        <Tabs defaultValue="settings" className="h-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="settings">설정</TabsTrigger>
-            <TabsTrigger value="sources">참조 문서</TabsTrigger>
-          </TabsList>
-          <TabsContent value="settings" className="h-[calc(100%-45px)] overflow-y-auto">
-            <SettingsPanel
-              collections={collections}
-              selectedCollection={selectedCollection}
-              onCollectionChange={setSelectedCollection}
-              settings={settings}
-              onSettingsChange={setSettings}
-            />
-          </TabsContent>
-          <TabsContent value="sources" className="h-[calc(100%-45px)] overflow-y-auto">
-            <SourcePanel sources={currentSources} />
-          </TabsContent>
-        </Tabs>
-      </ResizablePanel>
-    </ResizablePanelGroup>
+      {/* 입력 영역 */}
+      <InputArea
+        input={input}
+        setInput={setInput}
+        onSend={handleSend}
+        isLoading={isLoading}
+        disabled={!selectedCollection}
+        onClear={handleClearChat}
+      />
+    </div>
   );
 }
