@@ -114,11 +114,11 @@ export function MessageList({ messages, isLoading, isStreaming }: MessageListPro
   return (
     <ScrollArea
       ref={scrollAreaRef}
-      className="h-full w-full"
+      className="h-full w-full bg-muted/20"
       type="always"
     >
       <div className="p-4 md:p-6 pb-20">
-        <div className="space-y-4 max-w-4xl mx-auto">
+        <div className="space-y-4 max-w-[var(--chat-content-max-width)] mx-auto bg-gradient-to-br from-card to-muted/20 rounded-lg p-4 md:p-6">
           {messages.map((message, index) => (
             <MessageBubble
               key={message.id}
@@ -173,7 +173,7 @@ export function MessageList({ messages, isLoading, isStreaming }: MessageListPro
                   setUserScrolled(false);
                 }
               }}
-              className="fixed bottom-24 right-8 bg-primary text-primary-foreground rounded-full px-4 py-2 shadow-lg hover:shadow-xl transition-all"
+              className="fixed bottom-24 right-8 z-50 bg-primary text-primary-foreground rounded-full px-4 py-2 shadow-lg hover:shadow-xl transition-all hover:scale-105 active:scale-95"
             >
               ↓ 새 메시지
             </button>

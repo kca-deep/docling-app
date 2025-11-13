@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown } from "lucide-react";
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 interface ParseOptions {
   to_formats: string;
@@ -42,6 +42,17 @@ interface ParseResult {
   };
   error?: string;
   processing_time?: number;
+}
+
+interface RawExcelRow {
+  '메뉴명'?: string;
+  'document_name'?: string;
+  'URL'?: string;
+  'url'?: string;
+  '카테고리'?: string;
+  'category'?: string;
+  '작성일자'?: string;
+  'created_date'?: string;
 }
 
 interface ExcelRow {
@@ -188,7 +199,7 @@ export default function UrlParsePage() {
   };
 
   // 엑셀 템플릿 다운로드
-  const downloadExcelTemplate = () => {
+  const downloadExcelTemplate = async () => {
     const template = [
       {
         "메뉴명": "AI 기술 가이드",
@@ -204,58 +215,92 @@ export default function UrlParsePage() {
       }
     ];
 
-    const worksheet = XLSX.utils.json_to_sheet(template);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "URL 목록");
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("URL 목록");
 
-    // 컬럼 너비 설정
-    worksheet['!cols'] = [
-      { wch: 20 }, // 메뉴명
-      { wch: 50 }, // URL
-      { wch: 15 }, // 카테고리
-      { wch: 12 }  // 작성일자
+    // 컬럼 설정
+    worksheet.columns = [
+      { header: "메뉴명", key: "메뉴명", width: 20 },
+      { header: "URL", key: "URL", width: 50 },
+      { header: "카테고리", key: "카테고리", width: 15 },
+      { header: "작성일자", key: "작성일자", width: 12 }
     ];
 
-    XLSX.writeFile(workbook, "URL_파싱_템플릿.xlsx");
+    // 데이터 추가
+    template.forEach(row => worksheet.addRow(row));
+
+    // 파일 다운로드
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "URL_파싱_템플릿.xlsx";
+    a.click();
+    window.URL.revokeObjectURL(url);
+
     toast.success("템플릿이 다운로드되었습니다");
   };
 
   // 엑셀 파일 업로드 처리
-  const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const data = new Uint8Array(event.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(arrayBuffer);
 
-        // 데이터 변환
-        const parsedData: ExcelRow[] = jsonData.map((row: any) => ({
-          document_name: row['메뉴명'] || row['document_name'] || '',
-          url: row['URL'] || row['url'] || '',
-          category: row['카테고리'] || row['category'] || '',
-          created_date: row['작성일자'] || row['created_date'] || ''
-        }));
-
-        // 유효성 검사
-        const invalidRows = parsedData.filter(row => !row.url || !row.document_name);
-        if (invalidRows.length > 0) {
-          toast.error(`${invalidRows.length}개의 행에 필수 정보(메뉴명, URL)가 누락되었습니다`);
-          return;
-        }
-
-        setExcelData(parsedData);
-        toast.success(`${parsedData.length}개의 URL이 로드되었습니다`);
-      } catch (err) {
-        toast.error("엑셀 파일 읽기 실패: " + (err instanceof Error ? err.message : "알 수 없는 오류"));
+      const worksheet = workbook.worksheets[0];
+      if (!worksheet) {
+        toast.error("워크시트를 찾을 수 없습니다");
+        return;
       }
-    };
-    reader.readAsArrayBuffer(file);
+
+      const jsonData: RawExcelRow[] = [];
+
+      // 첫 번째 행은 헤더로 가정
+      const headerRow = worksheet.getRow(1);
+      const headers: string[] = [];
+      headerRow.eachCell((cell, colNumber) => {
+        headers[colNumber] = cell.value?.toString() || '';
+      });
+
+      // 데이터 행 읽기 (2행부터)
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return; // 헤더 스킵
+
+        const rowData: RawExcelRow = {};
+        row.eachCell((cell, colNumber) => {
+          const header = headers[colNumber];
+          if (header) {
+            rowData[header as keyof RawExcelRow] = cell.value?.toString() || '';
+          }
+        });
+        jsonData.push(rowData);
+      });
+
+      // 데이터 변환
+      const parsedData: ExcelRow[] = jsonData.map((row) => ({
+        document_name: row['메뉴명'] || row['document_name'] || '',
+        url: row['URL'] || row['url'] || '',
+        category: row['카테고리'] || row['category'] || '',
+        created_date: row['작성일자'] || row['created_date'] || ''
+      }));
+
+      // 유효성 검사
+      const invalidRows = parsedData.filter(row => !row.url || !row.document_name);
+      if (invalidRows.length > 0) {
+        toast.error(`${invalidRows.length}개의 행에 필수 정보(메뉴명, URL)가 누락되었습니다`);
+        return;
+      }
+
+      setExcelData(parsedData);
+      toast.success(`${parsedData.length}개의 URL이 로드되었습니다`);
+    } catch (err) {
+      toast.error("엑셀 파일 읽기 실패: " + (err instanceof Error ? err.message : "알 수 없는 오류"));
+    }
   };
 
   // 엑셀 데이터 초기화

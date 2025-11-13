@@ -83,6 +83,9 @@
 }
 
 :root {
+  /* Chat content max-width */
+  --chat-content-max-width: 56rem;
+
   --background: oklch(1.0000 0 0);
   --foreground: oklch(0 0 0);
   --card: oklch(1.0000 0 0);
@@ -99,8 +102,8 @@
   --accent-foreground: oklch(1.0000 0 0);
   --destructive: oklch(0 0 0);
   --destructive-foreground: oklch(1.0000 0 0);
-  --border: oklch(0 0 0);
-  --input: oklch(0 0 0);
+  --border: oklch(0.8962 0 0);
+  --input: oklch(0.8962 0 0);
   --ring: oklch(0.6489 0.2370 26.9728);
   --chart-1: oklch(0.6489 0.2370 26.9728);
   --chart-2: oklch(0.9680 0.2110 109.7692);
@@ -113,7 +116,7 @@
   --sidebar-primary-foreground: oklch(1.0000 0 0);
   --sidebar-accent: oklch(0.5635 0.2408 260.8178);
   --sidebar-accent-foreground: oklch(1.0000 0 0);
-  --sidebar-border: oklch(0 0 0);
+  --sidebar-border: oklch(0.8962 0 0);
   --sidebar-ring: oklch(0.6489 0.2370 26.9728);
   --font-sans: DM Sans, sans-serif;
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
@@ -154,8 +157,8 @@
   --accent-foreground: oklch(0 0 0);
   --destructive: oklch(1.0000 0 0);
   --destructive-foreground: oklch(0 0 0);
-  --border: oklch(1.0000 0 0);
-  --input: oklch(1.0000 0 0);
+  --border: oklch(0.3211 0 0);
+  --input: oklch(0.3211 0 0);
   --ring: oklch(0.7044 0.1872 23.1858);
   --chart-1: oklch(0.7044 0.1872 23.1858);
   --chart-2: oklch(0.9691 0.2005 109.6228);
@@ -168,7 +171,7 @@
   --sidebar-primary-foreground: oklch(0 0 0);
   --sidebar-accent: oklch(0.6755 0.1765 252.2592);
   --sidebar-accent-foreground: oklch(0 0 0);
-  --sidebar-border: oklch(1.0000 0 0);
+  --sidebar-border: oklch(0.3211 0 0);
   --sidebar-ring: oklch(0.7044 0.1872 23.1858);
   --font-sans: DM Sans, sans-serif;
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
@@ -254,6 +257,29 @@
 
 /* 마크다운 메시지 스타일 */
 @layer components {
+  /* KCA 3색 Gradient (방송/통신/전파) */
+  .kca-tri-gradient {
+    background: linear-gradient(90deg,
+      rgb(37, 99, 235) 0%,     /* blue-600: 방송 */
+      rgb(16, 185, 129) 50%,   /* emerald-500: 통신 */
+      rgb(239, 68, 68) 100%);  /* red-500: 전파 */
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* 전체화면 채팅 모드에서 모든 Radix Portal 컴포넌트 z-index 강제 증가 */
+  body.chat-fullscreen-active [data-radix-popper-content-wrapper],
+  body.chat-fullscreen-active [data-radix-select-viewport],
+  body.chat-fullscreen-active [data-radix-select-content],
+  body.chat-fullscreen-active [data-radix-dialog-overlay],
+  body.chat-fullscreen-active [data-radix-dialog-content],
+  body.chat-fullscreen-active [role="dialog"],
+  body.chat-fullscreen-active [role="listbox"],
+  body.chat-fullscreen-active [data-radix-portal] {
+    z-index: 9999 !important;
+  }
+
   .markdown-content {
     word-wrap: break-word;
     overflow-wrap: break-word;

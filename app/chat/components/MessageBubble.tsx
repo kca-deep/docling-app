@@ -125,12 +125,12 @@ export function MessageBubble({
         {/* 메시지 버블 */}
         <div
           className={cn(
-            "rounded-lg p-4 w-full shadow-sm transition-colors",
+            "rounded-lg p-4 w-full transition-colors",
             role === "user"
               ? "bg-primary text-primary-foreground"
               : role === "system"
-              ? "bg-muted/50 border border-border"
-              : "bg-card border border-border"
+              ? "bg-muted/50"
+              : "bg-card"
           )}
         >
           <div className="w-full min-w-0">

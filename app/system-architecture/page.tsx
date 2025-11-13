@@ -9,11 +9,13 @@ import { Server, Cpu, HardDrive, Network, Database, Boxes, Globe, MonitorPlay, C
 
 export default function SystemArchitecturePage() {
   return (
-    <PageContainer
-      title="시스템 구성도"
-      description="RTX 5090 GPU 서버의 하드웨어 및 서비스 구성 정보"
-    >
+    <PageContainer>
       <div className="space-y-6">
+        {/* 페이지 헤더 */}
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold tracking-tight">시스템 구성도</h1>
+          <p className="text-muted-foreground">RTX 5090 GPU 서버의 하드웨어 및 서비스 구성 정보</p>
+        </div>
           <Card className="border-2">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -325,8 +327,7 @@ export default function SystemArchitecturePage() {
               </div>
             </CardContent>
           </Card>
-
-      </div>
+        </div>
     </PageContainer>
   )
 }

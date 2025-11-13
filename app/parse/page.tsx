@@ -47,6 +47,10 @@ interface FileStatus {
   result?: ConvertResult;
 }
 
+interface SaveResult {
+  skipped?: boolean;
+}
+
 export default function ParsePage() {
   // 단일 파일 상태
   const [file, setFile] = useState<File | null>(null);
@@ -397,8 +401,8 @@ export default function ParsePage() {
       {
         loading: `${successFiles.length}개 문서 저장 중...`,
         success: (results) => {
-          const saved = results.filter((r: any) => !r.skipped).length;
-          const skipped = results.filter((r: any) => r.skipped).length;
+          const saved = results.filter((r: SaveResult) => !r.skipped).length;
+          const skipped = results.filter((r: SaveResult) => r.skipped).length;
           return `${saved}개 저장 완료${skipped > 0 ? `, ${skipped}개 이미 저장됨` : ''}!`;
         },
         error: "일부 문서 저장에 실패했습니다.",

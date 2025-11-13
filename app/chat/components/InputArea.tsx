@@ -89,8 +89,8 @@ export function InputArea({
   const canSend = !disabled && !isLoading && input.trim().length > 0;
 
   return (
-    <div className="flex-shrink-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="p-4">
+    <div className="flex-shrink-0 border-t bg-muted/20 backdrop-blur px-4 py-3">
+      <div className="max-w-[var(--chat-content-max-width)] mx-auto p-4 bg-gradient-to-br from-card to-muted/20 rounded-lg">
         {/* 입력 영역 */}
         <div className="flex gap-2 items-end">
           <div className="flex-1 relative">

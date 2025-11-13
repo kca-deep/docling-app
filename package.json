@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/check-deps.js",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
@@ -31,6 +32,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "exceljs": "^4.4.0",
     "lucide-react": "^0.552.0",
     "next": "16.0.1",
     "next-themes": "^0.4.6",
@@ -44,7 +46,6 @@
     "remark-gfm": "^4.0.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.3.1",
-    "xlsx": "^0.18.5",
     "zod": "^4.1.12"
   },
   "devDependencies": {

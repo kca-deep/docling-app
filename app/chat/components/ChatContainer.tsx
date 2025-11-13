@@ -7,7 +7,7 @@ import { SettingsPanel } from "./SettingsPanel";
 import { Card } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Settings, Database } from "lucide-react";
+import { Settings, Database, Maximize, Minimize, Bot } from "lucide-react";
 import { toast } from "sonner";
 import {
   Select,
@@ -42,6 +42,18 @@ interface Source {
   };
 }
 
+interface RetrievedDocument {
+  id: string;
+  text: string;
+  score: number;
+  metadata?: {
+    title?: string;
+    page?: number;
+    file?: string;
+    url?: string;
+  };
+}
+
 interface Collection {
   name: string;
   vectors_count: number;
@@ -59,6 +71,7 @@ interface ChatSettings {
   frequencyPenalty: number;
   presencePenalty: number;
   streamMode: boolean;
+  useReranking: boolean;
 }
 
 export function ChatContainer() {
@@ -81,6 +94,9 @@ export function ChatContainer() {
   // 우측 패널 상태
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
 
+  // 전체화면 상태
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
   // AI 설정
   const [settings, setSettings] = useState<ChatSettings>({
     reasoningLevel: "medium",
@@ -93,6 +109,68 @@ export function ChatContainer() {
     streamMode: true,
     useReranking: true,
   });
+
+  // Body 스크롤 제어 및 전체화면 클래스 추가
+  useEffect(() => {
+    if (isFullscreen) {
+      console.log('[Fullscreen] Activating fullscreen mode');
+      document.body.style.overflow = 'hidden';
+      document.body.classList.add('chat-fullscreen-active');
+
+      // Portal 요소들의 z-index 강제 설정
+      const forcePortalZIndex = () => {
+        const selectors = [
+          '[data-radix-popper-content-wrapper]',
+          '[data-radix-select-content]',
+          '[data-radix-select-viewport]',
+          '[data-radix-dialog-overlay]',
+          '[data-radix-dialog-content]',
+          '[role="dialog"]',
+          '[role="listbox"]'
+        ];
+
+        selectors.forEach(selector => {
+          document.querySelectorAll(selector).forEach(el => {
+            const htmlEl = el as HTMLElement;
+            htmlEl.style.zIndex = '9999';
+            console.log(`[Fullscreen] Set z-index for`, selector, htmlEl);
+          });
+        });
+      };
+
+      // Portal은 비동기로 렌더링되므로 여러 번 시도
+      forcePortalZIndex();
+      const timer1 = setTimeout(forcePortalZIndex, 100);
+      const timer2 = setTimeout(forcePortalZIndex, 300);
+      const timer3 = setTimeout(forcePortalZIndex, 500);
+
+      // MutationObserver로 지속적으로 감시
+      const observer = new MutationObserver(forcePortalZIndex);
+      observer.observe(document.body, { childList: true });
+
+      return () => {
+        console.log('[Fullscreen] Deactivating fullscreen mode');
+        document.body.style.overflow = '';
+        document.body.classList.remove('chat-fullscreen-active');
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+        clearTimeout(timer3);
+        observer.disconnect();
+      };
+    }
+  }, [isFullscreen]);
+
+  // ESC 키로 전체화면 종료
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [isFullscreen]);
 
   // 컬렉션 목록 로드
   useEffect(() => {
@@ -145,7 +223,7 @@ export function ChatContainer() {
       const data = await response.json();
 
       // 소스 문서 처리
-      const sources: Source[] = (data.retrieved_docs || []).map((doc: any) => ({
+      const sources: Source[] = (data.retrieved_docs || []).map((doc: RetrievedDocument) => ({
         id: doc.id,
         title: doc.metadata?.title || `문서 ${doc.id}`,
         content: doc.text,
@@ -242,7 +320,7 @@ export function ChatContainer() {
 
               // 소스 문서 처리
               if (parsed.sources) {
-                sources = parsed.sources.map((doc: any) => ({
+                sources = parsed.sources.map((doc: RetrievedDocument) => ({
                   id: doc.id,
                   title: doc.metadata?.title || `문서 ${doc.id}`,
                   content: doc.text,
@@ -341,11 +419,40 @@ export function ChatContainer() {
     toast.success("대화가 초기화되었습니다");
   };
 
-  return (
-    <div className="flex flex-col h-full overflow-hidden relative">
+  const chatContent = (
+    <div
+      className={
+        isFullscreen
+          ? "fullscreen-chat-mode fixed inset-0 z-[60] bg-background flex flex-col overflow-hidden"
+          : "flex flex-col h-full overflow-hidden"
+      }
+    >
       {/* 상단 헤더 - 컬렉션 선택 및 고급설정 */}
       <div className="flex items-center justify-between px-3 py-2 border-b flex-shrink-0 bg-background">
-        <h2 className="text-lg font-semibold">RAG기반 AI Chat</h2>
+        {/* 로고 */}
+        <div className="flex items-center gap-3">
+          {/* Icon Container with Navy Background */}
+          <div className="relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-900 to-blue-800 rounded-lg blur-sm opacity-75" />
+            <div className="relative bg-gradient-to-br from-blue-900 to-blue-800 p-2 rounded-lg shadow-lg">
+              <Bot className="h-5 w-5 text-white" strokeWidth={2.5} />
+            </div>
+          </div>
+
+          {/* Text Container */}
+          <div className="hidden sm:flex flex-col">
+            <span className="font-bold text-lg kca-tri-gradient leading-none tracking-tight">
+              KCA-i
+            </span>
+            <div className="flex items-baseline gap-1.5 mt-0.5">
+              <span className="font-bold text-xs text-blue-900 dark:text-blue-400 leading-none">RAG</span>
+              <span className="text-[0.65rem] text-muted-foreground font-medium leading-tight">
+                기반 챗봇
+              </span>
+            </div>
+          </div>
+        </div>
+
         <div className="flex items-center gap-2">
           {/* 컬렉션 선택 */}
           <div className="flex items-center gap-2">
@@ -377,6 +484,27 @@ export function ChatContainer() {
               </SelectContent>
             </Select>
           </div>
+
+          {/* 전체화면 토글 */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => {
+              console.log('[Fullscreen Button] Clicked, current state:', isFullscreen);
+              setIsFullscreen(!isFullscreen);
+            }}
+            title={isFullscreen ? "전체화면 종료 (ESC)" : "전체화면"}
+          >
+            {isFullscreen ? (
+              <Minimize className="h-4 w-4" />
+            ) : (
+              <Maximize className="h-4 w-4" />
+            )}
+            <span className="hidden sm:inline">
+              {isFullscreen ? "축소" : "전체화면"}
+            </span>
+          </Button>
 
           {/* 고급설정 */}
           <Sheet open={rightPanelOpen} onOpenChange={setRightPanelOpen}>
@@ -427,4 +555,6 @@ export function ChatContainer() {
       />
     </div>
   );
+
+  return chatContent;
 }

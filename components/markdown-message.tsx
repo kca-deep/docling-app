@@ -129,7 +129,8 @@ export function MarkdownMessage({ content }: MarkdownMessageProps) {
     ),
 
     // 코드 블록 스타일링
-    code: ({ inline, children }) => {
+    code: (props) => {
+      const { inline, children } = props as React.HTMLAttributes<HTMLElement> & { inline?: boolean };
       if (inline) {
         return (
           <code className="bg-muted px-1 py-0.5 rounded text-sm font-mono text-foreground break-all">
