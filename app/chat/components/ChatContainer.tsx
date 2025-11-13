@@ -39,6 +39,10 @@ interface Source {
     page?: number;
     file?: string;
     url?: string;
+    section?: string;
+    chunk_index?: number;
+    document_id?: number;
+    num_tokens?: number;
   };
 }
 
@@ -47,9 +51,12 @@ interface RetrievedDocument {
   text: string;
   score: number;
   metadata?: {
-    title?: string;
+    filename?: string;
+    document_id?: number;
+    chunk_index?: number;
+    num_tokens?: number;
+    headings?: string[];
     page?: number;
-    file?: string;
     url?: string;
   };
 }
@@ -225,10 +232,18 @@ export function ChatContainer() {
       // 소스 문서 처리
       const sources: Source[] = (data.retrieved_docs || []).map((doc: RetrievedDocument) => ({
         id: doc.id,
-        title: doc.metadata?.title || `문서 ${doc.id}`,
+        title: doc.metadata?.filename || `문서 ${doc.id}`,
         content: doc.text,
         score: doc.score,
-        metadata: doc.metadata,
+        metadata: {
+          file: doc.metadata?.filename,
+          section: doc.metadata?.headings ? doc.metadata.headings.join(' > ') : undefined,
+          chunk_index: doc.metadata?.chunk_index,
+          document_id: doc.metadata?.document_id,
+          num_tokens: doc.metadata?.num_tokens,
+          page: doc.metadata?.page,
+          url: doc.metadata?.url,
+        },
       }));
 
       setCurrentSources(sources);
@@ -322,10 +337,18 @@ export function ChatContainer() {
               if (parsed.sources) {
                 sources = parsed.sources.map((doc: RetrievedDocument) => ({
                   id: doc.id,
-                  title: doc.metadata?.title || `문서 ${doc.id}`,
+                  title: doc.metadata?.filename || `문서 ${doc.id}`,
                   content: doc.text,
                   score: doc.score,
-                  metadata: doc.metadata,
+                  metadata: {
+                    file: doc.metadata?.filename,
+                    section: doc.metadata?.headings ? doc.metadata.headings.join(' > ') : undefined,
+                    chunk_index: doc.metadata?.chunk_index,
+                    document_id: doc.metadata?.document_id,
+                    num_tokens: doc.metadata?.num_tokens,
+                    page: doc.metadata?.page,
+                    url: doc.metadata?.url,
+                  },
                 }));
                 setCurrentSources(sources);
               }

@@ -14,9 +14,10 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination"
-import { Loader2, CheckCircle2, XCircle, Upload, Database, FileText, Search, X, RefreshCw } from "lucide-react"
+import { Loader2, CheckCircle2, XCircle, Upload, Database, FileText, Search, X, RefreshCw, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { MarkdownViewerModal } from "@/components/markdown-viewer-modal"
+import { API_BASE_URL } from "@/lib/api-config"
 
 interface Document {
   id: number
@@ -62,13 +63,17 @@ export default function QdrantPage() {
   const [selectedCollection, setSelectedCollection] = useState("")
 
   // 청킹 설정
-  const [chunkSize, setChunkSize] = useState(500)
-  const [chunkOverlap, setChunkOverlap] = useState(50)
+  const [chunkSize, setChunkSize] = useState(1000)
+  const [chunkOverlap, setChunkOverlap] = useState(200)
 
   // Collection 생성 Dialog
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [newCollectionName, setNewCollectionName] = useState("")
   const [distance, setDistance] = useState("Cosine")
+
+  // Collection 삭제 Dialog
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   // 업로드 결과
   const [uploadResults, setUploadResults] = useState<UploadResult[]>([])
@@ -96,7 +101,7 @@ export default function QdrantPage() {
         params.append("search", search)
       }
 
-      const response = await fetch(`http://localhost:8000/api/documents/saved?${params}`)
+      const response = await fetch(`${API_BASE_URL}/api/documents/saved?${params}`)
       if (response.ok) {
         const data = await response.json()
         setDocuments(data.items || [])
@@ -112,11 +117,25 @@ export default function QdrantPage() {
     }
   }
 
+  // 청킹 설정값 가져오기
+  const fetchConfig = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/qdrant/config`)
+      if (response.ok) {
+        const data = await response.json()
+        setChunkSize(data.default_chunk_size)
+        setChunkOverlap(data.default_chunk_overlap)
+      }
+    } catch (error) {
+      console.error("Failed to fetch config:", error)
+    }
+  }
+
   // Collection 목록 가져오기
   const fetchCollections = async () => {
     setLoadingCollections(true)
     try {
-      const response = await fetch("http://localhost:8000/api/qdrant/collections")
+      const response = await fetch(`${API_BASE_URL}/api/qdrant/collections`)
       if (response.ok) {
         const data = await response.json()
         setCollections(data.collections || [])
@@ -140,7 +159,7 @@ export default function QdrantPage() {
     }
 
     try {
-      const response = await fetch("http://localhost:8000/api/qdrant/collections", {
+      const response = await fetch(`${API_BASE_URL}/api/qdrant/collections`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -165,6 +184,37 @@ export default function QdrantPage() {
     }
   }
 
+  // Collection 삭제
+  const deleteCollection = async () => {
+    if (!selectedCollection) {
+      toast.error("삭제할 Collection을 선택해주세요")
+      return
+    }
+
+    setDeleting(true)
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/qdrant/collections/${encodeURIComponent(selectedCollection)}`, {
+        method: "DELETE"
+      })
+
+      if (response.ok) {
+        toast.success(`Collection '${selectedCollection}'이 삭제되었습니다`)
+        setSelectedCollection("")
+        setDeleteDialogOpen(false)
+        fetchCollections()
+      } else {
+        const error = await response.json()
+        toast.error(error.detail || "Collection 삭제에 실패했습니다")
+      }
+    } catch (error) {
+      console.error("Failed to delete collection:", error)
+      toast.error("Collection 삭제에 실패했습니다")
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   // 문서 업로드
   const uploadDocuments = async () => {
     if (!selectedCollection) {
@@ -181,7 +231,7 @@ export default function QdrantPage() {
     setUploadResults([])
 
     try {
-      const response = await fetch("http://localhost:8000/api/qdrant/upload", {
+      const response = await fetch(`${API_BASE_URL}/api/qdrant/upload`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -285,6 +335,7 @@ export default function QdrantPage() {
 
   // 초기 로드
   useEffect(() => {
+    fetchConfig()
     fetchDocuments()
     fetchCollections()
   }, [])
@@ -304,39 +355,83 @@ export default function QdrantPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid md:grid-cols-3 gap-4">
-              <div className="md:col-span-2 space-y-2">
-                <Label htmlFor="collection">대상 Collection</Label>
-                <Select value={selectedCollection} onValueChange={setSelectedCollection}>
-                  <SelectTrigger id="collection">
-                    <SelectValue placeholder="Collection 선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {collections.map((col) => (
-                      <SelectItem key={col.name} value={col.name}>
-                        {col.name} ({col.points_count.toLocaleString()} points, {col.vectors_count.toLocaleString()} vectors)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="collection">Collection 관리</Label>
+              <div className="grid grid-cols-10 gap-2">
+                {/* Collection 선택 */}
+                <div className="col-span-4">
+                  <Select value={selectedCollection} onValueChange={setSelectedCollection}>
+                    <SelectTrigger id="collection">
+                      <SelectValue placeholder="Collection 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {collections.map((col) => (
+                        <SelectItem key={col.name} value={col.name}>
+                          {col.name} ({col.points_count.toLocaleString()}p, {col.vectors_count.toLocaleString()}v)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-2">
-                <Label>동작</Label>
-                <div className="flex gap-2">
-                  <Button
-                    onClick={fetchCollections}
-                    disabled={loadingCollections}
-                    variant="outline"
-                    className="flex-1"
-                  >
-                    {loadingCollections && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    새로고침
-                  </Button>
+                {/* 삭제 버튼 */}
+                <div className="col-span-2">
+                  <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="destructive"
+                        disabled={!selectedCollection}
+                        className="w-full"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        삭제
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>Collection 삭제</DialogTitle>
+                        <DialogDescription>
+                          정말로 이 Collection을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="py-4">
+                        <Alert>
+                          <AlertDescription>
+                            <strong>{selectedCollection}</strong> Collection이 삭제됩니다.
+                          </AlertDescription>
+                        </Alert>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+                          취소
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          onClick={deleteCollection}
+                          disabled={deleting}
+                        >
+                          {deleting ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              삭제 중...
+                            </>
+                          ) : (
+                            <>
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              삭제
+                            </>
+                          )}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+
+                {/* 생성 버튼 */}
+                <div className="col-span-2">
                   <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
                     <DialogTrigger asChild>
-                      <Button variant="outline">
+                      <Button variant="outline" className="w-full">
                         <Database className="mr-2 h-4 w-4" />
                         생성
                       </Button>
@@ -387,6 +482,23 @@ export default function QdrantPage() {
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>
+                </div>
+
+                {/* 새로고침 버튼 */}
+                <div className="col-span-2">
+                  <Button
+                    onClick={fetchCollections}
+                    disabled={loadingCollections}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    {loadingCollections ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                    )}
+                    새로고침
+                  </Button>
                 </div>
               </div>
             </div>

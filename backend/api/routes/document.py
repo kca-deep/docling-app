@@ -1,7 +1,7 @@
 """
 문서 변환 API 라우트
 """
-from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Depends
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Depends, BackgroundTasks
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import Optional, List
@@ -9,6 +9,7 @@ from typing import Optional, List
 from backend.services.docling_service import DoclingService
 from backend.services.qwen3_service import qwen3_service
 from backend.services import document_crud
+from backend.services.progress_tracker import progress_tracker
 from backend.database import get_db
 from backend.models.schemas import (
     ConvertResult,
@@ -20,14 +21,34 @@ from backend.models.schemas import (
     DocumentListResponse,
     DocumentDetailResponse,
     URLConvertRequest,
+    ProgressResponse,
 )
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 docling_service = DoclingService()
 
 
+async def _process_qwen3_background(
+    file_content: bytes,
+    filename: str,
+    task_id: str
+):
+    """qwen3-vl 백그라운드 처리"""
+    try:
+        result = await qwen3_service.convert_document(
+            file_content=file_content,
+            filename=filename,
+            task_id=task_id  # task_id 전달
+        )
+        # 결과는 progress_tracker에 자동 저장됨
+    except Exception as e:
+        # 에러 발생 시 progress_tracker에 실패 기록
+        progress_tracker.mark_failed(task_id, str(e))
+
+
 @router.post("/convert", response_model=ConvertResult)
 async def convert_document(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     strategy: str = Form(default="docling"),
     target_type: str = Form(default="inbody"),
@@ -86,10 +107,31 @@ async def convert_document(
 
         # 파싱 전략에 따라 서비스 선택
         if strategy == "qwen3-vl":
-            # Qwen3 VL OCR Service 호출
-            result = await qwen3_service.convert_document(
-                file_content=file_content,
-                filename=file.filename
+            # Qwen3 VL OCR Service - 백그라운드 처리
+            import time
+            task_id = f"qwen3-{int(time.time() * 1000)}"
+
+            # 파일 내용을 미리 읽어서 백그라운드 작업에 전달
+            file_content_copy = file_content
+
+            # 백그라운드 작업 등록
+            background_tasks.add_task(
+                _process_qwen3_background,
+                file_content_copy,
+                file.filename,
+                task_id
+            )
+
+            # 즉시 task_id와 processing 상태 반환
+            from backend.models.schemas import TaskStatus, DocumentInfo
+            result = ConvertResult(
+                task_id=task_id,
+                status=TaskStatus.PROCESSING,
+                document=DocumentInfo(
+                    filename=file.filename,
+                    md_content=None,
+                    processing_time=None
+                )
             )
         elif strategy == "docling":
             # Docling Service 호출
@@ -377,4 +419,37 @@ async def delete_saved_document(
         raise HTTPException(
             status_code=500,
             detail=f"문서 삭제 중 오류 발생: {str(e)}"
+        )
+
+
+# === 진행률 추적 API ===
+
+@router.get("/progress/{task_id}", response_model=ProgressResponse)
+async def get_progress(task_id: str):
+    """
+    문서 변환 진행률 조회 API
+
+    Args:
+        task_id: Task ID (qwen3-vl 파싱에서 사용)
+
+    Returns:
+        ProgressResponse: 진행률 정보 (페이지별 진행 상황, 예상 남은 시간 등)
+    """
+    try:
+        progress_data = progress_tracker.get_progress(task_id)
+
+        if not progress_data:
+            raise HTTPException(
+                status_code=404,
+                detail=f"진행률 정보를 찾을 수 없습니다 (Task ID: {task_id})"
+            )
+
+        return ProgressResponse(**progress_data)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"진행률 조회 중 오류 발생: {str(e)}"
         )

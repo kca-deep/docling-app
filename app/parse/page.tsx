@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Upload, FileText, Loader2, CheckCircle2, XCircle, Download, Trash2, FolderOpen, Save, Settings, Files, Zap, Shield, Sparkles, Layout, Image } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -32,6 +32,21 @@ interface ConvertResult {
   processing_time?: number;
 }
 
+interface ProgressInfo {
+  task_id: string;
+  filename: string;
+  status: "processing" | "completed" | "failed";
+  current_page: number;
+  total_pages: number;
+  progress_percentage: number;
+  elapsed_time: number;
+  estimated_remaining_time?: number;
+  error_message?: string;
+  updated_at: string;
+  md_content?: string;
+  processing_time?: number;
+}
+
 interface ParseOptions {
   strategy: "docling" | "qwen3-vl";
   do_ocr: boolean;
@@ -45,6 +60,8 @@ interface FileStatus {
   status: "pending" | "processing" | "success" | "error";
   progress: number;
   result?: ConvertResult;
+  progressInfo?: ProgressInfo;  // qwen3-vl 진행률 정보
+  pollingInterval?: NodeJS.Timeout;  // polling interval ID
 }
 
 interface SaveResult {
@@ -57,6 +74,8 @@ export default function ParsePage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ConvertResult | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [progressInfo, setProgressInfo] = useState<ProgressInfo | null>(null);
+  const [isPolling, setIsPolling] = useState(false);
 
   // 일괄 파일 상태
   const [files, setFiles] = useState<FileStatus[]>([]);
@@ -72,6 +91,69 @@ export default function ParsePage() {
     include_images: true,
     do_formula_enrichment: false,
   });
+
+  // 진행률 polling useEffect
+  useEffect(() => {
+    if (!isPolling || !result?.task_id) {
+      return;
+    }
+
+    const pollProgress = async () => {
+      try {
+        console.log("Polling progress for task_id:", result.task_id);
+        const response = await fetch(`http://localhost:8000/api/documents/progress/${result.task_id}`);
+
+        if (response.ok) {
+          const data: ProgressInfo = await response.json();
+          console.log("Progress data received:", data);
+          setProgressInfo(data);
+
+          // 완료 시 result를 업데이트하고 polling 중지
+          if (data.status === "completed") {
+            setIsPolling(false);
+            setLoading(false);
+            setResult({
+              task_id: data.task_id,
+              status: "success",
+              document: {
+                filename: data.filename,
+                md_content: data.md_content,
+                processing_time: data.processing_time
+              },
+              processing_time: data.processing_time
+            });
+            toast.success("문서 파싱이 완료되었습니다!");
+          } else if (data.status === "failed") {
+            setIsPolling(false);
+            setLoading(false);
+            setResult({
+              task_id: data.task_id,
+              status: "failure",
+              error: data.error_message || "파싱에 실패했습니다"
+            });
+            toast.error(data.error_message || "파싱에 실패했습니다");
+          }
+        } else if (response.status === 404) {
+          // 진행률 정보가 없으면 polling 중지
+          setIsPolling(false);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error("진행률 조회 실패:", err);
+      }
+    };
+
+    // 즉시 한 번 실행
+    pollProgress();
+
+    // 2초마다 polling
+    const intervalId = setInterval(pollProgress, 2000);
+
+    // cleanup: 컴포넌트 언마운트 또는 polling 중지 시 interval 제거
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [isPolling, result?.task_id]);
 
   // 단일 파일 핸들러
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -113,6 +195,12 @@ export default function ParsePage() {
 
     setLoading(true);
     setResult(null);
+    setProgressInfo(null);
+
+    // qwen3-vl 전략이면 polling 시작
+    if (parseOptions.strategy === "qwen3-vl") {
+      setIsPolling(true);
+    }
 
     try {
       const formData = new FormData();
@@ -133,12 +221,24 @@ export default function ParsePage() {
       }
 
       const data: ConvertResult = await response.json();
+      console.log("Convert API response:", data);
+      console.log("Current strategy:", parseOptions.strategy);
+      console.log("isPolling will be:", parseOptions.strategy === "qwen3-vl");
       setResult(data);
 
       if (data.status === "success") {
         toast.success("문서 파싱이 완료되었습니다!");
+        setLoading(false);
+        setIsPolling(false);
+      } else if (data.status === "processing") {
+        // qwen3-vl의 경우 백그라운드 처리 중
+        // loading은 true 유지, polling이 계속됨
+        console.log("Status is processing, keeping loading=true and isPolling=true");
+        toast.info("문서 파싱을 시작했습니다. 진행률을 확인하세요.");
       } else {
         toast.error(data.error || "파싱에 실패했습니다");
+        setLoading(false);
+        setIsPolling(false);
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "알 수 없는 오류가 발생했습니다");
@@ -147,14 +247,16 @@ export default function ParsePage() {
         status: "failure",
         error: err instanceof Error ? err.message : "알 수 없는 오류가 발생했습니다",
       });
-    } finally {
       setLoading(false);
+      setIsPolling(false);
     }
   };
 
   const handleReset = () => {
     setFile(null);
     setResult(null);
+    setProgressInfo(null);
+    setIsPolling(false);
   };
 
   const handleSaveDocument = async () => {
@@ -261,25 +363,46 @@ export default function ParsePage() {
         body: formData,
       });
 
-      setFiles(prev => prev.map((f, i) =>
-        i === index ? { ...f, progress: 80 } : f
-      ));
-
       if (!response.ok) {
         throw new Error(`API 호출 실패: ${response.status}`);
       }
 
       const result = await response.json();
+      console.log(`[Batch] File ${index} convert result:`, result);
 
-      setFiles(prev => prev.map((f, i) =>
-        i === index ? {
-          ...f,
-          status: result.status === "success" ? "success" : "error",
-          progress: 100,
-          result
-        } : f
-      ));
+      // qwen3-vl의 경우 status가 "processing"이면 polling 시작
+      if (result.status === "processing" && parseOptions.strategy === "qwen3-vl") {
+        console.log(`[Batch] Starting polling for file ${index}, task_id:`, result.task_id);
+
+        setFiles(prev => prev.map((f, i) =>
+          i === index ? { ...f, result, progress: 50 } : f
+        ));
+
+        // polling 시작
+        await pollBatchProgress(result.task_id, index);
+      } else if (result.status === "success") {
+        // docling 등 동기 처리는 바로 완료
+        setFiles(prev => prev.map((f, i) =>
+          i === index ? {
+            ...f,
+            status: "success",
+            progress: 100,
+            result
+          } : f
+        ));
+      } else {
+        // 에러 처리
+        setFiles(prev => prev.map((f, i) =>
+          i === index ? {
+            ...f,
+            status: "error",
+            progress: 100,
+            result
+          } : f
+        ));
+      }
     } catch (err) {
+      console.error(`[Batch] Error processing file ${index}:`, err);
       setFiles(prev => prev.map((f, i) =>
         i === index ? {
           ...f,
@@ -293,6 +416,75 @@ export default function ParsePage() {
         } : f
       ));
     }
+  };
+
+  // 일괄 파싱용 진행률 polling
+  const pollBatchProgress = async (taskId: string, index: number): Promise<void> => {
+    return new Promise((resolve) => {
+      const pollInterval = setInterval(async () => {
+        try {
+          const response = await fetch(`http://localhost:8000/api/documents/progress/${taskId}`);
+
+          if (response.ok) {
+            const progressData: ProgressInfo = await response.json();
+            console.log(`[Batch] Progress for file ${index}:`, progressData);
+
+            // 진행률 업데이트
+            setFiles(prev => prev.map((f, i) =>
+              i === index ? {
+                ...f,
+                progressInfo: progressData,
+                progress: Math.min(50 + progressData.progress_percentage / 2, 99)  // 50-99% 범위
+              } : f
+            ));
+
+            // 완료 시
+            if (progressData.status === "completed") {
+              clearInterval(pollInterval);
+              setFiles(prev => prev.map((f, i) =>
+                i === index ? {
+                  ...f,
+                  status: "success",
+                  progress: 100,
+                  result: {
+                    task_id: taskId,
+                    status: "success",
+                    document: {
+                      filename: progressData.filename,
+                      md_content: progressData.md_content,
+                      processing_time: progressData.processing_time
+                    },
+                    processing_time: progressData.processing_time
+                  }
+                } : f
+              ));
+              resolve();
+            } else if (progressData.status === "failed") {
+              clearInterval(pollInterval);
+              setFiles(prev => prev.map((f, i) =>
+                i === index ? {
+                  ...f,
+                  status: "error",
+                  progress: 100,
+                  result: {
+                    task_id: taskId,
+                    status: "failure",
+                    error: progressData.error_message || "파싱 실패"
+                  }
+                } : f
+              ));
+              resolve();
+            }
+          } else if (response.status === 404) {
+            console.warn(`[Batch] Progress not found for task ${taskId}, stopping polling`);
+            clearInterval(pollInterval);
+            resolve();
+          }
+        } catch (err) {
+          console.error(`[Batch] Error polling progress for file ${index}:`, err);
+        }
+      }, 2000);  // 2초마다 polling
+    });
   };
 
   const handleBatchProcess = async () => {
@@ -597,7 +789,8 @@ export default function ParsePage() {
                 <CardDescription>변환할 문서 파일을 선택하세요</CardDescription>
               </CardHeader>
               <CardContent className="pt-6">
-                {!result ? (
+                {(!result || result.status === "processing") ? (
+                  <>
                   <form onSubmit={handleSubmit} className="space-y-6">
                     <div
                       className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
@@ -675,6 +868,64 @@ export default function ParsePage() {
                       )}
                     </Button>
                   </form>
+
+                  {/* 진행률 표시 (form 밖으로 이동하여 리렌더링 보장) */}
+                  {/* 디버깅: 조건 체크 */}
+                  {console.log("🔍 Progress Box Debug (OUTSIDE FORM):", {
+                    loading,
+                    hasProgressInfo: !!progressInfo,
+                    strategy: parseOptions.strategy,
+                    shouldShow: loading && !!progressInfo && parseOptions.strategy === "qwen3-vl",
+                    progressInfo
+                  })}
+
+                  {/* 항상 표시하는 임시 디버깅 박스 */}
+                  {loading && parseOptions.strategy === "qwen3-vl" && !progressInfo && (
+                    <div className="space-y-3 mt-4 p-4 bg-yellow-100 dark:bg-yellow-900/20 rounded-lg border border-yellow-300 dark:border-yellow-700">
+                      <div className="flex items-center gap-2 text-sm text-yellow-800 dark:text-yellow-200">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>진행률 정보를 불러오는 중... (progressInfo is null)</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {loading && progressInfo && parseOptions.strategy === "qwen3-vl" && (
+                    <div className="space-y-3 mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border-2 border-blue-300 dark:border-blue-700"
+                      style={{
+                        minHeight: '120px',
+                        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+                      }}
+                    >
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium">{progressInfo.filename}</span>
+                        <span className="text-muted-foreground">
+                          페이지 {progressInfo.current_page} / {progressInfo.total_pages}
+                        </span>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>진행률: {progressInfo.progress_percentage}%</span>
+                          <span>
+                            {progressInfo.estimated_remaining_time !== null && progressInfo.estimated_remaining_time !== undefined
+                              ? `예상 남은 시간: ${Math.ceil(progressInfo.estimated_remaining_time)}초`
+                              : "예상 시간 계산 중..."}
+                          </span>
+                        </div>
+                        <Progress value={progressInfo.progress_percentage} className="h-2" />
+                      </div>
+
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <span>
+                          {progressInfo.status === "processing"
+                            ? `페이지 ${progressInfo.current_page} 처리 중...`
+                            : "처리 중..."}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  </>
                 ) : (
                   <div className="space-y-6">
                     {result.status === "success" && (
@@ -899,9 +1150,17 @@ export default function ParsePage() {
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium truncate">{fileStatus.file.name}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {(fileStatus.file.size / 1024 / 1024).toFixed(2)} MB
-                                </p>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-xs text-muted-foreground">
+                                    {(fileStatus.file.size / 1024 / 1024).toFixed(2)} MB
+                                  </p>
+                                  {/* qwen3-vl 진행률 표시 */}
+                                  {fileStatus.progressInfo && fileStatus.status === "processing" && (
+                                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                                      • 페이지 {fileStatus.progressInfo.current_page}/{fileStatus.progressInfo.total_pages} ({fileStatus.progressInfo.progress_percentage}%)
+                                    </p>
+                                  )}
+                                </div>
                               </div>
                               <div className="flex-shrink-0">
                                 <Badge variant={

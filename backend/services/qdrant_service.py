@@ -153,6 +153,35 @@ class QdrantService:
             print(f"[ERROR] Failed to check collection existence: {e}")
             return False
 
+    async def delete_collection(self, collection_name: str) -> bool:
+        """
+        Collection 삭제
+
+        Args:
+            collection_name: 삭제할 Collection 이름
+
+        Returns:
+            bool: 삭제 성공 여부
+
+        Raises:
+            Exception: Collection 삭제 실패 시
+        """
+        try:
+            # Collection 존재 여부 확인
+            exists = await self.client.collection_exists(collection_name)
+            if not exists:
+                raise Exception(f"Collection '{collection_name}'이 존재하지 않습니다")
+
+            # Collection 삭제
+            await self.client.delete_collection(collection_name=collection_name)
+
+            print(f"[INFO] Successfully deleted collection: {collection_name}")
+            return True
+
+        except Exception as e:
+            print(f"[ERROR] Failed to delete collection: {e}")
+            raise Exception(f"Collection 삭제 실패: {str(e)}")
+
     async def upsert_vectors(
         self,
         collection_name: str,

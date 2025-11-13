@@ -18,7 +18,8 @@ from backend.models.schemas import (
     QdrantCollectionInfo,
     QdrantUploadRequest,
     QdrantUploadResponse,
-    QdrantUploadResult
+    QdrantUploadResult,
+    QdrantConfigResponse
 )
 
 router = APIRouter(prefix="/api/qdrant", tags=["qdrant"])
@@ -33,6 +34,20 @@ embedding_service = EmbeddingService(
     base_url=settings.EMBEDDING_URL,
     model=settings.EMBEDDING_MODEL
 )
+
+
+@router.get("/config", response_model=QdrantConfigResponse)
+async def get_qdrant_config():
+    """
+    Qdrant 청킹 설정값 조회 API
+
+    Returns:
+        QdrantConfigResponse: 기본 chunk_size 및 chunk_overlap 설정값
+    """
+    return QdrantConfigResponse(
+        default_chunk_size=settings.DEFAULT_CHUNK_SIZE,
+        default_chunk_overlap=settings.DEFAULT_CHUNK_OVERLAP
+    )
 
 
 @router.get("/collections", response_model=QdrantCollectionsResponse)
@@ -126,6 +141,55 @@ async def create_collection(request: QdrantCollectionCreateRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Collection 생성 실패: {str(e)}"
+        )
+
+
+@router.delete("/collections/{collection_name}", response_model=QdrantCollectionResponse)
+async def delete_collection(collection_name: str):
+    """
+    Qdrant Collection 삭제 API
+
+    Args:
+        collection_name: 삭제할 Collection 이름
+
+    Returns:
+        QdrantCollectionResponse: 삭제 결과
+
+    Raises:
+        HTTPException: Collection 삭제 실패 시
+    """
+    try:
+        # Collection 이름 검증
+        if not collection_name or not collection_name.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Collection 이름은 필수입니다"
+            )
+
+        # Collection 삭제
+        await qdrant_service.delete_collection(collection_name)
+
+        return QdrantCollectionResponse(
+            success=True,
+            collection_name=collection_name,
+            message=f"Collection '{collection_name}'이 성공적으로 삭제되었습니다"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] Failed to delete collection: {e}")
+
+        # 존재하지 않는 경우
+        if "존재하지 않습니다" in str(e):
+            raise HTTPException(
+                status_code=404,
+                detail=str(e)
+            )
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Collection 삭제 실패: {str(e)}"
         )
 
 

@@ -333,6 +333,12 @@ class QdrantUploadResponse(BaseModel):
     results: List[QdrantUploadResult]
 
 
+class QdrantConfigResponse(BaseModel):
+    """Qdrant 청킹 설정 응답"""
+    default_chunk_size: int
+    default_chunk_overlap: int
+
+
 # ==================== Chat API Schemas ====================
 
 class ChatMessage(BaseModel):
@@ -371,3 +377,28 @@ class ChatResponse(BaseModel):
     answer: str
     retrieved_docs: List[RetrievedDocument]
     usage: Optional[dict] = None
+
+
+# ==================== Progress Tracking Schemas ====================
+
+class ProgressStatus(str, Enum):
+    """진행률 상태"""
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class ProgressResponse(BaseModel):
+    """진행률 조회 응답"""
+    task_id: str
+    filename: str
+    status: ProgressStatus
+    current_page: int
+    total_pages: int
+    progress_percentage: float
+    elapsed_time: float
+    estimated_remaining_time: Optional[float] = None
+    error_message: Optional[str] = None
+    updated_at: str
+    md_content: Optional[str] = None
+    processing_time: Optional[float] = None

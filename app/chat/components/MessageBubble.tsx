@@ -22,6 +22,11 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 import { ChevronDown, ChevronUp, ExternalLink, Link } from "lucide-react";
 
 interface Source {
@@ -33,6 +38,10 @@ interface Source {
     page?: number;
     file?: string;
     url?: string;
+    section?: string;
+    chunk_index?: number;
+    document_id?: number;
+    num_tokens?: number;
   };
 }
 
@@ -89,6 +98,14 @@ export function MessageBubble({
     return "text-orange-600 bg-orange-50 dark:text-orange-400 dark:bg-orange-950";
   };
 
+  const truncateFilename = (filename: string, maxLength: number = 30) => {
+    if (filename.length <= maxLength) return filename;
+    const ext = filename.substring(filename.lastIndexOf('.'));
+    const name = filename.substring(0, filename.lastIndexOf('.'));
+    const truncated = name.substring(0, maxLength - ext.length - 3);
+    return `${truncated}...${ext}`;
+  };
+
   return (
     <div
       className={cn(
@@ -143,16 +160,23 @@ export function MessageBubble({
             )}
           </div>
 
-          {/* 참조 문서 표시 - 모달로 변경 (스트리밍 중에는 숨김) */}
+          {/* 참조 문서 표시 (스트리밍 중에는 숨김) */}
           {!isStreaming && sources && sources.length > 0 && (
-            <div className="mt-3 pt-3 border-t">
-              <Dialog>
-                <DialogTrigger asChild>
-                  <button className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                    <FileText className="h-3 w-3" />
-                    <span>{sources.length}개의 참조 문서</span>
-                  </button>
-                </DialogTrigger>
+            <div className="mt-3 pt-3 border-t space-y-2">
+              {/* 참조 문서 요약 */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {sources.length}개 참조문서
+                  </span>
+                </div>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-6 text-xs">
+                      전체보기
+                    </Button>
+                  </DialogTrigger>
                 <DialogContent className="max-w-6xl w-[95vw] max-h-[80vh] p-0">
                   <DialogHeader className="p-6 pb-3">
                     <DialogTitle className="flex items-center gap-2">
@@ -190,6 +214,16 @@ export function MessageBubble({
                                           <FileText className="h-3 w-3" />
                                           {source.metadata.file}
                                         </span>
+                                      )}
+                                      {source.metadata.section && (
+                                        <span className="text-muted-foreground">
+                                          {source.metadata.section}
+                                        </span>
+                                      )}
+                                      {source.metadata.chunk_index !== undefined && (
+                                        <Badge variant="secondary" className="text-[0.65rem] px-1.5 py-0">
+                                          청크 #{source.metadata.chunk_index}
+                                        </Badge>
                                       )}
                                       {source.metadata.page && (
                                         <span>페이지 {source.metadata.page}</span>
@@ -262,6 +296,71 @@ export function MessageBubble({
                   </ScrollArea>
                 </DialogContent>
               </Dialog>
+              </div>
+
+              {/* 참조 문서 요약 리스트 */}
+              <div className="flex flex-wrap gap-1.5">
+                {sources.map((source, index) => (
+                  <HoverCard key={source.id} openDelay={200}>
+                    <HoverCardTrigger asChild>
+                      <Badge
+                        variant="secondary"
+                        className="cursor-pointer hover:bg-secondary/80 transition-colors text-xs px-2 py-1"
+                      >
+                        <span className="text-muted-foreground mr-1">#{index + 1}</span>
+                        <FileText className="h-3 w-3 mr-1" />
+                        <span className="max-w-[120px] truncate">
+                          {source.metadata?.file ? truncateFilename(source.metadata.file, 20) : source.title}
+                        </span>
+                        {source.metadata?.chunk_index !== undefined && (
+                          <span className="ml-1 text-muted-foreground">
+                            (청크 {source.metadata.chunk_index})
+                          </span>
+                        )}
+                      </Badge>
+                    </HoverCardTrigger>
+                    <HoverCardContent className="w-80" side="top">
+                      <div className="space-y-2">
+                        <div>
+                          <h4 className="text-sm font-semibold mb-1 line-clamp-2">
+                            {source.title}
+                          </h4>
+                          {source.metadata?.section && (
+                            <p className="text-xs text-muted-foreground line-clamp-2">
+                              {source.metadata.section}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex flex-wrap gap-1.5">
+                          <Badge variant="outline" className={cn("text-xs", getScoreColor(source.score))}>
+                            관련도 {(source.score * 100).toFixed(0)}%
+                          </Badge>
+                          {source.metadata?.chunk_index !== undefined && (
+                            <Badge variant="secondary" className="text-xs">
+                              청크 #{source.metadata.chunk_index}
+                            </Badge>
+                          )}
+                          {source.metadata?.num_tokens && (
+                            <Badge variant="secondary" className="text-xs">
+                              {source.metadata.num_tokens} 토큰
+                            </Badge>
+                          )}
+                          {source.metadata?.page && (
+                            <Badge variant="secondary" className="text-xs">
+                              페이지 {source.metadata.page}
+                            </Badge>
+                          )}
+                        </div>
+
+                        <div className="text-xs text-muted-foreground line-clamp-3 pt-1 border-t">
+                          {source.content}
+                        </div>
+                      </div>
+                    </HoverCardContent>
+                  </HoverCard>
+                ))}
+              </div>
             </div>
           )}
 

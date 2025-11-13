@@ -4,7 +4,7 @@ import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
-import rehypeSanitize from "rehype-sanitize";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import { Components } from "react-markdown";
 import {
   Collapsible,
@@ -59,6 +59,16 @@ function MarkdownTable({ children }: { children: React.ReactNode }) {
 }
 
 export function MarkdownMessage({ content }: MarkdownMessageProps) {
+  // rehypeSanitize 스키마 커스터마이즈 - <br> 태그 허용
+  const sanitizeSchema = {
+    ...defaultSchema,
+    tagNames: [...(defaultSchema.tagNames || []), 'br'],
+    attributes: {
+      ...defaultSchema.attributes,
+      '*': [...(defaultSchema.attributes?.['*'] || []), 'className', 'style'],
+    },
+  };
+
   const components: Components = {
     // 테이블 스타일링
     table: ({ children }) => <MarkdownTable>{children}</MarkdownTable>,
@@ -188,7 +198,10 @@ export function MarkdownMessage({ content }: MarkdownMessageProps) {
     <div className="markdown-content w-full max-w-full overflow-hidden">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeRaw, rehypeSanitize]}
+        rehypePlugins={[
+          rehypeRaw,
+          [rehypeSanitize, sanitizeSchema]
+        ]}
         components={components}
       >
         {content}

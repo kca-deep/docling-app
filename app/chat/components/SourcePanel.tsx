@@ -33,6 +33,9 @@ interface Source {
     file?: string;
     url?: string;
     section?: string;
+    chunk_index?: number;
+    document_id?: number;
+    num_tokens?: number;
   };
 }
 
@@ -142,11 +145,18 @@ export function SourcePanel({ sources }: SourcePanelProps) {
                               {source.metadata.file}
                             </span>
                           )}
+                          {source.metadata.section && (
+                            <span className="text-muted-foreground">
+                              {source.metadata.section}
+                            </span>
+                          )}
+                          {source.metadata.chunk_index !== undefined && (
+                            <Badge variant="secondary" className="text-[0.65rem] px-1.5 py-0">
+                              청크 #{source.metadata.chunk_index}
+                            </Badge>
+                          )}
                           {source.metadata.page && (
                             <span>페이지 {source.metadata.page}</span>
-                          )}
-                          {source.metadata.section && (
-                            <span>섹션: {source.metadata.section}</span>
                           )}
                           {source.metadata.url && (
                             <a

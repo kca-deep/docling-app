@@ -8,10 +8,12 @@ import httpx
 import fitz  # PyMuPDF
 from PIL import Image
 import io
+import re
 from typing import Optional
 
 from backend.config.settings import settings
 from backend.models.schemas import TaskStatus, ConvertResult, DocumentInfo
+from backend.services.progress_tracker import progress_tracker
 
 
 class Qwen3Service:
@@ -111,6 +113,7 @@ class Qwen3Service:
         self,
         file_content: bytes,
         filename: str,
+        task_id: Optional[str] = None,
         **kwargs
     ) -> ConvertResult:
         """
@@ -119,13 +122,15 @@ class Qwen3Service:
         Args:
             file_content: 파일 내용 (바이트)
             filename: 파일명
+            task_id: 작업 ID (지정하지 않으면 자동 생성)
             **kwargs: 추가 옵션 (호환성을 위해 무시됨)
 
         Returns:
             ConvertResult: 변환 결과
         """
         start_time = time.time()
-        task_id = f"qwen3-{int(time.time() * 1000)}"
+        if task_id is None:
+            task_id = f"qwen3-{int(time.time() * 1000)}"
 
         try:
             # PDF를 이미지로 변환
@@ -137,6 +142,13 @@ class Qwen3Service:
                     status=TaskStatus.FAILURE,
                     error="PDF에서 이미지를 추출할 수 없습니다"
                 )
+
+            # 진행률 추적 시작
+            progress_tracker.create_progress(
+                task_id=task_id,
+                total_pages=len(images),
+                filename=filename
+            )
 
             # 각 페이지 OCR 처리
             page_results = []
@@ -153,6 +165,9 @@ class Qwen3Service:
                         'content': ocr_result
                     })
 
+                    # 진행률 업데이트
+                    progress_tracker.update_progress(task_id, i)
+
                     # API 부하 방지를 위한 짧은 대기
                     if i < len(images):
                         await asyncio.sleep(1)
@@ -161,6 +176,9 @@ class Qwen3Service:
             md_content = self._combine_results(filename, page_results)
 
             processing_time = time.time() - start_time
+
+            # 진행률 완료 처리 (md_content와 processing_time 포함)
+            progress_tracker.mark_completed(task_id, md_content, processing_time)
 
             return ConvertResult(
                 task_id=task_id,
@@ -174,17 +192,53 @@ class Qwen3Service:
             )
 
         except httpx.TimeoutException:
+            error_msg = "API 요청 타임아웃"
+            progress_tracker.mark_failed(task_id, error_msg)
             return ConvertResult(
                 task_id=task_id,
                 status=TaskStatus.FAILURE,
-                error="API 요청 타임아웃"
+                error=error_msg
             )
         except Exception as e:
+            error_msg = f"예상치 못한 오류: {str(e)}"
+            progress_tracker.mark_failed(task_id, error_msg)
             return ConvertResult(
                 task_id=task_id,
                 status=TaskStatus.FAILURE,
-                error=f"예상치 못한 오류: {str(e)}"
+                error=error_msg
             )
+
+    def _clean_html_tags(self, text: str) -> str:
+        """
+        HTML 태그를 제거하여 순수 마크다운으로 정리
+        단, 한글/숫자가 포함된 <개정>, <신설>, <삭제> 등은 보존
+        표 안의 <br> 태그는 줄바꿈을 위해 보존
+
+        Args:
+            text: 정리할 텍스트
+
+        Returns:
+            HTML 태그가 제거된 텍스트 (<br> 태그는 보존)
+        """
+        # <br> 태그를 임시로 플레이스홀더로 치환 (보존하기 위해)
+        text = re.sub(r'<br\s*/?\s*>', '___BR___', text, flags=re.IGNORECASE)
+
+        # 다른 HTML 태그만 제거 (영문자로 시작하는 태그만)
+        # 예: <p>, <div>, <span> 등은 제거
+        # 예: <개정 2010. 12. 28.>, <신설>, <삭제> 등은 보존
+        text = re.sub(r'</?[a-zA-Z][^>]*>', '', text)
+
+        # 플레이스홀더를 <br>로 복원
+        text = text.replace('___BR___', '<br>')
+
+        # 연속된 공백을 하나로 축소 (단, 줄바꿈은 유지)
+        text = re.sub(r' +', ' ', text)
+
+        # 각 줄의 앞뒤 공백 제거 (단, 표 안의 내용은 주의)
+        lines = [line.strip() for line in text.split('\n')]
+        text = '\n'.join(lines)
+
+        return text
 
     def _combine_results(self, filename: str, page_results: list) -> str:
         """페이지별 OCR 결과를 하나의 마크다운으로 통합"""
@@ -200,9 +254,12 @@ class Qwen3Service:
             page_num = result['page']
             content = result['content']
 
+            # HTML 태그 제거
+            cleaned_content = self._clean_html_tags(content)
+
             lines.append(f"## 페이지 {page_num}")
             lines.append("")
-            lines.append(content)
+            lines.append(cleaned_content)
             lines.append("")
             lines.append("---")
             lines.append("")
