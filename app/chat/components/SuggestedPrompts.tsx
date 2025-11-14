@@ -58,21 +58,21 @@ export function SuggestedPrompts({ collectionName, onSelect }: SuggestedPromptsP
   }
 
   return (
-    <div className="py-6 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="py-3 space-y-2 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* 헤더 */}
       <div className="flex items-center gap-2 px-2">
         <div className="flex items-center gap-2">
           <div className="relative">
-            <Sparkles className="h-5 w-5 text-primary animate-pulse" />
-            <Sparkles className="h-5 w-5 text-primary absolute inset-0 animate-ping opacity-50" />
+            <Sparkles className="h-4 w-4 text-primary animate-pulse" />
+            <Sparkles className="h-4 w-4 text-primary absolute inset-0 animate-ping opacity-50" />
           </div>
-          <h3 className="text-lg font-semibold">추천 질문</h3>
+          <h3 className="text-sm font-semibold">추천 질문</h3>
         </div>
         <div className="flex-1 h-px bg-gradient-to-r from-border to-transparent" />
       </div>
 
       {/* 질문 카드 그리드 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         {prompts.slice(0, 6).map((prompt, index) => (
           <Card
             key={index}
@@ -85,15 +85,15 @@ export function SuggestedPrompts({ collectionName, onSelect }: SuggestedPromptsP
             style={{ animationDelay: `${index * 50}ms` }}
             onClick={() => onSelect(prompt)}
           >
-            <CardContent className="p-4">
-              <div className="flex items-start gap-3">
+            <CardContent className="px-3 py-1.5">
+              <div className="flex items-start gap-2">
                 <div className="flex-shrink-0 mt-0.5">
-                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                    <Lightbulb className="h-4 w-4 text-primary" />
+                  <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                    <Lightbulb className="h-3 w-3 text-primary" />
                   </div>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium leading-relaxed group-hover:text-primary transition-colors">
+                  <p className="text-sm font-medium leading-snug group-hover:text-primary transition-colors">
                     {prompt}
                   </p>
                 </div>
@@ -104,7 +104,7 @@ export function SuggestedPrompts({ collectionName, onSelect }: SuggestedPromptsP
       </div>
 
       {/* 하단 힌트 */}
-      <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-2">
+      <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-1">
         <span>클릭하여 질문을 선택하거나 직접 입력해보세요</span>
       </div>
     </div>
