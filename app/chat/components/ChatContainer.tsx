@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { MessageList } from "./MessageList";
 import { InputArea } from "./InputArea";
 import { SettingsPanel } from "./SettingsPanel";
+import { SuggestedPrompts } from "./SuggestedPrompts";
 import { Card } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -103,6 +104,7 @@ export function ChatContainer() {
   const [isLoading, setIsLoading] = useState(false);
   const [currentSources, setCurrentSources] = useState<Source[]>([]);
   const [sessionId] = useState(() => `session_${Date.now()}`);
+  const [quotedMessage, setQuotedMessage] = useState<Message | null>(null);
 
   // 우측 패널 상태
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
@@ -208,8 +210,24 @@ export function ChatContainer() {
   }, []);
 
   // 메시지 전송 (비스트리밍)
-  const handleNonStreamingSend = async (userMessage: Message) => {
+  const handleNonStreamingSend = async (userMessage: Message, quotedMsg: Message | null = null) => {
     try {
+      // 대화 기록 준비
+      let chatHistory = messages.filter(m => m.role !== "system").slice(-10);
+
+      // 인용 메시지가 있으면 시스템 메시지로 추가
+      if (quotedMsg) {
+        chatHistory = [
+          ...chatHistory,
+          {
+            id: `system_${Date.now()}`,
+            role: "system" as const,
+            content: `사용자가 다음 메시지에 대해 추가 질문합니다:\n\n"${quotedMsg.content.slice(0, 300)}${quotedMsg.content.length > 300 ? '...' : ''}"`,
+            timestamp: new Date(),
+          }
+        ];
+      }
+
       const response = await fetch("http://localhost:8000/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -225,7 +243,7 @@ export function ChatContainer() {
           top_k: settings.topK,
           stream: false,
           use_reranking: settings.useReranking,
-          chat_history: messages.filter(m => m.role !== "system").slice(-10),
+          chat_history: chatHistory,
         }),
       });
 
@@ -290,8 +308,24 @@ export function ChatContainer() {
   };
 
   // 메시지 전송 (스트리밍)
-  const handleStreamingSend = async (userMessage: Message) => {
+  const handleStreamingSend = async (userMessage: Message, quotedMsg: Message | null = null) => {
     try {
+      // 대화 기록 준비
+      let chatHistory = messages.filter(m => m.role !== "system").slice(-10);
+
+      // 인용 메시지가 있으면 시스템 메시지로 추가
+      if (quotedMsg) {
+        chatHistory = [
+          ...chatHistory,
+          {
+            id: `system_${Date.now()}`,
+            role: "system" as const,
+            content: `사용자가 다음 메시지에 대해 추가 질문합니다:\n\n"${quotedMsg.content.slice(0, 300)}${quotedMsg.content.length > 300 ? '...' : ''}"`,
+            timestamp: new Date(),
+          }
+        ];
+      }
+
       const response = await fetch("http://localhost:8000/api/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -307,7 +341,7 @@ export function ChatContainer() {
           top_k: settings.topK,
           stream: true,
           use_reranking: settings.useReranking,
-          chat_history: messages.filter(m => m.role !== "system").slice(-10),
+          chat_history: chatHistory,
         }),
       });
 
@@ -453,10 +487,14 @@ export function ChatContainer() {
     setInput("");
     setIsLoading(true);
 
+    // 인용 메시지 처리
+    const currentQuoted = quotedMessage;
+    setQuotedMessage(null); // 전송 후 인용 초기화
+
     if (settings.streamMode) {
-      await handleStreamingSend(userMessage);
+      await handleStreamingSend(userMessage, currentQuoted);
     } else {
-      await handleNonStreamingSend(userMessage);
+      await handleNonStreamingSend(userMessage, currentQuoted);
     }
   };
 
@@ -694,6 +732,9 @@ export function ChatContainer() {
           isLoading={isLoading}
           isStreaming={settings.streamMode}
           onRegenerate={handleRegenerate}
+          onQuote={(message) => setQuotedMessage(message)}
+          collectionName={selectedCollection}
+          onPromptSelect={(prompt) => setInput(prompt)}
         />
       </div>
 
@@ -705,6 +746,8 @@ export function ChatContainer() {
         isLoading={isLoading}
         disabled={!selectedCollection}
         onClear={handleClearChat}
+        quotedMessage={quotedMessage ? { role: quotedMessage.role, content: quotedMessage.content } : null}
+        onClearQuote={() => setQuotedMessage(null)}
       />
     </div>
   );

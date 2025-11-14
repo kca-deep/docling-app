@@ -3,7 +3,7 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bot, User, FileText, Copy, Check, RefreshCw } from "lucide-react";
+import { Bot, User, FileText, Copy, Check, RefreshCw, Reply } from "lucide-react";
 import { MarkdownMessage } from "@/components/markdown-message";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -56,6 +56,7 @@ interface MessageBubbleProps {
   };
   onCopy?: () => void;
   onRegenerate?: () => void;
+  onQuote?: () => void;
   isLast?: boolean;
   isStreaming?: boolean;
 }
@@ -68,10 +69,12 @@ export function MessageBubble({
   metadata,
   onCopy,
   onRegenerate,
+  onQuote,
   isLast,
   isStreaming,
 }: MessageBubbleProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [activeSourceId, setActiveSourceId] = useState<string | null>(null);
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString("ko-KR", {
@@ -193,11 +196,16 @@ export function MessageBubble({
                         const isExpanded = expandedIds.has(source.id);
 
                         return (
-                          <Card key={source.id} className={cn(
-                            "transition-all cursor-pointer",
-                            "hover:shadow-lg hover:border-primary/50",
-                            isExpanded && "ring-2 ring-primary/20"
-                          )}>
+                          <Card
+                            key={source.id}
+                            className={cn(
+                              "transition-all cursor-pointer",
+                              "hover:shadow-lg hover:border-primary/50",
+                              isExpanded && "ring-2 ring-primary/20",
+                              activeSourceId === source.id && "ring-2 ring-primary shadow-lg bg-primary/5"
+                            )}
+                            onClick={() => setActiveSourceId(activeSourceId === source.id ? null : source.id)}
+                          >
                             <CardHeader className="pb-3">
                               <div className="flex items-start justify-between gap-2">
                                 <div className="flex-1 min-w-0">
@@ -305,7 +313,11 @@ export function MessageBubble({
                     <HoverCardTrigger asChild>
                       <Badge
                         variant="secondary"
-                        className="cursor-pointer hover:bg-secondary/80 transition-colors text-xs px-2 py-1"
+                        className={cn(
+                          "cursor-pointer hover:bg-secondary/80 transition-all text-xs px-2 py-1",
+                          activeSourceId === source.id && "ring-2 ring-primary bg-primary/20 scale-105"
+                        )}
+                        onClick={() => setActiveSourceId(activeSourceId === source.id ? null : source.id)}
                       >
                         <span className="text-muted-foreground mr-1">#{index + 1}</span>
                         <FileText className="h-3 w-3 mr-1" />
@@ -388,24 +400,41 @@ export function MessageBubble({
           </span>
 
           {/* 액션 버튼 (호버 시 표시) */}
-          {role === "assistant" && (
+          {(role === "assistant" || role === "user") && (
             <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={onCopy}
-              >
-                <Copy className="h-3 w-3" />
-              </Button>
-              {isLast && (
+              {role === "assistant" && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={onCopy}
+                    title="복사"
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                  {isLast && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={onRegenerate}
+                      title="재생성"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                    </Button>
+                  )}
+                </>
+              )}
+              {onQuote && (
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-6 w-6"
-                  onClick={onRegenerate}
+                  onClick={onQuote}
+                  title="이 메시지에 답변하기"
                 >
-                  <RefreshCw className="h-3 w-3" />
+                  <Reply className="h-3 w-3" />
                 </Button>
               )}
             </div>

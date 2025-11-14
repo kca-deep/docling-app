@@ -2,6 +2,8 @@
 Chat API 라우터
 RAG 기반 채팅 엔드포인트
 """
+import json
+from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from backend.models.schemas import ChatRequest, ChatResponse, RetrievedDocument, RegenerateRequest
@@ -274,3 +276,52 @@ async def get_collections():
     except Exception as e:
         print(f"[ERROR] Get collections failed: {e}")
         raise HTTPException(status_code=500, detail=f"컬렉션 조회 실패: {str(e)}")
+
+
+@router.get("/suggested-prompts/{collection_name}")
+async def get_suggested_prompts(collection_name: str):
+    """
+    컬렉션별 추천 질문 조회
+
+    Args:
+        collection_name: Qdrant 컬렉션 이름
+
+    Returns:
+        dict: 추천 질문 목록
+            - prompts: List[str] - 추천 질문 리스트
+            - collection_name: str - 컬렉션 이름
+
+    Raises:
+        HTTPException: 조회 실패 시
+    """
+    try:
+        # suggested_prompts.json 파일 로드
+        config_path = Path(__file__).parent.parent.parent / "config" / "suggested_prompts.json"
+
+        if not config_path.exists():
+            # 파일이 없으면 기본 질문 반환
+            default_prompts = [
+                "이 문서의 주요 내용을 요약해주세요",
+                "핵심 정책이 무엇인가요?",
+                "주요 통계 데이터를 알려주세요",
+                "가장 중요한 변경사항은 무엇인가요?"
+            ]
+            return {
+                "prompts": default_prompts,
+                "collection_name": collection_name
+            }
+
+        with open(config_path, "r", encoding="utf-8") as f:
+            suggested_prompts = json.load(f)
+
+        # 컬렉션 이름에 해당하는 질문이 있으면 반환, 없으면 default 반환
+        prompts = suggested_prompts.get(collection_name, suggested_prompts.get("default", []))
+
+        return {
+            "prompts": prompts,
+            "collection_name": collection_name
+        }
+
+    except Exception as e:
+        print(f"[ERROR] Get suggested prompts failed: {e}")
+        raise HTTPException(status_code=500, detail=f"추천 질문 조회 실패: {str(e)}")

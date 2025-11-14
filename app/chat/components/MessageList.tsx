@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Bot } from "lucide-react";
 import { MessageBubble } from "./MessageBubble";
+import { SuggestedPrompts } from "./SuggestedPrompts";
 import { toast } from "sonner";
 
 interface Message {
@@ -37,9 +38,20 @@ interface MessageListProps {
   isLoading: boolean;
   isStreaming?: boolean;
   onRegenerate?: (messageIndex: number) => void;
+  onQuote?: (message: Message) => void;
+  collectionName?: string;
+  onPromptSelect?: (prompt: string) => void;
 }
 
-export function MessageList({ messages, isLoading, isStreaming, onRegenerate }: MessageListProps) {
+export function MessageList({
+  messages,
+  isLoading,
+  isStreaming,
+  onRegenerate,
+  onQuote,
+  collectionName,
+  onPromptSelect
+}: MessageListProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [userScrolled, setUserScrolled] = useState(false);
@@ -130,31 +142,40 @@ export function MessageList({ messages, isLoading, isStreaming, onRegenerate }: 
               metadata={message.metadata}
               onCopy={() => handleCopy(message.content)}
               onRegenerate={() => handleRegenerate(index)}
+              onQuote={() => onQuote?.(message)}
               isLast={index === messages.length - 1}
               isStreaming={isLoading && index === messages.length - 1}
             />
           ))}
+
+          {/* 초기 화면 추천 질문 */}
+          {messages.length === 1 && !isLoading && collectionName && onPromptSelect && (
+            <SuggestedPrompts
+              collectionName={collectionName}
+              onSelect={onPromptSelect}
+            />
+          )}
 
           {/* 로딩 인디케이터 (스트리밍 중 메시지가 없을 때 또는 비스트리밍 모드) */}
           {isLoading && (
             !isStreaming ||
             (isStreaming && (messages.length === 0 || messages[messages.length - 1].role !== 'assistant'))
           ) && (
-            <div className="flex gap-3">
+            <div className="flex gap-3 w-full">
               <Avatar className="h-8 w-8 flex-shrink-0">
                 <AvatarFallback className="bg-muted">
-                  <Bot className="h-4 w-4" />
+                  <Bot className="h-4 w-4 animate-pulse" />
                 </AvatarFallback>
               </Avatar>
-              <div className="flex-1">
-                <div className="rounded-lg p-4 bg-card border border-border">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">답변 생성 중</span>
-                    <div className="flex gap-1">
-                      <div className="h-2 w-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <div className="h-2 w-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <div className="h-2 w-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              <div className="flex-1 max-w-[calc(100%-3rem)]">
+                <div className="rounded-2xl px-4 py-3 bg-muted transition-all">
+                  <div className="flex items-center gap-3">
+                    <div className="flex gap-1.5">
+                      <div className="h-2.5 w-2.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <div className="h-2.5 w-2.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <div className="h-2.5 w-2.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                     </div>
+                    <span className="text-sm text-muted-foreground font-medium">KCA-i가 생각하고 있습니다...</span>
                   </div>
                 </div>
               </div>
