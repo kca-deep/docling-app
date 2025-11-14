@@ -379,6 +379,20 @@ class ChatResponse(BaseModel):
     usage: Optional[dict] = None
 
 
+class RegenerateRequest(BaseModel):
+    """응답 재생성 요청"""
+    query: str
+    collection_name: str
+    retrieved_docs: List[RetrievedDocument]
+    reasoning_level: str = "medium"
+    temperature: float = 0.7
+    max_tokens: int = 2000
+    top_p: float = 0.9
+    frequency_penalty: float = 0.0
+    presence_penalty: float = 0.0
+    chat_history: Optional[List[ChatMessage]] = None
+
+
 # ==================== Progress Tracking Schemas ====================
 
 class ProgressStatus(str, Enum):

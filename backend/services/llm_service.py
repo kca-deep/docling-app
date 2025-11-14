@@ -4,18 +4,25 @@ OpenAI 호환 엔드포인트를 사용하는 LLM 서비스
 """
 import httpx
 from typing import List, Dict, Any, Optional, AsyncGenerator
+from backend.services.prompt_loader import PromptLoader
 
 
 class LLMService:
     """LLM API와의 통신을 담당하는 서비스"""
 
-    def __init__(self, base_url: str, model: str = "gpt-oss-20b"):
+    def __init__(
+        self,
+        base_url: str,
+        model: str = "gpt-oss-20b",
+        prompt_loader: Optional[PromptLoader] = None
+    ):
         """
         LLMService 초기화
 
         Args:
             base_url: LLM API 기본 URL
             model: 모델 이름
+            prompt_loader: 프롬프트 로더 (기본값: PromptLoader())
         """
         self.base_url = base_url
         self.model = model
@@ -24,6 +31,8 @@ class LLMService:
             timeout=120.0,
             headers={"Accept-Charset": "utf-8"}
         )
+        # 프롬프트 로더 (기본값으로 fallback)
+        self.prompt_loader = prompt_loader or PromptLoader()
 
     async def chat_completion(
         self,
@@ -151,7 +160,8 @@ class LLMService:
         query: str,
         retrieved_docs: List[Dict[str, Any]],
         reasoning_level: str = "medium",
-        chat_history: Optional[List[Dict[str, str]]] = None
+        chat_history: Optional[List[Dict[str, str]]] = None,
+        collection_name: Optional[str] = None
     ) -> List[Dict[str, str]]:
         """
         RAG 프롬프트 구성
@@ -164,25 +174,16 @@ class LLMService:
                 - payload: 메타데이터
             reasoning_level: 추론 수준 (low/medium/high)
             chat_history: 이전 대화 기록 (선택사항)
+            collection_name: Qdrant 컬렉션 이름 (선택사항, 프롬프트 선택에 사용)
 
         Returns:
             List[Dict[str, str]]: 메시지 리스트
         """
-        # 추론 수준에 따른 시스템 프롬프트
-        reasoning_instructions = {
-            "low": "답변은 간단하고 명확하게 작성하세요.",
-            "medium": "답변은 적절한 수준의 설명과 함께 작성하세요.",
-            "high": "답변은 깊이 있는 분석과 추론을 포함하여 상세하게 작성하세요."
-        }
-
-        system_content = f"""당신은 문서 기반 질의응답을 수행하는 AI 어시스턴트입니다.
-
-다음 규칙을 따라주세요:
-1. 제공된 문서의 내용만을 기반으로 답변하세요.
-2. 문서에 없는 내용은 추측하지 말고, "문서에서 관련 정보를 찾을 수 없습니다"라고 답하세요.
-3. 답변 시 관련 문서 번호를 인용하세요 (예: [문서 1], [문서 2]).
-4. {reasoning_instructions.get(reasoning_level, reasoning_instructions['medium'])}
-"""
+        # PromptLoader에서 동적으로 프롬프트 가져오기
+        system_content = self.prompt_loader.get_system_prompt(
+            collection_name=collection_name,
+            reasoning_level=reasoning_level
+        )
 
         # 검색된 문서를 컨텍스트로 구성
         context_parts = []

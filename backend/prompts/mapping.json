@@ -1,0 +1,16 @@
+{
+  "version": "1.0",
+  "collection_prompts": {
+    "regulation_docs": {
+      "prompt_file": "regulation.md",
+      "description": "규정, 지침 등 법령 문서 전용",
+      "recommended_params": {
+        "top_k": 10,
+        "temperature": 0.3,
+        "reasoning_level": "high"
+      }
+    }
+  },
+  "default_prompt": "default.md",
+  "fallback_behavior": "use_default"
+}

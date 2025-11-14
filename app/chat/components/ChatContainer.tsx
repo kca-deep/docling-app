@@ -28,6 +28,12 @@ interface Message {
     tokens?: number;
     processingTime?: number;
   };
+  regenerationContext?: {
+    originalQuery: string;
+    collectionName: string;
+    settings: ChatSettings;
+    retrievedDocs: RetrievedDocument[];
+  };
 }
 
 interface Source {
@@ -258,6 +264,12 @@ export function ChatContainer() {
           tokens: data.usage?.total_tokens,
           processingTime: data.usage?.processing_time,
         },
+        regenerationContext: {
+          originalQuery: userMessage.content,
+          collectionName: selectedCollection,
+          settings: { ...settings },
+          retrievedDocs: data.retrieved_docs || [],
+        },
       };
 
       setMessages((prev) => [...prev, aiMessage]);
@@ -313,6 +325,7 @@ export function ChatContainer() {
       const aiMessageId = (Date.now() + 1).toString();
       let aiContent = "";
       let sources: Source[] = [];
+      let retrievedDocs: RetrievedDocument[] = [];
       let messageCreated = false;
 
       while (true) {
@@ -335,6 +348,7 @@ export function ChatContainer() {
 
               // 소스 문서 처리
               if (parsed.sources) {
+                retrievedDocs = parsed.sources; // 원본 데이터 저장
                 sources = parsed.sources.map((doc: RetrievedDocument) => ({
                   id: doc.id,
                   title: doc.metadata?.filename || `문서 ${doc.id}`,
@@ -389,6 +403,23 @@ export function ChatContainer() {
         }
       }
 
+      // 스트리밍 완료 후 regenerationContext 추가
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === aiMessageId
+            ? {
+                ...msg,
+                regenerationContext: {
+                  originalQuery: userMessage.content,
+                  collectionName: selectedCollection,
+                  settings: { ...settings },
+                  retrievedDocs: retrievedDocs,
+                },
+              }
+            : msg
+        )
+      );
+
       setIsLoading(false);
     } catch (error) {
       console.error("Error streaming message:", error);
@@ -440,6 +471,104 @@ export function ChatContainer() {
     ]);
     setCurrentSources([]);
     toast.success("대화가 초기화되었습니다");
+  };
+
+  // 재생성 핸들러
+  const handleRegenerate = async (messageIndex: number) => {
+    const targetMessage = messages[messageIndex];
+
+    if (!targetMessage || targetMessage.role !== "assistant") {
+      toast.error("재생성할 수 없는 메시지입니다");
+      return;
+    }
+
+    const context = targetMessage.regenerationContext;
+
+    if (!context) {
+      toast.error("재생성 정보가 없습니다");
+      return;
+    }
+
+    try {
+      // 이전 AI 답변 제거
+      setMessages((prev) => prev.slice(0, messageIndex));
+      setIsLoading(true);
+      toast.info("답변을 다시 생성하고 있습니다");
+
+      // 다양성을 위해 temperature 증가
+      const regenerateTemp = Math.min(context.settings.temperature + 0.2, 2.0);
+
+      // 백엔드 /api/chat/regenerate 호출
+      const response = await fetch("http://localhost:8000/api/chat/regenerate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: context.originalQuery,
+          collection_name: context.collectionName,
+          retrieved_docs: context.retrievedDocs,
+          reasoning_level: context.settings.reasoningLevel,
+          temperature: regenerateTemp,
+          max_tokens: context.settings.maxTokens,
+          top_p: context.settings.topP,
+          frequency_penalty: context.settings.frequencyPenalty,
+          presence_penalty: context.settings.presencePenalty,
+          chat_history: messages
+            .filter((m) => m.role !== "system")
+            .slice(0, messageIndex)
+            .slice(-10),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API 오류: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      // 소스 문서 처리
+      const sources: Source[] = (data.retrieved_docs || context.retrievedDocs).map((doc: RetrievedDocument) => ({
+        id: doc.id,
+        title: doc.metadata?.filename || `문서 ${doc.id}`,
+        content: doc.text,
+        score: doc.score,
+        metadata: {
+          file: doc.metadata?.filename,
+          section: doc.metadata?.headings ? doc.metadata.headings.join(' > ') : undefined,
+          chunk_index: doc.metadata?.chunk_index,
+          document_id: doc.metadata?.document_id,
+          num_tokens: doc.metadata?.num_tokens,
+          page: doc.metadata?.page,
+          url: doc.metadata?.url,
+        },
+      }));
+
+      // 새 AI 메시지 생성
+      const newAiMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: data.answer || "응답을 생성할 수 없습니다.",
+        timestamp: new Date(),
+        sources: sources,
+        metadata: {
+          tokens: data.usage?.total_tokens,
+          processingTime: data.usage?.processing_time,
+        },
+        regenerationContext: {
+          originalQuery: context.originalQuery,
+          collectionName: context.collectionName,
+          settings: context.settings,
+          retrievedDocs: context.retrievedDocs,
+        },
+      };
+
+      setMessages((prev) => [...prev, newAiMessage]);
+      toast.success("답변이 재생성되었습니다");
+    } catch (error) {
+      console.error("Error regenerating message:", error);
+      toast.error("재생성에 실패했습니다");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const chatContent = (
@@ -564,6 +693,7 @@ export function ChatContainer() {
           messages={messages}
           isLoading={isLoading}
           isStreaming={settings.streamMode}
+          onRegenerate={handleRegenerate}
         />
       </div>
 

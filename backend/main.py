@@ -30,7 +30,7 @@ app = FastAPI(
 async def startup_event():
     """앱 시작 시 실행되는 이벤트 핸들러"""
     init_db()
-    print("✅ Database initialized successfully")
+    print("[OK] Database initialized successfully")
 
 # CORS 설정
 app.add_middleware(

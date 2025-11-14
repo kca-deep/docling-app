@@ -56,6 +56,9 @@ class Settings(BaseSettings):
     RAG_DEFAULT_SCORE_THRESHOLD: Optional[float] = None
     RAG_DEFAULT_REASONING_LEVEL: str = "medium"
 
+    # 프롬프트 설정
+    PROMPTS_DIR: Optional[str] = None  # None이면 backend/prompts/ 사용
+
     # BGE Reranker v2-m3 설정
     RERANKER_URL: str = "http://kca-ai.kro.kr:8006"
     RERANKER_MODEL: str = "BAAI/bge-reranker-v2-m3"

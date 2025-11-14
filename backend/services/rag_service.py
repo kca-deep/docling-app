@@ -96,7 +96,8 @@ class RAGService:
         top_p: float = 0.9,
         frequency_penalty: float = 0.0,
         presence_penalty: float = 0.0,
-        chat_history: Optional[List[Dict[str, str]]] = None
+        chat_history: Optional[List[Dict[str, str]]] = None,
+        collection_name: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         검색된 문서 기반 답변 생성
@@ -111,6 +112,7 @@ class RAGService:
             frequency_penalty: 빈도 패널티
             presence_penalty: 존재 패널티
             chat_history: 이전 대화 기록
+            collection_name: Qdrant 컬렉션 이름 (프롬프트 선택에 사용)
 
         Returns:
             Dict[str, Any]: LLM 응답
@@ -126,7 +128,8 @@ class RAGService:
                 query=query,
                 retrieved_docs=retrieved_docs,
                 reasoning_level=reasoning_level,
-                chat_history=chat_history
+                chat_history=chat_history,
+                collection_name=collection_name
             )
 
             # 2. LLM으로 답변 생성
@@ -157,7 +160,8 @@ class RAGService:
         top_p: float = 0.9,
         frequency_penalty: float = 0.0,
         presence_penalty: float = 0.0,
-        chat_history: Optional[List[Dict[str, str]]] = None
+        chat_history: Optional[List[Dict[str, str]]] = None,
+        collection_name: Optional[str] = None
     ) -> AsyncGenerator[str, None]:
         """
         검색된 문서 기반 스트리밍 답변 생성
@@ -172,6 +176,7 @@ class RAGService:
             frequency_penalty: 빈도 패널티
             presence_penalty: 존재 패널티
             chat_history: 이전 대화 기록
+            collection_name: Qdrant 컬렉션 이름 (프롬프트 선택에 사용)
 
         Yields:
             str: SSE 이벤트 라인
@@ -185,7 +190,8 @@ class RAGService:
                 query=query,
                 retrieved_docs=retrieved_docs,
                 reasoning_level=reasoning_level,
-                chat_history=chat_history
+                chat_history=chat_history,
+                collection_name=collection_name
             )
 
             # 2. LLM으로 스트리밍 답변 생성
@@ -320,7 +326,8 @@ class RAGService:
                 top_p=top_p,
                 frequency_penalty=frequency_penalty,
                 presence_penalty=presence_penalty,
-                chat_history=chat_history
+                chat_history=chat_history,
+                collection_name=collection_name
             )
 
             # 3. 응답 포맷팅
@@ -460,7 +467,8 @@ class RAGService:
                 top_p=top_p,
                 frequency_penalty=frequency_penalty,
                 presence_penalty=presence_penalty,
-                chat_history=chat_history
+                chat_history=chat_history,
+                collection_name=collection_name
             ):
                 yield chunk
 

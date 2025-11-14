@@ -36,9 +36,10 @@ interface MessageListProps {
   messages: Message[];
   isLoading: boolean;
   isStreaming?: boolean;
+  onRegenerate?: (messageIndex: number) => void;
 }
 
-export function MessageList({ messages, isLoading, isStreaming }: MessageListProps) {
+export function MessageList({ messages, isLoading, isStreaming, onRegenerate }: MessageListProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [userScrolled, setUserScrolled] = useState(false);
@@ -107,8 +108,8 @@ export function MessageList({ messages, isLoading, isStreaming }: MessageListPro
     }
   };
 
-  const handleRegenerate = () => {
-    toast.info("응답 재생성 기능은 준비 중입니다");
+  const handleRegenerate = (index: number) => {
+    onRegenerate?.(index);
   };
 
   return (
@@ -128,7 +129,7 @@ export function MessageList({ messages, isLoading, isStreaming }: MessageListPro
               sources={message.sources}
               metadata={message.metadata}
               onCopy={() => handleCopy(message.content)}
-              onRegenerate={handleRegenerate}
+              onRegenerate={() => handleRegenerate(index)}
               isLast={index === messages.length - 1}
               isStreaming={isLoading && index === messages.length - 1}
             />
