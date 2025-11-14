@@ -193,14 +193,20 @@ class LLMService:
 
             # 메타데이터에서 추가 정보 추출
             payload = doc.get("payload", {})
-            metadata_str = ""
-            if "original_filename" in payload:
-                metadata_str += f"\n파일명: {payload['original_filename']}"
-            if "chunk_index" in payload:
-                metadata_str += f"\n청크 번호: {payload['chunk_index']}"
+            headings = payload.get("headings", [])
+
+            # headings에서 파일명과 페이지 정보 추출
+            if len(headings) >= 2:
+                filename = headings[0]
+                page_info = headings[1]  # "페이지 4" 형식
+                reference = f"[{filename}, {page_info}]"
+            elif len(headings) == 1:
+                reference = f"[{headings[0]}]"
+            else:
+                reference = f"[문서 {idx}]"
 
             context_parts.append(
-                f"[문서 {idx}] (유사도: {score:.3f}){metadata_str}\n{text}"
+                f"{reference} (유사도: {score:.3f})\n{text}"
             )
 
         context = "\n\n".join(context_parts)
