@@ -61,8 +61,8 @@ class Settings(BaseSettings):
     RERANKER_MODEL: str = "BAAI/bge-reranker-v2-m3"
     RERANKER_TIMEOUT: int = 30
     USE_RERANKING: bool = True
-    RERANK_TOP_K_MULTIPLIER: int = 3
-    RERANK_FINAL_TOP_K: int = 5
+    RERANK_TOP_K_MULTIPLIER: int = 5
+    RERANK_SCORE_THRESHOLD: float = 0.5
 
     # Qwen3 VL OCR 설정
     QWEN3_VL_BASE_URL: str = "http://localhost:8084"

@@ -275,25 +275,32 @@ class RAGService:
                     # 문서 텍스트 추출
                     documents = [doc["payload"]["text"] for doc in retrieved_docs]
 
-                    # Reranker 호출
+                    # Reranker 호출 (사용자 설정값 top_k 사용)
                     reranked_results = await self.reranker_service.rerank_with_fallback(
                         query=query,
                         documents=documents,
-                        top_n=settings.RERANK_FINAL_TOP_K,
+                        top_n=top_k,
                         return_documents=False
                     )
 
-                    # Reranking 성공 시 재정렬
+                    # Reranking 성공 시 재정렬 및 score threshold 필터링
                     if reranked_results:
                         # Reranker 순서로 재정렬하고 relevance_score를 score에 반영
                         reranked_docs = []
                         for r in reranked_results:
-                            doc = retrieved_docs[r.index].copy()
-                            doc["score"] = r.relevance_score  # Reranker score로 덮어쓰기
-                            reranked_docs.append(doc)
-                        retrieved_docs = reranked_docs
-                        top_score = reranked_results[0].relevance_score
-                        print(f"[INFO] Reranking completed: top score={top_score:.4f}")
+                            # Score threshold 필터링 적용
+                            if r.relevance_score >= settings.RERANK_SCORE_THRESHOLD:
+                                doc = retrieved_docs[r.index].copy()
+                                doc["score"] = r.relevance_score  # Reranker score로 덮어쓰기
+                                reranked_docs.append(doc)
+
+                        if reranked_docs:
+                            retrieved_docs = reranked_docs
+                            top_score = reranked_docs[0]["score"]
+                            print(f"[INFO] Reranking completed: {len(retrieved_docs)} docs passed threshold, top score={top_score:.4f}")
+                        else:
+                            print(f"[WARNING] No docs passed rerank threshold ({settings.RERANK_SCORE_THRESHOLD}), using original results")
+                            retrieved_docs = retrieved_docs[:top_k]
                     else:
                         print(f"[WARNING] Reranking failed, using original vector search results")
                         # Fallback: 원본 결과를 top_k개만 사용
@@ -396,25 +403,32 @@ class RAGService:
                     # 문서 텍스트 추출
                     documents = [doc["payload"]["text"] for doc in retrieved_docs]
 
-                    # Reranker 호출
+                    # Reranker 호출 (사용자 설정값 top_k 사용)
                     reranked_results = await self.reranker_service.rerank_with_fallback(
                         query=query,
                         documents=documents,
-                        top_n=settings.RERANK_FINAL_TOP_K,
+                        top_n=top_k,
                         return_documents=False
                     )
 
-                    # Reranking 성공 시 재정렬
+                    # Reranking 성공 시 재정렬 및 score threshold 필터링
                     if reranked_results:
                         # Reranker 순서로 재정렬하고 relevance_score를 score에 반영
                         reranked_docs = []
                         for r in reranked_results:
-                            doc = retrieved_docs[r.index].copy()
-                            doc["score"] = r.relevance_score  # Reranker score로 덮어쓰기
-                            reranked_docs.append(doc)
-                        retrieved_docs = reranked_docs
-                        top_score = reranked_results[0].relevance_score
-                        print(f"[INFO] Reranking completed: top score={top_score:.4f}")
+                            # Score threshold 필터링 적용
+                            if r.relevance_score >= settings.RERANK_SCORE_THRESHOLD:
+                                doc = retrieved_docs[r.index].copy()
+                                doc["score"] = r.relevance_score  # Reranker score로 덮어쓰기
+                                reranked_docs.append(doc)
+
+                        if reranked_docs:
+                            retrieved_docs = reranked_docs
+                            top_score = reranked_docs[0]["score"]
+                            print(f"[INFO] Reranking completed: {len(retrieved_docs)} docs passed threshold, top score={top_score:.4f}")
+                        else:
+                            print(f"[WARNING] No docs passed rerank threshold ({settings.RERANK_SCORE_THRESHOLD}), using original results")
+                            retrieved_docs = retrieved_docs[:top_k]
                     else:
                         print(f"[WARNING] Reranking failed, using original vector search results")
                         # Fallback: 원본 결과를 top_k개만 사용
