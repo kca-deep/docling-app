@@ -201,10 +201,15 @@ export default function HomePage() {
               <span className="text-foreground"> 파이프라인</span>
             </h1>
 
-            <div className="text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed px-4 animate-fade-up animate-delay-200">
+            <div className="text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed px-4 animate-fade-up animate-delay-200 flex flex-col items-center gap-1">
               <TypingEffect
-                text="문서를 AI로 분석하고 벡터 데이터베이스에 저장하여 초정밀 RAG 기반 질의응답 시스템을 구축하세요"
+                text="문서를 AI로 분석하고 벡터 데이터베이스에 저장하여"
                 speed={50}
+              />
+              <TypingEffect
+                text="초정밀 RAG 기반 질의응답 시스템을 구축하세요"
+                speed={50}
+                delay={1550}
               />
             </div>
           </div>
