@@ -28,6 +28,10 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { cn } from "@/lib/utils"
 import { ChatPreview } from "@/components/chat-preview"
 import { FloatingChatButton } from "@/components/floating-chat-button"
+import { AnimatedGradientBg } from "@/components/animated-gradient-bg"
+import { TypingEffect } from "@/components/typing-effect"
+import { FloatingIcons } from "@/components/floating-icons"
+import { ScrollIndicator } from "@/components/scroll-indicator"
 
 export default function HomePage() {
 
@@ -178,29 +182,39 @@ export default function HomePage() {
   return (
     <PageContainer maxWidth="wide">
       {/* Hero Section - 개선된 버전 */}
-      <div className="text-center mb-16 space-y-8">
-        <div className="inline-flex items-center gap-2 rounded-full px-4 py-2 bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 animate-fade-up">
-          <Sparkles className="w-4 h-4 text-primary" />
-          <span className="text-sm font-medium">AI-Powered Document Intelligence</span>
+      <div className="relative text-center mb-16 space-y-8 min-h-[80vh] flex flex-col justify-center">
+        {/* Animated Background */}
+        <AnimatedGradientBg />
+        <FloatingIcons />
+
+        <div className="relative z-10">
+          <div className="inline-flex items-center gap-2 rounded-full px-4 py-2 bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 animate-fade-up">
+            <Sparkles className="w-4 h-4 text-primary" />
+            <span className="text-sm font-medium">AI-Powered Document Intelligence</span>
+          </div>
+
+          <div className="space-y-6 mt-8">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight animate-fade-up animate-delay-100">
+              <span className="bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent">
+                KCA-RAG
+              </span>
+              <span className="text-foreground"> 파이프라인</span>
+            </h1>
+
+            <div className="text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed px-4 animate-fade-up animate-delay-200">
+              <TypingEffect
+                text="문서를 AI로 분석하고 벡터 데이터베이스에 저장하여 초정밀 RAG 기반 질의응답 시스템을 구축하세요"
+                speed={50}
+              />
+            </div>
+          </div>
         </div>
 
-        <div className="space-y-6">
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight animate-fade-up animate-delay-100">
-            <span className="bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent">
-              KCA-RAG
-            </span>
-            <span className="text-foreground"> 파이프라인</span>
-          </h1>
-
-          <p className="text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed px-4 animate-fade-up animate-delay-200">
-            문서를 AI로 분석하고 벡터 데이터베이스에 저장하여
-            <br className="hidden sm:block" />
-            <span className="font-semibold text-foreground">초정밀 RAG 기반 질의응답 시스템</span>을 구축하세요
-          </p>
-        </div>
+        {/* Scroll Indicator */}
+        <ScrollIndicator />
 
         {/* 통계 표시 */}
-        <div className="grid grid-cols-2 sm:flex gap-4 sm:gap-8 justify-center flex-wrap mt-8 px-4">
+        <div className="relative z-10 grid grid-cols-2 sm:flex gap-4 sm:gap-8 justify-center flex-wrap mt-8 px-4">
           {stats.map((stat, index) => {
             const Icon = stat.icon
             return (
