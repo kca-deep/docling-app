@@ -247,10 +247,10 @@ export default function SystemArchitecturePage() {
                               <div className="border rounded-lg p-2 bg-green-500/10">
                                 <div className="flex items-center justify-between mb-1">
                                   <p className="text-xs font-medium">GPT-OSS 20B</p>
-                                  <p className="text-xs font-semibold">13.99 GB (43%)</p>
+                                  <p className="text-xs font-semibold">13.24 GB (41%)</p>
                                 </div>
                                 <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5">
-                                  <div className="bg-green-500 h-1.5 rounded-full" style={{width: '43%'}}></div>
+                                  <div className="bg-green-500 h-1.5 rounded-full" style={{width: '41%'}}></div>
                                 </div>
                               </div>
 
@@ -264,10 +264,20 @@ export default function SystemArchitecturePage() {
                                 </div>
                               </div>
 
+                              <div className="border rounded-lg p-2 bg-orange-500/10">
+                                <div className="flex items-center justify-between mb-1">
+                                  <p className="text-xs font-medium">BGE Reranker</p>
+                                  <p className="text-xs font-semibold">2.52 GB (7%)</p>
+                                </div>
+                                <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5">
+                                  <div className="bg-orange-500 h-1.5 rounded-full" style={{width: '7%'}}></div>
+                                </div>
+                              </div>
+
                               <div className="border rounded-lg p-2 bg-blue-500/10">
                                 <div className="flex items-center justify-between mb-1">
                                   <p className="text-xs font-medium">Docling</p>
-                                  <p className="text-xs font-semibold">1.60 GB (5%)</p>
+                                  <p className="text-xs font-semibold">1.64 GB (5%)</p>
                                 </div>
                                 <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5">
                                   <div className="bg-blue-500 h-1.5 rounded-full" style={{width: '5%'}}></div>

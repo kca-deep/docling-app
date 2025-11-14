@@ -1,0 +1,659 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
+import { PageContainer } from "@/components/page-container"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Button } from "@/components/ui/button"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Loader2, Upload, Database, Settings } from "lucide-react"
+import { toast } from "sonner"
+import { MarkdownViewerModal } from "@/components/markdown-viewer-modal"
+import { API_BASE_URL } from "@/lib/api-config"
+import { DocumentSelector } from "./components/DocumentSelector"
+import { DifySettingsPanel } from "./components/DifySettingsPanel"
+import { QdrantSettingsPanel } from "./components/QdrantSettingsPanel"
+import { UploadResults } from "./components/UploadResults"
+import {
+  Document,
+  DifyDataset,
+  DifyUploadResult,
+  QdrantCollection,
+  QdrantUploadResult,
+  UploadTarget,
+} from "./types"
+
+export default function UploadPage() {
+  const searchParams = useSearchParams()
+  const initialTab = (searchParams.get("tab") as UploadTarget) || "dify"
+
+  // 탭 상태
+  const [activeTab, setActiveTab] = useState<UploadTarget>(initialTab)
+
+  // 문서 관련 상태
+  const [documents, setDocuments] = useState<Document[]>([])
+  const [selectedDocs, setSelectedDocs] = useState<Set<number>>(new Set())
+  const [selectedDocsInfo, setSelectedDocsInfo] = useState<Map<number, string>>(new Map())
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalDocs, setTotalDocs] = useState(0)
+  const [pageSize] = useState(20)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchInput, setSearchInput] = useState("")
+  const [loadingDocuments, setLoadingDocuments] = useState(false)
+
+  // Dify 관련 상태
+  const [difyApiKey, setDifyApiKey] = useState("dataset-tTuWMwOLTw6Lhhmihan6uszE")
+  const [difyBaseUrl, setDifyBaseUrl] = useState("http://kca-ai.kro.kr:5001/v1")
+  const [difyDatasets, setDifyDatasets] = useState<DifyDataset[]>([])
+  const [selectedDifyDataset, setSelectedDifyDataset] = useState("")
+  const [loadingDifyDatasets, setLoadingDifyDatasets] = useState(false)
+  const [difySaveDialogOpen, setDifySaveDialogOpen] = useState(false)
+  const [difyConfigName, setDifyConfigName] = useState("")
+  const [difyResults, setDifyResults] = useState<DifyUploadResult[]>([])
+  const [uploadingDify, setUploadingDify] = useState(false)
+
+  // Qdrant 관련 상태
+  const [qdrantCollections, setQdrantCollections] = useState<QdrantCollection[]>([])
+  const [selectedQdrantCollection, setSelectedQdrantCollection] = useState("")
+  const [chunkSize, setChunkSize] = useState(1000)
+  const [chunkOverlap, setChunkOverlap] = useState(200)
+  const [loadingQdrantCollections, setLoadingQdrantCollections] = useState(false)
+  const [qdrantCreateDialogOpen, setQdrantCreateDialogOpen] = useState(false)
+  const [qdrantDeleteDialogOpen, setQdrantDeleteDialogOpen] = useState(false)
+  const [newCollectionName, setNewCollectionName] = useState("")
+  const [distance, setDistance] = useState("Cosine")
+  const [deletingCollection, setDeletingCollection] = useState(false)
+  const [qdrantResults, setQdrantResults] = useState<QdrantUploadResult[]>([])
+  const [uploadingQdrant, setUploadingQdrant] = useState(false)
+
+  // Markdown Viewer 모달 상태
+  const [viewerOpen, setViewerOpen] = useState(false)
+  const [selectedDocumentId, setSelectedDocumentId] = useState<number | null>(null)
+
+  // 문서 목록 가져오기
+  const fetchDocuments = async (page = 1, search = "") => {
+    setLoadingDocuments(true)
+    try {
+      const skip = (page - 1) * pageSize
+      const params = new URLSearchParams({
+        skip: skip.toString(),
+        limit: pageSize.toString(),
+      })
+
+      if (search) {
+        params.append("search", search)
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/documents/saved?${params}`)
+      if (response.ok) {
+        const data = await response.json()
+        setDocuments(data.items || [])
+        setTotalPages(data.total_pages || 1)
+        setTotalDocs(data.total || 0)
+        setCurrentPage(page)
+      }
+    } catch (error) {
+      console.error("Failed to fetch documents:", error)
+      toast.error("문서 목록을 불러오는데 실패했습니다")
+    } finally {
+      setLoadingDocuments(false)
+    }
+  }
+
+  // Dify 데이터셋 목록 가져오기
+  const fetchDifyDatasets = async () => {
+    if (!difyApiKey) {
+      toast.error("API Key를 입력해주세요")
+      return
+    }
+
+    setLoadingDifyDatasets(true)
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/dify/datasets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ api_key: difyApiKey, base_url: difyBaseUrl })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setDifyDatasets(data.data || [])
+        toast.success(`${data.data.length}개의 데이터셋을 불러왔습니다`)
+      } else {
+        toast.error("데이터셋을 가져오는데 실패했습니다")
+      }
+    } catch (error) {
+      console.error("Failed to fetch Dify datasets:", error)
+      toast.error("데이터셋을 가져오는데 실패했습니다")
+    } finally {
+      setLoadingDifyDatasets(false)
+    }
+  }
+
+  // Dify 설정 저장
+  const saveDifyConfig = async () => {
+    if (!difyConfigName.trim()) {
+      toast.error("설정 이름을 입력해주세요")
+      return
+    }
+
+    if (!difyApiKey || !difyBaseUrl) {
+      toast.error("API Key와 Base URL을 입력해주세요")
+      return
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/dify/config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          config_name: difyConfigName,
+          api_key: difyApiKey,
+          base_url: difyBaseUrl,
+          default_dataset_id: selectedDifyDataset || null,
+          default_dataset_name: difyDatasets.find(d => d.id === selectedDifyDataset)?.name || null
+        })
+      })
+
+      if (response.ok) {
+        toast.success("설정이 저장되었습니다")
+        setDifySaveDialogOpen(false)
+        setDifyConfigName("")
+      } else {
+        const error = await response.json()
+        toast.error(error.detail || "설정 저장에 실패했습니다")
+      }
+    } catch (error) {
+      console.error("Failed to save Dify config:", error)
+      toast.error("설정 저장에 실패했습니다")
+    }
+  }
+
+  // Dify 활성 설정 불러오기
+  const loadActiveDifyConfig = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/dify/config/active`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.api_key) {
+          setDifyApiKey(data.api_key)
+          setDifyBaseUrl(data.base_url)
+          if (data.default_dataset_id) {
+            setSelectedDifyDataset(data.default_dataset_id)
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load active Dify config:", error)
+    }
+  }
+
+  // Qdrant Collection 목록 가져오기
+  const fetchQdrantCollections = async () => {
+    setLoadingQdrantCollections(true)
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/qdrant/collections`)
+      if (response.ok) {
+        const data = await response.json()
+        setQdrantCollections(data.collections || [])
+        toast.success(`${data.collections.length}개의 Collection을 불러왔습니다`)
+      } else {
+        toast.error("Collection 목록을 가져오는데 실패했습니다")
+      }
+    } catch (error) {
+      console.error("Failed to fetch Qdrant collections:", error)
+      toast.error("Collection 목록을 가져오는데 실패했습니다")
+    } finally {
+      setLoadingQdrantCollections(false)
+    }
+  }
+
+  // Qdrant Collection 생성
+  const createQdrantCollection = async () => {
+    if (!newCollectionName) {
+      toast.error("Collection 이름을 입력해주세요")
+      return
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/qdrant/collections`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          collection_name: newCollectionName,
+          vector_size: 1024,
+          distance: distance
+        })
+      })
+
+      if (response.ok) {
+        toast.success(`Collection '${newCollectionName}'이 생성되었습니다`)
+        setNewCollectionName("")
+        setQdrantCreateDialogOpen(false)
+        fetchQdrantCollections()
+      } else {
+        const error = await response.json()
+        toast.error(error.detail || "Collection 생성에 실패했습니다")
+      }
+    } catch (error) {
+      console.error("Failed to create Qdrant collection:", error)
+      toast.error("Collection 생성에 실패했습니다")
+    }
+  }
+
+  // Qdrant Collection 삭제
+  const deleteQdrantCollection = async () => {
+    if (!selectedQdrantCollection) {
+      toast.error("삭제할 Collection을 선택해주세요")
+      return
+    }
+
+    setDeletingCollection(true)
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/qdrant/collections/${encodeURIComponent(selectedQdrantCollection)}`, {
+        method: "DELETE"
+      })
+
+      if (response.ok) {
+        toast.success(`Collection '${selectedQdrantCollection}'이 삭제되었습니다`)
+        setSelectedQdrantCollection("")
+        setQdrantDeleteDialogOpen(false)
+        fetchQdrantCollections()
+      } else {
+        const error = await response.json()
+        toast.error(error.detail || "Collection 삭제에 실패했습니다")
+      }
+    } catch (error) {
+      console.error("Failed to delete Qdrant collection:", error)
+      toast.error("Collection 삭제에 실패했습니다")
+    } finally {
+      setDeletingCollection(false)
+    }
+  }
+
+  // Qdrant 청킹 설정 불러오기
+  const fetchQdrantConfig = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/qdrant/config`)
+      if (response.ok) {
+        const data = await response.json()
+        setChunkSize(data.default_chunk_size)
+        setChunkOverlap(data.default_chunk_overlap)
+      }
+    } catch (error) {
+      console.error("Failed to fetch Qdrant config:", error)
+    }
+  }
+
+  // Dify 업로드
+  const uploadToDify = async () => {
+    if (!difyApiKey || !selectedDifyDataset) {
+      toast.error("API Key와 데이터셋을 선택해주세요")
+      return
+    }
+
+    if (selectedDocs.size === 0) {
+      toast.error("업로드할 문서를 선택해주세요")
+      return
+    }
+
+    setUploadingDify(true)
+    setDifyResults([])
+
+    try {
+      const selectedDatasetName = difyDatasets.find(d => d.id === selectedDifyDataset)?.name || null
+
+      const response = await fetch(`${API_BASE_URL}/api/dify/upload`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          api_key: difyApiKey,
+          base_url: difyBaseUrl,
+          dataset_id: selectedDifyDataset,
+          dataset_name: selectedDatasetName,
+          document_ids: Array.from(selectedDocs)
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setDifyResults(data.results)
+
+        if (data.success_count > 0 && data.failure_count === 0) {
+          toast.success(`${data.success_count}개 문서가 성공적으로 업로드되었습니다`)
+          setSelectedDocs(new Set())
+          setSelectedDocsInfo(new Map())
+        } else if (data.success_count > 0) {
+          toast.warning(`${data.success_count}개 성공, ${data.failure_count}개 실패`)
+          setSelectedDocs(new Set())
+          setSelectedDocsInfo(new Map())
+        } else {
+          toast.error("모든 문서 업로드에 실패했습니다")
+        }
+      } else {
+        toast.error("업로드에 실패했습니다")
+      }
+    } catch (error) {
+      console.error("Failed to upload to Dify:", error)
+      toast.error("업로드에 실패했습니다")
+    } finally {
+      setUploadingDify(false)
+    }
+  }
+
+  // Qdrant 업로드
+  const uploadToQdrant = async () => {
+    if (!selectedQdrantCollection) {
+      toast.error("대상 Collection을 선택해주세요")
+      return
+    }
+
+    if (selectedDocs.size === 0) {
+      toast.error("업로드할 문서를 선택해주세요")
+      return
+    }
+
+    setUploadingQdrant(true)
+    setQdrantResults([])
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/qdrant/upload`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          collection_name: selectedQdrantCollection,
+          document_ids: Array.from(selectedDocs),
+          chunk_size: chunkSize,
+          chunk_overlap: chunkOverlap
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setQdrantResults(data.results)
+
+        if (data.success_count > 0 && data.failure_count === 0) {
+          toast.success(`${data.success_count}개 문서가 성공적으로 업로드되었습니다`)
+          setSelectedDocs(new Set())
+          setSelectedDocsInfo(new Map())
+        } else if (data.success_count > 0) {
+          toast.warning(`${data.success_count}개 성공, ${data.failure_count}개 실패`)
+          setSelectedDocs(new Set())
+          setSelectedDocsInfo(new Map())
+        } else {
+          toast.error("모든 문서 업로드에 실패했습니다")
+        }
+      } else {
+        toast.error("업로드에 실패했습니다")
+      }
+    } catch (error) {
+      console.error("Failed to upload to Qdrant:", error)
+      toast.error("업로드에 실패했습니다")
+    } finally {
+      setUploadingQdrant(false)
+    }
+  }
+
+  // 문서 선택/해제
+  const toggleDocument = (id: number, filename?: string) => {
+    const newSelected = new Set(selectedDocs)
+    const newInfo = new Map(selectedDocsInfo)
+
+    if (newSelected.has(id)) {
+      newSelected.delete(id)
+      newInfo.delete(id)
+    } else {
+      newSelected.add(id)
+      if (filename) {
+        newInfo.set(id, filename)
+      } else {
+        const doc = documents.find(d => d.id === id)
+        if (doc) {
+          newInfo.set(id, doc.original_filename)
+        }
+      }
+    }
+    setSelectedDocs(newSelected)
+    setSelectedDocsInfo(newInfo)
+  }
+
+  // 전체 선택/해제
+  const toggleAll = () => {
+    if (selectedDocs.size === documents.length) {
+      setSelectedDocs(new Set())
+      setSelectedDocsInfo(new Map())
+    } else {
+      const newSelected = new Set(documents.map(d => d.id))
+      const newInfo = new Map(documents.map(d => [d.id, d.original_filename]))
+      setSelectedDocs(newSelected)
+      setSelectedDocsInfo(newInfo)
+    }
+  }
+
+  // 개별 문서 선택 해제
+  const deselectDocument = (id: number) => {
+    const newSelected = new Set(selectedDocs)
+    const newInfo = new Map(selectedDocsInfo)
+    newSelected.delete(id)
+    newInfo.delete(id)
+    setSelectedDocs(newSelected)
+    setSelectedDocsInfo(newInfo)
+  }
+
+  // 검색 실행
+  const handleSearch = () => {
+    setSearchQuery(searchInput)
+    setCurrentPage(1)
+    fetchDocuments(1, searchInput)
+  }
+
+  // 검색 초기화
+  const handleSearchReset = () => {
+    setSearchInput("")
+    setSearchQuery("")
+    fetchDocuments(1, "")
+  }
+
+  // 페이지 변경
+  const handlePageChange = (page: number) => {
+    if (page < 1 || page > totalPages) return
+    fetchDocuments(page, searchQuery)
+  }
+
+  // 문서 뷰어 열기
+  const openDocumentViewer = (documentId: number) => {
+    setSelectedDocumentId(documentId)
+    setViewerOpen(true)
+  }
+
+  // 초기 로드
+  useEffect(() => {
+    fetchDocuments()
+    loadActiveDifyConfig()
+    fetchQdrantCollections()
+    fetchQdrantConfig()
+  }, [])
+
+  // 현재 업로드 중 상태
+  const isUploading = uploadingDify || uploadingQdrant
+
+  // 업로드 비활성화 조건
+  const isDifyUploadDisabled = uploadingDify || selectedDocs.size === 0 || !selectedDifyDataset || !difyApiKey
+  const isQdrantUploadDisabled = uploadingQdrant || selectedDocs.size === 0 || !selectedQdrantCollection
+
+  return (
+    <PageContainer maxWidth="wide" className="py-6">
+      <div className="space-y-6">
+        {/* 헤더 */}
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">문서 업로드 & 통합</h1>
+          <p className="text-muted-foreground mt-2">
+            Dify 또는 Qdrant로 파싱된 문서를 업로드하세요
+          </p>
+        </div>
+
+        {/* 탭 */}
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as UploadTarget)}>
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="dify" className="gap-2">
+              <Settings className="h-4 w-4" />
+              Dify 업로드
+            </TabsTrigger>
+            <TabsTrigger value="qdrant" className="gap-2">
+              <Database className="h-4 w-4" />
+              Qdrant 업로드
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Dify 탭 */}
+          <TabsContent value="dify" className="space-y-6">
+            <DifySettingsPanel
+              apiKey={difyApiKey}
+              baseUrl={difyBaseUrl}
+              selectedDataset={selectedDifyDataset}
+              datasets={difyDatasets}
+              loadingDatasets={loadingDifyDatasets}
+              saveDialogOpen={difySaveDialogOpen}
+              configName={difyConfigName}
+              onApiKeyChange={setDifyApiKey}
+              onBaseUrlChange={setDifyBaseUrl}
+              onSelectedDatasetChange={setSelectedDifyDataset}
+              onFetchDatasets={fetchDifyDatasets}
+              onSaveDialogOpenChange={setDifySaveDialogOpen}
+              onConfigNameChange={setDifyConfigName}
+              onSaveConfig={saveDifyConfig}
+            />
+
+            {/* 업로드 버튼 */}
+            <div className="flex justify-end">
+              <Button
+                onClick={uploadToDify}
+                disabled={isDifyUploadDisabled}
+                size="lg"
+                className="gap-2"
+              >
+                {uploadingDify ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    업로드 중...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4" />
+                    Dify에 업로드 ({selectedDocs.size})
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {(!difyApiKey || !selectedDifyDataset) && selectedDocs.size > 0 && (
+              <Alert>
+                <AlertDescription>
+                  업로드하려면 상단에서 API Key와 데이터셋을 먼저 설정해주세요.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <UploadResults
+              uploadTarget="dify"
+              difyResults={difyResults}
+              qdrantResults={[]}
+            />
+          </TabsContent>
+
+          {/* Qdrant 탭 */}
+          <TabsContent value="qdrant" className="space-y-6">
+            <QdrantSettingsPanel
+              selectedCollection={selectedQdrantCollection}
+              collections={qdrantCollections}
+              chunkSize={chunkSize}
+              chunkOverlap={chunkOverlap}
+              loadingCollections={loadingQdrantCollections}
+              createDialogOpen={qdrantCreateDialogOpen}
+              deleteDialogOpen={qdrantDeleteDialogOpen}
+              newCollectionName={newCollectionName}
+              distance={distance}
+              deleting={deletingCollection}
+              onSelectedCollectionChange={setSelectedQdrantCollection}
+              onChunkSizeChange={setChunkSize}
+              onChunkOverlapChange={setChunkOverlap}
+              onFetchCollections={fetchQdrantCollections}
+              onCreateDialogOpenChange={setQdrantCreateDialogOpen}
+              onDeleteDialogOpenChange={setQdrantDeleteDialogOpen}
+              onNewCollectionNameChange={setNewCollectionName}
+              onDistanceChange={setDistance}
+              onCreateCollection={createQdrantCollection}
+              onDeleteCollection={deleteQdrantCollection}
+            />
+
+            {/* 업로드 버튼 */}
+            <div className="flex justify-end">
+              <Button
+                onClick={uploadToQdrant}
+                disabled={isQdrantUploadDisabled}
+                size="lg"
+                className="gap-2"
+              >
+                {uploadingQdrant ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    업로드 중...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4" />
+                    Qdrant에 업로드 ({selectedDocs.size})
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {!selectedQdrantCollection && selectedDocs.size > 0 && (
+              <Alert>
+                <AlertDescription>
+                  업로드하려면 상단에서 Collection을 먼저 선택해주세요.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <UploadResults
+              uploadTarget="qdrant"
+              difyResults={[]}
+              qdrantResults={qdrantResults}
+            />
+          </TabsContent>
+        </Tabs>
+
+        {/* 공통: 문서 선택 */}
+        <DocumentSelector
+          documents={documents}
+          selectedDocs={selectedDocs}
+          selectedDocsInfo={selectedDocsInfo}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalDocs={totalDocs}
+          searchInput={searchInput}
+          searchQuery={searchQuery}
+          loadingDocuments={loadingDocuments}
+          onToggleDocument={toggleDocument}
+          onToggleAll={toggleAll}
+          onDeselectDocument={deselectDocument}
+          onSearch={handleSearch}
+          onSearchInputChange={setSearchInput}
+          onSearchReset={handleSearchReset}
+          onPageChange={handlePageChange}
+          onOpenDocumentViewer={openDocumentViewer}
+        />
+      </div>
+
+      {/* Markdown Viewer 모달 */}
+      <MarkdownViewerModal
+        documentId={selectedDocumentId}
+        open={viewerOpen}
+        onOpenChange={setViewerOpen}
+      />
+    </PageContainer>
+  )
+}

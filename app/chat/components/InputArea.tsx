@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/tooltip";
 import {
   Send,
-  Paperclip,
   Mic,
   StopCircle,
   Trash2,
@@ -26,7 +25,6 @@ interface InputAreaProps {
   isLoading: boolean;
   disabled?: boolean;
   onClear?: () => void;
-  onFileUpload?: (file: File) => void;
 }
 
 export function InputArea({
@@ -36,11 +34,9 @@ export function InputArea({
   isLoading,
   disabled,
   onClear,
-  onFileUpload,
 }: InputAreaProps) {
   const [isComposing, setIsComposing] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 로딩이 끝나고 활성화되면 포커스
   useEffect(() => {
@@ -62,30 +58,6 @@ export function InputArea({
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && onFileUpload) {
-      onFileUpload(file);
-    }
-    // Reset input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
-
-  const handlePaste = (e: React.ClipboardEvent) => {
-    const items = e.clipboardData.items;
-    for (const item of items) {
-      if (item.type.indexOf("image") === 0) {
-        const file = item.getAsFile();
-        if (file && onFileUpload) {
-          e.preventDefault();
-          onFileUpload(file);
-        }
-      }
-    }
-  };
-
   const canSend = !disabled && !isLoading && input.trim().length > 0;
 
   return (
@@ -101,7 +73,6 @@ export function InputArea({
               onKeyDown={handleKeyPress}
               onCompositionStart={() => setIsComposing(true)}
               onCompositionEnd={() => setIsComposing(false)}
-              onPaste={handlePaste}
               placeholder={
                 disabled
                   ? "먼저 컬렉션을 선택해주세요..."
@@ -164,24 +135,6 @@ export function InputArea({
 
             {/* 추가 액션 버튼들 */}
             <div className="flex gap-1">
-              {/* 파일 첨부 */}
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-8 w-8"
-                      disabled={disabled || isLoading}
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <Paperclip className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>파일 첨부</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
               {/* 음성 입력 (준비 중) */}
               <TooltipProvider>
                 <Tooltip>
@@ -239,15 +192,6 @@ export function InputArea({
             </span>
           )}
         </div>
-
-        {/* 숨겨진 파일 입력 */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="hidden"
-          accept=".txt,.md,.pdf,.doc,.docx"
-          onChange={handleFileSelect}
-        />
       </div>
     </div>
   );
