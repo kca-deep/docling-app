@@ -242,8 +242,10 @@ async def regenerate(request: RegenerateRequest):
         )
 
         # 응답 포맷팅 (원본 검색 결과 재사용)
+        answer = result.get("choices", [{}])[0].get("message", {}).get("content", "응답을 생성할 수 없습니다.")
+
         return ChatResponse(
-            answer=result.get("answer", ""),
+            answer=answer,
             retrieved_docs=request.retrieved_docs,  # 원본 그대로 반환
             usage=result.get("usage")
         )
