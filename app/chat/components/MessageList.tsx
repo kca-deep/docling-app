@@ -174,7 +174,7 @@ export function MessageList({ messages, isLoading, isStreaming, onRegenerate }: 
                   setUserScrolled(false);
                 }
               }}
-              className="fixed bottom-24 right-8 z-50 bg-primary text-primary-foreground rounded-full px-4 py-2 shadow-lg hover:shadow-xl transition-all hover:scale-105 active:scale-95"
+              className="fixed bottom-[160px] left-1/2 -translate-x-1/2 z-50 bg-primary text-primary-foreground rounded-full px-4 py-2 shadow-lg hover:shadow-xl transition-all hover:scale-105 active:scale-95"
             >
               ↓ 새 메시지
             </button>
