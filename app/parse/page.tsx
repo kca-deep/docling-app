@@ -1,24 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { Upload, FileText, Loader2, CheckCircle2, XCircle, Download, Trash2, FolderOpen, Save, Settings, Zap, Sparkles, Image } from "lucide-react";
+import { Upload, FileText, Loader2, CheckCircle2, XCircle, Download, Trash2, FolderOpen, Save, Settings, Zap, Sparkles, Image, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { PageContainer } from "@/components/page-container";
-import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown } from "lucide-react";
 import { MarkdownMessage } from "@/components/markdown-message";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 interface ConvertResult {
   task_id: string;
@@ -75,7 +73,6 @@ export default function ParsePage() {
   const [isDragging, setIsDragging] = useState(false);
 
   // 공통 옵션 상태
-  const [isOptionsOpen, setIsOptionsOpen] = useState(false);
   const [parseOptions, setParseOptions] = useState<ParseOptions>({
     strategy: "docling",
     do_ocr: true,
@@ -83,6 +80,9 @@ export default function ParsePage() {
     include_images: true,
     do_formula_enrichment: false,
   });
+
+  // Dialog 상태
+  const [selectedResult, setSelectedResult] = useState<FileStatus | null>(null);
 
   // 일괄 파일 핸들러
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -405,162 +405,11 @@ export default function ParsePage() {
   const pendingCount = files.filter(f => f.status === "pending").length;
 
   return (
-    <PageContainer maxWidth="wide" className="py-6">
-      <div className="space-y-6">
-        {/* Parsing Options Section */}
-        <Card className="min-w-0 overflow-hidden">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="w-5 h-5" />
-              파싱 옵션
-            </CardTitle>
-            <CardDescription>문서 파싱 시 적용할 옵션을 설정하세요</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Parsing Strategy Selection */}
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">파싱 전략</Label>
-              <RadioGroup
-                value={parseOptions.strategy}
-                onValueChange={(value: "docling" | "qwen3-vl") =>
-                  setParseOptions({ ...parseOptions, strategy: value })
-                }
-                className="grid grid-cols-2 gap-3"
-              >
-                <div className="relative">
-                  <RadioGroupItem
-                    value="docling"
-                    id="strategy-docling"
-                    className="peer sr-only"
-                  />
-                  <Label
-                    htmlFor="strategy-docling"
-                    className="flex flex-col gap-1.5 rounded-lg border-2 border-muted bg-muted/30 p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5 cursor-pointer transition-all"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold">Docling</span>
-                      <Badge variant="secondary" className="text-xs font-normal bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                        빠름
-                      </Badge>
-                    </div>
-                    <ul className="text-xs text-muted-foreground space-y-1">
-                      <li className="flex items-center gap-1.5">
-                        <Zap className="w-3 h-3 flex-shrink-0" />
-                        <span>빠른 처리 속도 및 안정성</span>
-                      </li>
-                      <li className="flex items-center gap-1.5">
-                        <FileText className="w-3 h-3 flex-shrink-0" />
-                        <span>일반 PDF, DOCX 문서 최적화</span>
-                      </li>
-                    </ul>
-                  </Label>
-                </div>
-                <div className="relative">
-                  <RadioGroupItem
-                    value="qwen3-vl"
-                    id="strategy-qwen3-vl"
-                    className="peer sr-only"
-                  />
-                  <Label
-                    htmlFor="strategy-qwen3-vl"
-                    className="flex flex-col gap-1.5 rounded-lg border-2 border-muted bg-muted/30 p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5 cursor-pointer transition-all"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold">Qwen3-VL</span>
-                      <Badge variant="secondary" className="text-xs font-normal bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                        보통
-                      </Badge>
-                    </div>
-                    <ul className="text-xs text-muted-foreground space-y-1">
-                      <li className="flex items-center gap-1.5">
-                        <Sparkles className="w-3 h-3 flex-shrink-0" />
-                        <span>AI 기반 고급 문서 분석</span>
-                      </li>
-                      <li className="flex items-center gap-1.5">
-                        <Image className="w-3 h-3 flex-shrink-0" />
-                        <span>복잡한 레이아웃 및 이미지 특화</span>
-                      </li>
-                    </ul>
-                  </Label>
-                </div>
-              </RadioGroup>
-            </div>
-
-            {/* Collapsible Advanced Options */}
-            <Collapsible open={isOptionsOpen} onOpenChange={setIsOptionsOpen}>
-              <CollapsibleTrigger asChild>
-                <Button
-                  variant="ghost"
-                  className="w-full flex items-center justify-between p-2 hover:bg-accent hover:text-accent-foreground"
-                >
-                  <span className="text-sm font-medium">상세 옵션</span>
-                  <ChevronDown
-                    className={`w-4 h-4 transition-transform duration-200 ${
-                      isOptionsOpen ? "rotate-180" : ""
-                    }`}
-                  />
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="pt-3">
-                <div className="grid grid-cols-4 gap-3">
-                  <div className="flex items-center justify-between p-2.5 rounded-lg border bg-muted/30">
-                    <Label htmlFor="do_ocr" className="text-sm cursor-pointer">
-                      OCR 인식
-                    </Label>
-                    <Switch
-                      id="do_ocr"
-                      checked={parseOptions.do_ocr}
-                      onCheckedChange={(checked) =>
-                        setParseOptions({ ...parseOptions, do_ocr: checked })
-                      }
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between p-2.5 rounded-lg border bg-muted/30">
-                    <Label htmlFor="do_table_structure" className="text-sm cursor-pointer">
-                      테이블 구조
-                    </Label>
-                    <Switch
-                      id="do_table_structure"
-                      checked={parseOptions.do_table_structure}
-                      onCheckedChange={(checked) =>
-                        setParseOptions({ ...parseOptions, do_table_structure: checked })
-                      }
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between p-2.5 rounded-lg border bg-muted/30">
-                    <Label htmlFor="include_images" className="text-sm cursor-pointer">
-                      이미지 포함
-                    </Label>
-                    <Switch
-                      id="include_images"
-                      checked={parseOptions.include_images}
-                      onCheckedChange={(checked) =>
-                        setParseOptions({ ...parseOptions, include_images: checked })
-                      }
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between p-2.5 rounded-lg border bg-muted/30">
-                    <Label htmlFor="do_formula_enrichment" className="text-sm cursor-pointer">
-                      수식 인식
-                    </Label>
-                    <Switch
-                      id="do_formula_enrichment"
-                      checked={parseOptions.do_formula_enrichment}
-                      onCheckedChange={(checked) =>
-                        setParseOptions({ ...parseOptions, do_formula_enrichment: checked })
-                      }
-                    />
-                  </div>
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-          </CardContent>
-        </Card>
-
-        {/* File Upload Card */}
+    <PageContainer maxWidth="wide" className="py-4">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-4">
+        {/* Left Column: File Upload (70%) */}
+        <div className="space-y-4">
+          {/* File Upload Card */}
         <Card className="min-w-0 overflow-hidden">
           <CardHeader>
             <CardTitle>파일 업로드</CardTitle>
@@ -619,7 +468,7 @@ export default function ParsePage() {
                   </Button>
                 </div>
 
-                <ScrollArea className="h-64 w-full rounded-lg border">
+                <ScrollArea className={`w-full rounded-lg border ${files.length <= 3 ? 'h-auto max-h-64' : 'h-64'}`}>
                   <div className="p-4 space-y-2">
                     {files.map((fileStatus, index) => (
                       <div
@@ -655,7 +504,7 @@ export default function ParsePage() {
                               )}
                             </div>
                           </div>
-                          <div className="flex-shrink-0">
+                          <div className="flex items-center gap-2 flex-shrink-0">
                             <Badge variant={
                               fileStatus.status === "success" ? "default" :
                               fileStatus.status === "error" ? "destructive" :
@@ -667,6 +516,18 @@ export default function ParsePage() {
                               {fileStatus.status === "success" && "완료"}
                               {fileStatus.status === "error" && "실패"}
                             </Badge>
+                            {(fileStatus.status === "success" || fileStatus.status === "error") && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2"
+                                onClick={() => setSelectedResult(fileStatus)}
+                              >
+                                <Eye className="w-3.5 h-3.5 mr-1" />
+                                결과
+                              </Button>
+                            )}
                           </div>
                         </div>
                         <Button
@@ -760,176 +621,255 @@ export default function ParsePage() {
             )}
           </CardContent>
         </Card>
+        </div>
 
-        {files.some(f => f.status === "success" || f.status === "error") && (
+        {/* Right Column: Parsing Options (30%) - Sticky */}
+        <div className="lg:sticky lg:top-4 lg:self-start">
           <Card className="min-w-0 overflow-hidden">
-            <CardHeader>
-              <CardTitle>파싱 결과</CardTitle>
-              <CardDescription>각 파일의 변환 결과를 확인하세요</CardDescription>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Settings className="w-4 h-4" />
+                파싱 옵션
+              </CardTitle>
             </CardHeader>
-            <CardContent>
-              <Accordion type="single" collapsible className="w-full">
-                {files.map((fileStatus, index) => {
-                  if (fileStatus.status !== "success" && fileStatus.status !== "error") {
-                    return null;
+            <CardContent className="space-y-3">
+              {/* Parsing Strategy Selection - Compact Select */}
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">파싱 전략</Label>
+                <Select
+                  value={parseOptions.strategy}
+                  onValueChange={(value: "docling" | "qwen3-vl") =>
+                    setParseOptions({ ...parseOptions, strategy: value })
                   }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="docling">
+                      <div className="flex items-center gap-2">
+                        <Zap className="w-3.5 h-3.5" />
+                        <span>Docling</span>
+                        <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                          빠름
+                        </Badge>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="qwen3-vl">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Qwen3-VL</span>
+                        <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                          AI
+                        </Badge>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-                  return (
-                    <AccordionItem key={index} value={`item-${index}`}>
-                      <AccordionTrigger>
-                        <div className="flex items-center gap-3 w-full">
-                          {fileStatus.status === "success" ? (
-                            <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
-                          ) : (
-                            <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-                          )}
-                          <span className="truncate text-left flex-1">
-                            {fileStatus.file.name}
-                          </span>
-                          {fileStatus.result?.processing_time && (
-                            <Badge variant="outline" className="flex-shrink-0">
-                              {fileStatus.result.processing_time.toFixed(2)}초
-                            </Badge>
-                          )}
-                        </div>
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        {fileStatus.status === "success" && fileStatus.result?.document ? (
-                          <div className="space-y-4 pt-4">
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm text-muted-foreground">파일명</span>
-                                <span className="text-sm font-medium">
-                                  {fileStatus.result.document.filename}
-                                </span>
-                              </div>
-                              <Separator />
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm text-muted-foreground">Task ID</span>
-                                <Badge variant="outline">{fileStatus.result.task_id}</Badge>
-                              </div>
-                              {fileStatus.result.document.md_content && (
-                                <>
-                                  <Separator />
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-sm text-muted-foreground">문자 수</span>
-                                    <Badge>
-                                      {fileStatus.result.document.md_content.length.toLocaleString()}
-                                    </Badge>
-                                  </div>
-                                </>
-                              )}
-                            </div>
+              {/* Advanced Options - Inline Checkboxes */}
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">상세 옵션</Label>
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="do_ocr"
+                      checked={parseOptions.do_ocr}
+                      onCheckedChange={(checked) =>
+                        setParseOptions({ ...parseOptions, do_ocr: checked as boolean })
+                      }
+                    />
+                    <Label htmlFor="do_ocr" className="text-sm font-normal cursor-pointer">
+                      OCR 인식
+                    </Label>
+                  </div>
 
-                            {fileStatus.result.document.md_content && (
-                              <div className="space-y-3">
-                                <h4 className="text-sm font-medium">변환된 마크다운</h4>
-                                <Tabs defaultValue="preview" className="w-full">
-                                  <TabsList className="grid w-full grid-cols-2">
-                                    <TabsTrigger value="preview">미리보기</TabsTrigger>
-                                    <TabsTrigger value="full">전체 내용</TabsTrigger>
-                                  </TabsList>
-                                  <TabsContent value="preview" className="mt-4 space-y-4">
-                                    <ScrollArea className="h-64 w-full rounded-lg border bg-muted/50">
-                                      <div className="p-4">
-                                        <MarkdownMessage
-                                          content={
-                                            fileStatus.result.document.md_content.substring(0, 1000) +
-                                            (fileStatus.result.document.md_content.length > 1000
-                                              ? "\n\n... (내용이 잘렸습니다. '전체 내용' 탭을 확인하세요)"
-                                              : "")
-                                          }
-                                        />
-                                      </div>
-                                    </ScrollArea>
-                                    <div className="flex justify-end gap-2">
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => handleSaveDocument(fileStatus)}
-                                      >
-                                        <Save className="w-4 h-4 mr-2" />
-                                        문서 저장
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => {
-                                          const blob = new Blob(
-                                            [fileStatus.result!.document!.md_content!],
-                                            { type: 'text/markdown' }
-                                          );
-                                          const url = URL.createObjectURL(blob);
-                                          const a = document.createElement('a');
-                                          a.href = url;
-                                          a.download = `${fileStatus.result!.document!.filename}.md`;
-                                          a.click();
-                                          URL.revokeObjectURL(url);
-                                        }}
-                                      >
-                                        <Download className="w-4 h-4 mr-2" />
-                                        다운로드
-                                      </Button>
-                                    </div>
-                                  </TabsContent>
-                                  <TabsContent value="full" className="mt-4 space-y-4">
-                                    <ScrollArea className="h-64 w-full rounded-lg border bg-muted/50">
-                                      <div className="p-4">
-                                        <MarkdownMessage content={fileStatus.result.document.md_content} />
-                                      </div>
-                                    </ScrollArea>
-                                    <div className="flex justify-end gap-2">
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => handleSaveDocument(fileStatus)}
-                                      >
-                                        <Save className="w-4 h-4 mr-2" />
-                                        문서 저장
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => {
-                                          const blob = new Blob(
-                                            [fileStatus.result!.document!.md_content!],
-                                            { type: 'text/markdown' }
-                                          );
-                                          const url = URL.createObjectURL(blob);
-                                          const a = document.createElement('a');
-                                          a.href = url;
-                                          a.download = `${fileStatus.result!.document!.filename}.md`;
-                                          a.click();
-                                          URL.revokeObjectURL(url);
-                                        }}
-                                      >
-                                        <Download className="w-4 h-4 mr-2" />
-                                        다운로드
-                                      </Button>
-                                    </div>
-                                  </TabsContent>
-                                </Tabs>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <Alert variant="destructive" className="mt-4">
-                            <XCircle className="h-4 w-4" />
-                            <AlertTitle>파싱 실패</AlertTitle>
-                            <AlertDescription>
-                              {fileStatus.result?.error || "알 수 없는 오류가 발생했습니다"}
-                            </AlertDescription>
-                          </Alert>
-                        )}
-                      </AccordionContent>
-                    </AccordionItem>
-                  );
-                })}
-              </Accordion>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="do_table_structure"
+                      checked={parseOptions.do_table_structure}
+                      onCheckedChange={(checked) =>
+                        setParseOptions({ ...parseOptions, do_table_structure: checked as boolean })
+                      }
+                    />
+                    <Label htmlFor="do_table_structure" className="text-sm font-normal cursor-pointer">
+                      테이블 구조
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="include_images"
+                      checked={parseOptions.include_images}
+                      onCheckedChange={(checked) =>
+                        setParseOptions({ ...parseOptions, include_images: checked as boolean })
+                      }
+                    />
+                    <Label htmlFor="include_images" className="text-sm font-normal cursor-pointer">
+                      이미지 포함
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="do_formula_enrichment"
+                      checked={parseOptions.do_formula_enrichment}
+                      onCheckedChange={(checked) =>
+                        setParseOptions({ ...parseOptions, do_formula_enrichment: checked as boolean })
+                      }
+                    />
+                    <Label htmlFor="do_formula_enrichment" className="text-sm font-normal cursor-pointer">
+                      수식 인식
+                    </Label>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
-        )}
+        </div>
       </div>
+
+      {/* Result Dialog */}
+        <Dialog open={!!selectedResult} onOpenChange={(open) => !open && setSelectedResult(null)}>
+          <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-3">
+                {selectedResult?.status === "success" ? (
+                  <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
+                ) : (
+                  <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                )}
+                <span className="truncate">{selectedResult?.file.name}</span>
+                {selectedResult?.result?.processing_time && (
+                  <Badge variant="outline" className="flex-shrink-0">
+                    {selectedResult.result.processing_time.toFixed(2)}초
+                  </Badge>
+                )}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-hidden">
+              {selectedResult?.status === "success" && selectedResult.result?.document ? (
+                <div className="h-full flex flex-col space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">파일명</span>
+                      <span className="font-medium">{selectedResult.result.document.filename}</span>
+                    </div>
+                    <Separator />
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Task ID</span>
+                      <Badge variant="outline">{selectedResult.result.task_id}</Badge>
+                    </div>
+                    {selectedResult.result.document.md_content && (
+                      <>
+                        <Separator />
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">문자 수</span>
+                          <Badge>{selectedResult.result.document.md_content.length.toLocaleString()}</Badge>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {selectedResult.result.document.md_content && (
+                    <Tabs defaultValue="preview" className="flex-1 flex flex-col">
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="preview">미리보기</TabsTrigger>
+                        <TabsTrigger value="full">전체 내용</TabsTrigger>
+                      </TabsList>
+                      <TabsContent value="preview" className="flex-1 mt-4 space-y-4">
+                        <ScrollArea className="h-[calc(85vh-350px)] w-full rounded-lg border bg-muted/50">
+                          <div className="p-4">
+                            <MarkdownMessage
+                              content={
+                                selectedResult.result.document.md_content.substring(0, 2000) +
+                                (selectedResult.result.document.md_content.length > 2000
+                                  ? "\n\n... (내용이 잘렸습니다. '전체 내용' 탭을 확인하세요)"
+                                  : "")
+                              }
+                            />
+                          </div>
+                        </ScrollArea>
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => selectedResult && handleSaveDocument(selectedResult)}
+                          >
+                            <Save className="w-4 h-4 mr-2" />
+                            문서 저장
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              if (selectedResult?.result?.document?.md_content) {
+                                const blob = new Blob([selectedResult.result.document.md_content], { type: 'text/markdown' });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `${selectedResult.result.document.filename}.md`;
+                                a.click();
+                                URL.revokeObjectURL(url);
+                              }
+                            }}
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            다운로드
+                          </Button>
+                        </div>
+                      </TabsContent>
+                      <TabsContent value="full" className="flex-1 mt-4 space-y-4">
+                        <ScrollArea className="h-[calc(85vh-350px)] w-full rounded-lg border bg-muted/50">
+                          <div className="p-4">
+                            <MarkdownMessage content={selectedResult.result.document.md_content} />
+                          </div>
+                        </ScrollArea>
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => selectedResult && handleSaveDocument(selectedResult)}
+                          >
+                            <Save className="w-4 h-4 mr-2" />
+                            문서 저장
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              if (selectedResult?.result?.document?.md_content) {
+                                const blob = new Blob([selectedResult.result.document.md_content], { type: 'text/markdown' });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `${selectedResult.result.document.filename}.md`;
+                                a.click();
+                                URL.revokeObjectURL(url);
+                              }
+                            }}
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            다운로드
+                          </Button>
+                        </div>
+                      </TabsContent>
+                    </Tabs>
+                  )}
+                </div>
+              ) : (
+                <Alert variant="destructive">
+                  <XCircle className="h-4 w-4" />
+                  <AlertTitle>파싱 실패</AlertTitle>
+                  <AlertDescription>
+                    {selectedResult?.result?.error || "알 수 없는 오류가 발생했습니다"}
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
     </PageContainer>
   );
 }
