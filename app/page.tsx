@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
 import {
   FileText,
@@ -18,22 +19,25 @@ import {
   Zap,
   Shield,
   TrendingUp,
-  BrainCircuit
+  BrainCircuit,
+  ExternalLink,
+  ChevronDown
 } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { PageContainer } from "@/components/page-container"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { ChatPreview } from "@/components/chat-preview"
 import { FloatingChatButton } from "@/components/floating-chat-button"
 import { AnimatedGradientBg } from "@/components/animated-gradient-bg"
 import { TypingEffect } from "@/components/typing-effect"
 import { FloatingIcons } from "@/components/floating-icons"
-import { ScrollIndicator } from "@/components/scroll-indicator"
 
 export default function HomePage() {
+  const [selectedStep, setSelectedStep] = useState<number | null>(null)
 
   const features = [
     {
@@ -92,7 +96,17 @@ export default function HomePage() {
       iconColor: "text-blue-600 dark:text-blue-400",
       badgeBg: "bg-blue-500/10",
       badgeText: "text-blue-700 dark:text-blue-400",
-      badgeBorder: "border-blue-500/20"
+      badgeBorder: "border-blue-500/20",
+      detailedDescription: "Docling Serve API를 활용하여 PDF, DOCX, PPTX 등 다양한 문서 형식을 지능적으로 파싱합니다. IBM의 최신 AI 기술로 문서 구조를 정확하게 분석하고, OCR을 통해 이미지 내 텍스트까지 추출합니다.",
+      features: [
+        "다양한 문서 형식 지원 (PDF, DOCX, PPTX)",
+        "고급 OCR 기능으로 이미지 텍스트 추출",
+        "복잡한 테이블 구조 자동 인식 및 변환",
+        "마크다운 형식으로 깔끔하게 변환",
+        "문서 메타데이터 자동 추출",
+        "비동기 처리로 대용량 문서 처리 가능"
+      ],
+      link: "/parse"
     },
     {
       icon: Database,
@@ -111,7 +125,17 @@ export default function HomePage() {
       iconColor: "text-purple-600 dark:text-purple-400",
       badgeBg: "bg-purple-500/10",
       badgeText: "text-purple-700 dark:text-purple-400",
-      badgeBorder: "border-purple-500/20"
+      badgeBorder: "border-purple-500/20",
+      detailedDescription: "BGE-M3 임베딩 모델을 사용하여 문서를 1024차원의 벡터로 변환하고, Qdrant 벡터 데이터베이스에 저장합니다. 의미적 유사도 기반 검색을 통해 관련 문서를 빠르고 정확하게 찾아냅니다.",
+      features: [
+        "BGE-M3 모델로 고품질 임베딩 생성",
+        "1024차원 벡터로 의미 정보 압축",
+        "한국어/영어 등 다국어 지원",
+        "Qdrant를 활용한 고속 벡터 검색",
+        "실시간 인덱싱 및 업데이트",
+        "의미적 유사도 기반 정확한 검색"
+      ],
+      link: "/upload?tab=qdrant"
     },
     {
       icon: Bot,
@@ -130,7 +154,17 @@ export default function HomePage() {
       iconColor: "text-orange-600 dark:text-orange-400",
       badgeBg: "bg-orange-500/10",
       badgeText: "text-orange-700 dark:text-orange-400",
-      badgeBorder: "border-orange-500/20"
+      badgeBorder: "border-orange-500/20",
+      detailedDescription: "Dify AI 플랫폼과 통합하여 파싱된 문서를 지식베이스에 업로드합니다. 팀 협업과 버전 관리를 지원하며, Dify의 강력한 RAG 기능을 활용할 수 있습니다.",
+      features: [
+        "Dify 플랫폼 완벽 연동",
+        "데이터셋 자동 분류 및 관리",
+        "REST API 기반 안정적 통합",
+        "문서 버전 관리",
+        "팀 단위 권한 설정",
+        "다중 프로젝트 지원"
+      ],
+      link: "/upload?tab=dify"
     },
     {
       icon: MessageSquare,
@@ -149,7 +183,17 @@ export default function HomePage() {
       iconColor: "text-green-600 dark:text-green-400",
       badgeBg: "bg-green-500/10",
       badgeText: "text-green-700 dark:text-green-400",
-      badgeBorder: "border-green-500/20"
+      badgeBorder: "border-green-500/20",
+      detailedDescription: "RAG(Retrieval-Augmented Generation) 파이프라인을 통해 문서 기반 질의응답 시스템을 제공합니다. BGE Reranker로 검색 정확도를 극대화하고, 출처를 명확히 표시합니다.",
+      features: [
+        "벡터 검색 + BGE Reranker 2단계 검색",
+        "컨텍스트 기반 정확한 응답",
+        "출처 문서 및 페이지 번호 표시",
+        "멀티턴 대화 지원",
+        "스트리밍 응답으로 빠른 피드백",
+        "검색 정확도 향상 (Reranking)"
+      ],
+      link: "/chat"
     },
     {
       icon: Brain,
@@ -168,7 +212,17 @@ export default function HomePage() {
       iconColor: "text-rose-600 dark:text-rose-400",
       badgeBg: "bg-rose-500/10",
       badgeText: "text-rose-700 dark:text-rose-400",
-      badgeBorder: "border-rose-500/20"
+      badgeBorder: "border-rose-500/20",
+      detailedDescription: "OpenAI GPT-4, Naver HyperCLOVA X, LG EXAONE 등 다양한 LLM을 지원합니다. 각 모델의 특성에 맞춰 최적의 응답을 생성하며, 모델 간 전환이 자유롭습니다.",
+      features: [
+        "OpenAI GPT-4, GPT-4 Turbo 지원",
+        "Naver HyperCLOVA X (한국어 특화)",
+        "LG EXAONE 3.0 (131K 컨텍스트)",
+        "Anthropic Claude 3.5 Sonnet",
+        "Google Gemini Pro",
+        "모델별 특화된 응답 생성"
+      ],
+      link: "/chat"
     },
   ]
 
@@ -180,17 +234,18 @@ export default function HomePage() {
   ]
 
   return (
-    <PageContainer maxWidth="wide">
-      {/* Hero Section - 개선된 버전 */}
-      <div className="relative text-center mb-16 space-y-8 min-h-[80vh] flex flex-col justify-center">
-        {/* Animated Background */}
+    <>
+      {/* Hero Section - 전체 너비 배경 */}
+      <div className="relative w-full text-center min-h-[calc(100vh-4rem)] lg:min-h-[85vh] flex flex-col justify-center overflow-hidden">
+        {/* Animated Background - 전체 화면 */}
         <AnimatedGradientBg />
         <FloatingIcons />
 
-        <div className="relative z-10">
-          <div className="inline-flex items-center gap-2 rounded-full px-4 py-2 bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 animate-fade-up">
-            <Sparkles className="w-4 h-4 text-primary" />
-            <span className="text-sm font-medium">AI-Powered Document Intelligence</span>
+        {/* 중앙 정렬된 컨텐츠 */}
+        <div className="relative z-10 w-full max-w-7xl mx-auto px-6 md:px-8 lg:px-12 py-12 md:py-16 space-y-8">
+          <div className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 bg-gradient-to-r from-primary/20 via-primary/10 to-primary/5 border-2 border-primary/30 shadow-lg backdrop-blur-sm animate-fade-up">
+            <Sparkles className="w-4 h-4 text-primary animate-pulse" />
+            <span className="text-sm font-semibold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">AI-Powered Document Intelligence</span>
           </div>
 
           <div className="space-y-6 mt-8">
@@ -213,38 +268,63 @@ export default function HomePage() {
               />
             </div>
           </div>
-        </div>
 
-        {/* Scroll Indicator */}
-        <ScrollIndicator />
+          {/* CTA 버튼 */}
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-8 animate-fade-up animate-delay-300">
+            <Link href="/parse">
+              <Button size="lg" className="bg-gradient-to-r from-primary to-primary/80 text-white shadow-lg hover:shadow-xl transition-all hover:scale-105 px-8">
+                <Upload className="w-5 h-5 mr-2" />
+                지금 시작하기
+              </Button>
+            </Link>
+            <Link href="/chat">
+              <Button size="lg" variant="outline" className="border-2 hover:bg-primary/5 transition-all hover:scale-105 px-8">
+                <MessageSquare className="w-5 h-5 mr-2" />
+                AI 챗봇 체험
+              </Button>
+            </Link>
+          </div>
 
-        {/* 통계 표시 */}
-        <div className="relative z-10 grid grid-cols-2 sm:flex gap-4 sm:gap-8 justify-center flex-wrap mt-8 px-4">
-          {stats.map((stat, index) => {
-            const Icon = stat.icon
-            return (
-              <div
-                key={index}
-                className={`flex items-center gap-3 animate-scale-up animate-delay-${(index + 3) * 100}`}
-              >
-                <div className="p-2 rounded-lg bg-primary/10 transition-colors">
-                  <Icon className="w-4 h-4 text-primary transition-transform" />
-                </div>
-                <div className="text-left">
-                  <div className="text-xl sm:text-2xl font-bold">
-                    {stat.value}
-                    <span className="text-xs sm:text-sm text-muted-foreground ml-1">{stat.unit}</span>
+          {/* 통계 표시 */}
+          <div className="relative z-10 grid grid-cols-2 sm:flex gap-4 sm:gap-8 justify-center flex-wrap mt-12 px-4">
+            {stats.map((stat, index) => {
+              const Icon = stat.icon
+              return (
+                <div
+                  key={index}
+                  className={`flex items-center gap-3 animate-scale-up animate-delay-${(index + 4) * 100}`}
+                >
+                  <div className="p-2 rounded-lg bg-primary/10 transition-colors">
+                    <Icon className="w-4 h-4 text-primary transition-transform" />
                   </div>
-                  <div className="text-xs text-muted-foreground">{stat.label}</div>
+                  <div className="text-left">
+                    <div className="text-xl sm:text-2xl font-bold">
+                      {stat.value}
+                      <span className="text-xs sm:text-sm text-muted-foreground ml-1">{stat.unit}</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">{stat.label}</div>
+                  </div>
                 </div>
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
         </div>
+
+        {/* 스크롤 인디케이터 */}
+        <button
+          onClick={() => {
+            const processSection = document.getElementById('process-section')
+            processSection?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }}
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce z-10 cursor-pointer hover:scale-110 transition-transform"
+          aria-label="다음 섹션으로 스크롤"
+        >
+          <ChevronDown className="w-6 h-6 text-muted-foreground/60" />
+        </button>
       </div>
 
-      {/* Process Flow Diagram - 히어로 섹션 바로 아래 추가 */}
-      <div className="mb-16 py-16 bg-gradient-to-b from-background via-muted/10 to-background relative overflow-hidden">
+      {/* Process Flow Diagram - 전체 너비 배경 */}
+      <div id="process-section" className="w-full py-16 bg-gradient-to-b from-background via-muted/10 to-background relative overflow-hidden">
         {/* Background decoration */}
         <div className="absolute inset-0 bg-grid-slate-100 [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.6))] dark:bg-grid-slate-700/25 -z-10" />
 
@@ -261,103 +341,202 @@ export default function HomePage() {
           </p>
         </div>
 
-        {/* Desktop Flow Chart - 개선된 버전 */}
-        <div className="hidden lg:block max-w-[1400px] mx-auto px-8">
-          <div className="relative">
-            {/* Animated connection lines */}
-            <div className="absolute top-20 left-0 right-0 h-1 flex items-center gap-4 px-[4.5rem]">
-              {processSteps.slice(0, 4).map((step, index) => (
-                <div key={index} className={cn("flex-1 relative h-1 rounded-full overflow-hidden bg-gradient-to-r", step.gradient)}>
-                  {/* Arrow */}
-                  <div className={cn("absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 rotate-45 border-r-2 border-t-2", `border-${step.color}-500`)} />
-                </div>
-              ))}
-            </div>
-
-            {/* Process Cards - 개선된 3D 효과 */}
-            <div className="relative grid grid-cols-5 gap-6 pt-4">
+        {/* Desktop Flow Chart - 밸런스 개선 버전 */}
+        <div className="hidden lg:block max-w-[1400px] mx-auto px-6 md:px-8 lg:px-12">
+          <div className="relative pb-16">
+            {/* Process Cards - 인터랙티브 3D 효과 */}
+            <div className="relative grid grid-cols-5 gap-8 z-0">
               {processSteps.map((step, index) => {
                 const Icon = step.icon
                 return (
-                  <div
-                    key={index}
-                    className="group relative"
-                  >
-                    {/* Glow effect */}
-                    <div className={cn("absolute -inset-4 rounded-2xl opacity-75 blur-2xl -z-10", step.glowColor)} />
+                  <Dialog key={index}>
+                    <DialogTrigger asChild>
+                      <div
+                        className="group relative cursor-pointer transform transition-all duration-300 hover:scale-105 hover:-translate-y-2"
+                        style={{
+                          animation: `fade-up 0.6s ease-out`,
+                          animationDelay: `${index * 100}ms`,
+                          animationFillMode: 'both'
+                        }}
+                      >
+                        {/* Glow effect - enhanced on hover */}
+                        <div className={cn("absolute -inset-4 rounded-2xl opacity-50 blur-2xl -z-10 transition-opacity group-hover:opacity-100", step.glowColor)} />
 
-                    <Card className={cn("relative h-full border-2 bg-gradient-to-br shadow-xl backdrop-blur-sm", step.borderColor, step.bgGradient)}>
-                      <CardHeader className="text-center p-4 items-center space-y-2">
-                        {/* Step Number Badge */}
-                        <div className="absolute -top-3 -right-3 z-10">
-                          <div className={cn("relative w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-lg ring-2 ring-background bg-gradient-to-br text-white", step.gradient)}>
-                            {step.number}
-                          </div>
-                        </div>
-
+                        <Card className={cn(
+                          "relative h-full border-2 bg-gradient-to-br shadow-xl backdrop-blur-sm transition-all duration-300",
+                          "hover:shadow-2xl hover:border-opacity-100",
+                          "perspective-1000 group-hover:[transform:rotateX(5deg)_rotateY(-5deg)]",
+                          step.borderColor,
+                          step.bgGradient
+                        )}>
+                          <CardHeader className="text-center p-5 items-center space-y-2.5">
                         {/* Icon with better styling */}
-                        <div className={cn("relative w-16 h-16 rounded-xl flex items-center justify-center shadow-inner bg-gradient-to-br", step.iconBg)}>
-                          <Icon className={cn("w-8 h-8", step.iconColor)} />
+                        <div className={cn("relative w-14 h-14 rounded-xl flex items-center justify-center shadow-inner bg-gradient-to-br", step.iconBg)}>
+                          <Icon className={cn("w-7 h-7", step.iconColor)} />
                         </div>
 
                         {/* Title */}
-                        <div className="space-y-1.5 flex flex-col items-center">
-                          <CardTitle className="text-sm font-bold text-center leading-tight">
+                        <div className="space-y-2 flex flex-col items-center">
+                          <CardTitle className="text-base font-bold text-center leading-tight">
                             {step.title}
                           </CardTitle>
 
                           {/* Description */}
-                          <p className="text-[0.7rem] text-muted-foreground text-center leading-snug px-1">
+                          <p className="text-xs text-muted-foreground text-center leading-snug px-1">
                             {step.description}
                           </p>
 
                           {/* Tech Badge */}
                           <Badge
                             variant="secondary"
-                            className={cn("text-[0.65rem] px-2 py-0.5 font-medium shadow-sm", step.badgeBg, step.badgeText, step.badgeBorder)}
+                            className={cn("text-[0.7rem] px-2.5 py-0.5 font-medium shadow-sm", step.badgeBg, step.badgeText, step.badgeBorder)}
                           >
                             {step.tech}
                           </Badge>
                         </div>
                       </CardHeader>
                     </Card>
-                  </div>
+                      </div>
+                    </DialogTrigger>
+
+                    {/* Dialog Content - 상세 정보 */}
+                    <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                      <DialogHeader>
+                        <div className="flex items-start gap-4">
+                          <div className={cn("w-16 h-16 rounded-xl flex items-center justify-center shadow-inner bg-gradient-to-br", step.iconBg)}>
+                            <Icon className={cn("w-8 h-8", step.iconColor)} />
+                          </div>
+                          <div className="flex-1">
+                            <DialogTitle className="text-2xl font-bold mb-2 flex items-center gap-2">
+                              {step.title}
+                              <Badge variant="secondary" className={cn("text-xs", step.badgeBg, step.badgeText)}>
+                                {step.number}
+                              </Badge>
+                            </DialogTitle>
+                            <DialogDescription className="text-base">
+                              {step.detailedDescription}
+                            </DialogDescription>
+                          </div>
+                        </div>
+                      </DialogHeader>
+
+                      <div className="space-y-6 mt-6">
+                        {/* 기술 스택 */}
+                        <div>
+                          <h4 className="font-semibold mb-3 flex items-center gap-2">
+                            <Sparkles className="w-4 h-4" />
+                            기술 스택
+                          </h4>
+                          <Badge variant="outline" className={cn("text-sm px-3 py-1", step.badgeBg, step.badgeText)}>
+                            {step.tech}
+                          </Badge>
+                        </div>
+
+                        {/* 링크 버튼 */}
+                        {step.link && (
+                          <div className="pt-4 border-t">
+                            <Link href={step.link}>
+                              <Button className={cn("w-full bg-gradient-to-r text-white", step.gradient)}>
+                                <ExternalLink className="w-4 h-4 mr-2" />
+                                {step.title} 페이지로 이동
+                              </Button>
+                            </Link>
+                          </div>
+                        )}
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 )
               })}
+            </div>
+
+            {/* 3D 입체 파이프 연결선 - 하단 (카드 아래로 이동) */}
+            <div className="absolute -bottom-8 left-0 right-0 h-12 px-[4.5rem] pointer-events-none">
+              {/* 파이프 외곽선 (3D 효과) */}
+              <div className="absolute inset-0 bg-gradient-to-b from-muted/70 via-muted/50 to-muted/30 rounded-full shadow-[inset_0_3px_10px_rgba(0,0,0,0.25)] dark:shadow-[inset_0_3px_10px_rgba(0,0,0,0.5)]" />
+
+              {/* 내부 그라데이션 레이어 */}
+              <div className="absolute inset-y-1.5 left-0 right-0 rounded-full overflow-hidden bg-gradient-to-r from-blue-500/40 via-purple-500/40 via-orange-500/40 via-green-500/40 to-rose-500/40" />
+
+              {/* 흐르는 데이터 패턴 */}
+              <div className="absolute inset-y-3 left-0 right-0 overflow-hidden rounded-full">
+                <div
+                  className="h-full w-full bg-[repeating-linear-gradient(90deg,transparent_0,transparent_20px,rgba(255,255,255,0.4)_20px,rgba(255,255,255,0.4)_40px)] dark:bg-[repeating-linear-gradient(90deg,transparent_0,transparent_20px,rgba(255,255,255,0.25)_20px,rgba(255,255,255,0.25)_40px)]"
+                  style={{ animation: 'flow-pipe 2s linear infinite' }}
+                />
+              </div>
+
+              {/* 각 단계마다 밸브(노드) 표시 */}
+              {processSteps.map((step, idx) => (
+                <div
+                  key={idx}
+                  className={cn(
+                    "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-14 h-14 rounded-full border-4 shadow-xl transition-all duration-300 pointer-events-auto cursor-pointer hover:scale-125 hover:shadow-2xl",
+                    "bg-gradient-to-br backdrop-blur-sm",
+                    step.bgGradient
+                  )}
+                  style={{
+                    left: `${10 + idx * 20}%`,
+                    borderColor: `var(--color-${step.color})`,
+                  }}
+                >
+                  {/* 내부 펄스 효과 */}
+                  <div className={cn("absolute inset-1.5 rounded-full bg-gradient-to-br opacity-70 animate-pulse", step.gradient)} />
+
+                  {/* 단계 번호 */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-sm font-bold text-white drop-shadow-lg">{step.number}</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
 
-        {/* Mobile/Tablet Flow - 개선된 버전 */}
+        {/* Mobile/Tablet Flow - 밸런스 개선 버전 */}
         <div className="lg:hidden max-w-lg mx-auto px-4">
           <div className="relative">
-            {/* Animated Vertical Connection Line - 그라데이션으로 변경 */}
-            <div className="absolute left-10 top-8 bottom-8 w-1 rounded-full overflow-hidden bg-gradient-to-b from-blue-500 via-purple-500 via-orange-500 via-green-500 to-rose-500" />
+            {/* 3D 입체 파이프 (수직) */}
+            <div className="absolute left-8 top-8 bottom-8 w-8 -translate-x-1/2 z-0">
+              {/* 파이프 외곽선 */}
+              <div className="absolute inset-0 bg-gradient-to-r from-muted/60 via-muted/40 to-muted/20 rounded-full shadow-[inset_2px_0_8px_rgba(0,0,0,0.2)] dark:shadow-[inset_2px_0_8px_rgba(0,0,0,0.4)]" />
+
+              {/* 내부 그라데이션 */}
+              <div className="absolute inset-x-1 top-0 bottom-0 rounded-full overflow-hidden bg-gradient-to-b from-blue-500/30 via-purple-500/30 via-orange-500/30 via-green-500/30 to-rose-500/30" />
+
+              {/* 흐르는 데이터 패턴 (수직) */}
+              <div className="absolute inset-x-2 top-0 bottom-0 overflow-hidden rounded-full">
+                <div
+                  className="w-full h-full bg-[repeating-linear-gradient(0deg,transparent_0,transparent_20px,rgba(255,255,255,0.3)_20px,rgba(255,255,255,0.3)_40px)] dark:bg-[repeating-linear-gradient(0deg,transparent_0,transparent_20px,rgba(255,255,255,0.2)_20px,rgba(255,255,255,0.2)_40px)]"
+                  style={{ animation: 'flow-down 2s linear infinite' }}
+                />
+              </div>
+            </div>
 
             {/* Process Cards */}
-            <div className="space-y-8">
+            <div className="space-y-6">
               {processSteps.map((step, index) => {
                 const Icon = step.icon
                 return (
-                  <div key={index} className="relative flex gap-5 items-start">
+                  <div key={index} className="relative flex gap-4 items-start">
                     {/* Enhanced Step Circle */}
-                    <div className={cn("relative z-10 w-20 h-20 rounded-full flex items-center justify-center shrink-0 border-4 bg-gradient-to-br shadow-lg ring-4 ring-background", `border-${step.color}-500`, step.bgGradient)}>
-                      <Icon className={cn("w-9 h-9", step.iconColor)} />
+                    <div className={cn("relative z-10 w-16 h-16 rounded-full flex items-center justify-center shrink-0 border-4 bg-gradient-to-br shadow-lg ring-4 ring-background", `border-${step.color}-500`, step.bgGradient)}>
+                      <Icon className={cn("w-8 h-8", step.iconColor)} />
 
                       {/* Step number */}
-                      <div className={cn("absolute -top-2 -right-2 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-md text-white bg-gradient-to-br", step.gradient)}>
+                      <div className={cn("absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-[0.65rem] font-bold shadow-md text-white bg-gradient-to-br", step.gradient)}>
                         {step.number}
                       </div>
                     </div>
 
                     {/* Enhanced Content Card */}
                     <Card className={cn("flex-1 border-2 bg-gradient-to-br shadow-md", step.borderColor, step.bgGradient)}>
-                      <CardHeader className="p-3 text-center space-y-2">
-                        <div className="space-y-1">
-                          <CardTitle className="text-base font-bold leading-tight">
+                      <CardHeader className="p-4 text-center space-y-2">
+                        <div className="space-y-1.5">
+                          <CardTitle className="text-lg font-bold leading-tight">
                             {step.title}
                           </CardTitle>
-                          <CardDescription className="text-[0.7rem] leading-snug">
+                          <CardDescription className="text-xs leading-snug">
                             {step.description}
                           </CardDescription>
                         </div>
@@ -365,7 +544,7 @@ export default function HomePage() {
                         {/* Tech Badge */}
                         <Badge
                           variant="secondary"
-                          className={cn("text-[0.65rem] px-2 py-0.5 font-medium shadow-sm mx-auto", step.badgeBg, step.badgeText, step.badgeBorder)}
+                          className={cn("text-[0.7rem] px-2.5 py-0.5 font-medium shadow-sm mx-auto", step.badgeBg, step.badgeText, step.badgeBorder)}
                         >
                           {step.tech}
                         </Badge>
@@ -380,7 +559,8 @@ export default function HomePage() {
 
       </div>
 
-
+      {/* 나머지 섹션들은 PageContainer로 감싸기 */}
+      <PageContainer maxWidth="wide">
       {/* AI 챗봇 섹션 - 새로 추가 */}
       <div className="mb-16">
         <div className="text-center mb-12">
@@ -467,52 +647,10 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Features - 개선된 카드 디자인 */}
-      <div>
-        <div className="text-center mb-12">
-          <Badge variant="outline" className="mb-4">주요 기능</Badge>
-          <h2 className="text-4xl font-bold mb-4">강력한 문서 처리 도구</h2>
-          <p className="text-lg text-muted-foreground">
-            엔터프라이즈급 문서 인텔리전스 플랫폼
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto px-4 sm:px-0">
-          {features.map((feature) => {
-            const Icon = feature.icon
-            return (
-              <Card key={feature.href} className="h-full border-2">
-                <CardHeader>
-                  <div className={cn(
-                    "w-14 h-14 rounded-xl flex items-center justify-center mb-4",
-                    feature.bgColor
-                  )}>
-                    <Icon className={cn("w-7 h-7", feature.color)} />
-                  </div>
-                  <CardTitle>
-                    {feature.title}
-                  </CardTitle>
-                  <CardDescription className="mt-2">
-                    {feature.description}
-                  </CardDescription>
-                  <div className="pt-4 space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">주요 기능</p>
-                    {feature.features.map((item, idx) => (
-                      <div key={idx} className="flex items-center gap-2 text-sm">
-                        <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400" />
-                        <span className="text-sm text-muted-foreground">{item}</span>
-                      </div>
-                    ))}
-                  </div>
-                </CardHeader>
-              </Card>
-            )
-          })}
-        </div>
-      </div>
+      </PageContainer>
 
       {/* 플로팅 챗봇 버튼 */}
       <FloatingChatButton />
-    </PageContainer>
+    </>
   )
 }

@@ -25,7 +25,7 @@ import {
 
 export default function UploadPage() {
   const searchParams = useSearchParams()
-  const initialTab = (searchParams.get("tab") as UploadTarget) || "dify"
+  const initialTab = (searchParams.get("tab") as UploadTarget) || "qdrant"
 
   // 탭 상태
   const [activeTab, setActiveTab] = useState<UploadTarget>(initialTab)
@@ -486,82 +486,18 @@ export default function UploadPage() {
   return (
     <PageContainer maxWidth="wide" className="py-6">
       <div className="space-y-6">
-        {/* 헤더 */}
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">문서 업로드 & 통합</h1>
-          <p className="text-muted-foreground mt-2">
-            Dify 또는 Qdrant로 파싱된 문서를 업로드하세요
-          </p>
-        </div>
-
         {/* 탭 */}
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as UploadTarget)}>
           <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value="dify" className="gap-2">
-              <Settings className="h-4 w-4" />
-              Dify 업로드
-            </TabsTrigger>
             <TabsTrigger value="qdrant" className="gap-2">
               <Database className="h-4 w-4" />
               Qdrant 업로드
             </TabsTrigger>
+            <TabsTrigger value="dify" className="gap-2">
+              <Settings className="h-4 w-4" />
+              Dify 업로드
+            </TabsTrigger>
           </TabsList>
-
-          {/* Dify 탭 */}
-          <TabsContent value="dify" className="space-y-6">
-            <DifySettingsPanel
-              apiKey={difyApiKey}
-              baseUrl={difyBaseUrl}
-              selectedDataset={selectedDifyDataset}
-              datasets={difyDatasets}
-              loadingDatasets={loadingDifyDatasets}
-              saveDialogOpen={difySaveDialogOpen}
-              configName={difyConfigName}
-              onApiKeyChange={setDifyApiKey}
-              onBaseUrlChange={setDifyBaseUrl}
-              onSelectedDatasetChange={setSelectedDifyDataset}
-              onFetchDatasets={fetchDifyDatasets}
-              onSaveDialogOpenChange={setDifySaveDialogOpen}
-              onConfigNameChange={setDifyConfigName}
-              onSaveConfig={saveDifyConfig}
-            />
-
-            {/* 업로드 버튼 */}
-            <div className="flex justify-end">
-              <Button
-                onClick={uploadToDify}
-                disabled={isDifyUploadDisabled}
-                size="lg"
-                className="gap-2"
-              >
-                {uploadingDify ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    업로드 중...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4" />
-                    Dify에 업로드 ({selectedDocs.size})
-                  </>
-                )}
-              </Button>
-            </div>
-
-            {(!difyApiKey || !selectedDifyDataset) && selectedDocs.size > 0 && (
-              <Alert>
-                <AlertDescription>
-                  업로드하려면 상단에서 API Key와 데이터셋을 먼저 설정해주세요.
-                </AlertDescription>
-              </Alert>
-            )}
-
-            <UploadResults
-              uploadTarget="dify"
-              difyResults={difyResults}
-              qdrantResults={[]}
-            />
-          </TabsContent>
 
           {/* Qdrant 탭 */}
           <TabsContent value="qdrant" className="space-y-6">
@@ -622,6 +558,62 @@ export default function UploadPage() {
               uploadTarget="qdrant"
               difyResults={[]}
               qdrantResults={qdrantResults}
+            />
+          </TabsContent>
+
+          {/* Dify 탭 */}
+          <TabsContent value="dify" className="space-y-6">
+            <DifySettingsPanel
+              apiKey={difyApiKey}
+              baseUrl={difyBaseUrl}
+              selectedDataset={selectedDifyDataset}
+              datasets={difyDatasets}
+              loadingDatasets={loadingDifyDatasets}
+              saveDialogOpen={difySaveDialogOpen}
+              configName={difyConfigName}
+              onApiKeyChange={setDifyApiKey}
+              onBaseUrlChange={setDifyBaseUrl}
+              onSelectedDatasetChange={setSelectedDifyDataset}
+              onFetchDatasets={fetchDifyDatasets}
+              onSaveDialogOpenChange={setDifySaveDialogOpen}
+              onConfigNameChange={setDifyConfigName}
+              onSaveConfig={saveDifyConfig}
+            />
+
+            {/* 업로드 버튼 */}
+            <div className="flex justify-end">
+              <Button
+                onClick={uploadToDify}
+                disabled={isDifyUploadDisabled}
+                size="lg"
+                className="gap-2"
+              >
+                {uploadingDify ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    업로드 중...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4" />
+                    Dify에 업로드 ({selectedDocs.size})
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {(!difyApiKey || !selectedDifyDataset) && selectedDocs.size > 0 && (
+              <Alert>
+                <AlertDescription>
+                  업로드하려면 상단에서 API Key와 데이터셋을 먼저 설정해주세요.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <UploadResults
+              uploadTarget="dify"
+              difyResults={difyResults}
+              qdrantResults={[]}
             />
           </TabsContent>
         </Tabs>
