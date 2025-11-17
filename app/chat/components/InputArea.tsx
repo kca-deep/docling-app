@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, KeyboardEvent, useEffect } from "react";
+import { useState, useRef, KeyboardEvent, useEffect, memo } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,7 +37,7 @@ interface InputAreaProps {
   onClearQuote?: () => void;
 }
 
-export function InputArea({
+export const InputArea = memo(function InputArea({
   input,
   setInput,
   onSend,
@@ -251,4 +251,4 @@ export function InputArea({
       </div>
     </div>
   );
-}
+});

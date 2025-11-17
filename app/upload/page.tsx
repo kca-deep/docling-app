@@ -37,7 +37,7 @@ export default function UploadPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalDocs, setTotalDocs] = useState(0)
-  const [pageSize] = useState(20)
+  const [pageSize] = useState(10)
   const [searchQuery, setSearchQuery] = useState("")
   const [searchInput, setSearchInput] = useState("")
   const [loadingDocuments, setLoadingDocuments] = useState(false)

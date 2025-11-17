@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
@@ -39,7 +40,7 @@ interface SettingsPanelProps {
   onSettingsChange: (settings: ChatSettings) => void;
 }
 
-export function SettingsPanel({
+export const SettingsPanel = memo(function SettingsPanel({
   settings,
   onSettingsChange,
 }: SettingsPanelProps) {
@@ -298,4 +299,4 @@ export function SettingsPanel({
       </ScrollArea>
     </div>
   );
-}
+});

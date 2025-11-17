@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, memo } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -43,7 +43,7 @@ interface MessageListProps {
   onPromptSelect?: (prompt: string) => void;
 }
 
-export function MessageList({
+export const MessageList = memo(function MessageList({
   messages,
   isLoading,
   isStreaming,
@@ -207,4 +207,4 @@ export function MessageList({
       </div>
     </ScrollArea>
   );
-}
+});

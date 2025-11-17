@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Bot, User, FileText, Copy, Check, RefreshCw, Reply } from "lucide-react";
 import { MarkdownMessage } from "@/components/markdown-message";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, memo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -61,7 +61,7 @@ interface MessageBubbleProps {
   isStreaming?: boolean;
 }
 
-export function MessageBubble({
+export const MessageBubble = memo(function MessageBubble({
   role,
   content,
   timestamp,
@@ -443,4 +443,4 @@ export function MessageBubble({
       </div>
     </div>
   );
-}
+});

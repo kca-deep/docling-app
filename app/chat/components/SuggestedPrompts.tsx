@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, memo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Lightbulb, Sparkles } from "lucide-react";
@@ -11,7 +11,7 @@ interface SuggestedPromptsProps {
   onSelect: (prompt: string) => void;
 }
 
-export function SuggestedPrompts({ collectionName, onSelect }: SuggestedPromptsProps) {
+export const SuggestedPrompts = memo(function SuggestedPrompts({ collectionName, onSelect }: SuggestedPromptsProps) {
   const [prompts, setPrompts] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -109,4 +109,4 @@ export function SuggestedPrompts({ collectionName, onSelect }: SuggestedPromptsP
       </div>
     </div>
   );
-}
+});

@@ -18,6 +18,15 @@
         "temperature": 0.2,
         "reasoning_level": "high"
       }
+    },
+    "3. 기금관리규정": {
+      "prompt_file": "fund.md",
+      "description": "기금사업 협약, 사업비 관리, 정산, 성과평가 등 기금 관련 지침",
+      "recommended_params": {
+        "top_k": 15,
+        "temperature": 0.2,
+        "reasoning_level": "high"
+      }
     }
   },
   "default_prompt": "default.md",

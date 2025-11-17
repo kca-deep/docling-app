@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { MessageList } from "./MessageList";
 import { InputArea } from "./InputArea";
 import { SettingsPanel } from "./SettingsPanel";
@@ -210,7 +210,7 @@ export function ChatContainer() {
   }, []);
 
   // 메시지 전송 (비스트리밍)
-  const handleNonStreamingSend = async (userMessage: Message, quotedMsg: Message | null = null) => {
+  const handleNonStreamingSend = useCallback(async (userMessage: Message, quotedMsg: Message | null = null) => {
     try {
       // 대화 기록 준비
       let chatHistory = messages.filter(m => m.role !== "system").slice(-10);
@@ -305,10 +305,10 @@ export function ChatContainer() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [messages, selectedCollection, settings]);
 
   // 메시지 전송 (스트리밍)
-  const handleStreamingSend = async (userMessage: Message, quotedMsg: Message | null = null) => {
+  const handleStreamingSend = useCallback(async (userMessage: Message, quotedMsg: Message | null = null) => {
     try {
       // 대화 기록 준비
       let chatHistory = messages.filter(m => m.role !== "system").slice(-10);
@@ -468,9 +468,9 @@ export function ChatContainer() {
       };
       setMessages((prev) => [...prev, errorMessage]);
     }
-  };
+  }, [messages, selectedCollection, settings]);
 
-  const handleSend = async () => {
+  const handleSend = useCallback(async () => {
     if (!input.trim() || !selectedCollection) {
       toast.error("컬렉션을 선택하고 메시지를 입력해주세요");
       return;
@@ -496,9 +496,9 @@ export function ChatContainer() {
     } else {
       await handleNonStreamingSend(userMessage, currentQuoted);
     }
-  };
+  }, [input, selectedCollection, quotedMessage, settings.streamMode, handleStreamingSend, handleNonStreamingSend]);
 
-  const handleClearChat = () => {
+  const handleClearChat = useCallback(() => {
     setMessages([
       {
         id: "1",
@@ -509,10 +509,10 @@ export function ChatContainer() {
     ]);
     setCurrentSources([]);
     toast.success("대화가 초기화되었습니다");
-  };
+  }, []);
 
   // 재생성 핸들러
-  const handleRegenerate = async (messageIndex: number) => {
+  const handleRegenerate = useCallback(async (messageIndex: number) => {
     const targetMessage = messages[messageIndex];
 
     if (!targetMessage || targetMessage.role !== "assistant") {
@@ -607,7 +607,20 @@ export function ChatContainer() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [messages]);
+
+  // 인용 메시지 핸들러
+  const handleQuote = useCallback((message: Message) => {
+    setQuotedMessage(message);
+  }, []);
+
+  const handleClearQuote = useCallback(() => {
+    setQuotedMessage(null);
+  }, []);
+
+  const handlePromptSelect = useCallback((prompt: string) => {
+    setInput(prompt);
+  }, []);
 
   const chatContent = (
     <div
@@ -732,9 +745,9 @@ export function ChatContainer() {
           isLoading={isLoading}
           isStreaming={settings.streamMode}
           onRegenerate={handleRegenerate}
-          onQuote={(message) => setQuotedMessage(message)}
+          onQuote={handleQuote}
           collectionName={selectedCollection}
-          onPromptSelect={(prompt) => setInput(prompt)}
+          onPromptSelect={handlePromptSelect}
         />
       </div>
 
@@ -746,8 +759,8 @@ export function ChatContainer() {
         isLoading={isLoading}
         disabled={!selectedCollection}
         onClear={handleClearChat}
-        quotedMessage={quotedMessage ? { role: quotedMessage.role, content: quotedMessage.content } : null}
-        onClearQuote={() => setQuotedMessage(null)}
+        quotedMessage={quotedMessage && quotedMessage.role !== "system" ? { role: quotedMessage.role, content: quotedMessage.content } : null}
+        onClearQuote={handleClearQuote}
       />
     </div>
   );
