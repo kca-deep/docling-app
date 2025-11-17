@@ -195,9 +195,9 @@ export const MessageList = memo(function MessageList({
                   setUserScrolled(false);
                 }
               }}
-              className="fixed bottom-[160px] left-1/2 -translate-x-1/2 z-50 bg-primary text-primary-foreground rounded-full px-4 py-2 shadow-lg hover:shadow-xl transition-all hover:scale-105 active:scale-95"
+              className="fixed bottom-[160px] left-1/2 -translate-x-1/2 z-50 bg-primary text-primary-foreground rounded-full w-10 h-10 flex items-center justify-center shadow-lg hover:shadow-xl transition-all hover:scale-105 active:scale-95 text-base"
             >
-              ↓ 새 메시지
+              ↓
             </button>
           )}
 
