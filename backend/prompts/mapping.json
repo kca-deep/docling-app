@@ -1,12 +1,21 @@
 {
   "version": "1.0",
   "collection_prompts": {
-    "regulation_docs": {
+    "1. 인사 및 복무": {
       "prompt_file": "regulation.md",
-      "description": "규정, 지침 등 법령 문서 전용",
+      "description": "인사규정, 복무규정 등 법령 문서",
       "recommended_params": {
         "top_k": 10,
         "temperature": 0.3,
+        "reasoning_level": "high"
+      }
+    },
+    "2. 예산관리": {
+      "prompt_file": "budget.md",
+      "description": "예산회계, 여비, 법인카드, 수수료 문서",
+      "recommended_params": {
+        "top_k": 15,
+        "temperature": 0.2,
         "reasoning_level": "high"
       }
     }
