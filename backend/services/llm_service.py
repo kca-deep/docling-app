@@ -193,7 +193,7 @@ class LLMService:
 
             # 메타데이터에서 추가 정보 추출
             payload = doc.get("payload", {})
-            headings = payload.get("headings", [])
+            headings = payload.get("headings") or []  # None 안전 처리
 
             # headings에서 파일명과 페이지 정보 추출
             if len(headings) >= 2:

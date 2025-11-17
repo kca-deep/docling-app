@@ -6,6 +6,7 @@ import { PageContainer } from "@/components/page-container"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Card, CardContent } from "@/components/ui/card"
 import { Loader2, Upload, Database, Settings } from "lucide-react"
 import { toast } from "sonner"
 import { MarkdownViewerModal } from "@/components/markdown-viewer-modal"
@@ -484,53 +485,86 @@ export default function UploadPage() {
   const isQdrantUploadDisabled = uploadingQdrant || selectedDocs.size === 0 || !selectedQdrantCollection
 
   return (
-    <PageContainer maxWidth="wide" className="py-6">
-      <div className="space-y-6">
-        {/* 탭 */}
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as UploadTarget)}>
-          <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value="qdrant" className="gap-2">
-              <Database className="h-4 w-4" />
-              Qdrant 업로드
-            </TabsTrigger>
-            <TabsTrigger value="dify" className="gap-2">
-              <Settings className="h-4 w-4" />
-              Dify 업로드
-            </TabsTrigger>
-          </TabsList>
+    <PageContainer maxWidth="wide" className="py-4">
+      <div className="grid grid-cols-1 lg:grid-cols-[7fr_3fr] gap-4">
+        {/* 좌측: 문서 목록 (70%) */}
+        <div className="space-y-4 min-w-0">
+          <DocumentSelector
+            documents={documents}
+            selectedDocs={selectedDocs}
+            selectedDocsInfo={selectedDocsInfo}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalDocs={totalDocs}
+            searchInput={searchInput}
+            searchQuery={searchQuery}
+            loadingDocuments={loadingDocuments}
+            onToggleDocument={toggleDocument}
+            onToggleAll={toggleAll}
+            onDeselectDocument={deselectDocument}
+            onSearch={handleSearch}
+            onSearchInputChange={setSearchInput}
+            onSearchReset={handleSearchReset}
+            onPageChange={handlePageChange}
+            onOpenDocumentViewer={openDocumentViewer}
+          />
+        </div>
 
-          {/* Qdrant 탭 */}
-          <TabsContent value="qdrant" className="space-y-6">
-            <QdrantSettingsPanel
-              selectedCollection={selectedQdrantCollection}
-              collections={qdrantCollections}
-              chunkSize={chunkSize}
-              chunkOverlap={chunkOverlap}
-              loadingCollections={loadingQdrantCollections}
-              createDialogOpen={qdrantCreateDialogOpen}
-              deleteDialogOpen={qdrantDeleteDialogOpen}
-              newCollectionName={newCollectionName}
-              distance={distance}
-              deleting={deletingCollection}
-              onSelectedCollectionChange={setSelectedQdrantCollection}
-              onChunkSizeChange={setChunkSize}
-              onChunkOverlapChange={setChunkOverlap}
-              onFetchCollections={fetchQdrantCollections}
-              onCreateDialogOpenChange={setQdrantCreateDialogOpen}
-              onDeleteDialogOpenChange={setQdrantDeleteDialogOpen}
-              onNewCollectionNameChange={setNewCollectionName}
-              onDistanceChange={setDistance}
-              onCreateCollection={createQdrantCollection}
-              onDeleteCollection={deleteQdrantCollection}
-            />
+        {/* 우측: Qdrant/Dify 설정 (30%) - Sticky */}
+        <div className="lg:sticky lg:top-4 lg:self-start min-w-0 overflow-hidden">
+          <Card className="min-w-0 overflow-hidden">
+            <CardContent className="p-0">
+              <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as UploadTarget)}>
+                <TabsList className="grid w-full grid-cols-2 rounded-none border-b">
+                  <TabsTrigger value="qdrant" className="gap-2">
+                    <Database className="h-4 w-4" />
+                    Qdrant
+                  </TabsTrigger>
+                  <TabsTrigger value="dify" className="gap-2">
+                    <Settings className="h-4 w-4" />
+                    Dify
+                  </TabsTrigger>
+                </TabsList>
 
-            {/* 업로드 버튼 */}
-            <div className="flex justify-end">
+                {/* Qdrant 탭 */}
+                <TabsContent value="qdrant" className="space-y-4 m-0 p-6">
+              <QdrantSettingsPanel
+                selectedCollection={selectedQdrantCollection}
+                collections={qdrantCollections}
+                chunkSize={chunkSize}
+                chunkOverlap={chunkOverlap}
+                loadingCollections={loadingQdrantCollections}
+                createDialogOpen={qdrantCreateDialogOpen}
+                deleteDialogOpen={qdrantDeleteDialogOpen}
+                newCollectionName={newCollectionName}
+                distance={distance}
+                deleting={deletingCollection}
+                onSelectedCollectionChange={setSelectedQdrantCollection}
+                onChunkSizeChange={setChunkSize}
+                onChunkOverlapChange={setChunkOverlap}
+                onFetchCollections={fetchQdrantCollections}
+                onCreateDialogOpenChange={setQdrantCreateDialogOpen}
+                onDeleteDialogOpenChange={setQdrantDeleteDialogOpen}
+                onNewCollectionNameChange={setNewCollectionName}
+                onDistanceChange={setDistance}
+                onCreateCollection={createQdrantCollection}
+                onDeleteCollection={deleteQdrantCollection}
+              />
+
+              {!selectedQdrantCollection && selectedDocs.size > 0 && (
+                <Alert>
+                  <AlertDescription>
+                    업로드하려면 상단에서 Collection을 먼저 선택해주세요.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* 업로드 버튼 */}
               <Button
                 onClick={uploadToQdrant}
                 disabled={isQdrantUploadDisabled}
                 size="lg"
-                className="gap-2"
+                className="w-full gap-2"
               >
                 {uploadingQdrant ? (
                   <>
@@ -544,49 +578,47 @@ export default function UploadPage() {
                   </>
                 )}
               </Button>
-            </div>
 
-            {!selectedQdrantCollection && selectedDocs.size > 0 && (
-              <Alert>
-                <AlertDescription>
-                  업로드하려면 상단에서 Collection을 먼저 선택해주세요.
-                </AlertDescription>
-              </Alert>
-            )}
+              <UploadResults
+                uploadTarget="qdrant"
+                difyResults={[]}
+                qdrantResults={qdrantResults}
+              />
+            </TabsContent>
 
-            <UploadResults
-              uploadTarget="qdrant"
-              difyResults={[]}
-              qdrantResults={qdrantResults}
-            />
-          </TabsContent>
+              {/* Dify 탭 */}
+              <TabsContent value="dify" className="space-y-4 m-0 p-6">
+                <DifySettingsPanel
+                apiKey={difyApiKey}
+                baseUrl={difyBaseUrl}
+                selectedDataset={selectedDifyDataset}
+                datasets={difyDatasets}
+                loadingDatasets={loadingDifyDatasets}
+                saveDialogOpen={difySaveDialogOpen}
+                configName={difyConfigName}
+                onApiKeyChange={setDifyApiKey}
+                onBaseUrlChange={setDifyBaseUrl}
+                onSelectedDatasetChange={setSelectedDifyDataset}
+                onFetchDatasets={fetchDifyDatasets}
+                onSaveDialogOpenChange={setDifySaveDialogOpen}
+                onConfigNameChange={setDifyConfigName}
+                onSaveConfig={saveDifyConfig}
+              />
 
-          {/* Dify 탭 */}
-          <TabsContent value="dify" className="space-y-6">
-            <DifySettingsPanel
-              apiKey={difyApiKey}
-              baseUrl={difyBaseUrl}
-              selectedDataset={selectedDifyDataset}
-              datasets={difyDatasets}
-              loadingDatasets={loadingDifyDatasets}
-              saveDialogOpen={difySaveDialogOpen}
-              configName={difyConfigName}
-              onApiKeyChange={setDifyApiKey}
-              onBaseUrlChange={setDifyBaseUrl}
-              onSelectedDatasetChange={setSelectedDifyDataset}
-              onFetchDatasets={fetchDifyDatasets}
-              onSaveDialogOpenChange={setDifySaveDialogOpen}
-              onConfigNameChange={setDifyConfigName}
-              onSaveConfig={saveDifyConfig}
-            />
+              {(!difyApiKey || !selectedDifyDataset) && selectedDocs.size > 0 && (
+                <Alert>
+                  <AlertDescription>
+                    업로드하려면 상단에서 API Key와 데이터셋을 먼저 설정해주세요.
+                  </AlertDescription>
+                </Alert>
+              )}
 
-            {/* 업로드 버튼 */}
-            <div className="flex justify-end">
+              {/* 업로드 버튼 */}
               <Button
                 onClick={uploadToDify}
                 disabled={isDifyUploadDisabled}
                 size="lg"
-                className="gap-2"
+                className="w-full gap-2"
               >
                 {uploadingDify ? (
                   <>
@@ -600,44 +632,17 @@ export default function UploadPage() {
                   </>
                 )}
               </Button>
-            </div>
 
-            {(!difyApiKey || !selectedDifyDataset) && selectedDocs.size > 0 && (
-              <Alert>
-                <AlertDescription>
-                  업로드하려면 상단에서 API Key와 데이터셋을 먼저 설정해주세요.
-                </AlertDescription>
-              </Alert>
-            )}
-
-            <UploadResults
-              uploadTarget="dify"
-              difyResults={difyResults}
-              qdrantResults={[]}
-            />
-          </TabsContent>
-        </Tabs>
-
-        {/* 공통: 문서 선택 */}
-        <DocumentSelector
-          documents={documents}
-          selectedDocs={selectedDocs}
-          selectedDocsInfo={selectedDocsInfo}
-          currentPage={currentPage}
-          totalPages={totalPages}
-          totalDocs={totalDocs}
-          searchInput={searchInput}
-          searchQuery={searchQuery}
-          loadingDocuments={loadingDocuments}
-          onToggleDocument={toggleDocument}
-          onToggleAll={toggleAll}
-          onDeselectDocument={deselectDocument}
-          onSearch={handleSearch}
-          onSearchInputChange={setSearchInput}
-          onSearchReset={handleSearchReset}
-          onPageChange={handlePageChange}
-          onOpenDocumentViewer={openDocumentViewer}
-        />
+              <UploadResults
+                uploadTarget="dify"
+                difyResults={difyResults}
+                qdrantResults={[]}
+              />
+              </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* Markdown Viewer 모달 */}

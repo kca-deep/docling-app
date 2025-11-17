@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Loader2, FileText, Search, X } from "lucide-react"
 import { Document } from "../types"
 
@@ -54,13 +55,13 @@ export function DocumentSelector({
   onOpenDocumentViewer,
 }: DocumentSelectorProps) {
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-3">
+    <Card className="min-w-0 overflow-hidden">
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-2">
           <FileText className="h-5 w-5" />
           <div>
-            <CardTitle>저장된 문서 목록</CardTitle>
-            <CardDescription className="mt-1">
+            <CardTitle className="text-lg">저장된 문서 목록</CardTitle>
+            <CardDescription className="mt-0.5">
               총 {totalDocs}개 문서 중 {selectedDocs.size}개 선택됨
             </CardDescription>
           </div>
@@ -68,7 +69,7 @@ export function DocumentSelector({
 
         {/* 선택된 문서 표시 */}
         {selectedDocs.size > 0 && (
-          <div className="mt-4 p-3 border rounded-lg bg-muted/30">
+          <div className="mt-3 p-3 border rounded-lg bg-muted/30">
             <Label className="text-sm font-medium mb-2 block">선택된 문서 ({selectedDocs.size}개)</Label>
             <ScrollArea className="max-h-20">
               <div className="flex flex-wrap gap-2">
@@ -93,7 +94,7 @@ export function DocumentSelector({
         )}
 
         {/* 검색 입력 */}
-        <div className="mt-4 flex gap-2">
+        <div className="mt-3 flex gap-2">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -157,13 +158,20 @@ export function DocumentSelector({
                           onCheckedChange={() => onToggleDocument(doc.id)}
                         />
                       </TableCell>
-                      <TableCell className="font-medium">
-                        <button
-                          onClick={() => onOpenDocumentViewer(doc.id)}
-                          className="text-left hover:text-primary hover:underline transition-colors"
-                        >
-                          {doc.original_filename}
-                        </button>
+                      <TableCell className="font-medium max-w-[200px]">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => onOpenDocumentViewer(doc.id)}
+                              className="text-left hover:text-primary hover:underline transition-colors truncate block w-full"
+                            >
+                              {doc.original_filename}
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{doc.original_filename}</p>
+                          </TooltipContent>
+                        </Tooltip>
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">
                         {doc.content_length ? `${Math.round(doc.content_length / 1000)}KB` : "-"}
@@ -181,10 +189,7 @@ export function DocumentSelector({
 
         {/* 페이지네이션 */}
         {!loadingDocuments && documents.length > 0 && totalPages > 1 && (
-          <div className="mt-4 flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              페이지 {currentPage} / {totalPages}
-            </p>
+          <div className="mt-4 flex justify-center">
             <Pagination>
               <PaginationContent>
                 <PaginationItem>
@@ -193,32 +198,6 @@ export function DocumentSelector({
                     className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
                   />
                 </PaginationItem>
-
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum: number
-                  if (totalPages <= 5) {
-                    pageNum = i + 1
-                  } else if (currentPage <= 3) {
-                    pageNum = i + 1
-                  } else if (currentPage >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i
-                  } else {
-                    pageNum = currentPage - 2 + i
-                  }
-
-                  return (
-                    <PaginationItem key={pageNum}>
-                      <PaginationLink
-                        onClick={() => onPageChange(pageNum)}
-                        isActive={currentPage === pageNum}
-                        className="cursor-pointer"
-                      >
-                        {pageNum}
-                      </PaginationLink>
-                    </PaginationItem>
-                  )
-                })}
-
                 <PaginationItem>
                   <PaginationNext
                     onClick={() => onPageChange(currentPage + 1)}

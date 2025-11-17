@@ -282,7 +282,7 @@ async def upload_documents(
                         "filename": document.original_filename,
                         "chunk_index": i,
                         "num_tokens": chunk.get('num_tokens', 0),
-                        "headings": chunk.get('headings', [])
+                        "headings": chunk.get('headings') or []  # None 안전 처리
                     })
 
                 # 6. Qdrant에 벡터 업로드
