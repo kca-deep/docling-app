@@ -26,6 +26,7 @@ backend/venv/
 # Environment variables
 .env*
 !**/.env.example
+!.env.development  # 개발 설정은 커밋 허용
 
 # Database
 *.db
