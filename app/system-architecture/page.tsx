@@ -51,18 +51,21 @@ export default function SystemArchitecturePage() {
                           <div className="bg-background border-2 border-purple-500 rounded-lg p-4 text-center">
                             <Server className="h-7 w-7 mx-auto mb-2 text-purple-600" />
                             <p className="font-semibold text-sm mb-1">KCA RAG 파이프라인</p>
-                            <p className="text-xs text-muted-foreground mb-2">localhost</p>
+                            <p className="text-xs text-muted-foreground mb-2">kca-ai.kro.kr</p>
                             <Badge variant="secondary" className="text-xs">:3000</Badge>
                           </div>
                           <div className="bg-background border-2 border-purple-500 rounded-lg p-4 text-center">
                             <Globe className="h-7 w-7 mx-auto mb-2 text-purple-600" />
                             <p className="font-semibold text-sm mb-1">Dify Platform</p>
                             <p className="text-xs text-muted-foreground mb-2">kca-ai.kro.kr</p>
-                            <Badge variant="secondary" className="text-xs">:80, :443</Badge>
+                            <Badge variant="secondary" className="text-xs">:3002</Badge>
                           </div>
-                          <div className="bg-background border-2 border-purple-500 rounded-lg p-4 text-center">
-                            <MonitorPlay className="h-7 w-7 mx-auto mb-2 text-purple-600" />
-                            <p className="font-semibold text-sm mb-1">Open WebUI</p>
+                          <div className="bg-muted/20 border-2 rounded-lg p-4 text-center">
+                            <MonitorPlay className="h-7 w-7 mx-auto mb-2 text-muted-foreground" />
+                            <div className="flex items-center justify-center gap-2 mb-1">
+                              <p className="font-semibold text-sm">Open WebUI</p>
+                              <Badge variant="outline" className="text-xs">Inactive</Badge>
+                            </div>
                             <p className="text-xs text-muted-foreground mb-2">localhost</p>
                             <Badge variant="secondary" className="text-xs">:3001</Badge>
                           </div>
@@ -96,9 +99,12 @@ export default function SystemArchitecturePage() {
                                       <p className="font-semibold text-sm">GPT-OSS 20B</p>
                                       <Badge className="bg-green-500 text-xs">Running</Badge>
                                     </div>
+                                    <div className="flex flex-wrap gap-1 mb-2">
+                                      <Badge variant="outline" className="text-xs">🇺🇸 미국</Badge>
+                                      <Badge variant="secondary" className="text-xs">일반 대화·추론</Badge>
+                                    </div>
                                     <div className="space-y-1 text-xs text-muted-foreground">
-                                      <p>포트: 8080</p>
-                                      <p>VRAM: ~16GB</p>
+                                      <p>포트: 8080 | VRAM: ~16GB</p>
                                       <p>서버: llama.cpp</p>
                                     </div>
                                   </div>
@@ -108,9 +114,12 @@ export default function SystemArchitecturePage() {
                                       <p className="font-semibold text-sm">EXAONE 32B</p>
                                       <Badge variant="outline" className="text-xs">Inactive</Badge>
                                     </div>
+                                    <div className="flex flex-wrap gap-1 mb-2">
+                                      <Badge variant="outline" className="text-xs">🇰🇷 한국</Badge>
+                                      <Badge variant="secondary" className="text-xs">긴 문서 처리</Badge>
+                                    </div>
                                     <div className="space-y-1 text-xs text-muted-foreground">
-                                      <p>포트: 8081</p>
-                                      <p>VRAM: ~20GB</p>
+                                      <p>포트: 8081 | VRAM: ~20GB</p>
                                       <p>특징: 131K 컨텍스트</p>
                                     </div>
                                   </div>
@@ -120,9 +129,12 @@ export default function SystemArchitecturePage() {
                                       <p className="font-semibold text-sm">HyperCLOVA X</p>
                                       <Badge variant="outline" className="text-xs">Inactive</Badge>
                                     </div>
+                                    <div className="flex flex-wrap gap-1 mb-2">
+                                      <Badge variant="outline" className="text-xs">🇰🇷 한국</Badge>
+                                      <Badge variant="secondary" className="text-xs">한국어 특화</Badge>
+                                    </div>
                                     <div className="space-y-1 text-xs text-muted-foreground">
-                                      <p>포트: 8082</p>
-                                      <p>VRAM: ~29GB</p>
+                                      <p>포트: 8082 | VRAM: ~29GB</p>
                                       <p>서버: vLLM 0.10.2</p>
                                     </div>
                                   </div>
@@ -132,9 +144,12 @@ export default function SystemArchitecturePage() {
                                       <p className="font-semibold text-sm">Qwen3-VL 8B</p>
                                       <Badge className="bg-green-500 text-xs">Running</Badge>
                                     </div>
+                                    <div className="flex flex-wrap gap-1 mb-2">
+                                      <Badge variant="outline" className="text-xs">🇨🇳 중국</Badge>
+                                      <Badge variant="secondary" className="text-xs">이미지 이해·OCR</Badge>
+                                    </div>
                                     <div className="space-y-1 text-xs text-muted-foreground">
-                                      <p>포트: 8084</p>
-                                      <p>VRAM: ~2GB</p>
+                                      <p>포트: 8084 | VRAM: ~2GB</p>
                                       <p>특징: 멀티모달 (Vision)</p>
                                     </div>
                                   </div>
