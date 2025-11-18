@@ -197,7 +197,11 @@ export default function UploadPage() {
       const response = await fetch(`${API_BASE_URL}/api/qdrant/collections`)
       if (response.ok) {
         const data = await response.json()
-        setQdrantCollections(data.collections || [])
+        // 컬렉션명으로 오름차순 정렬
+        const sortedCollections = [...(data.collections || [])].sort((a, b) =>
+          a.name.localeCompare(b.name, 'ko-KR')
+        )
+        setQdrantCollections(sortedCollections)
         toast.success(`${data.collections.length}개의 Collection을 불러왔습니다`)
       } else {
         toast.error("Collection 목록을 가져오는데 실패했습니다")
