@@ -73,20 +73,20 @@ export const InputArea = memo(function InputArea({
   const canSend = !disabled && !isLoading && input.trim().length > 0;
 
   return (
-    <div className="flex-shrink-0 border-t bg-muted/20 backdrop-blur px-4 py-3">
-      <div className="max-w-[var(--chat-content-max-width)] mx-auto p-4 bg-gradient-to-br from-card to-muted/20 rounded-lg">
+    <div className="flex-shrink-0 border-t bg-muted/20 backdrop-blur px-2 py-2 sm:px-4 sm:py-3">
+      <div className="max-w-[var(--chat-content-max-width)] mx-auto p-2 sm:p-4 bg-gradient-to-br from-card to-muted/20 rounded-lg">
         {/* 인용 메시지 표시 */}
         {quotedMessage && (
-          <div className="mb-3 bg-muted/50 border-l-4 border-primary rounded-r-lg p-3 animate-in slide-in-from-bottom-2 duration-300">
+          <div className="mb-2 sm:mb-3 bg-muted/50 border-l-4 border-primary rounded-r-lg p-2 sm:p-3 animate-in slide-in-from-bottom-2 duration-300">
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
                   <Quote className="h-3.5 w-3.5 text-primary flex-shrink-0" />
                   <Badge variant="secondary" className="text-xs">
                     {quotedMessage.role === "user" ? "내 질문" : "AI 답변"}에 대한 답변
                   </Badge>
                 </div>
-                <p className="text-sm text-muted-foreground line-clamp-2 pl-5">
+                <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 pl-4 sm:pl-5">
                   {quotedMessage.content}
                 </p>
               </div>
@@ -115,18 +115,18 @@ export const InputArea = memo(function InputArea({
               placeholder={
                 disabled
                   ? "먼저 컬렉션을 선택해주세요..."
-                  : "메시지를 입력하세요... (Enter: 전송, Shift+Enter: 줄바꿈)"
+                  : "메시지를 입력하세요..."
               }
               disabled={disabled || isLoading}
               className={cn(
-                "min-h-[80px] max-h-[200px] resize-none pr-12",
+                "min-h-[60px] sm:min-h-[80px] max-h-[200px] resize-none pr-2 sm:pr-12",
                 "focus:ring-2 focus:ring-primary/20",
                 disabled && "opacity-50 cursor-not-allowed"
               )}
             />
 
             {/* 입력 도움말 */}
-            <div className="absolute bottom-2 right-2 flex items-center gap-1">
+            <div className="absolute bottom-2 right-2 hidden sm:flex items-center gap-1">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -145,9 +145,9 @@ export const InputArea = memo(function InputArea({
           </div>
 
           {/* 액션 버튼들 */}
-          <div className="flex items-end gap-2">
+          <div className="flex items-end gap-1 sm:gap-2">
             {/* 추가 액션 버튼들 */}
-            <div className="flex flex-col gap-1.5">
+            <div className="hidden sm:flex flex-col gap-1.5">
               {/* 음성 입력 (준비 중) */}
               <TooltipProvider>
                 <Tooltip>
@@ -198,6 +198,34 @@ export const InputArea = memo(function InputArea({
               )}
             </div>
 
+            {/* 모바일 대화 초기화 버튼 */}
+            {onClear && (
+              <div className="sm:hidden">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          "h-10 w-10 rounded-xl transition-all",
+                          "hover:bg-destructive/10 hover:text-destructive",
+                          isLoading && "opacity-40 cursor-not-allowed"
+                        )}
+                        disabled={isLoading}
+                        onClick={onClear}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <p className="text-xs">대화 초기화</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+            )}
+
             {/* 전송 버튼 */}
             <TooltipProvider>
               <Tooltip>
@@ -207,7 +235,7 @@ export const InputArea = memo(function InputArea({
                     disabled={!canSend}
                     size="icon"
                     className={cn(
-                      "h-12 w-12 rounded-2xl transition-all shadow-lg",
+                      "h-10 w-10 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl transition-all shadow-lg",
                       canSend
                         ? "hover:scale-110 hover:shadow-xl bg-gradient-to-br from-primary to-primary/80"
                         : "opacity-50 cursor-not-allowed",
@@ -215,15 +243,15 @@ export const InputArea = memo(function InputArea({
                     )}
                   >
                     {isLoading ? (
-                      <StopCircle className="h-5 w-5" />
+                      <StopCircle className="h-4 w-4 sm:h-5 sm:w-5" />
                     ) : (
-                      <Send className="h-5 w-5" />
+                      <Send className="h-4 w-4 sm:h-5 sm:w-5" />
                     )}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="top">
                   <p className="text-xs font-medium">
-                    {isLoading ? "전송 중..." : "메시지 전송 (Enter)"}
+                    {isLoading ? "전송 중..." : "메시지 전송"}
                   </p>
                 </TooltipContent>
               </Tooltip>
@@ -233,18 +261,21 @@ export const InputArea = memo(function InputArea({
 
         {/* 문자 수 카운터 */}
         <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-          <span>
-            {input.length} / 4000 글자
+          <span className="truncate">
+            <span className="hidden sm:inline">{input.length} / 4000 글자</span>
+            <span className="sm:hidden">{input.length} / 4000</span>
             {input.length > 3500 && (
-              <span className="text-yellow-600 ml-2">
-                (글자 수 제한에 근접)
+              <span className="text-yellow-600 ml-1 sm:ml-2">
+                <span className="hidden sm:inline">(글자 수 제한에 근접)</span>
+                <span className="sm:hidden">(!)</span>
               </span>
             )}
           </span>
           {isLoading && (
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1 flex-shrink-0">
               <div className="h-2 w-2 bg-primary rounded-full animate-pulse" />
-              응답 생성 중...
+              <span className="hidden sm:inline">응답 생성 중...</span>
+              <span className="sm:hidden">생성 중...</span>
             </span>
           )}
         </div>

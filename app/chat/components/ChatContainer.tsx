@@ -659,12 +659,12 @@ export function ChatContainer() {
         <div className="flex items-center gap-2">
           {/* 컬렉션 선택 */}
           <div className="flex items-center gap-2">
-            <Database className="h-4 w-4 text-muted-foreground" />
+            <Database className="h-4 w-4 text-muted-foreground hidden sm:block" />
             <Select
               value={selectedCollection}
               onValueChange={setSelectedCollection}
             >
-              <SelectTrigger className="w-[200px] h-8">
+              <SelectTrigger className="w-[120px] sm:w-[180px] md:w-[200px] h-8">
                 <SelectValue placeholder="컬렉션 선택" />
               </SelectTrigger>
               <SelectContent>

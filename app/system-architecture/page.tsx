@@ -47,7 +47,7 @@ export default function SystemArchitecturePage() {
                     </AccordionTrigger>
                     <AccordionContent>
                       <div className="space-y-4 pb-4">
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                           <div className="bg-background border-2 border-purple-500 rounded-lg p-4 text-center">
                             <Server className="h-7 w-7 mx-auto mb-2 text-purple-600" />
                             <p className="font-semibold text-sm mb-1">KCA RAG 파이프라인</p>
@@ -90,7 +90,7 @@ export default function SystemArchitecturePage() {
                             <CollapsibleContent>
                               <div className="border-t-2 border-purple-500/30 p-4 bg-purple-500/5">
                                 <h4 className="font-bold text-sm mb-3 text-purple-700 dark:text-purple-400">LLM 모델 서비스 상세</h4>
-                                <div className="grid grid-cols-4 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                                   <div className="border-2 border-green-500/50 rounded-lg p-3 bg-green-500/5">
                                     <div className="flex items-center justify-between mb-2">
                                       <p className="font-semibold text-sm">GPT-OSS 20B</p>
@@ -158,7 +158,7 @@ export default function SystemArchitecturePage() {
                     <AccordionContent>
                       <div className="pb-4">
                         {/* AI Services - 지원 서비스 상세 카드 */}
-                        <div className="grid grid-cols-4 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                           <div className="border-2 border-orange-500/50 rounded-lg p-4 bg-orange-500/5">
                             <div className="flex items-center justify-between mb-3">
                               <p className="font-semibold text-sm">BGE-M3 Embedding</p>
@@ -220,7 +220,7 @@ export default function SystemArchitecturePage() {
                       </div>
                     </AccordionTrigger>
                     <AccordionContent>
-                      <div className="flex gap-4 pb-4">
+                      <div className="flex flex-col md:flex-row gap-4 pb-4">
                         {/* GPU Layer */}
                         <div className="border-2 border-dashed border-red-500/50 rounded-lg p-5 bg-red-500/5 flex-1">
                           <div className="bg-background border-2 border-red-600 rounded-lg p-5">
