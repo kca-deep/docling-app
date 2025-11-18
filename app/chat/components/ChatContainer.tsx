@@ -626,6 +626,34 @@ export function ChatContainer() {
     setInput(prompt);
   }, []);
 
+  // 컬렉션 변경 핸들러
+  const handleCollectionChange = useCallback((newCollection: string) => {
+    // 컬렉션이 실제로 변경된 경우에만 초기화
+    if (newCollection !== selectedCollection) {
+      // 대화 초기화
+      setMessages([
+        {
+          id: "1",
+          role: "assistant",
+          content: "안녕하세요! 업로드된 문서에 대해 질문해주세요. 문서 내용을 기반으로 정확한 답변을 제공해드리겠습니다.",
+          timestamp: new Date(),
+        },
+      ]);
+
+      // 검색 결과 초기화
+      setCurrentSources([]);
+
+      // 인용 메시지 초기화
+      setQuotedMessage(null);
+
+      // 컬렉션 변경
+      setSelectedCollection(newCollection);
+
+      // 사용자에게 알림
+      toast.info(`"${newCollection}" 컬렉션으로 변경되었습니다. 대화가 초기화되었습니다.`);
+    }
+  }, [selectedCollection]);
+
   const chatContent = (
     <div
       className={
@@ -666,7 +694,7 @@ export function ChatContainer() {
             <Database className="h-4 w-4 text-muted-foreground hidden sm:block" />
             <Select
               value={selectedCollection}
-              onValueChange={setSelectedCollection}
+              onValueChange={handleCollectionChange}
             >
               <SelectTrigger className="w-[120px] sm:w-[180px] md:w-[200px] h-8">
                 <SelectValue placeholder="컬렉션 선택" />
