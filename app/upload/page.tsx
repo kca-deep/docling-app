@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { PageContainer } from "@/components/page-container"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -24,7 +24,7 @@ import {
   UploadTarget,
 } from "./types"
 
-export default function UploadPage() {
+function UploadPageContent() {
   const searchParams = useSearchParams()
   const initialTab = (searchParams.get("tab") as UploadTarget) || "qdrant"
 
@@ -656,5 +656,13 @@ export default function UploadPage() {
         onOpenChange={setViewerOpen}
       />
     </PageContainer>
+  )
+}
+
+export default function UploadPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <UploadPageContent />
+    </Suspense>
   )
 }

@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Lightbulb, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { API_BASE_URL } from "@/lib/api-config";
 
 interface SuggestedPromptsProps {
   collectionName: string;
@@ -25,7 +26,7 @@ export const SuggestedPrompts = memo(function SuggestedPrompts({ collectionName,
       try {
         setLoading(true);
         const response = await fetch(
-          `http://localhost:8000/api/chat/suggested-prompts/${collectionName}`
+          `${API_BASE_URL}/api/chat/suggested-prompts/${collectionName}`
         );
 
         if (response.ok) {

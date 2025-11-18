@@ -5,6 +5,7 @@ import { Link2, Loader2, FileText, Download, Save, Settings, Upload, FileSpreads
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { API_BASE_URL } from "@/lib/api-config";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -119,7 +120,7 @@ export default function UrlParsePage() {
         pipeline: parseOptions.pipeline,
       };
 
-      const response = await fetch("http://localhost:8000/api/documents/convert-url", {
+      const response = await fetch(`${API_BASE_URL}/api/documents/convert-url`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -177,7 +178,7 @@ export default function UrlParsePage() {
     };
 
     toast.promise(
-      fetch("http://localhost:8000/api/documents/save", {
+      fetch(`${API_BASE_URL}/api/documents/save`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -27,6 +27,7 @@ backend/venv/
 .env*
 !**/.env.example
 !.env.development  # 개발 설정은 커밋 허용
+!.env.production   # 프로덕션 설정은 커밋 허용
 
 # Database
 *.db

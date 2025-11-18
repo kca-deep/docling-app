@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Upload, FileText, Loader2, CheckCircle2, XCircle, Download, Trash2, FolderOpen, Save, Settings, Zap, Sparkles, Image, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { API_BASE_URL } from "@/lib/api-config";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -148,7 +149,7 @@ export default function ParsePage() {
         i === index ? { ...f, progress: 30 } : f
       ));
 
-      const response = await fetch("http://localhost:8000/api/documents/convert", {
+      const response = await fetch(`${API_BASE_URL}/api/documents/convert`, {
         method: "POST",
         body: formData,
       });
@@ -221,7 +222,7 @@ export default function ParsePage() {
     return new Promise((resolve) => {
       const pollInterval = setInterval(async () => {
         try {
-          const response = await fetch(`http://localhost:8000/api/documents/progress/${taskId}`);
+          const response = await fetch(`${API_BASE_URL}/api/documents/progress/${taskId}`);
 
           if (response.ok) {
             const progressData: ProgressInfo = await response.json();
@@ -331,7 +332,7 @@ export default function ParsePage() {
     };
 
     toast.promise(
-      fetch("http://localhost:8000/api/documents/save", {
+      fetch(`${API_BASE_URL}/api/documents/save`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -368,7 +369,7 @@ export default function ParsePage() {
         parse_options: parseOptions,
       };
 
-      return fetch("http://localhost:8000/api/documents/save", {
+      return fetch(`${API_BASE_URL}/api/documents/save`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

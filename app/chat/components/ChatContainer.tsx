@@ -6,6 +6,7 @@ import { InputArea } from "./InputArea";
 import { SettingsPanel } from "./SettingsPanel";
 import { SuggestedPrompts } from "./SuggestedPrompts";
 import { Card } from "@/components/ui/card";
+import { API_BASE_URL } from "@/lib/api-config";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Settings, Database, Maximize, Minimize, Bot } from "lucide-react";
@@ -191,7 +192,7 @@ export function ChatContainer() {
   useEffect(() => {
     const fetchCollections = async () => {
       try {
-        const response = await fetch("http://localhost:8000/api/chat/collections");
+        const response = await fetch(`${API_BASE_URL}/api/chat/collections`);
         if (response.ok) {
           const data = await response.json();
           // 컬렉션명으로 오름차순 정렬
@@ -232,7 +233,7 @@ export function ChatContainer() {
         ];
       }
 
-      const response = await fetch("http://localhost:8000/api/chat", {
+      const response = await fetch(`${API_BASE_URL}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -330,7 +331,7 @@ export function ChatContainer() {
         ];
       }
 
-      const response = await fetch("http://localhost:8000/api/chat/stream", {
+      const response = await fetch(`${API_BASE_URL}/api/chat/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -541,7 +542,7 @@ export function ChatContainer() {
       const regenerateTemp = Math.min(context.settings.temperature + 0.2, 2.0);
 
       // 백엔드 /api/chat/regenerate 호출
-      const response = await fetch("http://localhost:8000/api/chat/regenerate", {
+      const response = await fetch(`${API_BASE_URL}/api/chat/regenerate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
