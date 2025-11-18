@@ -194,10 +194,14 @@ export function ChatContainer() {
         const response = await fetch("http://localhost:8000/api/chat/collections");
         if (response.ok) {
           const data = await response.json();
-          setCollections(data.collections || []);
-          if (data.collections && data.collections.length > 0) {
-            setSelectedCollection(data.collections[0].name);
-            toast.success(`${data.collections.length}개의 컬렉션을 불러왔습니다`);
+          // 컬렉션명으로 오름차순 정렬
+          const sortedCollections = [...(data.collections || [])].sort((a, b) =>
+            a.name.localeCompare(b.name, 'ko-KR')
+          );
+          setCollections(sortedCollections);
+          if (sortedCollections.length > 0) {
+            setSelectedCollection(sortedCollections[0].name);
+            toast.success(`${sortedCollections.length}개의 컬렉션을 불러왔습니다`);
           }
         }
       } catch (error) {

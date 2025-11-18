@@ -229,14 +229,25 @@ export default function SystemArchitecturePage() {
                               <h3 className="font-bold text-base">GPU Status</h3>
                             </div>
 
-                            {/* VRAM 전체 사용량 */}
-                            <div className="border rounded-lg p-3 bg-muted/30 mb-3">
+                            {/* GPU 사용률 */}
+                            <div className="border rounded-lg p-3 bg-muted/30 mb-2">
                               <div className="flex items-center justify-between mb-2">
-                                <p className="text-muted-foreground text-xs">VRAM 사용량</p>
-                                <p className="font-semibold text-xs">28504MB / 32607MB</p>
+                                <p className="text-muted-foreground text-xs">GPU 사용률</p>
+                                <p className="font-semibold text-xs">0%</p>
                               </div>
                               <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2">
-                                <div className="bg-orange-500 h-2 rounded-full" style={{width: '87%'}}></div>
+                                <div className="bg-blue-500 h-2 rounded-full" style={{width: '0%'}}></div>
+                              </div>
+                            </div>
+
+                            {/* VRAM 전체 사용량 */}
+                            <div className="border rounded-lg p-3 bg-muted/30 mb-2">
+                              <div className="flex items-center justify-between mb-2">
+                                <p className="text-muted-foreground text-xs">VRAM 사용량</p>
+                                <p className="font-semibold text-xs">95% 30988MB / 32607MB</p>
+                              </div>
+                              <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2">
+                                <div className="bg-orange-500 h-2 rounded-full" style={{width: '95%'}}></div>
                               </div>
                             </div>
 
@@ -267,17 +278,17 @@ export default function SystemArchitecturePage() {
                               <div className="border rounded-lg p-2 bg-orange-500/10">
                                 <div className="flex items-center justify-between mb-1">
                                   <p className="text-xs font-medium">BGE Reranker</p>
-                                  <p className="text-xs font-semibold">2.52 GB (7%)</p>
+                                  <p className="text-xs font-semibold">3.11 GB (9%)</p>
                                 </div>
                                 <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5">
-                                  <div className="bg-orange-500 h-1.5 rounded-full" style={{width: '7%'}}></div>
+                                  <div className="bg-orange-500 h-1.5 rounded-full" style={{width: '9%'}}></div>
                                 </div>
                               </div>
 
                               <div className="border rounded-lg p-2 bg-blue-500/10">
                                 <div className="flex items-center justify-between mb-1">
                                   <p className="text-xs font-medium">Docling</p>
-                                  <p className="text-xs font-semibold">1.64 GB (5%)</p>
+                                  <p className="text-xs font-semibold">1.66 GB (5%)</p>
                                 </div>
                                 <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5">
                                   <div className="bg-blue-500 h-1.5 rounded-full" style={{width: '5%'}}></div>
