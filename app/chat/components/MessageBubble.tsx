@@ -49,6 +49,7 @@ interface MessageBubbleProps {
   role: "user" | "assistant" | "system";
   content: string;
   timestamp: Date;
+  model?: string; // 메시지를 생성한 모델 정보
   sources?: Source[];
   metadata?: {
     tokens?: number;
@@ -65,6 +66,7 @@ export const MessageBubble = memo(function MessageBubble({
   role,
   content,
   timestamp,
+  model,
   sources,
   metadata,
   onCopy,
@@ -75,6 +77,77 @@ export const MessageBubble = memo(function MessageBubble({
 }: MessageBubbleProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [activeSourceId, setActiveSourceId] = useState<string | null>(null);
+  const [thoughtExpanded, setThoughtExpanded] = useState(false);
+
+  // 메시지 내용 파싱: <thought> 태그와 답변 부분 분리
+  const parseMessageContent = (content: string, streaming: boolean = false) => {
+    // 스트리밍 중: <thought>로 시작하는지 확인
+    if (streaming) {
+      const thoughtStart = content.indexOf('<thought>');
+      if (thoughtStart === -1) {
+        // <thought> 태그 없음 - 전체를 답변으로 처리
+        return {
+          hasThought: false,
+          thought: '',
+          answer: content,
+          thoughtClosed: true,
+        };
+      }
+
+      const thoughtEnd = content.indexOf('</thought>');
+
+      if (thoughtEnd === -1) {
+        // <thought>는 있지만 </thought>가 아직 없음 - 스트리밍 중
+        const thoughtContent = content.substring(thoughtStart + 9); // '<thought>'.length = 9
+        return {
+          hasThought: true,
+          thought: thoughtContent,
+          answer: '',
+          thoughtClosed: false, // 아직 닫히지 않음
+        };
+      } else {
+        // <thought>와 </thought> 모두 있음 - 완성됨
+        const thoughtContent = content.substring(thoughtStart + 9, thoughtEnd).trim();
+        const answerContent = content.substring(thoughtEnd + 10).trim(); // '</thought>'.length = 10
+        return {
+          hasThought: true,
+          thought: thoughtContent,
+          answer: answerContent,
+          thoughtClosed: true,
+        };
+      }
+    }
+
+    // 비스트리밍: 기존 로직 (완성된 메시지)
+    const thoughtRegex = /<thought>([\s\S]*?)<\/thought>/;
+    const thoughtMatch = content.match(thoughtRegex);
+
+    if (thoughtMatch) {
+      const thoughtContent = thoughtMatch[1].trim();
+      const answerContent = content.replace(thoughtRegex, '').trim();
+
+      return {
+        hasThought: true,
+        thought: thoughtContent,
+        answer: answerContent,
+        thoughtClosed: true,
+      };
+    }
+
+    return {
+      hasThought: false,
+      thought: '',
+      answer: content,
+      thoughtClosed: true,
+    };
+  };
+
+  // EXAONE 모델인지 확인 및 메시지 파싱
+  const isExaone = model?.toLowerCase().includes('exaone');
+  const parsedContent = isExaone && role === 'assistant' ? parseMessageContent(content, isStreaming) : null;
+
+  // 추론 진행 중 상태 (thinking 애니메이션용)
+  const isThinking = isStreaming && parsedContent?.hasThought && !parsedContent?.thoughtClosed;
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString("ko-KR", {
@@ -121,7 +194,7 @@ export const MessageBubble = memo(function MessageBubble({
         <AvatarFallback
           className={cn(
             role === "user"
-              ? "bg-primary text-primary-foreground"
+              ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white"
               : "bg-muted"
           )}
         >
@@ -147,16 +220,65 @@ export const MessageBubble = memo(function MessageBubble({
           className={cn(
             "rounded-2xl px-4 py-3 w-full transition-colors",
             role === "user"
-              ? "bg-primary text-primary-foreground"
+              ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white"
               : role === "system"
               ? "bg-muted/50"
               : "bg-muted"
           )}
         >
           <div className="w-full min-w-0">
-            {role === "assistant" || role === "system" ? (
+            {parsedContent && parsedContent.hasThought ? (
+              // EXAONE 모델: 추론 과정과 답변 분리 표시
+              <div className="space-y-3">
+                {/* 추론 과정 (접을 수 있음) */}
+                {parsedContent.thought && (
+                  <Collapsible open={thoughtExpanded} onOpenChange={setThoughtExpanded} className="w-full">
+                    <div className="rounded-lg border bg-muted/30 overflow-hidden">
+                      <CollapsibleTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-between p-3 hover:bg-muted/50 rounded-none"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-muted-foreground">
+                              💭 추론 과정
+                            </span>
+                            {isThinking && !thoughtExpanded && (
+                              <span className="flex items-center gap-1 text-[0.65rem] text-primary animate-pulse">
+                                <span className="inline-block w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                <span className="inline-block w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                <span className="inline-block w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                                <span className="ml-1">thinking...</span>
+                              </span>
+                            )}
+                          </div>
+                          {thoughtExpanded ? (
+                            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </Button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="px-3 pb-3 text-xs text-muted-foreground whitespace-pre-wrap border-t pt-3">
+                          {parsedContent.thought}
+                        </div>
+                      </CollapsibleContent>
+                    </div>
+                  </Collapsible>
+                )}
+
+                {/* 답변 */}
+                {parsedContent.answer && (
+                  <MarkdownMessage content={parsedContent.answer} />
+                )}
+              </div>
+            ) : role === "assistant" || role === "system" ? (
+              // 기본 마크다운 렌더링
               <MarkdownMessage content={content} />
             ) : (
+              // 사용자 메시지
               <p className="text-sm whitespace-pre-wrap break-words">
                 {content}
               </p>
@@ -379,6 +501,11 @@ export const MessageBubble = memo(function MessageBubble({
           {/* 메타데이터 표시 */}
           {metadata && (
             <div className="mt-2 flex items-center gap-2">
+              {metadata.aborted && (
+                <Badge variant="destructive" className="text-xs">
+                  ⚠️ 응답 중단됨
+                </Badge>
+              )}
               {metadata.tokens && (
                 <Badge variant="outline" className="text-xs">
                   {metadata.tokens} 토큰

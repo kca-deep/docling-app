@@ -44,11 +44,20 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "bge-m3-korean"
     EMBEDDING_DIMENSION: int = 1024
 
-    # LLM API 설정 (GPT-OSS-20B)
+    # LLM API 설정 (다중 모델 지원)
     LLM_BASE_URL: str = "http://kca-ai.kro.kr:8080"
     LLM_MODEL: str = "gpt-oss-20b"
+
+    # GPT-OSS 20B 설정
+    GPT_OSS_20B_URL: str = "http://kca-ai.kro.kr:8080"
+    GPT_OSS_20B_MODEL: str = "gpt-oss-20b"
+
+    # EXAONE Deep 7.8B 설정
+    EXAONE_DEEP_URL: str = "http://61.80.153.122:1234"
+    EXAONE_DEEP_MODEL: str = "exaone-deep-7.8b"
+
     LLM_DEFAULT_TEMPERATURE: float = 0.7
-    LLM_DEFAULT_MAX_TOKENS: int = 2000
+    LLM_DEFAULT_MAX_TOKENS: int = 8192
     LLM_DEFAULT_TOP_P: float = 0.9
 
     # RAG 설정
@@ -107,6 +116,33 @@ class Settings(BaseSettings):
     def QWEN3_VL_API_URL(self) -> str:
         """Qwen3 VL API URL"""
         return f"{self.QWEN3_VL_BASE_URL}/v1/chat/completions"
+
+    def get_llm_config(self, model_key: str) -> dict:
+        """
+        모델 키를 기반으로 LLM 설정 반환
+
+        Args:
+            model_key: 모델 키 (예: "gpt-oss-20b", "exaone-deep-7.8b")
+
+        Returns:
+            dict: {"base_url": str, "model": str}
+        """
+        model_configs = {
+            "gpt-oss-20b": {
+                "base_url": self.GPT_OSS_20B_URL,
+                "model": self.GPT_OSS_20B_MODEL
+            },
+            "exaone-deep-7.8b": {
+                "base_url": self.EXAONE_DEEP_URL,
+                "model": self.EXAONE_DEEP_MODEL
+            }
+        }
+
+        # 요청된 모델이 있으면 반환, 없으면 기본값
+        return model_configs.get(model_key, {
+            "base_url": self.LLM_BASE_URL,
+            "model": self.LLM_MODEL
+        })
 
     class Config:
         env_file = "backend/.env"

@@ -351,6 +351,7 @@ class ChatRequest(BaseModel):
     """채팅 요청"""
     collection_name: str
     message: str
+    model: str = "gpt-oss-20b"  # LLM 모델 선택
     reasoning_level: str = "medium"  # "low", "medium", "high"
     temperature: float = 0.7
     max_tokens: int = 2000
@@ -384,6 +385,7 @@ class RegenerateRequest(BaseModel):
     query: str
     collection_name: str
     retrieved_docs: List[RetrievedDocument]
+    model: str = "gpt-oss-20b"  # LLM 모델 선택
     reasoning_level: str = "medium"
     temperature: float = 0.7
     max_tokens: int = 2000
@@ -416,3 +418,16 @@ class ProgressResponse(BaseModel):
     updated_at: str
     md_content: Optional[str] = None
     processing_time: Optional[float] = None
+
+
+# ==================== Default Settings Schemas ====================
+
+class DefaultSettingsResponse(BaseModel):
+    """기본 설정 응답 (.env 파일 값 제공)"""
+    model: str
+    reasoning_level: str
+    temperature: float
+    max_tokens: int
+    top_p: float
+    top_k: int
+    use_reranking: bool

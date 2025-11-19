@@ -14,6 +14,7 @@ interface Message {
   role: "user" | "assistant" | "system";
   content: string;
   timestamp: Date;
+  model?: string; // 메시지를 생성한 모델 정보
   sources?: Source[];
   metadata?: {
     tokens?: number;
@@ -138,6 +139,7 @@ export const MessageList = memo(function MessageList({
               role={message.role}
               content={message.content}
               timestamp={message.timestamp}
+              model={message.model}
               sources={message.sources}
               metadata={message.metadata}
               onCopy={() => handleCopy(message.content)}
@@ -171,9 +173,9 @@ export const MessageList = memo(function MessageList({
                 <div className="rounded-2xl px-4 py-3 bg-muted transition-all">
                   <div className="flex items-center gap-3">
                     <div className="flex gap-1.5">
-                      <div className="h-2.5 w-2.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <div className="h-2.5 w-2.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <div className="h-2.5 w-2.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      <div className="h-2.5 w-2.5 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <div className="h-2.5 w-2.5 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <div className="h-2.5 w-2.5 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                     </div>
                     <span className="text-sm text-muted-foreground font-medium">KCA-i가 생각하고 있습니다...</span>
                   </div>
@@ -195,7 +197,7 @@ export const MessageList = memo(function MessageList({
                   setUserScrolled(false);
                 }
               }}
-              className="fixed bottom-[160px] left-1/2 -translate-x-1/2 z-50 bg-primary text-primary-foreground rounded-full w-10 h-10 flex items-center justify-center shadow-lg hover:shadow-xl transition-all hover:scale-105 active:scale-95 text-base"
+              className="fixed bottom-[160px] left-1/2 -translate-x-1/2 z-50 bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg hover:shadow-xl transition-all hover:scale-105 active:scale-95 text-base"
             >
               ↓
             </button>

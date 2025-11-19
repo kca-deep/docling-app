@@ -3,16 +3,21 @@ Chat API 라우터
 RAG 기반 채팅 엔드포인트
 """
 import json
+import logging
+import sys
 from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from backend.models.schemas import ChatRequest, ChatResponse, RetrievedDocument, RegenerateRequest
+from backend.models.schemas import ChatRequest, ChatResponse, RetrievedDocument, RegenerateRequest, DefaultSettingsResponse
 from backend.services.embedding_service import EmbeddingService
 from backend.services.qdrant_service import QdrantService
 from backend.services.llm_service import LLMService
 from backend.services.rag_service import RAGService
 from backend.services.reranker_service import RerankerService
 from backend.config.settings import settings
+
+# 로거 설정
+logger = logging.getLogger("uvicorn")
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -72,6 +77,13 @@ async def chat(request: ChatRequest):
     Raises:
         HTTPException: 처리 실패 시
     """
+    logger.info("="*80)
+    logger.info("[CHAT API] Non-streaming endpoint called")
+    logger.info(f"[CHAT API] Requested model: {request.model}")
+    logger.info(f"[CHAT API] Collection: {request.collection_name}")
+    logger.info(f"[CHAT API] Message: {request.message[:50]}...")
+    logger.info("="*80)
+
     try:
         # 대화 기록 변환
         chat_history = None
@@ -85,6 +97,7 @@ async def chat(request: ChatRequest):
         result = await rag_service.chat(
             collection_name=request.collection_name,
             query=request.message,
+            model=request.model,
             reasoning_level=request.reasoning_level,
             temperature=request.temperature,
             max_tokens=request.max_tokens,
@@ -115,7 +128,7 @@ async def chat(request: ChatRequest):
         )
 
     except Exception as e:
-        print(f"[ERROR] Chat failed: {e}")
+        logger.error(f"[CHAT API] Chat failed: {e}")
         raise HTTPException(status_code=500, detail=f"채팅 처리 실패: {str(e)}")
 
 
@@ -133,6 +146,22 @@ async def chat_stream(request: ChatRequest):
     Raises:
         HTTPException: 처리 실패 시
     """
+    # 강제 출력 - 반드시 보여야 함
+    sys.stderr.write("\n" + "="*80 + "\n")
+    sys.stderr.write(f"[CHAT API] Stream endpoint called\n")
+    sys.stderr.write(f"[CHAT API] Requested model: {request.model}\n")
+    sys.stderr.write(f"[CHAT API] Collection: {request.collection_name}\n")
+    sys.stderr.write(f"[CHAT API] Message: {request.message[:50]}...\n")
+    sys.stderr.write("="*80 + "\n\n")
+    sys.stderr.flush()
+
+    logger.info("="*80)
+    logger.info("[CHAT API] Stream endpoint called")
+    logger.info(f"[CHAT API] Requested model: {request.model}")
+    logger.info(f"[CHAT API] Collection: {request.collection_name}")
+    logger.info(f"[CHAT API] Message: {request.message[:50]}...")
+    logger.info("="*80)
+
     try:
         # 대화 기록 변환
         chat_history = None
@@ -148,6 +177,7 @@ async def chat_stream(request: ChatRequest):
                 async for chunk in rag_service.chat_stream(
                     collection_name=request.collection_name,
                     query=request.message,
+                    model=request.model,
                     reasoning_level=request.reasoning_level,
                     temperature=request.temperature,
                     max_tokens=request.max_tokens,
@@ -161,7 +191,7 @@ async def chat_stream(request: ChatRequest):
                 ):
                     yield chunk
             except Exception as e:
-                print(f"[ERROR] Stream generation failed: {e}")
+                logger.error(f"[CHAT API] Stream generation failed: {e}")
                 yield f'data: {{"error": "스트리밍 실패: {str(e)}"}}\n\n'
 
         return StreamingResponse(
@@ -175,7 +205,7 @@ async def chat_stream(request: ChatRequest):
         )
 
     except Exception as e:
-        print(f"[ERROR] Stream chat failed: {e}")
+        logger.error(f"[CHAT API] Stream chat failed: {e}")
         raise HTTPException(status_code=500, detail=f"스트리밍 채팅 실패: {str(e)}")
 
 
@@ -234,6 +264,7 @@ async def regenerate(request: RegenerateRequest):
             query=request.query,
             retrieved_docs=retrieved_docs_internal,
             collection_name=request.collection_name,
+            model=request.model,
             reasoning_level=request.reasoning_level,
             temperature=request.temperature,
             max_tokens=request.max_tokens,
@@ -325,3 +356,36 @@ async def get_suggested_prompts(collection_name: str):
     except Exception as e:
         print(f"[ERROR] Get suggested prompts failed: {e}")
         raise HTTPException(status_code=500, detail=f"추천 질문 조회 실패: {str(e)}")
+
+
+@router.get("/default-settings", response_model=DefaultSettingsResponse)
+async def get_default_settings():
+    """
+    프론트엔드용 기본 설정 반환
+    .env 파일의 값을 프론트엔드에 제공하여 초기 설정으로 사용
+
+    Returns:
+        DefaultSettingsResponse: 기본 설정
+            - model: LLM 모델 이름
+            - reasoning_level: 추론 수준
+            - temperature: 온도
+            - max_tokens: 최대 토큰 수
+            - top_p: Top P
+            - top_k: 검색할 문서 수
+            - use_reranking: 리랭킹 사용 여부
+    """
+    try:
+        logger.info("[GET DEFAULT SETTINGS] Returning default settings from .env")
+
+        return DefaultSettingsResponse(
+            model=settings.LLM_MODEL,
+            reasoning_level=settings.RAG_DEFAULT_REASONING_LEVEL,
+            temperature=settings.LLM_DEFAULT_TEMPERATURE,
+            max_tokens=settings.LLM_DEFAULT_MAX_TOKENS,
+            top_p=settings.LLM_DEFAULT_TOP_P,
+            top_k=settings.RAG_DEFAULT_TOP_K,
+            use_reranking=settings.USE_RERANKING,
+        )
+    except Exception as e:
+        logger.error(f"[GET DEFAULT SETTINGS] Failed: {e}")
+        raise HTTPException(status_code=500, detail=f"기본 설정 조회 실패: {str(e)}")

@@ -3,13 +3,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { MessageList } from "./MessageList";
 import { InputArea } from "./InputArea";
-import { SettingsPanel } from "./SettingsPanel";
 import { SuggestedPrompts } from "./SuggestedPrompts";
 import { Card } from "@/components/ui/card";
 import { API_BASE_URL } from "@/lib/api-config";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Settings, Database, Maximize, Minimize, Bot } from "lucide-react";
+import { Maximize, Minimize, Bot } from "lucide-react";
 import { toast } from "sonner";
 import {
   Select,
@@ -19,16 +17,25 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 interface Message {
   id: string;
   role: "user" | "assistant" | "system";
   content: string;
   timestamp: Date;
+  model?: string; // 메시지를 생성한 모델 정보
   sources?: Source[];
   metadata?: {
     tokens?: number;
     processingTime?: number;
+    aborted?: boolean; // 중단 여부
   };
   regenerationContext?: {
     originalQuery: string;
@@ -78,6 +85,7 @@ interface Collection {
 }
 
 interface ChatSettings {
+  model: string;
   reasoningLevel: string;
   temperature: number;
   maxTokens: number;
@@ -106,6 +114,7 @@ export function ChatContainer() {
   const [currentSources, setCurrentSources] = useState<Source[]>([]);
   const [sessionId] = useState(() => `session_${Date.now()}`);
   const [quotedMessage, setQuotedMessage] = useState<Message | null>(null);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
 
   // 우측 패널 상태
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
@@ -113,8 +122,9 @@ export function ChatContainer() {
   // 전체화면 상태
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // AI 설정
+  // AI 설정 (기본값은 fallback용)
   const [settings, setSettings] = useState<ChatSettings>({
+    model: "gpt-oss-20b",
     reasoningLevel: "medium",
     temperature: 0.7,
     maxTokens: 2000,
@@ -125,6 +135,8 @@ export function ChatContainer() {
     streamMode: true,
     useReranking: true,
   });
+
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   // Body 스크롤 제어 및 전체화면 클래스 추가
   useEffect(() => {
@@ -188,6 +200,40 @@ export function ChatContainer() {
     return () => document.removeEventListener("keydown", handleEscape);
   }, [isFullscreen]);
 
+  // 백엔드에서 기본 설정 로드
+  useEffect(() => {
+    const loadDefaultSettings = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/chat/default-settings`);
+        if (response.ok) {
+          const data = await response.json();
+          setSettings(prev => ({
+            ...prev,
+            model: data.model,
+            reasoningLevel: data.reasoning_level,
+            temperature: data.temperature,
+            maxTokens: data.max_tokens,
+            topP: data.top_p,
+            topK: data.top_k,
+            useReranking: data.use_reranking,
+          }));
+          setSettingsLoaded(true);
+          console.log('[Settings] Loaded from backend (.env):', data);
+          toast.success(`설정 로드 완료 (max_tokens: ${data.max_tokens})`);
+        } else {
+          console.error('[Settings] Failed to load, using fallback defaults');
+          setSettingsLoaded(true);
+        }
+      } catch (error) {
+        console.error('[Settings] Error loading settings:', error);
+        toast.error('설정 로드 실패 - 기본값 사용');
+        setSettingsLoaded(true); // fallback 값 사용
+      }
+    };
+
+    loadDefaultSettings();
+  }, []);
+
   // 컬렉션 목록 로드
   useEffect(() => {
     const fetchCollections = async () => {
@@ -239,6 +285,7 @@ export function ChatContainer() {
         body: JSON.stringify({
           collection_name: selectedCollection,
           message: userMessage.content,
+          model: settings.model,
           reasoning_level: settings.reasoningLevel,
           temperature: settings.temperature,
           max_tokens: settings.maxTokens,
@@ -282,6 +329,7 @@ export function ChatContainer() {
         role: "assistant",
         content: data.answer || "응답을 생성할 수 없습니다.",
         timestamp: new Date(),
+        model: settings.model, // 현재 사용 중인 모델 정보 저장
         sources: sources,
         metadata: {
           tokens: data.usage?.total_tokens,
@@ -314,6 +362,13 @@ export function ChatContainer() {
 
   // 메시지 전송 (스트리밍)
   const handleStreamingSend = useCallback(async (userMessage: Message, quotedMsg: Message | null = null) => {
+    // AbortController 생성
+    const controller = new AbortController();
+    setAbortController(controller);
+
+    // aiMessageId를 try 블록 밖에서 선언 (catch 블록에서도 사용하기 위해)
+    const aiMessageId = (Date.now() + 1).toString();
+
     try {
       // 대화 기록 준비
       let chatHistory = messages.filter(m => m.role !== "system").slice(-10);
@@ -331,12 +386,21 @@ export function ChatContainer() {
         ];
       }
 
+      console.log('='.repeat(80));
+      console.log('[FRONTEND] Making API call to streaming endpoint');
+      console.log(`[FRONTEND] API_BASE_URL: ${API_BASE_URL}`);
+      console.log(`[FRONTEND] Full URL: ${API_BASE_URL}/api/chat/stream`);
+      console.log(`[FRONTEND] Model: ${settings.model}`);
+      console.log(`[FRONTEND] Collection: ${selectedCollection}`);
+      console.log('='.repeat(80));
+
       const response = await fetch(`${API_BASE_URL}/api/chat/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           collection_name: selectedCollection,
           message: userMessage.content,
+          model: settings.model,
           reasoning_level: settings.reasoningLevel,
           temperature: settings.temperature,
           max_tokens: settings.maxTokens,
@@ -348,6 +412,7 @@ export function ChatContainer() {
           use_reranking: settings.useReranking,
           chat_history: chatHistory,
         }),
+        signal: controller.signal, // AbortController의 signal 추가
       });
 
       if (!response.ok) {
@@ -361,7 +426,6 @@ export function ChatContainer() {
         throw new Error("스트리밍을 지원하지 않습니다");
       }
 
-      const aiMessageId = (Date.now() + 1).toString();
       let aiContent = "";
       let sources: Source[] = [];
       let retrievedDocs: RetrievedDocument[] = [];
@@ -421,6 +485,7 @@ export function ChatContainer() {
                       role: "assistant",
                       content: aiContent,
                       timestamp: new Date(),
+                      model: settings.model, // 현재 사용 중인 모델 정보 저장
                       sources,
                     },
                   ]);
@@ -460,18 +525,36 @@ export function ChatContainer() {
       );
 
       setIsLoading(false);
+      setAbortController(null); // 스트리밍 완료 후 AbortController 정리
     } catch (error) {
-      console.error("Error streaming message:", error);
-      toast.error("스트리밍 중 오류가 발생했습니다");
-      setIsLoading(false);
+      // AbortError는 사용자가 의도적으로 중단한 것이므로 에러로 처리하지 않음
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('[FRONTEND] Streaming aborted by user');
+        toast.info("응답 생성이 중단되었습니다");
 
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: "죄송합니다. 스트리밍 중 오류가 발생했습니다.",
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+        // 부분 응답에 중단 표시 추가
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === aiMessageId
+              ? { ...msg, metadata: { ...msg.metadata, aborted: true } }
+              : msg
+          )
+        );
+      } else {
+        console.error("Error streaming message:", error);
+        toast.error("스트리밍 중 오류가 발생했습니다");
+
+        const errorMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: "죄송합니다. 스트리밍 중 오류가 발생했습니다.",
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+      }
+
+      setIsLoading(false);
+      setAbortController(null); // 에러 발생 시에도 AbortController 정리
     }
   }, [messages, selectedCollection, settings]);
 
@@ -538,10 +621,10 @@ export function ChatContainer() {
       setIsLoading(true);
       toast.info("답변을 다시 생성하고 있습니다");
 
-      // 다양성을 위해 temperature 증가
-      const regenerateTemp = Math.min(context.settings.temperature + 0.2, 2.0);
+      // 현재 고급설정의 temperature 사용 (다양성을 위해 약간 증가)
+      const regenerateTemp = Math.min(settings.temperature + 0.2, 2.0);
 
-      // 백엔드 /api/chat/regenerate 호출
+      // 백엔드 /api/chat/regenerate 호출 (현재 고급설정 값 사용)
       const response = await fetch(`${API_BASE_URL}/api/chat/regenerate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -549,12 +632,13 @@ export function ChatContainer() {
           query: context.originalQuery,
           collection_name: context.collectionName,
           retrieved_docs: context.retrievedDocs,
-          reasoning_level: context.settings.reasoningLevel,
+          model: settings.model, // 현재 선택된 모델 사용
+          reasoning_level: settings.reasoningLevel, // 현재 추론 수준 사용
           temperature: regenerateTemp,
-          max_tokens: context.settings.maxTokens,
-          top_p: context.settings.topP,
-          frequency_penalty: context.settings.frequencyPenalty,
-          presence_penalty: context.settings.presencePenalty,
+          max_tokens: settings.maxTokens,
+          top_p: settings.topP,
+          frequency_penalty: settings.frequencyPenalty,
+          presence_penalty: settings.presencePenalty,
           chat_history: messages
             .filter((m) => m.role !== "system")
             .slice(0, messageIndex)
@@ -563,7 +647,14 @@ export function ChatContainer() {
       });
 
       if (!response.ok) {
-        throw new Error(`API 오류: ${response.status}`);
+        const errorData = await response.json().catch(() => ({ detail: '알 수 없는 오류' }));
+        console.error('[Regenerate] API Error:', {
+          status: response.status,
+          detail: errorData.detail,
+          model: settings.model,
+          collection: context.collectionName
+        });
+        throw new Error(`API 오류 (${response.status}): ${errorData.detail || '알 수 없는 오류'}`);
       }
 
       const data = await response.json();
@@ -591,6 +682,7 @@ export function ChatContainer() {
         role: "assistant",
         content: data.answer || "응답을 생성할 수 없습니다.",
         timestamp: new Date(),
+        model: settings.model, // 현재 선택된 모델 정보 사용
         sources: sources,
         metadata: {
           tokens: data.usage?.total_tokens,
@@ -599,7 +691,7 @@ export function ChatContainer() {
         regenerationContext: {
           originalQuery: context.originalQuery,
           collectionName: context.collectionName,
-          settings: context.settings,
+          settings: { ...settings }, // 현재 설정으로 업데이트
           retrievedDocs: context.retrievedDocs,
         },
       };
@@ -612,12 +704,29 @@ export function ChatContainer() {
     } finally {
       setIsLoading(false);
     }
-  }, [messages]);
+  }, [messages, settings]); // settings 의존성 추가
+
+  // <thought> 태그 제거 유틸리티 함수
+  const removeThoughtTags = useCallback((content: string, model?: string): string => {
+    // EXAONE 모델이 아니면 원본 그대로 반환
+    if (!model || !model.toLowerCase().includes('exaone')) {
+      return content;
+    }
+
+    // <thought>...</thought> 태그 제거
+    const thoughtRegex = /<thought>[\s\S]*?<\/thought>/g;
+    return content.replace(thoughtRegex, '').trim();
+  }, []);
 
   // 인용 메시지 핸들러
   const handleQuote = useCallback((message: Message) => {
-    setQuotedMessage(message);
-  }, []);
+    // <thought> 태그 제거한 버전으로 인용
+    const cleanedContent = removeThoughtTags(message.content, message.model);
+    setQuotedMessage({
+      ...message,
+      content: cleanedContent
+    });
+  }, [removeThoughtTags]);
 
   const handleClearQuote = useCallback(() => {
     setQuotedMessage(null);
@@ -626,6 +735,15 @@ export function ChatContainer() {
   const handlePromptSelect = useCallback((prompt: string) => {
     setInput(prompt);
   }, []);
+
+  // 스트리밍 중단 핸들러
+  const handleStopStreaming = useCallback(() => {
+    if (abortController) {
+      console.log('[FRONTEND] User requested to stop streaming');
+      abortController.abort();
+      setAbortController(null);
+    }
+  }, [abortController]);
 
   // 컬렉션 변경 핸들러
   const handleCollectionChange = useCallback((newCollection: string) => {
@@ -663,9 +781,12 @@ export function ChatContainer() {
           : "flex flex-col h-full overflow-hidden"
       }
     >
-      {/* 상단 헤더 - 컬렉션 선택 및 고급설정 */}
-      <div className="flex items-center justify-between px-3 py-2 border-b flex-shrink-0 bg-background">
-        {/* 로고 */}
+      {/* 상단 헤더 - Claude 스타일 미니멀 */}
+      <div className={cn(
+        "flex items-center justify-between px-4 py-2.5 border-b flex-shrink-0",
+        isFullscreen ? "bg-slate-50/90 backdrop-blur-xl dark:bg-slate-900/90" : "bg-background/95 backdrop-blur"
+      )}>
+        {/* 왼쪽: 로고 (원래 형태) */}
         <div className="flex items-center gap-3">
           {/* Icon Container with Navy Background */}
           <div className="relative">
@@ -689,85 +810,34 @@ export function ChatContainer() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* 컬렉션 선택 */}
-          <div className="flex items-center gap-2">
-            <Database className="h-4 w-4 text-muted-foreground hidden sm:block" />
-            <Select
-              value={selectedCollection}
-              onValueChange={handleCollectionChange}
-            >
-              <SelectTrigger className="w-[120px] sm:w-[180px] md:w-[200px] h-8">
-                <SelectValue placeholder="컬렉션 선택" />
-              </SelectTrigger>
-              <SelectContent>
-                {collections.length === 0 ? (
-                  <div className="p-2 text-center text-sm text-muted-foreground">
-                    컬렉션이 없습니다
-                  </div>
-                ) : (
-                  collections.map((collection) => (
-                    <SelectItem key={collection.name} value={collection.name}>
-                      <div className="flex items-center justify-between gap-2">
-                        <span>{collection.name}</span>
-                        <Badge variant="secondary" className="ml-2 text-xs">
-                          {collection.points_count.toLocaleString()}
-                        </Badge>
-                      </div>
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-          </div>
-
+        {/* 오른쪽: 컨트롤 버튼들 */}
+        <div className="flex items-center gap-1.5">
           {/* 전체화면 토글 */}
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2"
-            onClick={() => {
-              console.log('[Fullscreen Button] Clicked, current state:', isFullscreen);
-              setIsFullscreen(!isFullscreen);
-            }}
-            title={isFullscreen ? "전체화면 종료 (ESC)" : "전체화면"}
-          >
-            {isFullscreen ? (
-              <Minimize className="h-4 w-4" />
-            ) : (
-              <Maximize className="h-4 w-4" />
-            )}
-            <span className="hidden sm:inline">
-              {isFullscreen ? "축소" : "전체화면"}
-            </span>
-          </Button>
-
-          {/* 고급설정 */}
-          <Sheet open={rightPanelOpen} onOpenChange={setRightPanelOpen}>
-            <SheetTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2"
-              >
-                <Settings className="h-4 w-4" />
-                <span className="hidden sm:inline">고급설정</span>
-              </Button>
-            </SheetTrigger>
-
-            <SheetContent
-              side="right"
-              className="w-[90vw] sm:w-[450px] md:w-[500px] p-0"
-            >
-              <SheetHeader className="sr-only">
-                <SheetTitle>고급설정</SheetTitle>
-              </SheetHeader>
-              <SettingsPanel
-                settings={settings}
-                onSettingsChange={setSettings}
-              />
-            </SheetContent>
-          </Sheet>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={() => {
+                    console.log('[Fullscreen Button] Clicked, current state:', isFullscreen);
+                    setIsFullscreen(!isFullscreen);
+                  }}
+                  title={isFullscreen ? "전체화면 종료 (ESC)" : "전체화면"}
+                >
+                  {isFullscreen ? (
+                    <Minimize className="h-4 w-4" />
+                  ) : (
+                    <Maximize className="h-4 w-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs">{isFullscreen ? "전체화면 종료 (ESC)" : "전체화면"}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </div>
 
@@ -791,9 +861,21 @@ export function ChatContainer() {
         onSend={handleSend}
         isLoading={isLoading}
         disabled={!selectedCollection}
-        onClear={handleClearChat}
         quotedMessage={quotedMessage && quotedMessage.role !== "system" ? { role: quotedMessage.role, content: quotedMessage.content } : null}
         onClearQuote={handleClearQuote}
+        selectedModel={settings.model}
+        onModelChange={(model) => setSettings({ ...settings, model })}
+        onClearChat={handleClearChat}
+        isFullscreen={isFullscreen}
+        selectedCollection={selectedCollection}
+        onCollectionChange={handleCollectionChange}
+        collections={collections}
+        settings={settings}
+        onSettingsChange={setSettings}
+        settingsPanelOpen={rightPanelOpen}
+        onSettingsPanelChange={setRightPanelOpen}
+        isStreaming={isLoading && settings.streamMode}
+        onStopStreaming={handleStopStreaming}
       />
     </div>
   );

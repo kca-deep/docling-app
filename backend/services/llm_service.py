@@ -1,10 +1,16 @@
 """
-LLM API 서비스 (GPT-OSS-20B)
+LLM API 서비스 (다중 모델 지원)
 OpenAI 호환 엔드포인트를 사용하는 LLM 서비스
 """
 import httpx
+import logging
+import sys
 from typing import List, Dict, Any, Optional, AsyncGenerator
 from backend.services.prompt_loader import PromptLoader
+from backend.config.settings import settings
+
+# 로거 설정
+logger = logging.getLogger("uvicorn")
 
 
 class LLMService:
@@ -20,8 +26,8 @@ class LLMService:
         LLMService 초기화
 
         Args:
-            base_url: LLM API 기본 URL
-            model: 모델 이름
+            base_url: LLM API 기본 URL (기본값으로만 사용됨)
+            model: 모델 이름 (기본값으로만 사용됨)
             prompt_loader: 프롬프트 로더 (기본값: PromptLoader())
         """
         self.base_url = base_url
@@ -37,6 +43,7 @@ class LLMService:
     async def chat_completion(
         self,
         messages: List[Dict[str, str]],
+        model: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: int = 2000,
         top_p: float = 0.9,
@@ -49,6 +56,7 @@ class LLMService:
 
         Args:
             messages: 메시지 리스트 [{"role": "user", "content": "..."}]
+            model: 사용할 모델 (None이면 기본 모델 사용)
             temperature: 온도 (0~2)
             max_tokens: 최대 토큰 수
             top_p: Top P (0~1)
@@ -65,9 +73,13 @@ class LLMService:
             Exception: API 호출 실패 시
         """
         try:
-            url = f"{self.base_url}/v1/chat/completions"
+            # 모델 키를 기반으로 설정 가져오기
+            model_key = model or self.model
+            llm_config = settings.get_llm_config(model_key)
+
+            url = f"{llm_config['base_url']}/v1/chat/completions"
             payload = {
-                "model": self.model,
+                "model": llm_config['model'],
                 "messages": messages,
                 "temperature": temperature,
                 "max_tokens": max_tokens,
@@ -77,21 +89,29 @@ class LLMService:
                 "stream": False
             }
 
+            logger.info("="*80)
+            logger.info(f"[LLM API CALL] Requested Model Key: {model_key}")
+            logger.info(f"[LLM API CALL] Resolved Model: {llm_config['model']}")
+            logger.info(f"[LLM API CALL] Endpoint URL: {llm_config['base_url']}")
+            logger.info(f"[LLM API CALL] Full URL: {url}")
+            logger.info("="*80)
+
             response = await self.client.post(url, json=payload)
             response.raise_for_status()
 
             result = response.json()
 
-            print(f"[INFO] LLM completion successful. Tokens used: {result.get('usage', {}).get('total_tokens', 'N/A')}")
+            logger.info(f"[LLM API CALL] Completion successful. Tokens used: {result.get('usage', {}).get('total_tokens', 'N/A')}")
             return result
 
         except Exception as e:
-            print(f"[ERROR] LLM completion failed: {e}")
+            logger.error(f"[LLM API CALL] Completion failed: {e}")
             raise Exception(f"LLM API 호출 실패: {str(e)}")
 
     async def chat_completion_stream(
         self,
         messages: List[Dict[str, str]],
+        model: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: int = 2000,
         top_p: float = 0.9,
@@ -103,6 +123,7 @@ class LLMService:
 
         Args:
             messages: 메시지 리스트
+            model: 사용할 모델 (None이면 기본 모델 사용)
             temperature: 온도
             max_tokens: 최대 토큰 수
             top_p: Top P
@@ -116,9 +137,13 @@ class LLMService:
             Exception: API 호출 실패 시
         """
         try:
-            url = f"{self.base_url}/v1/chat/completions"
+            # 모델 키를 기반으로 설정 가져오기
+            model_key = model or self.model
+            llm_config = settings.get_llm_config(model_key)
+
+            url = f"{llm_config['base_url']}/v1/chat/completions"
             payload = {
-                "model": self.model,
+                "model": llm_config['model'],
                 "messages": messages,
                 "temperature": temperature,
                 "max_tokens": max_tokens,
@@ -127,6 +152,22 @@ class LLMService:
                 "presence_penalty": presence_penalty,
                 "stream": True
             }
+
+            # 강제 출력 - 반드시 보여야 함
+            sys.stderr.write("\n" + "="*80 + "\n")
+            sys.stderr.write(f"[LLM STREAM] Requested Model Key: {model_key}\n")
+            sys.stderr.write(f"[LLM STREAM] Resolved Model: {llm_config['model']}\n")
+            sys.stderr.write(f"[LLM STREAM] Endpoint URL: {llm_config['base_url']}\n")
+            sys.stderr.write(f"[LLM STREAM] Full URL: {url}\n")
+            sys.stderr.write("="*80 + "\n\n")
+            sys.stderr.flush()
+
+            logger.info("="*80)
+            logger.info(f"[LLM STREAM] Requested Model Key: {model_key}")
+            logger.info(f"[LLM STREAM] Resolved Model: {llm_config['model']}")
+            logger.info(f"[LLM STREAM] Endpoint URL: {llm_config['base_url']}")
+            logger.info(f"[LLM STREAM] Full URL: {url}")
+            logger.info("="*80)
 
             async with self.client.stream("POST", url, json=payload) as response:
                 response.raise_for_status()
@@ -149,10 +190,10 @@ class LLMService:
                 if buffer.strip():
                     yield f"{buffer}\n"
 
-            print(f"[INFO] LLM streaming completed")
+            logger.info(f"[LLM STREAM] Streaming completed")
 
         except Exception as e:
-            print(f"[ERROR] LLM streaming failed: {e}")
+            logger.error(f"[LLM STREAM] Streaming failed: {e}")
             raise Exception(f"LLM 스트리밍 실패: {str(e)}")
 
     def build_rag_messages(

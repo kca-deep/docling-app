@@ -3,12 +3,16 @@ RAG (Retrieval-Augmented Generation) 서비스
 Qdrant 검색 + LLM 생성을 통합하는 서비스
 """
 import json
+import logging
 from typing import List, Dict, Any, Optional, AsyncGenerator
 from backend.services.embedding_service import EmbeddingService
 from backend.services.qdrant_service import QdrantService
 from backend.services.llm_service import LLMService
 from backend.services.reranker_service import RerankerService
 from backend.config.settings import settings
+
+# 로거 설정
+logger = logging.getLogger("uvicorn")
 
 
 class RAGService:
@@ -90,6 +94,7 @@ class RAGService:
         self,
         query: str,
         retrieved_docs: List[Dict[str, Any]],
+        model: str = "gpt-oss-20b",
         reasoning_level: str = "medium",
         temperature: float = 0.7,
         max_tokens: int = 2000,
@@ -133,9 +138,10 @@ class RAGService:
             )
 
             # 2. LLM으로 답변 생성
-            print(f"[INFO] Generating answer with reasoning_level={reasoning_level}")
+            logger.info(f"[RAG] Generating answer with model={model}, reasoning_level={reasoning_level}")
             response = await self.llm_service.chat_completion(
                 messages=messages,
+                model=model,
                 temperature=temperature,
                 max_tokens=max_tokens,
                 top_p=top_p,
@@ -154,6 +160,7 @@ class RAGService:
         self,
         query: str,
         retrieved_docs: List[Dict[str, Any]],
+        model: str = "gpt-oss-20b",
         reasoning_level: str = "medium",
         temperature: float = 0.7,
         max_tokens: int = 2000,
@@ -195,9 +202,10 @@ class RAGService:
             )
 
             # 2. LLM으로 스트리밍 답변 생성
-            print(f"[INFO] Streaming answer with reasoning_level={reasoning_level}")
+            logger.info(f"[RAG] Streaming answer with model={model}, reasoning_level={reasoning_level}")
             async for chunk in self.llm_service.chat_completion_stream(
                 messages=messages,
+                model=model,
                 temperature=temperature,
                 max_tokens=max_tokens,
                 top_p=top_p,
@@ -214,6 +222,7 @@ class RAGService:
         self,
         collection_name: str,
         query: str,
+        model: str = "gpt-oss-20b",
         reasoning_level: str = "medium",
         temperature: float = 0.7,
         max_tokens: int = 2000,
@@ -320,6 +329,7 @@ class RAGService:
             llm_response = await self.generate(
                 query=query,
                 retrieved_docs=retrieved_docs,
+                model=model,
                 reasoning_level=reasoning_level,
                 temperature=temperature,
                 max_tokens=max_tokens,
@@ -348,6 +358,7 @@ class RAGService:
         self,
         collection_name: str,
         query: str,
+        model: str = "gpt-oss-20b",
         reasoning_level: str = "medium",
         temperature: float = 0.7,
         max_tokens: int = 2000,
@@ -461,6 +472,7 @@ class RAGService:
             async for chunk in self.generate_stream(
                 query=query,
                 retrieved_docs=retrieved_docs,
+                model=model,
                 reasoning_level=reasoning_level,
                 temperature=temperature,
                 max_tokens=max_tokens,
