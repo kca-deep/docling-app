@@ -14,7 +14,7 @@ export function NavHeader() {
     { href: "/system-architecture", label: "구성도", icon: Server },
     { href: "/parse", label: "문서변환", icon: FileText },
     { href: "/upload", label: "임베딩", icon: Upload },
-    { href: "/chat", label: "AI 챗봇", icon: MessageSquare },
+    { href: "/chat?fullscreen=true", label: "AI 챗봇", icon: MessageSquare },
   ]
 
   return (
@@ -50,7 +50,9 @@ export function NavHeader() {
         <nav className="hidden md:flex items-center justify-center gap-1">
           {navItems.map((item) => {
             const Icon = item.icon
-            const isActive = pathname === item.href
+            // query parameter를 제외한 pathname만 비교
+            const itemPathname = item.href.split('?')[0]
+            const isActive = pathname === itemPathname
 
             return (
               <Link
@@ -74,7 +76,9 @@ export function NavHeader() {
           <div className="md:hidden flex gap-0.5">
             {navItems.map((item) => {
               const Icon = item.icon
-              const isActive = pathname === item.href
+              // query parameter를 제외한 pathname만 비교
+              const itemPathname = item.href.split('?')[0]
+              const isActive = pathname === itemPathname
 
               return (
                 <Link

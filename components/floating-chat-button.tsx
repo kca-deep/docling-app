@@ -11,7 +11,7 @@ export function FloatingChatButton() {
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
-      <Link href="/chat">
+      <Link href="/chat?fullscreen=true">
         <Button
           size="lg"
           className={cn(

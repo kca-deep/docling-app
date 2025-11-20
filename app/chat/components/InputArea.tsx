@@ -33,6 +33,7 @@ import {
   Zap,
   Trash2,
   Settings,
+  Brain,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -90,6 +91,8 @@ interface InputAreaProps {
   onSettingsPanelChange: (open: boolean) => void;
   isStreaming?: boolean;
   onStopStreaming?: () => void;
+  deepThinkingEnabled: boolean;
+  onDeepThinkingChange: (enabled: boolean) => void;
 }
 
 export const InputArea = memo(function InputArea({
@@ -113,6 +116,8 @@ export const InputArea = memo(function InputArea({
   onSettingsChange,
   settingsPanelOpen,
   onSettingsPanelChange,
+  deepThinkingEnabled,
+  onDeepThinkingChange,
 }: InputAreaProps) {
   const [isComposing, setIsComposing] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -281,6 +286,35 @@ export const InputArea = memo(function InputArea({
                   )}
                 </SelectContent>
               </Select>
+
+              {/* 심층사고 토글 */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      disabled={isLoading}
+                      onClick={() => onDeepThinkingChange(!deepThinkingEnabled)}
+                    >
+                      <Brain
+                        className={cn(
+                          "h-3.5 w-3.5 transition-colors",
+                          deepThinkingEnabled
+                            ? "text-blue-600 dark:text-blue-400"
+                            : "text-muted-foreground"
+                        )}
+                      />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="text-xs">
+                      {deepThinkingEnabled ? "심층사고 활성화됨" : "심층사고 비활성화됨"}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
 
               {/* 대화 초기화 */}
               {onClearChat && (

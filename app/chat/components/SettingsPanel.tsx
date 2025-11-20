@@ -57,28 +57,6 @@ export const SettingsPanel = memo(function SettingsPanel({
     <div className="h-full flex flex-col">
       <ScrollArea className="flex-1">
         <div className="p-3 space-y-3">
-          {/* 추론 수준 */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="reasoning-level" className="text-xs font-medium">추론 수준</Label>
-              <Select
-                value={settings.reasoningLevel}
-                onValueChange={(value) => updateSetting("reasoningLevel", value)}
-              >
-                <SelectTrigger id="reasoning-level" className="h-7 w-[120px] text-xs">
-                  <SelectValue placeholder="선택" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low" className="text-xs">빠른 응답</SelectItem>
-                  <SelectItem value="medium" className="text-xs">균형</SelectItem>
-                  <SelectItem value="high" className="text-xs">깊은 추론</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <Separator className="my-2" />
-
           {/* 스트리밍 모드 */}
           <div className="flex items-center justify-between">
             <div className="space-y-0">
@@ -160,47 +138,8 @@ export const SettingsPanel = memo(function SettingsPanel({
             </div>
           </div>
 
-          {/* 응답 길이 (Max Tokens) */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1">
-                <Label htmlFor="max-tokens" className="text-xs font-medium">
-                  응답 길이
-                </Label>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Info className="h-3 w-3 text-muted-foreground cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className="max-w-[160px]">
-                      <p className="text-[10px] leading-snug">
-                        한글 1자 ≈ 1토큰
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-              <span className="text-[10px] text-muted-foreground font-mono tabular-nums">
-                {settings.maxTokens.toLocaleString()}
-              </span>
-            </div>
-            <Slider
-              id="max-tokens"
-              min={4096}
-              max={8192}
-              step={100}
-              value={[settings.maxTokens]}
-              onValueChange={([value]) => updateSetting("maxTokens", value)}
-              className="w-full"
-            />
-            <div className="flex justify-between text-[9px] text-muted-foreground">
-              <span>4,096</span>
-              <span>8,192</span>
-            </div>
-          </div>
-
           {/* 검색 문서 수 */}
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 opacity-60">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1">
                 <Label htmlFor="top-k" className="text-xs font-medium">
@@ -213,7 +152,7 @@ export const SettingsPanel = memo(function SettingsPanel({
                     </TooltipTrigger>
                     <TooltipContent side="right" className="max-w-[200px]">
                       <p className="text-[10px] leading-snug">
-                        벡터 DB 검색 개수
+                        .env 파일에서 설정됨 (변경 불가)
                       </p>
                     </TooltipContent>
                   </Tooltip>
@@ -231,6 +170,7 @@ export const SettingsPanel = memo(function SettingsPanel({
               value={[settings.topK]}
               onValueChange={([value]) => updateSetting("topK", value)}
               className="w-full"
+              disabled
             />
             <div className="flex justify-between text-[9px] text-muted-foreground">
               <span>1</span>

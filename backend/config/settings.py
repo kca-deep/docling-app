@@ -4,6 +4,7 @@
 """
 from pydantic_settings import BaseSettings
 from typing import List, Optional
+from pathlib import Path
 
 
 class Settings(BaseSettings):
@@ -57,7 +58,7 @@ class Settings(BaseSettings):
     EXAONE_DEEP_MODEL: str = "exaone-deep-7.8b"
 
     LLM_DEFAULT_TEMPERATURE: float = 0.7
-    LLM_DEFAULT_MAX_TOKENS: int = 8192
+    LLM_DEFAULT_MAX_TOKENS: int = 2000
     LLM_DEFAULT_TOP_P: float = 0.9
 
     # RAG 설정
@@ -145,7 +146,9 @@ class Settings(BaseSettings):
         })
 
     class Config:
-        env_file = "backend/.env"
+        # settings.py 파일의 위치를 기준으로 .env 파일의 절대 경로 계산
+        # backend/config/settings.py -> backend/.env
+        env_file = str(Path(__file__).parent.parent / ".env")
         case_sensitive = True
 
 

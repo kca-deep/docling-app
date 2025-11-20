@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { MessageList } from "./MessageList";
 import { InputArea } from "./InputArea";
 import { SuggestedPrompts } from "./SuggestedPrompts";
@@ -98,6 +99,8 @@ interface ChatSettings {
 }
 
 export function ChatContainer() {
+  const searchParams = useSearchParams();
+
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
@@ -119,8 +122,10 @@ export function ChatContainer() {
   // 우측 패널 상태
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
 
-  // 전체화면 상태
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  // 전체화면 상태 - URL 파라미터에서 초기값 읽기
+  const [isFullscreen, setIsFullscreen] = useState(() => {
+    return searchParams?.get('fullscreen') === 'true';
+  });
 
   // AI 설정 (기본값은 fallback용)
   const [settings, setSettings] = useState<ChatSettings>({
@@ -137,6 +142,8 @@ export function ChatContainer() {
   });
 
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [defaultReasoningLevel, setDefaultReasoningLevel] = useState<string>("medium"); // 백엔드에서 로드한 기본값
+  const [deepThinkingEnabled, setDeepThinkingEnabled] = useState(false); // 심층사고 토글 상태
 
   // Body 스크롤 제어 및 전체화면 클래스 추가
   useEffect(() => {
@@ -207,6 +214,7 @@ export function ChatContainer() {
         const response = await fetch(`${API_BASE_URL}/api/chat/default-settings`);
         if (response.ok) {
           const data = await response.json();
+          setDefaultReasoningLevel(data.reasoning_level); // 기본값 저장
           setSettings(prev => ({
             ...prev,
             model: data.model,
@@ -233,6 +241,14 @@ export function ChatContainer() {
 
     loadDefaultSettings();
   }, []);
+
+  // 심층사고 토글 변경 시 reasoningLevel 업데이트
+  useEffect(() => {
+    setSettings(prev => ({
+      ...prev,
+      reasoningLevel: deepThinkingEnabled ? "medium" : defaultReasoningLevel,
+    }));
+  }, [deepThinkingEnabled, defaultReasoningLevel]);
 
   // 컬렉션 목록 로드
   useEffect(() => {
@@ -876,6 +892,8 @@ export function ChatContainer() {
         onSettingsPanelChange={setRightPanelOpen}
         isStreaming={isLoading && settings.streamMode}
         onStopStreaming={handleStopStreaming}
+        deepThinkingEnabled={deepThinkingEnabled}
+        onDeepThinkingChange={setDeepThinkingEnabled}
       />
     </div>
   );

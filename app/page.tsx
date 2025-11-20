@@ -193,7 +193,7 @@ export default function HomePage() {
         "스트리밍 응답으로 빠른 피드백",
         "검색 정확도 향상 (Reranking)"
       ],
-      link: "/chat"
+      link: "/chat?fullscreen=true"
     },
     {
       icon: Brain,
@@ -222,7 +222,7 @@ export default function HomePage() {
         "Google Gemini Pro",
         "모델별 특화된 응답 생성"
       ],
-      link: "/chat"
+      link: "/chat?fullscreen=true"
     },
   ]
 
@@ -277,7 +277,7 @@ export default function HomePage() {
                 지금 시작하기
               </Button>
             </Link>
-            <Link href="/chat">
+            <Link href="/chat?fullscreen=true">
               <Button size="lg" variant="outline" className="border-2 hover:bg-primary/5 transition-all hover:scale-105 px-8">
                 <MessageSquare className="w-5 h-5 mr-2" />
                 AI 챗봇 체험
