@@ -54,6 +54,7 @@ interface MessageBubbleProps {
   metadata?: {
     tokens?: number;
     processingTime?: number;
+    aborted?: boolean;
   };
   onCopy?: () => void;
   onRegenerate?: () => void;
