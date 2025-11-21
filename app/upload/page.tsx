@@ -6,8 +6,8 @@ import { PageContainer } from "@/components/page-container"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Card, CardContent } from "@/components/ui/card"
-import { Loader2, Upload, Database, Settings } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Loader2, Upload, Database, Settings, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 import { MarkdownViewerModal } from "@/components/markdown-viewer-modal"
 import { API_BASE_URL } from "@/lib/api-config"
@@ -517,21 +517,65 @@ function UploadPageContent() {
         {/* 우측: Qdrant/Dify 설정 (30%) - Sticky */}
         <div className="lg:sticky lg:top-4 lg:self-start min-w-0 overflow-hidden">
           <Card className="min-w-0 overflow-hidden">
-            <CardContent className="p-0">
-              <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as UploadTarget)}>
-                <TabsList className="grid w-full grid-cols-2 rounded-none border-b">
-                  <TabsTrigger value="qdrant" className="gap-2">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <Upload className="h-5 w-5" />
+                <div>
+                  <CardTitle className="text-lg">임베딩 업로드 설정</CardTitle>
+                  <CardDescription className="mt-0.5">
+                    벡터 DB 또는 지식베이스에 문서 업로드
+                  </CardDescription>
+                </div>
+              </div>
+
+              {/* Segmented Control - iOS 스타일 (Pill Shape) */}
+              <div className="mt-3">
+                <div className="relative inline-flex w-full p-1 bg-muted/60 backdrop-blur-sm rounded-full border border-border/50 shadow-sm">
+                  {/* 슬라이딩 배경 */}
+                  <div
+                    className={`absolute top-1 bottom-1 w-[calc(50%-0.25rem)] bg-background rounded-full shadow-md transition-all duration-200 ease-out ${
+                      activeTab === "qdrant" ? "left-1" : "left-[calc(50%+0.125rem)]"
+                    }`}
+                  />
+
+                  {/* Qdrant 버튼 */}
+                  <button
+                    onClick={() => setActiveTab("qdrant")}
+                    className={`relative z-10 flex-1 px-4 py-3 rounded-full text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
+                      activeTab === "qdrant"
+                        ? "text-emerald-600"
+                        : "text-muted-foreground hover:text-foreground hover:scale-[1.02]"
+                    }`}
+                  >
                     <Database className="h-4 w-4" />
-                    Qdrant
-                  </TabsTrigger>
-                  <TabsTrigger value="dify" className="gap-2">
-                    <Settings className="h-4 w-4" />
-                    Dify
-                  </TabsTrigger>
+                    Qdrant 벡터DB
+                  </button>
+
+                  {/* Dify 버튼 */}
+                  <button
+                    onClick={() => setActiveTab("dify")}
+                    className={`relative z-10 flex-1 px-4 py-3 rounded-full text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
+                      activeTab === "dify"
+                        ? "text-purple-600"
+                        : "text-muted-foreground hover:text-foreground hover:scale-[1.02]"
+                    }`}
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    Dify 데이터셋
+                  </button>
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent>
+              <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as UploadTarget)}>
+                <TabsList className="hidden">
+                  <TabsTrigger value="qdrant" />
+                  <TabsTrigger value="dify" />
                 </TabsList>
 
                 {/* Qdrant 탭 */}
-                <TabsContent value="qdrant" className="space-y-4 m-0 p-6">
+                <TabsContent value="qdrant" className="space-y-4 m-0 p-0">
               <QdrantSettingsPanel
                 selectedCollection={selectedQdrantCollection}
                 collections={qdrantCollections}
@@ -591,7 +635,7 @@ function UploadPageContent() {
             </TabsContent>
 
               {/* Dify 탭 */}
-              <TabsContent value="dify" className="space-y-4 m-0 p-6">
+              <TabsContent value="dify" className="space-y-4 m-0 p-0">
                 <DifySettingsPanel
                 apiKey={difyApiKey}
                 baseUrl={difyBaseUrl}
