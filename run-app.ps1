@@ -51,4 +51,4 @@ Write-Host "=== Backend Server Starting ===" -ForegroundColor Green
 Write-Host ""
 
 & ".\backend\venv\Scripts\activate.ps1"
-python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+python -u -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000 --log-level info
