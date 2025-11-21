@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Server, Cpu, HardDrive, Network, Database, Boxes, Globe, MonitorPlay, ChevronDown } from "lucide-react"
+import { Server, Cpu, Network, Database, Boxes, Globe, MonitorPlay, ChevronDown } from "lucide-react"
 
 export default function SystemArchitecturePage() {
   return (
@@ -36,9 +36,9 @@ export default function SystemArchitecturePage() {
                   </div>
                 </div>
 
-                <Accordion type="multiple" defaultValue={["entry", "application", "hardware"]} className="space-y-4 mt-4">
+                <Accordion type="multiple" defaultValue={["entry", "application"]} className="space-y-4 mt-4">
                   {/* Entry Points */}
-                  <AccordionItem value="entry" className="border-2 border-purple-500/50 rounded-lg bg-purple-500/5 px-4">
+                  <AccordionItem value="entry" className="border-2 border-purple-500/50 rounded-lg bg-purple-500/5 px-4 overflow-visible">
                     <AccordionTrigger className="hover:no-underline py-4">
                       <div className="flex items-center gap-2">
                         <Globe className="h-5 w-5 text-purple-600" />
@@ -51,13 +51,11 @@ export default function SystemArchitecturePage() {
                           <div className="bg-background border-2 border-purple-500 rounded-lg p-4 text-center">
                             <Server className="h-7 w-7 mx-auto mb-2 text-purple-600" />
                             <p className="font-semibold text-sm mb-1">KCA RAG 파이프라인</p>
-                            <p className="text-xs text-muted-foreground mb-2">kca-ai.kro.kr</p>
                             <Badge variant="secondary" className="text-xs">:3000</Badge>
                           </div>
                           <div className="bg-background border-2 border-purple-500 rounded-lg p-4 text-center">
                             <Globe className="h-7 w-7 mx-auto mb-2 text-purple-600" />
                             <p className="font-semibold text-sm mb-1">Dify Platform</p>
-                            <p className="text-xs text-muted-foreground mb-2">kca-ai.kro.kr</p>
                             <Badge variant="secondary" className="text-xs">:3002</Badge>
                           </div>
                           <div className="bg-muted/20 border-2 rounded-lg p-4 text-center">
@@ -66,7 +64,6 @@ export default function SystemArchitecturePage() {
                               <p className="font-semibold text-sm">Open WebUI</p>
                               <Badge variant="outline" className="text-xs">Inactive</Badge>
                             </div>
-                            <p className="text-xs text-muted-foreground mb-2">localhost</p>
                             <Badge variant="secondary" className="text-xs">:3001</Badge>
                           </div>
                         </div>
@@ -79,7 +76,6 @@ export default function SystemArchitecturePage() {
                                 <Network className="h-7 w-7 text-purple-600" />
                                 <div className="text-left">
                                   <p className="font-semibold text-sm mb-1">Direct LLM API</p>
-                                  <p className="text-xs text-muted-foreground">112.173.179.199</p>
                                 </div>
                                 <Badge variant="secondary" className="text-xs">:808X</Badge>
                               </div>
@@ -163,7 +159,7 @@ export default function SystemArchitecturePage() {
                   </AccordionItem>
 
                   {/* Application Layer */}
-                  <AccordionItem value="application" className="border-2 border-blue-500/50 rounded-lg bg-blue-500/5 px-4">
+                  <AccordionItem value="application" className="border-2 border-blue-500/50 rounded-lg bg-blue-500/5 px-4 overflow-visible">
                     <AccordionTrigger className="hover:no-underline py-4">
                       <div className="flex items-center gap-2">
                         <Server className="h-5 w-5 text-blue-600" />
@@ -219,140 +215,6 @@ export default function SystemArchitecturePage() {
                               <p>포트: 6333</p>
                               <p>기술: Vector DB</p>
                               <p>기능: 벡터 저장소</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-
-                  {/* Hardware Resources */}
-                  <AccordionItem value="hardware" className="border-2 border-slate-500/50 rounded-lg bg-slate-500/5 px-4">
-                    <AccordionTrigger className="hover:no-underline py-4">
-                      <div className="flex items-center gap-2">
-                        <HardDrive className="h-5 w-5 text-slate-600" />
-                        <span className="font-bold text-base text-slate-700 dark:text-slate-400">Hardware Resources</span>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <div className="flex flex-col md:flex-row gap-4 pb-4">
-                        {/* GPU Layer */}
-                        <div className="border-2 border-dashed border-red-500/50 rounded-lg p-5 bg-red-500/5 flex-1">
-                          <div className="bg-background border-2 border-red-600 rounded-lg p-5">
-                            <div className="flex items-center justify-center gap-2 mb-4">
-                              <Cpu className="h-6 w-6 text-red-600" />
-                              <h3 className="font-bold text-base">GPU Status</h3>
-                            </div>
-
-                            {/* GPU 사용률 */}
-                            <div className="border rounded-lg p-3 bg-muted/30 mb-2">
-                              <div className="flex items-center justify-between mb-2">
-                                <p className="text-muted-foreground text-xs">GPU 사용률</p>
-                                <p className="font-semibold text-xs">0%</p>
-                              </div>
-                              <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2">
-                                <div className="bg-blue-500 h-2 rounded-full" style={{width: '0%'}}></div>
-                              </div>
-                            </div>
-
-                            {/* VRAM 전체 사용량 */}
-                            <div className="border rounded-lg p-3 bg-muted/30 mb-2">
-                              <div className="flex items-center justify-between mb-2">
-                                <p className="text-muted-foreground text-xs">VRAM 사용량</p>
-                                <p className="font-semibold text-xs">95% 30988MB / 32607MB</p>
-                              </div>
-                              <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2">
-                                <div className="bg-orange-500 h-2 rounded-full" style={{width: '95%'}}></div>
-                              </div>
-                            </div>
-
-                            {/* 프로세스별 VRAM */}
-                            <div className="space-y-2">
-                              <p className="text-xs font-semibold text-muted-foreground">프로세스별 VRAM</p>
-
-                              <div className="border rounded-lg p-2 bg-green-500/10">
-                                <div className="flex items-center justify-between mb-1">
-                                  <p className="text-xs font-medium">GPT-OSS 20B</p>
-                                  <p className="text-xs font-semibold">13.24 GB (41%)</p>
-                                </div>
-                                <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5">
-                                  <div className="bg-green-500 h-1.5 rounded-full" style={{width: '41%'}}></div>
-                                </div>
-                              </div>
-
-                              <div className="border rounded-lg p-2 bg-green-500/10">
-                                <div className="flex items-center justify-between mb-1">
-                                  <p className="text-xs font-medium">Qwen3-VL 8B</p>
-                                  <p className="text-xs font-semibold">12.21 GB (38%)</p>
-                                </div>
-                                <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5">
-                                  <div className="bg-green-500 h-1.5 rounded-full" style={{width: '38%'}}></div>
-                                </div>
-                              </div>
-
-                              <div className="border rounded-lg p-2 bg-orange-500/10">
-                                <div className="flex items-center justify-between mb-1">
-                                  <p className="text-xs font-medium">BGE Reranker</p>
-                                  <p className="text-xs font-semibold">3.11 GB (9%)</p>
-                                </div>
-                                <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5">
-                                  <div className="bg-orange-500 h-1.5 rounded-full" style={{width: '9%'}}></div>
-                                </div>
-                              </div>
-
-                              <div className="border rounded-lg p-2 bg-blue-500/10">
-                                <div className="flex items-center justify-between mb-1">
-                                  <p className="text-xs font-medium">Docling</p>
-                                  <p className="text-xs font-semibold">1.66 GB (5%)</p>
-                                </div>
-                                <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5">
-                                  <div className="bg-blue-500 h-1.5 rounded-full" style={{width: '5%'}}></div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* 스토리지 정보 */}
-                        <div className="border-2 border-dashed border-slate-600/50 rounded-lg p-5 bg-slate-600/5 flex-1">
-                          <div className="bg-background border-2 rounded-lg p-5">
-                            <div className="flex items-center justify-center gap-2 mb-4">
-                              <HardDrive className="h-5 w-5" />
-                              <h3 className="font-bold text-base">Storage</h3>
-                            </div>
-                            <div className="space-y-3">
-                              <div className="border rounded-lg p-3 bg-muted/30">
-                                <div className="flex items-center justify-between mb-2">
-                                  <p className="text-muted-foreground text-xs">/ (root)</p>
-                                  <p className="font-semibold text-xs">67%</p>
-                                </div>
-                                <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 mb-1">
-                                  <div className="bg-orange-500 h-2 rounded-full" style={{width: '67%'}}></div>
-                                </div>
-                                <p className="text-xs text-center text-muted-foreground">62G / 98G</p>
-                              </div>
-
-                              <div className="border rounded-lg p-3 bg-muted/30">
-                                <div className="flex items-center justify-between mb-2">
-                                  <p className="text-muted-foreground text-xs">/models</p>
-                                  <p className="font-semibold text-xs">10%</p>
-                                </div>
-                                <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 mb-1">
-                                  <div className="bg-green-500 h-2 rounded-full" style={{width: '10%'}}></div>
-                                </div>
-                                <p className="text-xs text-center text-muted-foreground">170G / 1.8T</p>
-                              </div>
-
-                              <div className="border rounded-lg p-3 bg-muted/30">
-                                <div className="flex items-center justify-between mb-2">
-                                  <p className="text-muted-foreground text-xs">/data</p>
-                                  <p className="font-semibold text-xs">2%</p>
-                                </div>
-                                <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 mb-1">
-                                  <div className="bg-green-500 h-2 rounded-full" style={{width: '2%'}}></div>
-                                </div>
-                                <p className="text-xs text-center text-muted-foreground">12G / 916G</p>
-                              </div>
                             </div>
                           </div>
                         </div>

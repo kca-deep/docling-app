@@ -541,27 +541,27 @@ function UploadPageContent() {
                   {/* Qdrant 버튼 */}
                   <button
                     onClick={() => setActiveTab("qdrant")}
-                    className={`relative z-10 flex-1 px-4 py-3 rounded-full text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
+                    className={`relative z-10 flex-1 px-4 py-2 rounded-full text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
                       activeTab === "qdrant"
                         ? "text-emerald-600"
                         : "text-muted-foreground hover:text-foreground hover:scale-[1.02]"
                     }`}
                   >
-                    <Database className="h-4 w-4" />
-                    Qdrant 벡터DB
+                    <Database className="h-3.5 w-3.5" />
+                    Vector DB
                   </button>
 
                   {/* Dify 버튼 */}
                   <button
                     onClick={() => setActiveTab("dify")}
-                    className={`relative z-10 flex-1 px-4 py-3 rounded-full text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
+                    className={`relative z-10 flex-1 px-4 py-2 rounded-full text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
                       activeTab === "dify"
                         ? "text-purple-600"
                         : "text-muted-foreground hover:text-foreground hover:scale-[1.02]"
                     }`}
                   >
-                    <Sparkles className="h-4 w-4" />
-                    Dify 데이터셋
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Dify Dataset
                   </button>
                 </div>
               </div>
