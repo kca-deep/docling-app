@@ -38,7 +38,7 @@ export default function SystemArchitecturePage() {
 
                 <Accordion type="multiple" defaultValue={["entry", "application"]} className="space-y-4 mt-4">
                   {/* Entry Points */}
-                  <AccordionItem value="entry" className="border-2 border-purple-500/50 rounded-lg bg-purple-500/5 px-4 overflow-visible">
+                  <AccordionItem value="entry" className="border-2 border-purple-500/50 rounded-lg bg-purple-500/5 px-4 pb-2 overflow-visible">
                     <AccordionTrigger className="hover:no-underline py-4">
                       <div className="flex items-center gap-2">
                         <Globe className="h-5 w-5 text-purple-600" />
@@ -46,7 +46,7 @@ export default function SystemArchitecturePage() {
                       </div>
                     </AccordionTrigger>
                     <AccordionContent>
-                      <div className="space-y-4 pb-4">
+                      <div className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                           <div className="bg-background border-2 border-purple-500 rounded-lg p-4 text-center">
                             <Server className="h-7 w-7 mx-auto mb-2 text-purple-600" />
@@ -159,7 +159,7 @@ export default function SystemArchitecturePage() {
                   </AccordionItem>
 
                   {/* Application Layer */}
-                  <AccordionItem value="application" className="border-2 border-blue-500/50 rounded-lg bg-blue-500/5 px-4 overflow-visible">
+                  <AccordionItem value="application" className="border-2 border-blue-500/50 rounded-lg bg-blue-500/5 px-4 pb-2 overflow-visible">
                     <AccordionTrigger className="hover:no-underline py-4">
                       <div className="flex items-center gap-2">
                         <Server className="h-5 w-5 text-blue-600" />
@@ -167,7 +167,7 @@ export default function SystemArchitecturePage() {
                       </div>
                     </AccordionTrigger>
                     <AccordionContent>
-                      <div className="pb-4">
+                      <div>
                         {/* AI Services - 지원 서비스 상세 카드 */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                           <div className="border-2 border-orange-500/50 rounded-lg p-4 bg-orange-500/5">

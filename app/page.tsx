@@ -45,8 +45,8 @@ export default function HomePage() {
       title: "문서 변환",
       description: "PDF, DOCX, PPTX 파일을 AI로 분석하여 마크다운으로 변환",
       href: "/parse",
-      color: "text-blue-600 dark:text-blue-400",
-      bgColor: "bg-blue-100 dark:bg-blue-900/30",
+      color: "text-foreground",
+      bgColor: "bg-muted",
       features: ["OCR 기능", "테이블 인식", "이미지 추출", "일괄 처리"]
     },
     {
@@ -54,8 +54,8 @@ export default function HomePage() {
       title: "URL 기반 파싱",
       description: "웹 문서를 실시간으로 수집하고 구조화된 데이터로 변환",
       href: "/url-parse",
-      color: "text-green-600 dark:text-green-400",
-      bgColor: "bg-green-100 dark:bg-green-900/30",
+      color: "text-foreground",
+      bgColor: "bg-muted",
       features: ["실시간 수집", "메타데이터 추출", "자동 업데이트"]
     },
     {
@@ -63,8 +63,8 @@ export default function HomePage() {
       title: "Qdrant Vector DB",
       description: "문서를 벡터 임베딩으로 변환하여 시맨틱 검색 지원",
       href: "/qdrant",
-      color: "text-purple-600 dark:text-purple-400",
-      bgColor: "bg-purple-100 dark:bg-purple-900/30",
+      color: "text-foreground",
+      bgColor: "bg-muted",
       features: ["BGE-M3 임베딩", "시맨틱 검색", "유사도 매칭", "클러스터링"]
     },
     {
@@ -72,8 +72,8 @@ export default function HomePage() {
       title: "Dify 연동",
       description: "Dify AI 플랫폼과 통합하여 지식베이스 구축",
       href: "/dify",
-      color: "text-orange-600 dark:text-orange-400",
-      bgColor: "bg-orange-100 dark:bg-orange-900/30",
+      color: "text-foreground",
+      bgColor: "bg-muted",
       features: ["API 통합", "데이터셋 관리", "버전 관리", "팀 협업"]
     },
   ]
@@ -87,16 +87,16 @@ export default function HomePage() {
       details: "PDF, DOCX, PPTX 지원\nOCR 텍스트 추출\n테이블 구조 인식\n마크다운 변환",
       tech: "Docling Serve API (IBM)",
       status: "completed",
-      color: "blue",
-      gradient: "from-blue-500 to-blue-600",
-      borderColor: "border-blue-500/60",
-      bgGradient: "from-blue-50 to-blue-100/50 dark:from-blue-950/60 dark:to-blue-900/30",
-      glowColor: "bg-blue-500/20",
-      iconBg: "from-blue-100 to-blue-200 dark:from-blue-900/50 dark:to-blue-800/30",
-      iconColor: "text-blue-600 dark:text-blue-400",
-      badgeBg: "bg-blue-500/10",
-      badgeText: "text-blue-700 dark:text-blue-400",
-      badgeBorder: "border-blue-500/20",
+      color: "neutral",
+      gradient: "from-foreground/80 to-foreground/60",
+      borderColor: "border-border",
+      bgGradient: "from-muted/50 to-muted/30",
+      glowColor: "bg-foreground/10",
+      iconBg: "from-muted to-muted/80",
+      iconColor: "text-foreground",
+      badgeBg: "bg-muted",
+      badgeText: "text-foreground",
+      badgeBorder: "border-border",
       detailedDescription: "Docling Serve API를 활용하여 PDF, DOCX, PPTX 등 다양한 문서 형식을 지능적으로 파싱합니다. IBM의 최신 AI 기술로 문서 구조를 정확하게 분석하고, OCR을 통해 이미지 내 텍스트까지 추출합니다.",
       features: [
         "다양한 문서 형식 지원 (PDF, DOCX, PPTX)",
@@ -116,16 +116,16 @@ export default function HomePage() {
       details: "1024차원 벡터 생성\n다국어 지원\n의미적 유사도 계산\n실시간 인덱싱",
       tech: "BGE-M3 + Qdrant Vector DB",
       status: "active",
-      color: "purple",
-      gradient: "from-purple-500 to-purple-600",
-      borderColor: "border-purple-500/60",
-      bgGradient: "from-purple-50 to-purple-100/50 dark:from-purple-950/60 dark:to-purple-900/30",
-      glowColor: "bg-purple-500/20",
-      iconBg: "from-purple-100 to-purple-200 dark:from-purple-900/50 dark:to-purple-800/30",
-      iconColor: "text-purple-600 dark:text-purple-400",
-      badgeBg: "bg-purple-500/10",
-      badgeText: "text-purple-700 dark:text-purple-400",
-      badgeBorder: "border-purple-500/20",
+      color: "neutral",
+      gradient: "from-foreground/80 to-foreground/60",
+      borderColor: "border-border",
+      bgGradient: "from-muted/50 to-muted/30",
+      glowColor: "bg-foreground/10",
+      iconBg: "from-muted to-muted/80",
+      iconColor: "text-foreground",
+      badgeBg: "bg-muted",
+      badgeText: "text-foreground",
+      badgeBorder: "border-border",
       detailedDescription: "BGE-M3 임베딩 모델을 사용하여 문서를 1024차원의 벡터로 변환하고, Qdrant 벡터 데이터베이스에 저장합니다. 의미적 유사도 기반 검색을 통해 관련 문서를 빠르고 정확하게 찾아냅니다.",
       features: [
         "BGE-M3 모델로 고품질 임베딩 생성",
@@ -145,16 +145,16 @@ export default function HomePage() {
       details: "데이터셋 자동 분류\nAPI 통합\n버전 관리\n권한 설정",
       tech: "Dify Knowledge Base API",
       status: "pending",
-      color: "orange",
-      gradient: "from-orange-500 to-orange-600",
-      borderColor: "border-orange-500/60",
-      bgGradient: "from-orange-50 to-orange-100/50 dark:from-orange-950/60 dark:to-orange-900/30",
-      glowColor: "bg-orange-500/20",
-      iconBg: "from-orange-100 to-orange-200 dark:from-orange-900/50 dark:to-orange-800/30",
-      iconColor: "text-orange-600 dark:text-orange-400",
-      badgeBg: "bg-orange-500/10",
-      badgeText: "text-orange-700 dark:text-orange-400",
-      badgeBorder: "border-orange-500/20",
+      color: "neutral",
+      gradient: "from-foreground/80 to-foreground/60",
+      borderColor: "border-border",
+      bgGradient: "from-muted/50 to-muted/30",
+      glowColor: "bg-foreground/10",
+      iconBg: "from-muted to-muted/80",
+      iconColor: "text-foreground",
+      badgeBg: "bg-muted",
+      badgeText: "text-foreground",
+      badgeBorder: "border-border",
       detailedDescription: "Dify AI 플랫폼과 통합하여 파싱된 문서를 지식베이스에 업로드합니다. 팀 협업과 버전 관리를 지원하며, Dify의 강력한 RAG 기능을 활용할 수 있습니다.",
       features: [
         "Dify 플랫폼 완벽 연동",
@@ -174,16 +174,16 @@ export default function HomePage() {
       details: "벡터 검색 + BGE Rerank\n컨텍스트 기반 응답\n출처 표시\n멀티턴 대화\n정확도 향상",
       tech: "RAG Pipeline + BGE Reranker",
       status: "pending",
-      color: "green",
-      gradient: "from-green-500 to-green-600",
-      borderColor: "border-green-500/60",
-      bgGradient: "from-green-50 to-green-100/50 dark:from-green-950/60 dark:to-green-900/30",
-      glowColor: "bg-green-500/20",
-      iconBg: "from-green-100 to-green-200 dark:from-green-900/50 dark:to-green-800/30",
-      iconColor: "text-green-600 dark:text-green-400",
-      badgeBg: "bg-green-500/10",
-      badgeText: "text-green-700 dark:text-green-400",
-      badgeBorder: "border-green-500/20",
+      color: "neutral",
+      gradient: "from-foreground/80 to-foreground/60",
+      borderColor: "border-border",
+      bgGradient: "from-muted/50 to-muted/30",
+      glowColor: "bg-foreground/10",
+      iconBg: "from-muted to-muted/80",
+      iconColor: "text-foreground",
+      badgeBg: "bg-muted",
+      badgeText: "text-foreground",
+      badgeBorder: "border-border",
       detailedDescription: "RAG(Retrieval-Augmented Generation) 파이프라인을 통해 문서 기반 질의응답 시스템을 제공합니다. BGE Reranker로 검색 정확도를 극대화하고, 출처를 명확히 표시합니다.",
       features: [
         "벡터 검색 + BGE Reranker 2단계 검색",
@@ -203,16 +203,16 @@ export default function HomePage() {
       details: "OpenAI GPT-4, GPT-4 Turbo, GPT-3.5\nNaver HyperCLOVA X\nLG EXAONE 3.0\nAnthropic Claude 3.5 Sonnet\nGoogle Gemini Pro\n모델별 특화 응답",
       tech: "Multi-LLM Integration",
       status: "pending",
-      color: "rose",
-      gradient: "from-rose-500 to-rose-600",
-      borderColor: "border-rose-500/60",
-      bgGradient: "from-rose-50 to-rose-100/50 dark:from-rose-950/60 dark:to-rose-900/30",
-      glowColor: "bg-rose-500/20",
-      iconBg: "from-rose-100 to-rose-200 dark:from-rose-900/50 dark:to-rose-800/30",
-      iconColor: "text-rose-600 dark:text-rose-400",
-      badgeBg: "bg-rose-500/10",
-      badgeText: "text-rose-700 dark:text-rose-400",
-      badgeBorder: "border-rose-500/20",
+      color: "neutral",
+      gradient: "from-foreground/80 to-foreground/60",
+      borderColor: "border-border",
+      bgGradient: "from-muted/50 to-muted/30",
+      glowColor: "bg-foreground/10",
+      iconBg: "from-muted to-muted/80",
+      iconColor: "text-foreground",
+      badgeBg: "bg-muted",
+      badgeText: "text-foreground",
+      badgeBorder: "border-border",
       detailedDescription: "OpenAI GPT-4, Naver HyperCLOVA X, LG EXAONE 등 다양한 LLM을 지원합니다. 각 모델의 특성에 맞춰 최적의 응답을 생성하며, 모델 간 전환이 자유롭습니다.",
       features: [
         "OpenAI GPT-4, GPT-4 Turbo 지원",
@@ -456,7 +456,7 @@ export default function HomePage() {
               <div className="absolute inset-0 bg-gradient-to-b from-muted/70 via-muted/50 to-muted/30 rounded-full shadow-[inset_0_3px_10px_rgba(0,0,0,0.25)] dark:shadow-[inset_0_3px_10px_rgba(0,0,0,0.5)]" />
 
               {/* 내부 그라데이션 레이어 */}
-              <div className="absolute inset-y-1.5 left-0 right-0 rounded-full overflow-hidden bg-gradient-to-r from-blue-500/40 via-purple-500/40 via-orange-500/40 via-green-500/40 to-rose-500/40" />
+              <div className="absolute inset-y-1.5 left-0 right-0 rounded-full overflow-hidden bg-gradient-to-r from-foreground/20 via-foreground/10 to-foreground/20" />
 
               {/* 흐르는 데이터 패턴 */}
               <div className="absolute inset-y-3 left-0 right-0 overflow-hidden rounded-full">
@@ -502,7 +502,7 @@ export default function HomePage() {
               <div className="absolute inset-0 bg-gradient-to-r from-muted/60 via-muted/40 to-muted/20 rounded-full shadow-[inset_2px_0_8px_rgba(0,0,0,0.2)] dark:shadow-[inset_2px_0_8px_rgba(0,0,0,0.4)]" />
 
               {/* 내부 그라데이션 */}
-              <div className="absolute inset-x-1 top-0 bottom-0 rounded-full overflow-hidden bg-gradient-to-b from-blue-500/30 via-purple-500/30 via-orange-500/30 via-green-500/30 to-rose-500/30" />
+              <div className="absolute inset-x-1 top-0 bottom-0 rounded-full overflow-hidden bg-gradient-to-b from-foreground/20 via-foreground/10 to-foreground/20" />
 
               {/* 흐르는 데이터 패턴 (수직) */}
               <div className="absolute inset-x-2 top-0 bottom-0 overflow-hidden rounded-full">
@@ -594,8 +594,8 @@ export default function HomePage() {
               {/* 챗봇 특징 리스트 */}
               <div className="space-y-4">
                 <div className="flex gap-4 items-start">
-                  <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
-                    <Database className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  <div className="p-2 rounded-lg bg-muted">
+                    <Database className="w-5 h-5 text-foreground" />
                   </div>
                   <div>
                     <h4 className="font-semibold mb-1">벡터 검색 기반</h4>
@@ -606,8 +606,8 @@ export default function HomePage() {
                 </div>
 
                 <div className="flex gap-4 items-start">
-                  <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/30">
-                    <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+                  <div className="p-2 rounded-lg bg-muted">
+                    <CheckCircle className="w-5 h-5 text-foreground" />
                   </div>
                   <div>
                     <h4 className="font-semibold mb-1">출처 명시</h4>
@@ -618,8 +618,8 @@ export default function HomePage() {
                 </div>
 
                 <div className="flex gap-4 items-start">
-                  <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/30">
-                    <Brain className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  <div className="p-2 rounded-lg bg-muted">
+                    <Brain className="w-5 h-5 text-foreground" />
                   </div>
                   <div>
                     <h4 className="font-semibold mb-1">컨텍스트 이해</h4>
@@ -630,8 +630,8 @@ export default function HomePage() {
                 </div>
 
                 <div className="flex gap-4 items-start">
-                  <div className="p-2 rounded-lg bg-orange-100 dark:bg-orange-900/30">
-                    <Sparkles className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                  <div className="p-2 rounded-lg bg-muted">
+                    <Sparkles className="w-5 h-5 text-foreground" />
                   </div>
                   <div>
                     <h4 className="font-semibold mb-1">실시간 응답</h4>

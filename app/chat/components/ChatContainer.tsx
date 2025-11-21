@@ -8,7 +8,8 @@ import { SuggestedPrompts } from "./SuggestedPrompts";
 import { Card } from "@/components/ui/card";
 import { API_BASE_URL } from "@/lib/api-config";
 import { Button } from "@/components/ui/button";
-import { Maximize, Minimize, Bot } from "lucide-react";
+import { Maximize, Minimize, Bot, Sun, Moon } from "lucide-react";
+import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import {
   Select,
@@ -100,15 +101,14 @@ interface ChatSettings {
 
 export function ChatContainer() {
   const searchParams = useSearchParams();
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
 
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      role: "assistant",
-      content: "안녕하세요! 업로드된 문서에 대해 질문해주세요. 문서 내용을 기반으로 정확한 답변을 제공해드리겠습니다.",
-      timestamp: new Date(),
-    },
-  ]);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const [messages, setMessages] = useState<Message[]>([]);
 
   const [input, setInput] = useState("");
   const [selectedCollection, setSelectedCollection] = useState<string>("");
@@ -766,14 +766,7 @@ export function ChatContainer() {
     // 컬렉션이 실제로 변경된 경우에만 초기화
     if (newCollection !== selectedCollection) {
       // 대화 초기화
-      setMessages([
-        {
-          id: "1",
-          role: "assistant",
-          content: "안녕하세요! 업로드된 문서에 대해 질문해주세요. 문서 내용을 기반으로 정확한 답변을 제공해드리겠습니다.",
-          timestamp: new Date(),
-        },
-      ]);
+      setMessages([]);
 
       // 검색 결과 초기화
       setCurrentSources([]);
@@ -800,25 +793,25 @@ export function ChatContainer() {
       {/* 상단 헤더 - Claude 스타일 미니멀 */}
       <div className={cn(
         "flex items-center justify-between px-4 py-2.5 border-b flex-shrink-0",
-        isFullscreen ? "bg-slate-50/90 backdrop-blur-xl dark:bg-slate-900/90" : "bg-background/95 backdrop-blur"
+        isFullscreen ? "bg-background/90 backdrop-blur-xl" : "bg-background/95 backdrop-blur"
       )}>
-        {/* 왼쪽: 로고 (원래 형태) */}
+        {/* 왼쪽: 로고 */}
         <div className="flex items-center gap-3">
-          {/* Icon Container with Navy Background */}
+          {/* Icon Container */}
           <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-900 to-blue-800 rounded-lg blur-sm opacity-75" />
-            <div className="relative bg-gradient-to-br from-blue-900 to-blue-800 p-2 rounded-lg shadow-lg">
-              <Bot className="h-5 w-5 text-white" strokeWidth={2.5} />
+            <div className="absolute inset-0 bg-primary rounded-lg blur-sm opacity-75" />
+            <div className="relative bg-primary p-2 rounded-lg shadow-lg">
+              <Bot className="h-5 w-5 text-primary-foreground" strokeWidth={2.5} />
             </div>
           </div>
 
           {/* Text Container */}
           <div className="hidden sm:flex flex-col">
-            <span className="font-bold text-lg kca-tri-gradient leading-none tracking-tight">
+            <span className="font-bold text-lg text-foreground leading-none tracking-tight">
               KCA-i
             </span>
             <div className="flex items-baseline gap-1.5 mt-0.5">
-              <span className="font-bold text-xs text-blue-900 dark:text-blue-400 leading-none">RAG</span>
+              <span className="font-bold text-xs text-foreground leading-none">RAG</span>
               <span className="text-[0.65rem] text-muted-foreground font-medium leading-tight">
                 기반 챗봇
               </span>
@@ -829,6 +822,27 @@ export function ChatContainer() {
         {/* 오른쪽: 컨트롤 버튼들 */}
         <div className="flex items-center gap-1.5">
           {/* 전체화면 토글 */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                >
+                  {mounted && theme === "dark" ? (
+                    <Sun className="h-4 w-4" />
+                  ) : (
+                    <Moon className="h-4 w-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs">{mounted && theme === "dark" ? "라이트 모드" : "다크 모드"}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>

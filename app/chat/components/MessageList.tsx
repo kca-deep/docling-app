@@ -128,11 +128,11 @@ export const MessageList = memo(function MessageList({
   return (
     <ScrollArea
       ref={scrollAreaRef}
-      className="h-full w-full bg-muted/20"
+      className="h-full w-full"
       type="always"
     >
       <div className="p-4 md:p-6 pb-20">
-        <div className="space-y-4 max-w-[var(--chat-content-max-width)] mx-auto bg-gradient-to-br from-card to-muted/20 rounded-lg p-4 md:p-6">
+        <div className="space-y-4 max-w-[var(--chat-content-max-width)] mx-auto">
           {messages.map((message, index) => (
             <MessageBubble
               key={message.id}
@@ -151,7 +151,7 @@ export const MessageList = memo(function MessageList({
           ))}
 
           {/* 초기 화면 추천 질문 */}
-          {messages.length === 1 && !isLoading && collectionName && onPromptSelect && (
+          {messages.length === 0 && !isLoading && collectionName && onPromptSelect && (
             <SuggestedPrompts
               collectionName={collectionName}
               onSelect={onPromptSelect}
@@ -173,9 +173,9 @@ export const MessageList = memo(function MessageList({
                 <div className="rounded-2xl px-4 py-3 bg-muted transition-all">
                   <div className="flex items-center gap-3">
                     <div className="flex gap-1.5">
-                      <div className="h-2.5 w-2.5 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <div className="h-2.5 w-2.5 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <div className="h-2.5 w-2.5 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      <div className="h-2.5 w-2.5 bg-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <div className="h-2.5 w-2.5 bg-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <div className="h-2.5 w-2.5 bg-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                     </div>
                     <span className="text-sm text-muted-foreground font-medium">KCA-i가 생각하고 있습니다...</span>
                   </div>
@@ -197,7 +197,7 @@ export const MessageList = memo(function MessageList({
                   setUserScrolled(false);
                 }
               }}
-              className="fixed bottom-[160px] left-1/2 -translate-x-1/2 z-50 bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg hover:shadow-xl transition-all hover:scale-105 active:scale-95 text-base"
+              className="fixed bottom-[160px] left-1/2 -translate-x-1/2 z-50 bg-primary text-primary-foreground rounded-full w-10 h-10 flex items-center justify-center shadow-lg hover:shadow-xl transition-all hover:scale-105 active:scale-95 text-base"
             >
               ↓
             </button>

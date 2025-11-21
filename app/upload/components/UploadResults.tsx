@@ -28,11 +28,11 @@ export function UploadResults({ uploadTarget, difyResults, qdrantResults }: Uplo
       <CardHeader>
         <div className="flex items-center gap-2">
           {successCount === results.length ? (
-            <CheckCircle2 className="h-5 w-5 text-green-500" />
+            <CheckCircle2 className="h-5 w-5 text-foreground" />
           ) : failureCount === results.length ? (
-            <XCircle className="h-5 w-5 text-red-500" />
+            <XCircle className="h-5 w-5 text-destructive" />
           ) : (
-            <Upload className="h-5 w-5 text-orange-500" />
+            <Upload className="h-5 w-5 text-muted-foreground" />
           )}
           <CardTitle>업로드 결과</CardTitle>
         </div>
@@ -50,9 +50,9 @@ export function UploadResults({ uploadTarget, difyResults, qdrantResults }: Uplo
                 className="flex items-start gap-3 p-3 border rounded-lg bg-card hover:bg-muted/50 transition-colors"
               >
                 {result.success ? (
-                  <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                  <CheckCircle2 className="h-5 w-5 text-foreground mt-0.5 flex-shrink-0" />
                 ) : (
-                  <XCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+                  <XCircle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
                 )}
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm truncate">

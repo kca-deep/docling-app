@@ -482,13 +482,13 @@ export default function ParsePage() {
                               <FileText className="w-5 h-5 text-muted-foreground" />
                             )}
                             {fileStatus.status === "processing" && (
-                              <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
+                              <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" />
                             )}
                             {fileStatus.status === "success" && (
-                              <CheckCircle2 className="w-5 h-5 text-green-500" />
+                              <CheckCircle2 className="w-5 h-5 text-foreground" />
                             )}
                             {fileStatus.status === "error" && (
-                              <XCircle className="w-5 h-5 text-red-500" />
+                              <XCircle className="w-5 h-5 text-destructive" />
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -499,7 +499,7 @@ export default function ParsePage() {
                               </p>
                               {/* qwen3-vl 진행률 표시 */}
                               {fileStatus.progressInfo && fileStatus.status === "processing" && (
-                                <p className="text-xs text-blue-600 dark:text-blue-400">
+                                <p className="text-xs text-muted-foreground">
                                   • 페이지 {fileStatus.progressInfo.current_page}/{fileStatus.progressInfo.total_pages} ({fileStatus.progressInfo.progress_percentage}%)
                                 </p>
                               )}
@@ -565,13 +565,13 @@ export default function ParsePage() {
                   <div className="flex gap-4 text-sm">
                     {successCount > 0 && (
                       <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-green-500" />
+                        <CheckCircle2 className="w-4 h-4 text-foreground" />
                         <span>성공: {successCount}개</span>
                       </div>
                     )}
                     {errorCount > 0 && (
                       <div className="flex items-center gap-2">
-                        <XCircle className="w-4 h-4 text-red-500" />
+                        <XCircle className="w-4 h-4 text-destructive" />
                         <span>실패: {errorCount}개</span>
                       </div>
                     )}
@@ -651,7 +651,7 @@ export default function ParsePage() {
                       <div className="flex items-center gap-2">
                         <Zap className="w-3.5 h-3.5" />
                         <span>Docling</span>
-                        <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                        <Badge variant="secondary" className="text-xs">
                           빠름
                         </Badge>
                       </div>
@@ -660,7 +660,7 @@ export default function ParsePage() {
                       <div className="flex items-center gap-2">
                         <Sparkles className="w-3.5 h-3.5" />
                         <span>Qwen3-VL</span>
-                        <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                        <Badge variant="secondary" className="text-xs">
                           AI
                         </Badge>
                       </div>
@@ -737,9 +737,9 @@ export default function ParsePage() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-3">
                 {selectedResult?.status === "success" ? (
-                  <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
+                  <CheckCircle2 className="w-5 h-5 text-foreground flex-shrink-0" />
                 ) : (
-                  <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                  <XCircle className="w-5 h-5 text-destructive flex-shrink-0" />
                 )}
                 <span className="truncate">{selectedResult?.file.name}</span>
                 {selectedResult?.result?.processing_time && (

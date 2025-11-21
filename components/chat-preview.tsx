@@ -211,7 +211,7 @@ export function ChatPreview() {
                   </>
                 )}
               </Button>
-              <Badge variant="outline" className="bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400">
+              <Badge variant="outline" className="bg-muted text-foreground">
                 <Sparkles className="w-3 h-3 mr-1" />
                 실시간
               </Badge>

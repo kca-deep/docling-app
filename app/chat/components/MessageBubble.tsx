@@ -3,7 +3,7 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bot, User, FileText, Copy, Check, RefreshCw, Reply } from "lucide-react";
+import { Bot, User, FileText, Copy, Check, RefreshCw, Reply, StopCircle } from "lucide-react";
 import { MarkdownMessage } from "@/components/markdown-message";
 import { cn } from "@/lib/utils";
 import { useState, memo } from "react";
@@ -23,10 +23,11 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { ChevronDown, ChevronUp, ExternalLink, Link } from "lucide-react";
 
 interface Source {
@@ -77,8 +78,8 @@ export const MessageBubble = memo(function MessageBubble({
   isStreaming,
 }: MessageBubbleProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [activeSourceId, setActiveSourceId] = useState<string | null>(null);
   const [thoughtExpanded, setThoughtExpanded] = useState(false);
+  const [openTooltipId, setOpenTooltipId] = useState<string | null>(null);
 
   // 메시지 내용 파싱: <thought> 태그와 답변 부분 분리
   const parseMessageContent = (content: string, streaming: boolean = false) => {
@@ -169,10 +170,8 @@ export const MessageBubble = memo(function MessageBubble({
     });
   };
 
-  const getScoreColor = (score: number) => {
-    if (score >= 0.8) return "text-green-600 bg-green-50 dark:text-green-400 dark:bg-green-950";
-    if (score >= 0.6) return "text-yellow-600 bg-yellow-50 dark:text-yellow-400 dark:bg-yellow-950";
-    return "text-orange-600 bg-orange-50 dark:text-orange-400 dark:bg-orange-950";
+  const getScoreColor = () => {
+    return "text-foreground bg-muted";
   };
 
   const truncateFilename = (filename: string, maxLength: number = 30) => {
@@ -195,8 +194,8 @@ export const MessageBubble = memo(function MessageBubble({
         <AvatarFallback
           className={cn(
             role === "user"
-              ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white"
-              : "bg-muted"
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-muted-foreground"
           )}
         >
           {role === "assistant" ? (
@@ -212,22 +211,22 @@ export const MessageBubble = memo(function MessageBubble({
       {/* 메시지 콘텐츠 */}
       <div
         className={cn(
-          "flex flex-col gap-1 w-full max-w-[calc(100%-3rem)] min-w-0",
+          "flex flex-col gap-1 max-w-[calc(100%-3rem)] min-w-0",
           role === "user" && "items-end"
         )}
       >
         {/* 메시지 버블 */}
         <div
           className={cn(
-            "rounded-2xl px-4 py-3 w-full transition-colors",
+            "rounded-2xl px-4 py-3 transition-colors inline-block max-w-full",
             role === "user"
-              ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white"
+              ? "bg-primary text-primary-foreground"
               : role === "system"
               ? "bg-muted/50"
-              : "bg-muted"
+              : "bg-muted/80"
           )}
         >
-          <div className="w-full min-w-0">
+          <div className="min-w-0">
             {parsedContent && parsedContent.hasThought ? (
               // EXAONE 모델: 추론 과정과 답변 분리 표시
               <div className="space-y-3">
@@ -324,10 +323,8 @@ export const MessageBubble = memo(function MessageBubble({
                             className={cn(
                               "transition-all cursor-pointer",
                               "hover:shadow-lg hover:border-primary/50",
-                              isExpanded && "ring-2 ring-primary/20",
-                              activeSourceId === source.id && "ring-2 ring-primary shadow-lg bg-primary/5"
+                              isExpanded && "ring-2 ring-primary/20"
                             )}
-                            onClick={() => setActiveSourceId(activeSourceId === source.id ? null : source.id)}
                           >
                             <CardHeader className="pb-3">
                               <div className="flex items-start justify-between gap-2">
@@ -377,7 +374,7 @@ export const MessageBubble = memo(function MessageBubble({
                                 </div>
                                 <Badge
                                   variant="outline"
-                                  className={cn("flex-shrink-0", getScoreColor(source.score))}
+                                  className={cn("flex-shrink-0", getScoreColor())}
                                 >
                                   <span className="font-semibold">
                                     {(source.score * 100).toFixed(0)}%
@@ -431,70 +428,81 @@ export const MessageBubble = memo(function MessageBubble({
 
               {/* 참조 문서 요약 리스트 */}
               <div className="flex flex-wrap gap-1.5">
-                {sources.map((source, index) => (
-                  <HoverCard key={source.id} openDelay={200}>
-                    <HoverCardTrigger asChild>
-                      <Badge
-                        variant="secondary"
-                        className={cn(
-                          "cursor-pointer hover:bg-secondary/80 transition-all text-xs px-2 py-1",
-                          activeSourceId === source.id && "ring-2 ring-primary bg-primary/20 scale-105"
-                        )}
-                        onClick={() => setActiveSourceId(activeSourceId === source.id ? null : source.id)}
-                      >
-                        <span className="text-muted-foreground mr-1">#{index + 1}</span>
-                        <FileText className="h-3 w-3 mr-1" />
-                        <span className="max-w-[120px] truncate">
-                          {source.metadata?.file ? truncateFilename(source.metadata.file, 20) : source.title}
-                        </span>
-                        {source.metadata?.chunk_index !== undefined && (
-                          <span className="ml-1 text-muted-foreground">
-                            (청크 {source.metadata.chunk_index})
+                <TooltipProvider>
+                  {sources.map((source, index) => (
+                    <Tooltip
+                      key={source.id}
+                      delayDuration={200}
+                      open={openTooltipId === source.id ? true : undefined}
+                      onOpenChange={(open) => {
+                        if (!open && openTooltipId === source.id) {
+                          setOpenTooltipId(null);
+                        }
+                      }}
+                    >
+                      <TooltipTrigger asChild>
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            "cursor-pointer hover:bg-secondary/80 transition-all text-xs px-2 py-1",
+                            openTooltipId === source.id && "bg-secondary/80 ring-1 ring-primary/50"
+                          )}
+                          onClick={() => setOpenTooltipId(openTooltipId === source.id ? null : source.id)}
+                        >
+                          <span className="text-muted-foreground mr-1">#{index + 1}</span>
+                          <FileText className="h-3 w-3 mr-1" />
+                          <span className="max-w-[120px] truncate">
+                            {source.metadata?.file ? truncateFilename(source.metadata.file, 20) : source.title}
                           </span>
-                        )}
-                      </Badge>
-                    </HoverCardTrigger>
-                    <HoverCardContent className="w-80" side="top">
-                      <div className="space-y-2">
-                        <div>
-                          <h4 className="text-sm font-semibold mb-1 line-clamp-2">
-                            {source.title}
-                          </h4>
-                          {source.metadata?.section && (
-                            <p className="text-xs text-muted-foreground line-clamp-2">
-                              {source.metadata.section}
-                            </p>
-                          )}
-                        </div>
-
-                        <div className="flex flex-wrap gap-1.5">
-                          <Badge variant="outline" className={cn("text-xs", getScoreColor(source.score))}>
-                            관련도 {(source.score * 100).toFixed(0)}%
-                          </Badge>
                           {source.metadata?.chunk_index !== undefined && (
-                            <Badge variant="secondary" className="text-xs">
-                              청크 #{source.metadata.chunk_index}
-                            </Badge>
+                            <span className="ml-1 text-muted-foreground">
+                              (청크 {source.metadata.chunk_index})
+                            </span>
                           )}
-                          {source.metadata?.num_tokens && (
-                            <Badge variant="secondary" className="text-xs">
-                              {source.metadata.num_tokens} 토큰
-                            </Badge>
-                          )}
-                          {source.metadata?.page && (
-                            <Badge variant="secondary" className="text-xs">
-                              페이지 {source.metadata.page}
-                            </Badge>
-                          )}
-                        </div>
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-80 p-3">
+                        <div className="space-y-2">
+                          <div>
+                            <h4 className="text-sm font-semibold mb-1 line-clamp-2">
+                              {source.title}
+                            </h4>
+                            {source.metadata?.section && (
+                              <p className="text-xs text-muted-foreground line-clamp-2">
+                                {source.metadata.section}
+                              </p>
+                            )}
+                          </div>
 
-                        <div className="text-xs text-muted-foreground line-clamp-3 pt-1 border-t">
-                          {source.content}
+                          <div className="flex flex-wrap gap-1.5">
+                            <Badge variant="outline" className={cn("text-xs", getScoreColor())}>
+                              관련도 {(source.score * 100).toFixed(0)}%
+                            </Badge>
+                            {source.metadata?.chunk_index !== undefined && (
+                              <Badge variant="secondary" className="text-xs">
+                                청크 #{source.metadata.chunk_index}
+                              </Badge>
+                            )}
+                            {source.metadata?.num_tokens && (
+                              <Badge variant="secondary" className="text-xs">
+                                {source.metadata.num_tokens} 토큰
+                              </Badge>
+                            )}
+                            {source.metadata?.page && (
+                              <Badge variant="secondary" className="text-xs">
+                                페이지 {source.metadata.page}
+                              </Badge>
+                            )}
+                          </div>
+
+                          <div className="text-xs text-muted-foreground line-clamp-3 pt-1 border-t">
+                            {source.content}
+                          </div>
                         </div>
-                      </div>
-                    </HoverCardContent>
-                  </HoverCard>
-                ))}
+                      </TooltipContent>
+                    </Tooltip>
+                  ))}
+                </TooltipProvider>
               </div>
             </div>
           )}
@@ -503,8 +511,9 @@ export const MessageBubble = memo(function MessageBubble({
           {metadata && (
             <div className="mt-2 flex items-center gap-2">
               {metadata.aborted && (
-                <Badge variant="destructive" className="text-xs">
-                  ⚠️ 응답 중단됨
+                <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                  <StopCircle className="h-3 w-3" />
+                  응답 중단됨
                 </Badge>
               )}
               {metadata.tokens && (

@@ -759,7 +759,7 @@ export default function UrlParsePage() {
                             <tr key={index} className="border-b hover:bg-muted/50">
                               <td className="p-2 text-sm">{index + 1}</td>
                               <td className="p-2 text-sm font-medium">{row.document_name}</td>
-                              <td className="p-2 text-sm text-blue-600 truncate max-w-xs">
+                              <td className="p-2 text-sm text-foreground truncate max-w-xs">
                                 {row.url}
                               </td>
                               <td className="p-2 text-sm">

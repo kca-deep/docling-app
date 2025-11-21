@@ -274,7 +274,7 @@ export function QdrantSettingsPanel({
       {/* 청킹 설정 - 개선된 레이아웃 */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
-          <div className="h-1 w-1 rounded-full bg-emerald-600" />
+          <div className="h-1 w-1 rounded-full bg-foreground" />
           <Label className="text-sm font-semibold">청킹 설정</Label>
         </div>
 

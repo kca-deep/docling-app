@@ -543,7 +543,7 @@ function UploadPageContent() {
                     onClick={() => setActiveTab("qdrant")}
                     className={`relative z-10 flex-1 px-4 py-2 rounded-full text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
                       activeTab === "qdrant"
-                        ? "text-emerald-600"
+                        ? "text-foreground"
                         : "text-muted-foreground hover:text-foreground hover:scale-[1.02]"
                     }`}
                   >
@@ -556,7 +556,7 @@ function UploadPageContent() {
                     onClick={() => setActiveTab("dify")}
                     className={`relative z-10 flex-1 px-4 py-2 rounded-full text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
                       activeTab === "dify"
-                        ? "text-purple-600"
+                        ? "text-foreground"
                         : "text-muted-foreground hover:text-foreground hover:scale-[1.02]"
                     }`}
                   >

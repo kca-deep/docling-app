@@ -47,7 +47,7 @@ export const SuggestedPrompts = memo(function SuggestedPrompts({ collectionName,
     return (
       <div className="flex items-center justify-center py-2">
         <div className="flex gap-2 items-center text-muted-foreground">
-          <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+          <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-foreground border-t-transparent" />
           <span className="text-xs">추천 질문 로딩 중...</span>
         </div>
       </div>
@@ -59,42 +59,54 @@ export const SuggestedPrompts = memo(function SuggestedPrompts({ collectionName,
   }
 
   return (
-    <div className="py-1 space-y-1 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {/* 헤더 */}
-      <div className="flex items-center gap-1.5 px-0.5">
-        <div className="flex items-center gap-1.5">
+    <div className="py-1 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {/* 웰컴 섹션 */}
+      <div className="flex flex-col items-center text-center py-6">
+        <div className="h-14 w-14 rounded-2xl bg-primary flex items-center justify-center mb-4">
+          <span className="text-2xl font-bold text-primary-foreground">K</span>
+        </div>
+        <h2 className="text-xl font-semibold mb-2">KCA-i에 오신 것을 환영합니다</h2>
+        <p className="text-sm text-muted-foreground max-w-md">
+          문서 기반 AI 어시스턴트입니다.<br />
+          업로드된 문서에서 정확한 답변을 찾아드립니다.
+        </p>
+      </div>
+
+      {/* 추천 질문 헤더 */}
+      <div className="flex items-center gap-2 px-0.5">
+        <div className="flex items-center gap-2">
           <div className="relative">
-            <Sparkles className="h-3.5 w-3.5 text-blue-600 animate-pulse" />
-            <Sparkles className="h-3.5 w-3.5 text-blue-600 absolute inset-0 animate-ping opacity-50" />
+            <Sparkles className="h-4 w-4 text-foreground animate-pulse" />
+            <Sparkles className="h-4 w-4 text-foreground absolute inset-0 animate-ping opacity-50" />
           </div>
-          <h3 className="text-xs font-semibold">추천 질문</h3>
+          <h3 className="text-sm font-semibold">추천 질문</h3>
         </div>
         <div className="flex-1 h-px bg-gradient-to-r from-border to-transparent" />
       </div>
 
       {/* 질문 카드 그리드 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         {prompts.slice(0, 6).map((prompt, index) => (
           <Card
             key={index}
             className={cn(
               "group cursor-pointer transition-all duration-300",
-              "hover:shadow-lg hover:scale-[1.02] hover:border-blue-500/50",
+              "hover:shadow-lg hover:scale-[1.02] hover:border-primary/50",
               "active:scale-[0.98]",
               "animate-in fade-in slide-in-from-bottom-2"
             )}
             style={{ animationDelay: `${index * 50}ms` }}
             onClick={() => onSelect(prompt)}
           >
-            <CardContent className="px-2.5 py-1.5">
-              <div className="flex items-start gap-1.5">
+            <CardContent className="px-3 py-2.5">
+              <div className="flex items-start gap-2">
                 <div className="flex-shrink-0 mt-0.5">
-                  <div className="h-5 w-5 rounded-full bg-blue-600/10 flex items-center justify-center group-hover:bg-blue-600/20 transition-colors">
-                    <Lightbulb className="h-2.5 w-2.5 text-blue-600" />
+                  <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center group-hover:bg-muted/80 transition-colors">
+                    <Lightbulb className="h-3.5 w-3.5 text-foreground" />
                   </div>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium leading-tight group-hover:text-blue-600 transition-colors line-clamp-2">
+                  <p className="text-sm font-medium leading-snug group-hover:text-foreground/80 transition-colors line-clamp-2">
                     {prompt}
                   </p>
                 </div>
@@ -105,7 +117,7 @@ export const SuggestedPrompts = memo(function SuggestedPrompts({ collectionName,
       </div>
 
       {/* 하단 힌트 */}
-      <div className="flex items-center justify-center gap-2 text-[10px] text-muted-foreground">
+      <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground mt-2">
         <span>클릭하여 질문을 선택하거나 직접 입력해보세요</span>
       </div>
     </div>

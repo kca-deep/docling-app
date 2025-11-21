@@ -71,9 +71,9 @@ export function SourcePanel({ sources }: SourcePanelProps) {
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 0.8) return "text-green-600 bg-green-50";
-    if (score >= 0.6) return "text-yellow-600 bg-yellow-50";
-    return "text-orange-600 bg-orange-50";
+    if (score >= 0.8) return "text-foreground bg-muted";
+    if (score >= 0.6) return "text-muted-foreground bg-muted/70";
+    return "text-muted-foreground/80 bg-muted/50";
   };
 
   const getScoreLabel = (score: number) => {

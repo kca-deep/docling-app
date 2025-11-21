@@ -162,11 +162,8 @@ export const InputArea = memo(function InputArea({
   const selectedModelOption = modelOptions.find(m => m.value === selectedModel);
 
   return (
-    <div className={cn(
-      "flex-shrink-0 border-t px-4 py-4",
-      isFullscreen ? "bg-slate-50/90 backdrop-blur-xl dark:bg-slate-900/90" : "bg-background"
-    )}>
-      <div className="max-w-[800px] mx-auto">
+    <div className="flex-shrink-0 px-4 md:px-6 py-4">
+      <div className="max-w-[var(--chat-content-max-width)] mx-auto">
         {/* 인용 메시지 표시 */}
         {quotedMessage && (
           <div className="mb-3 bg-muted/50 border-l-4 border-primary rounded-r-lg p-3 animate-in slide-in-from-bottom-2 duration-300">
@@ -194,8 +191,8 @@ export const InputArea = memo(function InputArea({
           </div>
         )}
 
-        {/* Claude 스타일 입력 카드 - 통합된 디자인 */}
-        <div className="bg-card border rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+        {/* ChatGPT 스타일 입력 카드 */}
+        <div className="bg-muted/30 rounded-2xl transition-all">
           {/* 입력 영역 */}
           <div className="relative pt-3 px-4">
             <Textarea
@@ -212,14 +209,14 @@ export const InputArea = memo(function InputArea({
               }
               disabled={disabled || isLoading}
               className={cn(
-                "min-h-[60px] max-h-[300px] resize-none border-0 focus-visible:ring-0 shadow-none pr-14 px-0",
+                "min-h-[60px] max-h-[300px] resize-none border-0 focus-visible:ring-0 shadow-none pr-14 px-3 py-2",
                 "placeholder:text-muted-foreground/60",
                 disabled && "opacity-50 cursor-not-allowed"
               )}
             />
 
             {/* 전송/중단 버튼 (입력창 내부) */}
-            <div className="absolute bottom-3 right-3">
+            <div className="absolute bottom-3 right-6">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -230,7 +227,7 @@ export const InputArea = memo(function InputArea({
                       className={cn(
                         "h-9 w-9 rounded-full transition-all",
                         isStreaming
-                          ? "bg-destructive hover:bg-destructive/90"
+                          ? "bg-muted hover:bg-muted/80 text-foreground"
                           : canSend
                           ? "bg-primary hover:bg-primary/90"
                           : "opacity-30 cursor-not-allowed bg-muted"
@@ -302,7 +299,7 @@ export const InputArea = memo(function InputArea({
                         className={cn(
                           "h-3.5 w-3.5 transition-colors",
                           deepThinkingEnabled
-                            ? "text-blue-600 dark:text-blue-400"
+                            ? "text-primary"
                             : "text-muted-foreground"
                         )}
                       />
