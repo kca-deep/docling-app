@@ -291,7 +291,10 @@ export const InputArea = memo(function InputArea({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8"
+                      className={cn(
+                        "h-8 w-8 transition-colors",
+                        deepThinkingEnabled && "bg-muted"
+                      )}
                       disabled={isLoading}
                       onClick={() => onDeepThinkingChange(!deepThinkingEnabled)}
                     >
@@ -299,7 +302,7 @@ export const InputArea = memo(function InputArea({
                         className={cn(
                           "h-3.5 w-3.5 transition-colors",
                           deepThinkingEnabled
-                            ? "text-primary"
+                            ? "text-foreground"
                             : "text-muted-foreground"
                         )}
                       />
@@ -321,7 +324,7 @@ export const InputArea = memo(function InputArea({
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
+                        className="h-8 w-8 hover:bg-muted text-muted-foreground hover:text-foreground"
                         disabled={isLoading}
                         onClick={onClearChat}
                       >

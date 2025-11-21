@@ -298,11 +298,11 @@ export const MessageBubble = memo(function MessageBubble({
                 </div>
                 <Dialog>
                   <DialogTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-6 text-xs">
+                    <Button variant="ghost" size="sm" className="h-6 text-xs cursor-pointer">
                       전체보기
                     </Button>
                   </DialogTrigger>
-                <DialogContent className="max-w-6xl w-[95vw] max-h-[80vh] p-0">
+                <DialogContent className="max-w-2xl w-[90vw] max-h-[80vh] p-0">
                   <DialogHeader className="p-6 pb-3">
                     <DialogTitle className="flex items-center gap-2">
                       <FileText className="h-5 w-5 text-primary" />
@@ -432,12 +432,9 @@ export const MessageBubble = memo(function MessageBubble({
                   {sources.map((source, index) => (
                     <Tooltip
                       key={source.id}
-                      delayDuration={200}
-                      open={openTooltipId === source.id ? true : undefined}
+                      open={openTooltipId === source.id}
                       onOpenChange={(open) => {
-                        if (!open && openTooltipId === source.id) {
-                          setOpenTooltipId(null);
-                        }
+                        if (!open) setOpenTooltipId(null);
                       }}
                     >
                       <TooltipTrigger asChild>
@@ -447,7 +444,10 @@ export const MessageBubble = memo(function MessageBubble({
                             "cursor-pointer hover:bg-secondary/80 transition-all text-xs px-2 py-1",
                             openTooltipId === source.id && "bg-secondary/80 ring-1 ring-primary/50"
                           )}
-                          onClick={() => setOpenTooltipId(openTooltipId === source.id ? null : source.id)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setOpenTooltipId(openTooltipId === source.id ? null : source.id);
+                          }}
                         >
                           <span className="text-muted-foreground mr-1">#{index + 1}</span>
                           <FileText className="h-3 w-3 mr-1" />
