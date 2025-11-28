@@ -16,6 +16,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
   Sheet,
   FileSpreadsheet,
@@ -33,7 +35,9 @@ import {
   FileText,
   Tag,
   Hash,
-  Info
+  Info,
+  Table,
+  ChevronDown
 } from "lucide-react"
 import { toast } from "sonner"
 import { API_BASE_URL } from "@/lib/api-config"
@@ -362,24 +366,11 @@ export default function ExcelEmbeddingPage() {
     (textColumns.length === 0 && (!useTemplate || !textTemplate))
 
   return (
-    <PageContainer maxWidth="wide" className="py-6">
-      <div className="space-y-6">
-        {/* 헤더 */}
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <Sheet className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold">Excel Embedding</h1>
-            <p className="text-sm text-muted-foreground">
-              Excel 파일을 동적으로 분석하여 Vector DB에 임베딩합니다
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6">
+    <PageContainer maxWidth="wide" className="py-4">
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_24rem] gap-4">
           {/* 좌측: 파일 업로드 및 미리보기 */}
-          <div className="space-y-6">
+          <div className="space-y-4 min-w-0">
             {/* 파일 업로드 */}
             <Card>
               <CardHeader className="pb-3">
@@ -388,11 +379,11 @@ export default function ExcelEmbeddingPage() {
                   Excel 파일
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-3">
                 {!uploadedFile ? (
                   <div
                     className={`
-                      border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
+                      border-2 border-dashed rounded-lg p-6 text-center cursor-pointer
                       transition-colors duration-200
                       ${isDragging
                         ? 'border-primary bg-primary/5'
@@ -411,146 +402,175 @@ export default function ExcelEmbeddingPage() {
                       onChange={handleFileSelect}
                       className="hidden"
                     />
-                    <FileSpreadsheet className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                    <FileSpreadsheet className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
                     <p className="text-sm text-muted-foreground">
                       Excel 파일을 드래그하거나 <span className="text-primary font-medium">클릭하여 선택</span>
                     </p>
-                    <p className="text-xs text-muted-foreground/70 mt-1">
+                    <p className="text-xs text-muted-foreground/70 mt-0.5">
                       .xlsx, .xls 지원
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    {/* 파일 정보 */}
-                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <FileSpreadsheet className="h-8 w-8 text-green-600" />
-                        <div>
+                  <div className="space-y-2">
+                    {/* 컴팩트한 파일 정보 */}
+                    <div className="flex items-center justify-between p-1.5 bg-muted/50 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                        <div className="flex items-center gap-2">
                           <p className="font-medium text-sm">{uploadedFile.name}</p>
                           {previewData && (
-                            <p className="text-xs text-muted-foreground">
-                              {previewData.total_rows}개 행 / {previewData.headers.length}개 컬럼
-                            </p>
+                            <>
+                              <Badge variant="secondary" className="text-xs">
+                                {previewData.total_rows}행
+                              </Badge>
+                              <Badge variant="secondary" className="text-xs">
+                                {previewData.headers.length}열
+                              </Badge>
+                            </>
+                          )}
+                          {previewData?.detected_mapping?.is_qa_format && (
+                            <Badge variant="default" className="text-xs">
+                              Q&A 형식
+                            </Badge>
+                          )}
+                          {isLoadingPreview && (
+                            <div className="flex items-center gap-1">
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              <span className="text-xs text-muted-foreground">분석 중...</span>
+                            </div>
                           )}
                         </div>
                       </div>
                       <Button
                         variant="ghost"
                         size="icon"
+                        className="h-6 w-6"
                         onClick={handleRemoveFile}
                         disabled={isEmbedding}
                       >
-                        <X className="h-4 w-4" />
+                        <X className="h-3 w-3" />
                       </Button>
                     </div>
 
-                    {/* 로딩 */}
-                    {isLoadingPreview && (
-                      <div className="flex items-center justify-center py-8">
-                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                        <span className="ml-2 text-sm text-muted-foreground">파일 분석 중...</span>
-                      </div>
-                    )}
-
-                    {/* 감지된 포맷 */}
-                    {previewData?.detected_mapping && (
-                      <Alert>
-                        <Wand2 className="h-4 w-4" />
-                        <AlertDescription className="text-sm">
-                          {previewData.detected_mapping.is_qa_format ? (
-                            <span>
-                              <strong>Q&A 형식</strong> 감지됨 - 질문/답변 템플릿이 자동 적용되었습니다
-                            </span>
-                          ) : previewData.detected_mapping.text_columns.length > 0 ? (
-                            <span>
-                              텍스트 컬럼 감지: <strong>{previewData.detected_mapping.text_columns.join(', ')}</strong>
-                            </span>
-                          ) : (
-                            <span>텍스트 컬럼을 직접 선택해주세요</span>
-                          )}
-                        </AlertDescription>
-                      </Alert>
-                    )}
-
-                    {/* 미리보기 테이블 */}
-                    {previewData && previewData.preview_rows.length > 0 && (
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium">데이터 미리보기 (5개 행)</Label>
-                        <ScrollArea className="h-[300px] rounded-md border">
-                          <div className="p-3">
-                            <table className="w-full text-xs">
-                              <thead>
-                                <tr className="border-b">
-                                  <th className="text-left p-2 font-medium text-muted-foreground">#</th>
-                                  {previewData.headers.slice(0, 5).map((h, i) => (
-                                    <th key={i} className="text-left p-2 font-medium">
-                                      <div className="flex items-center gap-1">
-                                        {h}
-                                        {textColumns.includes(h) && (
-                                          <Badge variant="default" className="text-[10px] px-1">TEXT</Badge>
-                                        )}
-                                        {idColumn === h && (
-                                          <Badge variant="secondary" className="text-[10px] px-1">ID</Badge>
-                                        )}
-                                      </div>
-                                    </th>
-                                  ))}
-                                  {previewData.headers.length > 5 && (
-                                    <th className="text-left p-2 font-medium text-muted-foreground">
-                                      +{previewData.headers.length - 5}
-                                    </th>
-                                  )}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {previewData.preview_rows.slice(0, 5).map((row, i) => (
-                                  <tr key={i} className="border-b hover:bg-muted/30">
-                                    <td className="p-2 text-muted-foreground">{row.row_index + 1}</td>
-                                    {previewData.headers.slice(0, 5).map((h, j) => (
-                                      <td key={j} className="p-2 max-w-[200px] truncate">
-                                        {row.data[h] || '-'}
-                                      </td>
-                                    ))}
-                                    {previewData.headers.length > 5 && (
-                                      <td className="p-2 text-muted-foreground">...</td>
-                                    )}
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </ScrollArea>
-                      </div>
-                    )}
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            {/* 임베딩 텍스트 미리보기 */}
-            {previewData && textColumns.length > 0 && (
+            {/* 미리보기 탭 */}
+            {previewData && previewData.preview_rows.length > 0 && (
               <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <FileText className="h-4 w-4" />
-                    임베딩 텍스트 미리보기
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ScrollArea className="h-[200px] rounded-md border bg-muted/30">
-                    <div className="p-3 space-y-3">
-                      {previewData.preview_rows.slice(0, 3).map((row, i) => (
-                        <div key={i} className="p-2 bg-background rounded border text-xs">
-                          <Badge variant="outline" className="mb-2 text-[10px]">
-                            Row {row.row_index + 1}
+                <CardContent className="pt-3">
+                  <Tabs defaultValue="data" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="data" className="gap-2">
+                        <Table className="h-4 w-4" />
+                        데이터 미리보기
+                      </TabsTrigger>
+                      <TabsTrigger value="embedding" disabled={textColumns.length === 0 && !textTemplate} className="gap-2">
+                        <FileText className="h-4 w-4" />
+                        임베딩 텍스트
+                      </TabsTrigger>
+                    </TabsList>
+
+                    {/* 데이터 미리보기 탭 */}
+                    <TabsContent value="data" className="mt-2">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-medium">전체 데이터 ({previewData.total_rows}개 행)</Label>
+                          <Badge variant="outline" className="text-xs">
+                            미리보기 {Math.min(5, previewData.preview_rows.length)}개
                           </Badge>
-                          <pre className="whitespace-pre-wrap text-muted-foreground">
-                            {generatePreviewText(row)}
-                          </pre>
                         </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
+                        <div className="rounded-md border bg-background">
+                          <div className="relative h-80 overflow-auto">
+                            <table className="text-xs w-full">
+                              <thead className="sticky top-0 bg-background border-b z-10">
+                                <tr>
+                                  <th className="sticky left-0 z-20 bg-background text-left p-2 font-medium text-muted-foreground min-w-12 border-r">#</th>
+                                  {previewData.headers.map((h, i) => (
+                                    <th key={i} className="text-left p-2 font-medium min-w-36 whitespace-nowrap bg-background">
+                                      <div className="flex items-center gap-1">
+                                        {h}
+                                        {textColumns.includes(h) && (
+                                          <Badge variant="default" className="text-[0.625rem] px-1">TEXT</Badge>
+                                        )}
+                                        {idColumn === h && (
+                                          <Badge variant="secondary" className="text-[0.625rem] px-1">ID</Badge>
+                                        )}
+                                        {tagColumn === h && (
+                                          <Badge variant="outline" className="text-[0.625rem] px-1">TAG</Badge>
+                                        )}
+                                        {metadataColumns.includes(h) && (
+                                          <Badge variant="default" className="text-[0.625rem] px-1">META</Badge>
+                                        )}
+                                      </div>
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {previewData.preview_rows.slice(0, 5).map((row, i) => (
+                                  <tr key={i} className="border-b hover:bg-muted/30">
+                                    <td className="sticky left-0 z-10 bg-background p-2 text-muted-foreground min-w-12 border-r font-medium">{row.row_index + 1}</td>
+                                    {previewData.headers.map((h, j) => (
+                                      <td key={j} className="p-2 min-w-36 max-w-sm">
+                                        <div className="truncate" title={row.data[h] || '-'}>
+                                          {row.data[h] || '-'}
+                                        </div>
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    </TabsContent>
+
+                    {/* 임베딩 텍스트 미리보기 탭 */}
+                    <TabsContent value="embedding" className="mt-2">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-medium">임베딩될 텍스트 형식</Label>
+                          {useTemplate ? (
+                            <Badge variant="default" className="text-xs">템플릿 사용</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs">{textColumns.length}개 컬럼 결합</Badge>
+                          )}
+                        </div>
+                        <ScrollArea className="h-80 rounded-md border bg-muted/30">
+                          <div className="p-4 space-y-3">
+                            {previewData.preview_rows.slice(0, 5).map((row, i) => (
+                              <div key={i} className="p-3 bg-background rounded-lg border">
+                                <div className="flex items-center justify-between mb-2">
+                                  <Badge variant="outline" className="text-xs">
+                                    Row {row.row_index + 1}
+                                  </Badge>
+                                  {idColumn && row.data[idColumn] && (
+                                    <span className="text-xs text-muted-foreground">
+                                      ID: {row.data[idColumn]}
+                                    </span>
+                                  )}
+                                </div>
+                                <pre className="whitespace-pre-wrap text-sm text-muted-foreground font-mono">
+                                  {generatePreviewText(row) || '(텍스트 컬럼을 선택해주세요)'}
+                                </pre>
+                                {tagColumn && row.data[tagColumn] && (
+                                  <div className="mt-2 pt-2 border-t">
+                                    <Badge variant="secondary" className="text-xs">
+                                      {row.data[tagColumn]}
+                                    </Badge>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      </div>
+                    </TabsContent>
+                  </Tabs>
                 </CardContent>
               </Card>
             )}
@@ -608,7 +628,7 @@ export default function ExcelEmbeddingPage() {
                         </div>
                         <div className="space-y-2">
                           <Label>Vector Size</Label>
-                          <Input value="1024 (BGE-M3 고정)" disabled />
+                          <Input value="1024" placeholder="BGE-M3" disabled />
                         </div>
                         <div className="space-y-2">
                           <Label>Distance Metric</Label>
@@ -732,7 +752,7 @@ export default function ExcelEmbeddingPage() {
                           placeholder={"예: 질문: {question}\\n답변: {answer_text}"}
                           className="h-20 text-xs font-mono"
                         />
-                        <p className="text-[10px] text-muted-foreground">
+                        <p className="text-[0.625rem] text-muted-foreground">
                           {"{컬럼명}"} 형식으로 컬럼 값을 삽입합니다
                         </p>
                       </div>
@@ -774,7 +794,7 @@ export default function ExcelEmbeddingPage() {
                         .map((h) => (
                           <Badge
                             key={h}
-                            variant={metadataColumns.includes(h) ? "secondary" : "outline"}
+                            variant={metadataColumns.includes(h) ? "default" : "outline"}
                             className="cursor-pointer text-xs"
                             onClick={() => toggleMetadataColumn(h)}
                           >
