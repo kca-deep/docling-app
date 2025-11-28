@@ -26,19 +26,33 @@ backend/venv/
 # Environment variables
 .env*
 !**/.env.example
-!.env.development  # 개발 설정은 커밋 허용
-!.env.production   # 프로덕션 설정은 커밋 허용
+!.env.development
+!.env.production
 
 # Database
 *.db
 *.sqlite
 *.sqlite3
 
-# Test files / Documents
-*.pdf
-*.docx
-*.pptx
+# Test documents (root level)
+/*.pdf
+/*.docx
+/*.pptx
+/*.xlsx
+
+# Test scripts (root level)
+/test_*.py
+
+# Docs folder - ignore test data, keep design docs (.md)
 docs/*/
+docs/*.pdf
+docs/*.xlsx
+docs/*.txt
+docs/*.jpg
+docs/*.png
+# Keep system documentation images
+!docs/system*.png
+!docs/fixed_chat.png
 
 # IDE
 .vscode/

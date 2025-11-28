@@ -43,7 +43,33 @@ export interface QdrantUploadResult {
   error: string | null
 }
 
-export type UploadTarget = "dify" | "qdrant"
+export type UploadTarget = "dify" | "qdrant" | "qa"
+
+// Q&A Excel 임베딩 관련 타입
+export interface QAPreviewRow {
+  row_index: number
+  faq_id: string
+  question: string
+  answer_text: string
+  tags: string[]
+  policy_anchor: string | null
+  source: string | null
+}
+
+export interface QAPreviewResponse {
+  total_rows: number
+  headers: string[]
+  preview_rows: QAPreviewRow[]
+  file_name: string
+}
+
+export interface QAEmbeddingResult {
+  row_index: number
+  faq_id: string
+  success: boolean
+  vector_id: string | null
+  error: string | null
+}
 
 export interface DifySettings {
   apiKey: string

@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { FileText, Home, Network, Files, Database, MessageSquare, Server, Upload } from "lucide-react"
+import { FileText, Home, Network, Files, Database, MessageSquare, Server, Upload, Sheet } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { cn } from "@/lib/utils"
 
@@ -14,6 +14,7 @@ export function NavHeader() {
     { href: "/system-architecture", label: "구성도", icon: Server },
     { href: "/parse", label: "문서변환", icon: FileText },
     { href: "/upload", label: "임베딩", icon: Upload },
+    { href: "/excel-embedding", label: "Excel", icon: Sheet },
     { href: "/chat?fullscreen=true", label: "AI 챗봇", icon: MessageSquare },
   ]
 
