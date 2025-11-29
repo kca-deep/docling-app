@@ -10,10 +10,12 @@ import time
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from backend.database import get_db
+from backend.middleware.request_tracking import get_tracking_ids
+from backend.utils.client_info import extract_client_info
 from backend.models.schemas import ChatRequest, ChatResponse, RetrievedDocument, RegenerateRequest, DefaultSettingsResponse
 from backend.models.chat_session import ChatSession
 from backend.services.embedding_service import EmbeddingService
@@ -68,7 +70,10 @@ async def log_chat_interaction_task(
     llm_params: Dict[str, Any],
     performance_metrics: Dict[str, Any],
     error_info: Optional[Dict] = None,
-    db: Optional[Session] = None
+    db: Optional[Session] = None,
+    request_id: Optional[str] = None,
+    trace_id: Optional[str] = None,
+    client_info: Optional[Dict] = None
 ):
     """채팅 상호작용 로깅 백그라운드 태스크"""
     try:
@@ -83,7 +88,10 @@ async def log_chat_interaction_task(
             llm_params=llm_params,
             retrieval_info=None,
             performance=performance_metrics,
-            error_info=error_info
+            error_info=error_info,
+            request_id=request_id,
+            trace_id=trace_id,
+            client_info=client_info
         )
 
         # 어시스턴트 응답 로깅
@@ -104,7 +112,10 @@ async def log_chat_interaction_task(
             llm_params=llm_params,
             retrieval_info=retrieval_info,
             performance=performance_metrics,
-            error_info=error_info
+            error_info=error_info,
+            request_id=request_id,
+            trace_id=trace_id,
+            client_info=client_info
         )
 
         # 대화 서비스에 메시지 추가
@@ -181,7 +192,8 @@ async def log_chat_interaction_task(
 
 @router.post("/", response_model=ChatResponse)
 async def chat(
-    request: ChatRequest,
+    chat_request: ChatRequest,
+    request: Request,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
@@ -216,24 +228,30 @@ async def chat(
     Raises:
         HTTPException: 처리 실패 시
     """
+    # 추적 정보 추출
+    tracking_ids = get_tracking_ids(request)
+    client_info = extract_client_info(request)
+
     logger.info("="*80)
     logger.info("[CHAT API] Non-streaming endpoint called")
-    logger.info(f"[CHAT API] Requested model: {request.model}")
-    logger.info(f"[CHAT API] Collection: {request.collection_name}")
-    logger.info(f"[CHAT API] Message: {request.message[:50]}...")
+    logger.info(f"[CHAT API] Request ID: {tracking_ids.get('request_id')}")
+    logger.info(f"[CHAT API] Requested model: {chat_request.model}")
+    logger.info(f"[CHAT API] Collection: {chat_request.collection_name}")
+    logger.info(f"[CHAT API] Message: {chat_request.message[:50]}...")
+    logger.info(f"[CHAT API] Client Type: {client_info.get('user_agent', 'unknown')[:50]}")
     logger.info("="*80)
 
     # conversation_id 처리
-    if not request.conversation_id:
-        request.conversation_id = str(uuid.uuid4())
+    if not chat_request.conversation_id:
+        chat_request.conversation_id = str(uuid.uuid4())
 
     # session_id 생성 (conversation과 별도)
     session_id = str(uuid.uuid4())
 
     # 대화 시작
     conversation_id = conversation_service.start_conversation(
-        conversation_id=request.conversation_id,
-        collection_name=request.collection_name
+        conversation_id=chat_request.conversation_id,
+        collection_name=chat_request.collection_name
     )
 
     # 시작 시간 기록
@@ -242,27 +260,27 @@ async def chat(
     try:
         # 대화 기록 변환
         chat_history = None
-        if request.chat_history:
+        if chat_request.chat_history:
             chat_history = [
                 {"role": msg.role, "content": msg.content}
-                for msg in request.chat_history
+                for msg in chat_request.chat_history
             ]
 
         # RAG 채팅 수행
         result = await rag_service.chat(
-            collection_name=request.collection_name,
-            query=request.message,
-            model=request.model,
-            reasoning_level=request.reasoning_level,
-            temperature=request.temperature,
-            max_tokens=request.max_tokens,
-            top_p=request.top_p,
-            frequency_penalty=request.frequency_penalty,
-            presence_penalty=request.presence_penalty,
-            top_k=request.top_k,
-            score_threshold=request.score_threshold,
+            collection_name=chat_request.collection_name,
+            query=chat_request.message,
+            model=chat_request.model,
+            reasoning_level=chat_request.reasoning_level,
+            temperature=chat_request.temperature,
+            max_tokens=chat_request.max_tokens,
+            top_p=chat_request.top_p,
+            frequency_penalty=chat_request.frequency_penalty,
+            presence_penalty=chat_request.presence_penalty,
+            top_k=chat_request.top_k,
+            score_threshold=chat_request.score_threshold,
             chat_history=chat_history,
-            use_reranking=request.use_reranking
+            use_reranking=chat_request.use_reranking
         )
 
         # 응답 포맷팅
@@ -288,9 +306,9 @@ async def chat(
 
         # LLM 파라미터 준비
         llm_params = {
-            "temperature": request.temperature,
-            "max_tokens": request.max_tokens,
-            "top_p": request.top_p
+            "temperature": chat_request.temperature,
+            "max_tokens": chat_request.max_tokens,
+            "top_p": chat_request.top_p
         }
 
         # 백그라운드 태스크로 로깅 추가
@@ -298,18 +316,21 @@ async def chat(
             log_chat_interaction_task,
             session_id=session_id,
             conversation_id=conversation_id,
-            collection_name=request.collection_name,
-            message=request.message,
+            collection_name=chat_request.collection_name,
+            message=chat_request.message,
             response_data={
                 "answer": result.get("answer", ""),
                 "retrieved_docs": result.get("retrieved_docs", [])
             },
-            reasoning_level=request.reasoning_level,
-            model=request.model,
+            reasoning_level=chat_request.reasoning_level,
+            model=chat_request.model,
             llm_params=llm_params,
             performance_metrics=performance_metrics,
             error_info=None,
-            db=db
+            db=db,
+            request_id=tracking_ids.get("request_id"),
+            trace_id=tracking_ids.get("trace_id"),
+            client_info=client_info
         )
 
         # conversation_id 포함하여 응답
@@ -336,21 +357,24 @@ async def chat(
             log_chat_interaction_task,
             session_id=session_id,
             conversation_id=conversation_id,
-            collection_name=request.collection_name,
-            message=request.message,
+            collection_name=chat_request.collection_name,
+            message=chat_request.message,
             response_data={},
-            reasoning_level=request.reasoning_level,
-            model=request.model,
+            reasoning_level=chat_request.reasoning_level,
+            model=chat_request.model,
             llm_params={
-                "temperature": request.temperature,
-                "max_tokens": request.max_tokens,
-                "top_p": request.top_p
+                "temperature": chat_request.temperature,
+                "max_tokens": chat_request.max_tokens,
+                "top_p": chat_request.top_p
             },
             performance_metrics={
                 "response_time_ms": int((time.time() - start_time) * 1000)
             },
             error_info=error_info,
-            db=db
+            db=db,
+            request_id=tracking_ids.get("request_id"),
+            trace_id=tracking_ids.get("trace_id"),
+            client_info=client_info
         )
 
         raise HTTPException(status_code=500, detail=f"채팅 처리 실패: {str(e)}")
@@ -358,7 +382,8 @@ async def chat(
 
 @router.post("/stream")
 async def chat_stream(
-    request: ChatRequest,
+    chat_request: ChatRequest,
+    request: Request,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
@@ -366,7 +391,8 @@ async def chat_stream(
     RAG 기반 스트리밍 채팅
 
     Args:
-        request: 채팅 요청 (stream 파라미터는 무시됨)
+        chat_request: 채팅 요청 (stream 파라미터는 무시됨)
+        request: FastAPI Request 객체
         background_tasks: 백그라운드 태스크
         db: 데이터베이스 세션
 
@@ -376,33 +402,39 @@ async def chat_stream(
     Raises:
         HTTPException: 처리 실패 시
     """
+    # 추적 정보 추출
+    tracking_ids = get_tracking_ids(request)
+    client_info = extract_client_info(request)
+
     # 강제 출력 - 반드시 보여야 함
     sys.stderr.write("\n" + "="*80 + "\n")
     sys.stderr.write(f"[CHAT API] Stream endpoint called\n")
-    sys.stderr.write(f"[CHAT API] Requested model: {request.model}\n")
-    sys.stderr.write(f"[CHAT API] Collection: {request.collection_name}\n")
-    sys.stderr.write(f"[CHAT API] Message: {request.message[:50]}...\n")
+    sys.stderr.write(f"[CHAT API] Request ID: {tracking_ids.get('request_id')}\n")
+    sys.stderr.write(f"[CHAT API] Requested model: {chat_request.model}\n")
+    sys.stderr.write(f"[CHAT API] Collection: {chat_request.collection_name}\n")
+    sys.stderr.write(f"[CHAT API] Message: {chat_request.message[:50]}...\n")
     sys.stderr.write("="*80 + "\n\n")
     sys.stderr.flush()
 
     logger.info("="*80)
     logger.info("[CHAT API] Stream endpoint called")
-    logger.info(f"[CHAT API] Requested model: {request.model}")
-    logger.info(f"[CHAT API] Collection: {request.collection_name}")
-    logger.info(f"[CHAT API] Message: {request.message[:50]}...")
+    logger.info(f"[CHAT API] Request ID: {tracking_ids.get('request_id')}")
+    logger.info(f"[CHAT API] Requested model: {chat_request.model}")
+    logger.info(f"[CHAT API] Collection: {chat_request.collection_name}")
+    logger.info(f"[CHAT API] Message: {chat_request.message[:50]}...")
     logger.info("="*80)
 
     # conversation_id 처리
-    if not request.conversation_id:
-        request.conversation_id = str(uuid.uuid4())
+    if not chat_request.conversation_id:
+        chat_request.conversation_id = str(uuid.uuid4())
 
     # session_id 생성 (conversation과 별도)
     session_id = str(uuid.uuid4())
 
     # 대화 시작
     conversation_id = conversation_service.start_conversation(
-        conversation_id=request.conversation_id,
-        collection_name=request.collection_name
+        conversation_id=chat_request.conversation_id,
+        collection_name=chat_request.collection_name
     )
 
     # 시작 시간 기록
@@ -411,10 +443,10 @@ async def chat_stream(
     try:
         # 대화 기록 변환
         chat_history = None
-        if request.chat_history:
+        if chat_request.chat_history:
             chat_history = [
                 {"role": msg.role, "content": msg.content}
-                for msg in request.chat_history
+                for msg in chat_request.chat_history
             ]
 
         # 스트리밍 제너레이터
@@ -424,19 +456,19 @@ async def chat_stream(
             nonlocal collected_response
             try:
                 async for chunk in rag_service.chat_stream(
-                    collection_name=request.collection_name,
-                    query=request.message,
-                    model=request.model,
-                    reasoning_level=request.reasoning_level,
-                    temperature=request.temperature,
-                    max_tokens=request.max_tokens,
-                    top_p=request.top_p,
-                    frequency_penalty=request.frequency_penalty,
-                    presence_penalty=request.presence_penalty,
-                    top_k=request.top_k,
-                    score_threshold=request.score_threshold,
+                    collection_name=chat_request.collection_name,
+                    query=chat_request.message,
+                    model=chat_request.model,
+                    reasoning_level=chat_request.reasoning_level,
+                    temperature=chat_request.temperature,
+                    max_tokens=chat_request.max_tokens,
+                    top_p=chat_request.top_p,
+                    frequency_penalty=chat_request.frequency_penalty,
+                    presence_penalty=chat_request.presence_penalty,
+                    top_k=chat_request.top_k,
+                    score_threshold=chat_request.score_threshold,
                     chat_history=chat_history,
-                    use_reranking=request.use_reranking
+                    use_reranking=chat_request.use_reranking
                 ):
                     # SSE 포맷 파싱하여 응답 수집
                     if chunk.startswith('data: '):
@@ -479,9 +511,9 @@ async def chat_stream(
         }
 
         llm_params = {
-            "temperature": request.temperature,
-            "max_tokens": request.max_tokens,
-            "top_p": request.top_p
+            "temperature": chat_request.temperature,
+            "max_tokens": chat_request.max_tokens,
+            "top_p": chat_request.top_p
         }
 
         # 백그라운드 태스크로 로깅 추가
@@ -489,15 +521,18 @@ async def chat_stream(
             log_chat_interaction_task,
             session_id=session_id,
             conversation_id=conversation_id,
-            collection_name=request.collection_name,
-            message=request.message,
+            collection_name=chat_request.collection_name,
+            message=chat_request.message,
             response_data=collected_response,  # 수집된 응답 사용
-            reasoning_level=request.reasoning_level,
-            model=request.model,
+            reasoning_level=chat_request.reasoning_level,
+            model=chat_request.model,
             llm_params=llm_params,
             performance_metrics=performance_metrics,
             error_info=None,
-            db=db
+            db=db,
+            request_id=tracking_ids.get("request_id"),
+            trace_id=tracking_ids.get("trace_id"),
+            client_info=client_info
         )
 
         return response
@@ -516,21 +551,24 @@ async def chat_stream(
             log_chat_interaction_task,
             session_id=session_id,
             conversation_id=conversation_id,
-            collection_name=request.collection_name,
-            message=request.message,
+            collection_name=chat_request.collection_name,
+            message=chat_request.message,
             response_data={},
-            reasoning_level=request.reasoning_level,
-            model=request.model,
+            reasoning_level=chat_request.reasoning_level,
+            model=chat_request.model,
             llm_params={
-                "temperature": request.temperature,
-                "max_tokens": request.max_tokens,
-                "top_p": request.top_p
+                "temperature": chat_request.temperature,
+                "max_tokens": chat_request.max_tokens,
+                "top_p": chat_request.top_p
             },
             performance_metrics={
                 "response_time_ms": int((time.time() - start_time) * 1000)
             },
             error_info=error_info,
-            db=db
+            db=db,
+            request_id=tracking_ids.get("request_id"),
+            trace_id=tracking_ids.get("trace_id"),
+            client_info=client_info
         )
 
         raise HTTPException(status_code=500, detail=f"스트리밍 채팅 실패: {str(e)}")

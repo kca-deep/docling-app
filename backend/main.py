@@ -15,6 +15,7 @@ from backend.models import dify_upload_history, dify_config  # Import Dify model
 from backend.models import qdrant_upload_history  # Import Qdrant models
 from backend.models import chat_session, chat_statistics  # Import Chat models
 from backend.services.hybrid_logging_service import hybrid_logging_service
+from backend.middleware.request_tracking import RequestTrackingMiddleware
 
 # 로거 설정
 logger = logging.getLogger(__name__)
@@ -70,6 +71,9 @@ async def shutdown_event():
     await hybrid_logging_service.flush()
     await hybrid_logging_service.stop()
     print("[OK] Hybrid logging service stopped successfully")
+
+# 요청 추적 미들웨어 추가 (CORS보다 먼저 등록)
+app.add_middleware(RequestTrackingMiddleware)
 
 # CORS 설정
 app.add_middleware(

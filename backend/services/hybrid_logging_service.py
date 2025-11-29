@@ -151,11 +151,16 @@ class HybridLoggingService:
         llm_params: Optional[Dict] = None,
         retrieval_info: Optional[Dict] = None,
         performance: Optional[Dict] = None,
-        error_info: Optional[Dict] = None
+        error_info: Optional[Dict] = None,
+        request_id: Optional[str] = None,
+        trace_id: Optional[str] = None,
+        client_info: Optional[Dict] = None
     ):
         """채팅 상호작용 로그 기록"""
         log_data = {
             "log_id": str(uuid.uuid4()),
+            "request_id": request_id,
+            "trace_id": trace_id,
             "session_id": session_id,
             "collection_name": collection_name,
             "message_type": message_type,
@@ -166,6 +171,7 @@ class HybridLoggingService:
             "retrieval_info": retrieval_info or {},
             "performance": performance or {},
             "error_info": error_info,
+            "client_info": client_info or {},
             "created_at": datetime.utcnow().isoformat()
         }
 
