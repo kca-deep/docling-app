@@ -8,11 +8,13 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from backend.config.settings import settings
-from backend.api.routes import document, dify, qdrant, chat
-from backend.database import init_db
+from backend.api.routes import document, dify, qdrant, chat, analytics
+from backend.database import init_db, get_db
 from backend.models import document as document_model  # Import to register models
 from backend.models import dify_upload_history, dify_config  # Import Dify models
 from backend.models import qdrant_upload_history  # Import Qdrant models
+from backend.models import chat_session, chat_statistics  # Import Chat models
+from backend.services.hybrid_logging_service import hybrid_logging_service
 
 # 로거 설정
 logger = logging.getLogger(__name__)
@@ -29,8 +31,45 @@ app = FastAPI(
 @app.on_event("startup")
 async def startup_event():
     """앱 시작 시 실행되는 이벤트 핸들러"""
+    # 데이터베이스 초기화
     init_db()
     print("[OK] Database initialized successfully")
+
+    # SQLite 최적화 설정 적용
+    try:
+        from sqlalchemy import text
+        from backend.database import engine
+
+        with engine.connect() as conn:
+            # WAL 모드 활성화 (동시성 개선)
+            conn.execute(text("PRAGMA journal_mode = WAL"))
+            # 쓰기 성능 향상
+            conn.execute(text("PRAGMA synchronous = NORMAL"))
+            # 캐시 크기 증가 (128MB)
+            conn.execute(text("PRAGMA cache_size = -128000"))
+            # 메모리 매핑
+            conn.execute(text("PRAGMA mmap_size = 10737418240"))  # 10GB
+            # 임시 테이블 메모리 사용
+            conn.execute(text("PRAGMA temp_store = MEMORY"))
+            conn.commit()
+
+        print("[OK] SQLite optimizations applied successfully")
+    except Exception as e:
+        logger.error(f"Failed to apply SQLite optimizations: {e}")
+
+    # 로깅 서비스 시작
+    await hybrid_logging_service.start()
+    print("[OK] Hybrid logging service started successfully")
+
+
+# 앱 종료 시 정리 작업
+@app.on_event("shutdown")
+async def shutdown_event():
+    """앱 종료 시 실행되는 이벤트 핸들러"""
+    # 로깅 서비스 중지 및 큐 플러시
+    await hybrid_logging_service.flush()
+    await hybrid_logging_service.stop()
+    print("[OK] Hybrid logging service stopped successfully")
 
 # CORS 설정
 app.add_middleware(
@@ -61,6 +100,7 @@ app.include_router(document.router)
 app.include_router(dify.router)
 app.include_router(qdrant.router)
 app.include_router(chat.router)
+app.include_router(analytics.router)
 
 
 @app.get("/")

@@ -77,6 +77,11 @@ class Settings(BaseSettings):
     RERANK_TOP_K_MULTIPLIER: int = 5
     RERANK_SCORE_THRESHOLD: float = 0.5
 
+    # 대화 로깅 및 히스토리 설정
+    CONVERSATION_SAMPLE_RATE: float = 1.0  # 100% 저장 (기본값)
+    CONVERSATION_RETENTION_DAYS: int = 30  # 30일 보존
+    CONVERSATION_COMPRESS_AFTER_DAYS: int = 7  # 7일 후 압축
+
     # Qwen3 VL OCR 설정
     QWEN3_VL_BASE_URL: str = "http://localhost:8084"
     QWEN3_VL_MODEL: str = "qwen3-vl-8b"

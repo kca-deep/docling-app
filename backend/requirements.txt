@@ -11,3 +11,6 @@ qdrant-client>=1.7.0
 PyMuPDF>=1.25.3
 Pillow>=11.0.0
 openpyxl>=3.1.0
+pandas>=2.0.0
+numpy>=1.24.0
+aiofiles>=23.0.0

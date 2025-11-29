@@ -5,16 +5,25 @@ RAG 기반 채팅 엔드포인트
 import json
 import logging
 import sys
+import uuid
+import time
 from pathlib import Path
-from fastapi import APIRouter, HTTPException
+from datetime import datetime
+from typing import Optional, Dict, Any
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import Session
+from backend.database import get_db
 from backend.models.schemas import ChatRequest, ChatResponse, RetrievedDocument, RegenerateRequest, DefaultSettingsResponse
+from backend.models.chat_session import ChatSession
 from backend.services.embedding_service import EmbeddingService
 from backend.services.qdrant_service import QdrantService
 from backend.services.llm_service import LLMService
 from backend.services.rag_service import RAGService
 from backend.services.reranker_service import RerankerService
 from backend.config.settings import settings
+from backend.services.hybrid_logging_service import hybrid_logging_service
+from backend.services.conversation_service import conversation_service
 
 # 로거 설정
 logger = logging.getLogger("uvicorn")
@@ -48,13 +57,140 @@ rag_service = RAGService(
 )
 
 
+async def log_chat_interaction_task(
+    session_id: str,
+    conversation_id: str,
+    collection_name: str,
+    message: str,
+    response_data: Dict[str, Any],
+    reasoning_level: str,
+    model: str,
+    llm_params: Dict[str, Any],
+    performance_metrics: Dict[str, Any],
+    error_info: Optional[Dict] = None,
+    db: Optional[Session] = None
+):
+    """채팅 상호작용 로깅 백그라운드 태스크"""
+    try:
+        # 사용자 메시지 로깅
+        await hybrid_logging_service.log_chat_interaction(
+            session_id=session_id,
+            collection_name=collection_name,
+            message_type="user",
+            message_content=message,
+            reasoning_level=reasoning_level,
+            llm_model=model,
+            llm_params=llm_params,
+            retrieval_info=None,
+            performance=performance_metrics,
+            error_info=error_info
+        )
+
+        # 어시스턴트 응답 로깅
+        retrieval_info = {}
+        if "retrieved_docs" in response_data:
+            retrieval_info = {
+                "retrieved_count": len(response_data["retrieved_docs"]),
+                "top_scores": [doc.get("score", 0) for doc in response_data["retrieved_docs"][:3]]
+            }
+
+        await hybrid_logging_service.log_chat_interaction(
+            session_id=session_id,
+            collection_name=collection_name,
+            message_type="assistant",
+            message_content=response_data.get("answer", ""),
+            reasoning_level=reasoning_level,
+            llm_model=model,
+            llm_params=llm_params,
+            retrieval_info=retrieval_info,
+            performance=performance_metrics,
+            error_info=error_info
+        )
+
+        # 대화 서비스에 메시지 추가
+        conversation_service.add_message(
+            conversation_id=conversation_id,
+            role="user",
+            content=message
+        )
+
+        conversation_service.add_message(
+            conversation_id=conversation_id,
+            role="assistant",
+            content=response_data.get("answer", ""),
+            retrieved_docs=response_data.get("retrieved_docs"),
+            error_info=error_info
+        )
+
+        # 대화 종료 및 저장 (100% 저장 정책)
+        # 각 요청-응답 쌍마다 저장
+        await conversation_service.end_conversation(conversation_id)
+
+        # 세션 정보 업데이트 (DB에)
+        if db:
+            session = db.query(ChatSession).filter(
+                ChatSession.session_id == session_id
+            ).first()
+
+            if not session:
+                # 새 세션 생성
+                session = ChatSession(
+                    session_id=session_id,
+                    collection_name=collection_name,
+                    llm_model=model,
+                    reasoning_level=reasoning_level
+                )
+                db.add(session)
+
+            # 세션 정보 업데이트
+            # 카운트 필드들이 None인 경우 0으로 초기화
+            if session.message_count is None:
+                session.message_count = 0
+            if session.user_message_count is None:
+                session.user_message_count = 0
+            if session.assistant_message_count is None:
+                session.assistant_message_count = 0
+
+            session.message_count += 2  # 사용자 + 어시스턴트
+            session.user_message_count += 1
+            session.assistant_message_count += 1
+
+            if performance_metrics.get("response_time_ms"):
+                # total_response_time_ms가 None인 경우 0으로 초기화
+                if session.total_response_time_ms is None:
+                    session.total_response_time_ms = 0
+                session.total_response_time_ms += performance_metrics["response_time_ms"]
+                session.avg_response_time_ms = session.total_response_time_ms // session.assistant_message_count
+
+            if error_info:
+                session.has_error = 1
+
+            # 최소 검색 스코어 업데이트
+            if retrieval_info.get("top_scores"):
+                min_score = min(retrieval_info["top_scores"])
+                if session.min_retrieval_score is None or float(session.min_retrieval_score) > min_score:
+                    session.min_retrieval_score = str(min_score)
+
+            db.commit()
+
+    except Exception as e:
+        logger.error(f"로깅 태스크 실패: {e}")
+        if db:
+            db.rollback()
+
+
 @router.post("/", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+async def chat(
+    request: ChatRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
     """
     RAG 기반 채팅
 
     Args:
         request: 채팅 요청
+            - conversation_id: 대화 ID (선택적)
             - collection_name: Qdrant 컬렉션 이름
             - message: 사용자 메시지
             - reasoning_level: 추론 수준 (low/medium/high)
@@ -67,9 +203,12 @@ async def chat(request: ChatRequest):
             - score_threshold: 최소 유사도 점수
             - chat_history: 이전 대화 기록
             - stream: 스트리밍 여부 (False)
+        background_tasks: 백그라운드 태스크
+        db: 데이터베이스 세션
 
     Returns:
         ChatResponse: 채팅 응답
+            - conversation_id: 대화 ID
             - answer: AI 답변
             - retrieved_docs: 검색된 문서 리스트
             - usage: 토큰 사용량
@@ -83,6 +222,22 @@ async def chat(request: ChatRequest):
     logger.info(f"[CHAT API] Collection: {request.collection_name}")
     logger.info(f"[CHAT API] Message: {request.message[:50]}...")
     logger.info("="*80)
+
+    # conversation_id 처리
+    if not request.conversation_id:
+        request.conversation_id = str(uuid.uuid4())
+
+    # session_id 생성 (conversation과 별도)
+    session_id = str(uuid.uuid4())
+
+    # 대화 시작
+    conversation_id = conversation_service.start_conversation(
+        conversation_id=request.conversation_id,
+        collection_name=request.collection_name
+    )
+
+    # 시작 시간 기록
+    start_time = time.time()
 
     try:
         # 대화 기록 변환
@@ -121,24 +276,99 @@ async def chat(request: ChatRequest):
             for doc in result.get("retrieved_docs", [])
         ]
 
-        return ChatResponse(
+        # 응답 시간 계산
+        response_time_ms = int((time.time() - start_time) * 1000)
+
+        # 성능 메트릭 준비
+        performance_metrics = {
+            "response_time_ms": response_time_ms,
+            "token_count": result.get("usage", {}).get("total_tokens", 0),
+            "retrieval_time_ms": None  # TODO: RAG 서비스에서 측정 필요
+        }
+
+        # LLM 파라미터 준비
+        llm_params = {
+            "temperature": request.temperature,
+            "max_tokens": request.max_tokens,
+            "top_p": request.top_p
+        }
+
+        # 백그라운드 태스크로 로깅 추가
+        background_tasks.add_task(
+            log_chat_interaction_task,
+            session_id=session_id,
+            conversation_id=conversation_id,
+            collection_name=request.collection_name,
+            message=request.message,
+            response_data={
+                "answer": result.get("answer", ""),
+                "retrieved_docs": result.get("retrieved_docs", [])
+            },
+            reasoning_level=request.reasoning_level,
+            model=request.model,
+            llm_params=llm_params,
+            performance_metrics=performance_metrics,
+            error_info=None,
+            db=db
+        )
+
+        # conversation_id 포함하여 응답
+        response = ChatResponse(
             answer=result.get("answer", ""),
             retrieved_docs=retrieved_docs,
             usage=result.get("usage")
         )
+        response.conversation_id = conversation_id
+
+        return response
 
     except Exception as e:
         logger.error(f"[CHAT API] Chat failed: {e}")
+
+        # 에러 정보 준비
+        error_info = {
+            "error_type": type(e).__name__,
+            "error_message": str(e)
+        }
+
+        # 에러도 로깅
+        background_tasks.add_task(
+            log_chat_interaction_task,
+            session_id=session_id,
+            conversation_id=conversation_id,
+            collection_name=request.collection_name,
+            message=request.message,
+            response_data={},
+            reasoning_level=request.reasoning_level,
+            model=request.model,
+            llm_params={
+                "temperature": request.temperature,
+                "max_tokens": request.max_tokens,
+                "top_p": request.top_p
+            },
+            performance_metrics={
+                "response_time_ms": int((time.time() - start_time) * 1000)
+            },
+            error_info=error_info,
+            db=db
+        )
+
         raise HTTPException(status_code=500, detail=f"채팅 처리 실패: {str(e)}")
 
 
 @router.post("/stream")
-async def chat_stream(request: ChatRequest):
+async def chat_stream(
+    request: ChatRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
     """
     RAG 기반 스트리밍 채팅
 
     Args:
         request: 채팅 요청 (stream 파라미터는 무시됨)
+        background_tasks: 백그라운드 태스크
+        db: 데이터베이스 세션
 
     Returns:
         StreamingResponse: SSE 스트리밍 응답
@@ -162,6 +392,22 @@ async def chat_stream(request: ChatRequest):
     logger.info(f"[CHAT API] Message: {request.message[:50]}...")
     logger.info("="*80)
 
+    # conversation_id 처리
+    if not request.conversation_id:
+        request.conversation_id = str(uuid.uuid4())
+
+    # session_id 생성 (conversation과 별도)
+    session_id = str(uuid.uuid4())
+
+    # 대화 시작
+    conversation_id = conversation_service.start_conversation(
+        conversation_id=request.conversation_id,
+        collection_name=request.collection_name
+    )
+
+    # 시작 시간 기록
+    start_time = time.time()
+
     try:
         # 대화 기록 변환
         chat_history = None
@@ -172,7 +418,10 @@ async def chat_stream(request: ChatRequest):
             ]
 
         # 스트리밍 제너레이터
+        collected_response = {"answer": "", "retrieved_docs": [], "usage": {}}
+
         async def generate():
+            nonlocal collected_response
             try:
                 async for chunk in rag_service.chat_stream(
                     collection_name=request.collection_name,
@@ -189,12 +438,28 @@ async def chat_stream(request: ChatRequest):
                     chat_history=chat_history,
                     use_reranking=request.use_reranking
                 ):
+                    # SSE 포맷 파싱하여 응답 수집
+                    if chunk.startswith('data: '):
+                        try:
+                            data_str = chunk[6:]  # 'data: ' 제거
+                            if data_str.strip() and data_str != '[DONE]':
+                                data = json.loads(data_str)
+                                if 'content' in data:
+                                    collected_response["answer"] += data.get('content', '')
+                                if 'retrieved_docs' in data:
+                                    collected_response["retrieved_docs"] = data['retrieved_docs']
+                                if 'usage' in data:
+                                    collected_response["usage"] = data['usage']
+                        except json.JSONDecodeError:
+                            pass
+
                     yield chunk
             except Exception as e:
                 logger.error(f"[CHAT API] Stream generation failed: {e}")
                 yield f'data: {{"error": "스트리밍 실패: {str(e)}"}}\n\n'
 
-        return StreamingResponse(
+        # 스트리밍 응답 생성
+        response = StreamingResponse(
             generate(),
             media_type="text/event-stream",
             headers={
@@ -204,8 +469,70 @@ async def chat_stream(request: ChatRequest):
             }
         )
 
+        # 백그라운드에서 로깅 (스트리밍 완료 후)
+        response_time_ms = int((time.time() - start_time) * 1000)
+
+        performance_metrics = {
+            "response_time_ms": response_time_ms,
+            "token_count": 0,  # 스트리밍에서는 나중에 업데이트
+            "retrieval_time_ms": None
+        }
+
+        llm_params = {
+            "temperature": request.temperature,
+            "max_tokens": request.max_tokens,
+            "top_p": request.top_p
+        }
+
+        # 백그라운드 태스크로 로깅 추가
+        background_tasks.add_task(
+            log_chat_interaction_task,
+            session_id=session_id,
+            conversation_id=conversation_id,
+            collection_name=request.collection_name,
+            message=request.message,
+            response_data=collected_response,  # 수집된 응답 사용
+            reasoning_level=request.reasoning_level,
+            model=request.model,
+            llm_params=llm_params,
+            performance_metrics=performance_metrics,
+            error_info=None,
+            db=db
+        )
+
+        return response
+
     except Exception as e:
         logger.error(f"[CHAT API] Stream chat failed: {e}")
+
+        # 에러 정보 준비
+        error_info = {
+            "error_type": type(e).__name__,
+            "error_message": str(e)
+        }
+
+        # 에러도 로깅
+        background_tasks.add_task(
+            log_chat_interaction_task,
+            session_id=session_id,
+            conversation_id=conversation_id,
+            collection_name=request.collection_name,
+            message=request.message,
+            response_data={},
+            reasoning_level=request.reasoning_level,
+            model=request.model,
+            llm_params={
+                "temperature": request.temperature,
+                "max_tokens": request.max_tokens,
+                "top_p": request.top_p
+            },
+            performance_metrics={
+                "response_time_ms": int((time.time() - start_time) * 1000)
+            },
+            error_info=error_info,
+            db=db
+        )
+
         raise HTTPException(status_code=500, detail=f"스트리밍 채팅 실패: {str(e)}")
 
 

@@ -349,6 +349,7 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     """채팅 요청"""
+    conversation_id: Optional[str] = None  # 대화 ID (선택적)
     collection_name: str
     message: str
     model: str = "gpt-oss-20b"  # LLM 모델 선택
@@ -375,6 +376,7 @@ class RetrievedDocument(BaseModel):
 
 class ChatResponse(BaseModel):
     """채팅 응답"""
+    conversation_id: Optional[str] = None  # 대화 ID
     answer: str
     retrieved_docs: List[RetrievedDocument]
     usage: Optional[dict] = None
