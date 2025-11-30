@@ -198,7 +198,7 @@ export function SourcePanel({ sources }: SourcePanelProps) {
                       {/* 미리보기 텍스트 */}
                       <div
                         className={cn(
-                          "text-sm text-muted-foreground",
+                          "text-sm text-foreground bg-muted/30 p-3 rounded-md",
                           !isExpanded && "line-clamp-3"
                         )}
                       >
@@ -246,14 +246,14 @@ export function SourcePanel({ sources }: SourcePanelProps) {
 
                     <CollapsibleContent>
                       {/* 추가 정보 (펼쳤을 때만 표시) */}
-                      <div className="mt-3 pt-3 border-t space-y-2">
+                      <div className="mt-3 pt-3 border-t border-border space-y-2">
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
                           <span>관련도 점수</span>
-                          <span className="font-mono">
+                          <span className="font-mono font-medium text-foreground">
                             {source.score.toFixed(4)}
                           </span>
                         </div>
-                        <div className="text-xs">
+                        <div className="text-xs text-foreground">
                           <Badge variant="secondary" className="mr-1">
                             {getScoreLabel(source.score)}
                           </Badge>
