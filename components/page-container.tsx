@@ -4,6 +4,8 @@ interface PageContainerProps {
   children: React.ReactNode
   className?: string
   maxWidth?: "default" | "narrow" | "wide" | "full"
+  title?: string
+  description?: string
 }
 
 const maxWidthClasses = {
@@ -17,6 +19,8 @@ export function PageContainer({
   children,
   className,
   maxWidth = "default",
+  title,
+  description,
 }: PageContainerProps) {
   return (
     <div
@@ -26,6 +30,12 @@ export function PageContainer({
         className
       )}
     >
+      {(title || description) && (
+        <div className="mb-8">
+          {title && <h1 className="text-3xl font-bold tracking-tight">{title}</h1>}
+          {description && <p className="text-muted-foreground mt-2">{description}</p>}
+        </div>
+      )}
       {children}
     </div>
   )
