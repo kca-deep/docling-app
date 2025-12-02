@@ -150,27 +150,32 @@ class StatisticsService:
         if df.empty:
             return stats
 
-        # 기본 메트릭 계산
+        # 메시지 타입별 분리 (user/assistant)
         user_messages = df[df['message_type'] == 'user'] if 'message_type' in df.columns else df
+        assistant_messages = df[df['message_type'] == 'assistant'] if 'message_type' in df.columns else pd.DataFrame()
+
+        # 기본 메트릭 계산 (user 메시지 기준)
         stats["total_queries"] = len(user_messages)
         stats["unique_sessions"] = df['session_id'].nunique() if 'session_id' in df.columns else 0
 
-        # 토큰 계산 (performance 필드에서)
-        if 'performance' in df.columns:
-            token_counts = df['performance'].apply(
+        # 토큰 계산 (assistant 메시지의 performance 필드에서 - 응답 토큰)
+        if 'performance' in assistant_messages.columns and not assistant_messages.empty:
+            token_counts = assistant_messages['performance'].apply(
                 lambda x: x.get('token_count', 0) if isinstance(x, dict) else 0
             )
             stats["total_tokens"] = int(token_counts.sum())
 
-        # 에러 카운트
+        # 에러 카운트 (전체에서)
         if 'error_info' in df.columns:
-            stats["error_count"] = df['error_info'].notna().sum()
+            stats["error_count"] = int(df['error_info'].notna().sum())
 
-        # 응답 시간 통계
-        if 'performance' in df.columns:
-            response_times = df['performance'].apply(
+        # 응답 시간 통계 (assistant 메시지 기준 - 실제 응답 시간)
+        if 'performance' in assistant_messages.columns and not assistant_messages.empty:
+            response_times = assistant_messages['performance'].apply(
                 lambda x: x.get('response_time_ms', None) if isinstance(x, dict) else None
             ).dropna()
+            # 0이 아닌 값만 필터링
+            response_times = response_times[response_times > 0]
 
             if not response_times.empty:
                 stats["avg_response_time_ms"] = float(response_times.mean())
@@ -179,20 +184,20 @@ class StatisticsService:
                 stats["p99_response_time_ms"] = float(response_times.quantile(0.99))
                 stats["max_response_time_ms"] = float(response_times.max())
 
-        # 검색 메트릭
-        if 'retrieval_info' in df.columns:
-            retrieval_times = df['retrieval_info'].apply(
+        # 검색 메트릭 (assistant 메시지에서만 추출 - retrieval_info가 기록됨)
+        if 'retrieval_info' in assistant_messages.columns and not assistant_messages.empty:
+            retrieval_times = assistant_messages['retrieval_info'].apply(
                 lambda x: x.get('retrieval_time_ms', None) if isinstance(x, dict) else None
             ).dropna()
 
             if not retrieval_times.empty:
                 stats["avg_retrieval_time_ms"] = float(retrieval_times.mean())
 
-            # 검색 스코어
+            # 검색 스코어 (assistant 메시지에서만)
             retrieval_scores = []
             retrieved_counts = []
 
-            for info in df['retrieval_info'].dropna():
+            for info in assistant_messages['retrieval_info'].dropna():
                 if isinstance(info, dict):
                     if 'top_scores' in info and info['top_scores']:
                         retrieval_scores.extend(info['top_scores'])
@@ -204,26 +209,26 @@ class StatisticsService:
             if retrieved_counts:
                 stats["avg_retrieved_count"] = float(np.mean(retrieved_counts))
 
-            # 재순위 사용 카운트
-            reranking_used = df['retrieval_info'].apply(
+            # 재순위 사용 카운트 (assistant 메시지에서만)
+            reranking_used = assistant_messages['retrieval_info'].apply(
                 lambda x: x.get('reranking_used', False) if isinstance(x, dict) else False
             )
             stats["reranking_usage_count"] = int(reranking_used.sum())
 
-        # Top queries (사용자 메시지에서 추출)
+        # Top queries (user 메시지에서 추출)
         if 'message_content' in user_messages.columns:
             query_counts = Counter(user_messages['message_content'].dropna())
             top_10_queries = query_counts.most_common(10)
             stats["top_queries"] = [query for query, count in top_10_queries]
 
-        # 모델 사용 통계
-        if 'llm_model' in df.columns:
-            model_counts = df['llm_model'].value_counts().to_dict()
+        # 모델 사용 통계 (user 메시지 기준 - 중복 방지)
+        if 'llm_model' in user_messages.columns:
+            model_counts = user_messages['llm_model'].value_counts().to_dict()
             stats["model_usage"] = {str(k): int(v) for k, v in model_counts.items() if k}
 
-        # Reasoning level 분포
-        if 'reasoning_level' in df.columns:
-            reasoning_counts = df['reasoning_level'].value_counts().to_dict()
+        # Reasoning level 분포 (user 메시지 기준 - 중복 방지)
+        if 'reasoning_level' in user_messages.columns:
+            reasoning_counts = user_messages['reasoning_level'].value_counts().to_dict()
             stats["reasoning_distribution"] = {str(k): int(v) for k, v in reasoning_counts.items() if k}
 
         return stats
@@ -279,57 +284,84 @@ class StatisticsService:
     ) -> Dict[str, Any]:
         """통계 요약 조회"""
         try:
-            query = db.query(ChatStatistics)
+            # 날짜 기본값 설정
+            if not date_to:
+                date_to = date.today()
+            if not date_from:
+                date_from = date_to - timedelta(days=7)
 
-            # 필터링
-            conditions = []
-            if collection_name:
-                conditions.append(ChatStatistics.collection_name == collection_name)
-            if date_from:
-                conditions.append(ChatStatistics.date >= date_from)
-            if date_to:
-                conditions.append(ChatStatistics.date <= date_to)
+            # JSONL에서 직접 계산 (unique_sessions 중복 방지를 위해)
+            # ChatStatistics의 일별 unique_sessions를 단순 합산하면 중복 가능
+            df = await self.query_logs_by_date_range(date_from, date_to, collection_name)
 
-            if conditions:
-                query = query.filter(and_(*conditions))
+            if df.empty:
+                return {
+                    "total_queries": 0,
+                    "unique_sessions": 0,
+                    "total_tokens": 0,
+                    "error_count": 0,
+                    "avg_response_time_ms": 0,
+                    "period": {
+                        "from": date_from.isoformat(),
+                        "to": date_to.isoformat(),
+                        "days": (date_to - date_from).days + 1
+                    },
+                    "collections": [collection_name] if collection_name else [],
+                    "top_queries": []
+                }
 
-            # 일별 집계만 조회
-            query = query.filter(ChatStatistics.hour.is_(None))
+            # 메시지 타입별 분리
+            user_messages = df[df['message_type'] == 'user'] if 'message_type' in df.columns else df
+            assistant_messages = df[df['message_type'] == 'assistant'] if 'message_type' in df.columns else pd.DataFrame()
 
-            stats = query.all()
+            # 토큰 계산 (assistant 메시지에서)
+            total_tokens = 0
+            if 'performance' in assistant_messages.columns and not assistant_messages.empty:
+                token_counts = assistant_messages['performance'].apply(
+                    lambda x: x.get('token_count', 0) if isinstance(x, dict) else 0
+                )
+                total_tokens = int(token_counts.sum())
 
-            # ChatStatistics가 비어있으면 JSONL에서 직접 계산
-            if not stats:
-                return await self._get_summary_from_logs(collection_name, date_from, date_to)
+            # 에러 카운트
+            error_count = 0
+            if 'error_info' in df.columns:
+                error_count = int(df['error_info'].notna().sum())
 
-            # 집계
+            # 응답 시간 (assistant 메시지에서, 0이 아닌 값만)
+            avg_response_time = 0
+            if 'performance' in assistant_messages.columns and not assistant_messages.empty:
+                response_times = assistant_messages['performance'].apply(
+                    lambda x: x.get('response_time_ms', None) if isinstance(x, dict) else None
+                ).dropna()
+                response_times = response_times[response_times > 0]
+                if not response_times.empty:
+                    avg_response_time = float(response_times.mean())
+
+            # Top queries (user 메시지에서)
+            top_queries = []
+            if 'message_content' in user_messages.columns:
+                query_counts = Counter(user_messages['message_content'].dropna())
+                top_queries = [q for q, c in query_counts.most_common(20)]
+
+            # 컬렉션 목록
+            collections = []
+            if 'collection_name' in df.columns:
+                collections = df['collection_name'].dropna().unique().tolist()
+
             summary = {
-                "total_queries": sum(s.total_queries for s in stats),
-                "unique_sessions": sum(s.unique_sessions for s in stats),
-                "total_tokens": sum(s.total_tokens for s in stats),
-                "error_count": sum(s.error_count for s in stats),
-                "avg_response_time_ms": np.mean([s.avg_response_time_ms for s in stats if s.avg_response_time_ms]),
+                "total_queries": len(user_messages),
+                "unique_sessions": df['session_id'].nunique() if 'session_id' in df.columns else 0,
+                "total_tokens": total_tokens,
+                "error_count": error_count,
+                "avg_response_time_ms": avg_response_time,
                 "period": {
-                    "from": min(s.date for s in stats).isoformat(),
-                    "to": max(s.date for s in stats).isoformat(),
-                    "days": len(set(s.date for s in stats))
+                    "from": date_from.isoformat(),
+                    "to": date_to.isoformat(),
+                    "days": (date_to - date_from).days + 1
                 },
-                "collections": list(set(s.collection_name for s in stats))
+                "collections": collections,
+                "top_queries": top_queries
             }
-
-            # Top queries 병합
-            all_queries = []
-            for stat in stats:
-                if stat.top_queries:
-                    try:
-                        queries = json.loads(stat.top_queries)
-                        all_queries.extend(queries)
-                    except:
-                        pass
-
-            if all_queries:
-                query_counter = Counter(all_queries)
-                summary["top_queries"] = [q for q, c in query_counter.most_common(20)]
 
             return summary
 
@@ -369,13 +401,14 @@ class StatisticsService:
                     "top_queries": []
                 }
 
-            # 사용자 메시지만 필터링
+            # 메시지 타입별 분리
             user_messages = df[df['message_type'] == 'user'] if 'message_type' in df.columns else df
+            assistant_messages = df[df['message_type'] == 'assistant'] if 'message_type' in df.columns else pd.DataFrame()
 
-            # 토큰 계산
+            # 토큰 계산 (assistant 메시지에서)
             total_tokens = 0
-            if 'performance' in df.columns:
-                token_counts = df['performance'].apply(
+            if 'performance' in assistant_messages.columns and not assistant_messages.empty:
+                token_counts = assistant_messages['performance'].apply(
                     lambda x: x.get('token_count', 0) if isinstance(x, dict) else 0
                 )
                 total_tokens = int(token_counts.sum())
@@ -385,16 +418,17 @@ class StatisticsService:
             if 'error_info' in df.columns:
                 error_count = int(df['error_info'].notna().sum())
 
-            # 응답 시간
+            # 응답 시간 (assistant 메시지에서, 0이 아닌 값만)
             avg_response_time = 0
-            if 'performance' in df.columns:
-                response_times = df['performance'].apply(
+            if 'performance' in assistant_messages.columns and not assistant_messages.empty:
+                response_times = assistant_messages['performance'].apply(
                     lambda x: x.get('response_time_ms', None) if isinstance(x, dict) else None
                 ).dropna()
+                response_times = response_times[response_times > 0]
                 if not response_times.empty:
                     avg_response_time = float(response_times.mean())
 
-            # Top queries
+            # Top queries (user 메시지에서)
             top_queries = []
             if 'message_content' in user_messages.columns:
                 query_counts = Counter(user_messages['message_content'].dropna())
@@ -489,21 +523,24 @@ class StatisticsService:
 
             df['date'] = pd.to_datetime(df['created_at']).dt.date
 
-            # 사용자 메시지만 필터링
+            # 메시지 타입별 분리
             user_messages = df[df['message_type'] == 'user'] if 'message_type' in df.columns else df
+            assistant_messages = df[df['message_type'] == 'assistant'] if 'message_type' in df.columns else pd.DataFrame()
 
             timeline = []
             for target_date in pd.date_range(start_date, end_date):
                 target_date = target_date.date()
-                day_data = user_messages[user_messages['date'] == target_date]
+                day_user = user_messages[user_messages['date'] == target_date]
+                day_assistant = assistant_messages[assistant_messages['date'] == target_date] if not assistant_messages.empty else pd.DataFrame()
                 day_all = df[df['date'] == target_date]
 
-                # 응답 시간 계산
+                # 응답 시간 계산 (assistant 메시지에서, 0이 아닌 값만)
                 avg_response_time = 0
-                if 'performance' in day_all.columns and not day_all.empty:
-                    response_times = day_all['performance'].apply(
+                if 'performance' in day_assistant.columns and not day_assistant.empty:
+                    response_times = day_assistant['performance'].apply(
                         lambda x: x.get('response_time_ms', None) if isinstance(x, dict) else None
                     ).dropna()
+                    response_times = response_times[response_times > 0]
                     if not response_times.empty:
                         avg_response_time = float(response_times.mean())
 
@@ -515,7 +552,7 @@ class StatisticsService:
                 timeline.append({
                     "date": target_date.isoformat(),
                     "hour": None,
-                    "queries": len(day_data),
+                    "queries": len(day_user),
                     "sessions": day_all['session_id'].nunique() if 'session_id' in day_all.columns else 0,
                     "avg_response_time": avg_response_time,
                     "errors": error_count

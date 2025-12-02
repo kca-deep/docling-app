@@ -101,10 +101,41 @@ async def log_chat_interaction_task(
             # sources 정보 추출 (문서명, 페이지 번호 등)
             sources = []
             for doc in docs:
-                payload = doc.get("payload", {})
+                # 비스트리밍: payload 키, 스트리밍: metadata 키
+                payload = doc.get("payload") or {}
+                metadata = doc.get("metadata") or {}
+                # 두 소스 병합 (payload 우선)
+                merged = {**metadata, **payload}
+
+                # 문서명 추출: filename > document_name > source > "Unknown"
+                document_name = (
+                    merged.get("filename") or
+                    merged.get("document_name") or
+                    merged.get("source") or
+                    "Unknown"
+                )
+
+                # 페이지 번호 추출: headings에서 추출 > page_number > page > 0
+                page_number = 0
+                headings = merged.get("headings") or []
+                if len(headings) >= 2:
+                    # headings[1]이 "페이지 4" 형식인 경우 숫자 추출
+                    page_str = headings[1]
+                    if isinstance(page_str, str) and "페이지" in page_str:
+                        try:
+                            page_number = int(page_str.replace("페이지", "").strip())
+                        except ValueError:
+                            page_number = 0
+                    elif isinstance(page_str, (int, float)):
+                        page_number = int(page_str)
+
+                # headings에서 추출 실패시 다른 필드 시도
+                if page_number == 0:
+                    page_number = merged.get("page_number") or merged.get("page", 0)
+
                 source_info = {
-                    "document_name": payload.get("document_name") or payload.get("source", "Unknown"),
-                    "page_number": payload.get("page_number") or payload.get("page", 0),
+                    "document_name": document_name,
+                    "page_number": page_number,
                     "score": doc.get("score", 0)
                 }
                 sources.append(source_info)
@@ -491,8 +522,17 @@ async def chat_stream(
                             data_str = chunk[6:]  # 'data: ' 제거
                             if data_str.strip() and data_str != '[DONE]':
                                 data = json.loads(data_str)
-                                if 'content' in data:
-                                    collected_response["answer"] += data.get('content', '')
+
+                                # OpenAI 호환 API: choices[0].delta.content에서 추출
+                                if 'choices' in data and data['choices']:
+                                    delta = data['choices'][0].get('delta', {})
+                                    content = delta.get('content', '')
+                                    if content:
+                                        collected_response["answer"] += content
+
+                                # rag_service에서 'sources'로 보내므로 둘 다 처리
+                                if 'sources' in data:
+                                    collected_response["retrieved_docs"] = data['sources']
                                 if 'retrieved_docs' in data:
                                     collected_response["retrieved_docs"] = data['retrieved_docs']
                                 if 'usage' in data:
@@ -512,6 +552,20 @@ async def chat_stream(
                 # 스트리밍 완료 후 로깅 (finally 블록에서 실행)
                 final_response_time_ms = int((time.time() - start_time) * 1000)
                 final_token_count = collected_response.get("usage", {}).get("total_tokens", 0)
+
+                # 스트리밍에서 usage가 없는 경우 토큰 수 추정
+                # 한국어/영어 혼합 텍스트의 경우 문자 수 기반 추정 (대략 2~3자당 1토큰)
+                if final_token_count == 0 and collected_response.get("answer"):
+                    answer_text = collected_response["answer"]
+                    # 간단한 추정: 문자 수 / 2 (한국어 기준, 영어는 더 적음)
+                    estimated_output_tokens = max(1, len(answer_text) // 2)
+                    # 입력 토큰 추정: 질문 + 검색된 문서 (대략적 추정)
+                    input_text = chat_request.message
+                    for doc in collected_response.get("retrieved_docs", []):
+                        if isinstance(doc, dict):
+                            input_text += doc.get("text", "")
+                    estimated_input_tokens = max(1, len(input_text) // 2)
+                    final_token_count = estimated_input_tokens + estimated_output_tokens
 
                 final_performance_metrics = {
                     "response_time_ms": final_response_time_ms,
