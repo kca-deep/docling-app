@@ -298,12 +298,9 @@ class StatisticsService:
 
             stats = query.all()
 
+            # ChatStatistics가 비어있으면 JSONL에서 직접 계산
             if not stats:
-                return {"status": "no_data", "filters": {
-                    "collection_name": collection_name,
-                    "date_from": date_from.isoformat() if date_from else None,
-                    "date_to": date_to.isoformat() if date_to else None
-                }}
+                return await self._get_summary_from_logs(collection_name, date_from, date_to)
 
             # 집계
             summary = {
@@ -340,6 +337,93 @@ class StatisticsService:
             logger.error(f"통계 요약 조회 오류: {e}")
             return {"status": "error", "error": str(e)}
 
+    async def _get_summary_from_logs(
+        self,
+        collection_name: Optional[str],
+        date_from: Optional[date],
+        date_to: Optional[date]
+    ) -> Dict[str, Any]:
+        """JSONL 로그에서 직접 요약 계산 (ChatStatistics가 비어있을 때 폴백)"""
+        try:
+            # 날짜 기본값 설정
+            if not date_to:
+                date_to = date.today()
+            if not date_from:
+                date_from = date_to - timedelta(days=7)
+
+            df = await self.query_logs_by_date_range(date_from, date_to, collection_name)
+
+            if df.empty:
+                return {
+                    "total_queries": 0,
+                    "unique_sessions": 0,
+                    "total_tokens": 0,
+                    "error_count": 0,
+                    "avg_response_time_ms": 0,
+                    "period": {
+                        "from": date_from.isoformat(),
+                        "to": date_to.isoformat(),
+                        "days": (date_to - date_from).days + 1
+                    },
+                    "collections": [collection_name] if collection_name else [],
+                    "top_queries": []
+                }
+
+            # 사용자 메시지만 필터링
+            user_messages = df[df['message_type'] == 'user'] if 'message_type' in df.columns else df
+
+            # 토큰 계산
+            total_tokens = 0
+            if 'performance' in df.columns:
+                token_counts = df['performance'].apply(
+                    lambda x: x.get('token_count', 0) if isinstance(x, dict) else 0
+                )
+                total_tokens = int(token_counts.sum())
+
+            # 에러 카운트
+            error_count = 0
+            if 'error_info' in df.columns:
+                error_count = int(df['error_info'].notna().sum())
+
+            # 응답 시간
+            avg_response_time = 0
+            if 'performance' in df.columns:
+                response_times = df['performance'].apply(
+                    lambda x: x.get('response_time_ms', None) if isinstance(x, dict) else None
+                ).dropna()
+                if not response_times.empty:
+                    avg_response_time = float(response_times.mean())
+
+            # Top queries
+            top_queries = []
+            if 'message_content' in user_messages.columns:
+                query_counts = Counter(user_messages['message_content'].dropna())
+                top_queries = [q for q, c in query_counts.most_common(20)]
+
+            # 컬렉션 목록
+            collections = []
+            if 'collection_name' in df.columns:
+                collections = df['collection_name'].dropna().unique().tolist()
+
+            return {
+                "total_queries": len(user_messages),
+                "unique_sessions": df['session_id'].nunique() if 'session_id' in df.columns else 0,
+                "total_tokens": total_tokens,
+                "error_count": error_count,
+                "avg_response_time_ms": avg_response_time,
+                "period": {
+                    "from": date_from.isoformat(),
+                    "to": date_to.isoformat(),
+                    "days": (date_to - date_from).days + 1
+                },
+                "collections": collections,
+                "top_queries": top_queries
+            }
+
+        except Exception as e:
+            logger.error(f"로그 기반 요약 계산 오류: {e}")
+            return {"status": "error", "error": str(e)}
+
     async def get_timeline(
         self,
         collection_name: str,
@@ -362,9 +446,12 @@ class StatisticsService:
 
             if period == "daily":
                 query = query.filter(ChatStatistics.hour.is_(None))
-            # hourly는 나중에 구현
 
             stats = query.order_by(ChatStatistics.date).all()
+
+            # ChatStatistics가 비어있으면 JSONL에서 직접 계산
+            if not stats:
+                return await self._get_timeline_from_logs(collection_name, start_date, end_date)
 
             timeline = []
             for stat in stats:
@@ -381,6 +468,63 @@ class StatisticsService:
 
         except Exception as e:
             logger.error(f"타임라인 조회 오류: {e}")
+            return []
+
+    async def _get_timeline_from_logs(
+        self,
+        collection_name: str,
+        start_date: date,
+        end_date: date
+    ) -> List[Dict[str, Any]]:
+        """JSONL 로그에서 직접 타임라인 계산"""
+        try:
+            df = await self.query_logs_by_date_range(start_date, end_date, collection_name)
+
+            if df.empty:
+                return []
+
+            # 날짜별 집계
+            if 'created_at' not in df.columns:
+                return []
+
+            df['date'] = pd.to_datetime(df['created_at']).dt.date
+
+            # 사용자 메시지만 필터링
+            user_messages = df[df['message_type'] == 'user'] if 'message_type' in df.columns else df
+
+            timeline = []
+            for target_date in pd.date_range(start_date, end_date):
+                target_date = target_date.date()
+                day_data = user_messages[user_messages['date'] == target_date]
+                day_all = df[df['date'] == target_date]
+
+                # 응답 시간 계산
+                avg_response_time = 0
+                if 'performance' in day_all.columns and not day_all.empty:
+                    response_times = day_all['performance'].apply(
+                        lambda x: x.get('response_time_ms', None) if isinstance(x, dict) else None
+                    ).dropna()
+                    if not response_times.empty:
+                        avg_response_time = float(response_times.mean())
+
+                # 에러 카운트
+                error_count = 0
+                if 'error_info' in day_all.columns:
+                    error_count = int(day_all['error_info'].notna().sum())
+
+                timeline.append({
+                    "date": target_date.isoformat(),
+                    "hour": None,
+                    "queries": len(day_data),
+                    "sessions": day_all['session_id'].nunique() if 'session_id' in day_all.columns else 0,
+                    "avg_response_time": avg_response_time,
+                    "errors": error_count
+                })
+
+            return timeline
+
+        except Exception as e:
+            logger.error(f"로그 기반 타임라인 계산 오류: {e}")
             return []
 
     async def query_logs_by_date_range(

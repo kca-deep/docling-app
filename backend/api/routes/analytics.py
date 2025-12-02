@@ -4,6 +4,8 @@ Analytics API 라우터
 """
 
 import logging
+import pandas as pd
+import numpy as np
 from datetime import datetime, date, timedelta
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks
@@ -411,3 +413,495 @@ async def get_collection_stats(db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"컬렉션 통계 조회 실패: {e}")
         raise HTTPException(status_code=500, detail=f"컬렉션 통계 조회 실패: {str(e)}")
+
+
+# ============================================================
+# 1. 사용자 행동 분석 API
+# ============================================================
+
+@router.get("/hourly-heatmap")
+async def get_hourly_heatmap(
+    collection_name: Optional[str] = Query(None, description="컬렉션 이름"),
+    days: int = Query(7, ge=1, le=30, description="최근 N일간 데이터"),
+    db: Session = Depends(get_db)
+):
+    """
+    시간대별 사용량 히트맵 데이터
+
+    Returns:
+        dict: 요일(0-6) x 시간(0-23) 매트릭스
+    """
+    try:
+        end_date = date.today()
+        start_date = end_date - timedelta(days=days)
+
+        # 로그 데이터 조회
+        df = await statistics_service.query_logs_by_date_range(start_date, end_date, collection_name)
+
+        if df.empty:
+            # 빈 히트맵 반환
+            return {
+                "heatmap": [[0]*24 for _ in range(7)],
+                "max_value": 0,
+                "period": {"from": start_date.isoformat(), "to": end_date.isoformat()}
+            }
+
+        # 시간대별 집계
+        if 'created_at' in df.columns:
+            df['created_at'] = pd.to_datetime(df['created_at'])
+            df['hour'] = df['created_at'].dt.hour
+            df['dayofweek'] = df['created_at'].dt.dayofweek  # 0=Monday, 6=Sunday
+
+            # 히트맵 매트릭스 생성 (7일 x 24시간)
+            heatmap = [[0]*24 for _ in range(7)]
+
+            for _, row in df.iterrows():
+                day = int(row['dayofweek'])
+                hour = int(row['hour'])
+                heatmap[day][hour] += 1
+
+            max_value = max(max(row) for row in heatmap)
+
+            return {
+                "heatmap": heatmap,
+                "max_value": max_value,
+                "period": {"from": start_date.isoformat(), "to": end_date.isoformat()},
+                "labels": {
+                    "days": ["월", "화", "수", "목", "금", "토", "일"],
+                    "hours": list(range(24))
+                }
+            }
+
+        return {"heatmap": [[0]*24 for _ in range(7)], "max_value": 0}
+
+    except Exception as e:
+        logger.error(f"시간대별 히트맵 조회 실패: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/conversation-stats")
+async def get_conversation_stats(
+    collection_name: Optional[str] = Query(None, description="컬렉션 이름"),
+    days: int = Query(7, ge=1, le=30, description="최근 N일간 데이터"),
+    db: Session = Depends(get_db)
+):
+    """
+    대화 통계 (평균 턴수, 재방문율 등)
+
+    Returns:
+        dict: 대화 관련 통계
+    """
+    try:
+        # ChatSession 테이블에서 조회
+        query = db.query(ChatSession)
+
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days)
+
+        query = query.filter(ChatSession.started_at >= start_date)
+
+        if collection_name:
+            query = query.filter(ChatSession.collection_name == collection_name)
+
+        sessions = query.all()
+
+        if not sessions:
+            return {
+                "avg_turns": 0,
+                "avg_user_messages": 0,
+                "revisit_rate": 0,
+                "total_sessions": 0,
+                "regeneration_rate": 0
+            }
+
+        # 평균 턴수 계산
+        total_turns = sum(s.message_count or 0 for s in sessions)
+        avg_turns = total_turns / len(sessions) if sessions else 0
+
+        # 평균 사용자 메시지 수
+        total_user_msgs = sum(s.user_message_count or 0 for s in sessions)
+        avg_user_messages = total_user_msgs / len(sessions) if sessions else 0
+
+        # 재방문율 (같은 user_hash가 여러 세션을 가진 비율)
+        user_hashes = [s.user_hash for s in sessions if s.user_hash]
+        if user_hashes:
+            from collections import Counter
+            hash_counts = Counter(user_hashes)
+            revisit_users = sum(1 for count in hash_counts.values() if count > 1)
+            revisit_rate = (revisit_users / len(hash_counts)) * 100 if hash_counts else 0
+        else:
+            revisit_rate = 0
+
+        # 재생성 비율
+        regeneration_count = sum(1 for s in sessions if s.has_regeneration)
+        regeneration_rate = (regeneration_count / len(sessions)) * 100 if sessions else 0
+
+        return {
+            "avg_turns": round(avg_turns, 1),
+            "avg_user_messages": round(avg_user_messages, 1),
+            "revisit_rate": round(revisit_rate, 1),
+            "total_sessions": len(sessions),
+            "unique_users": len(set(s.user_hash for s in sessions if s.user_hash)),
+            "regeneration_rate": round(regeneration_rate, 1),
+            "period": {"from": start_date.isoformat(), "to": end_date.isoformat()}
+        }
+
+    except Exception as e:
+        logger.error(f"대화 통계 조회 실패: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
+# 3. 문서/컬렉션 분석 API
+# ============================================================
+
+@router.get("/top-documents")
+async def get_top_documents(
+    collection_name: Optional[str] = Query(None, description="컬렉션 이름"),
+    days: int = Query(7, ge=1, le=30, description="최근 N일간 데이터"),
+    limit: int = Query(10, ge=1, le=50, description="조회할 문서 수")
+):
+    """
+    가장 많이 참조된 문서 TOP N
+
+    Returns:
+        list: 문서별 참조 횟수
+    """
+    try:
+        end_date = date.today()
+        start_date = end_date - timedelta(days=days)
+
+        df = await statistics_service.query_logs_by_date_range(start_date, end_date, collection_name)
+
+        if df.empty or 'retrieval_info' not in df.columns:
+            return {"documents": [], "total": 0}
+
+        # retrieval_info에서 문서 정보 추출
+        doc_counts = {}
+
+        for info in df['retrieval_info'].dropna():
+            if isinstance(info, dict) and 'sources' in info:
+                for source in info['sources']:
+                    if isinstance(source, dict):
+                        doc_name = source.get('document_name') or source.get('source', 'Unknown')
+                        doc_counts[doc_name] = doc_counts.get(doc_name, 0) + 1
+
+        # 정렬 및 상위 N개
+        sorted_docs = sorted(doc_counts.items(), key=lambda x: x[1], reverse=True)[:limit]
+
+        return {
+            "documents": [
+                {"name": name, "count": count, "percentage": round(count / sum(doc_counts.values()) * 100, 1)}
+                for name, count in sorted_docs
+            ],
+            "total": len(doc_counts),
+            "period": {"from": start_date.isoformat(), "to": end_date.isoformat()}
+        }
+
+    except Exception as e:
+        logger.error(f"TOP 문서 조회 실패: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/page-distribution")
+async def get_page_distribution(
+    collection_name: Optional[str] = Query(None, description="컬렉션 이름"),
+    document_name: Optional[str] = Query(None, description="특정 문서 필터"),
+    days: int = Query(7, ge=1, le=30, description="최근 N일간 데이터")
+):
+    """
+    문서별 페이지 참조 분포
+
+    Returns:
+        dict: 페이지별 참조 횟수
+    """
+    try:
+        end_date = date.today()
+        start_date = end_date - timedelta(days=days)
+
+        df = await statistics_service.query_logs_by_date_range(start_date, end_date, collection_name)
+
+        if df.empty or 'retrieval_info' not in df.columns:
+            return {"pages": [], "document_stats": {}}
+
+        # 페이지별 참조 횟수
+        page_counts = {}
+        doc_page_counts = {}  # 문서별 페이지 분포
+
+        for info in df['retrieval_info'].dropna():
+            if isinstance(info, dict) and 'sources' in info:
+                for source in info['sources']:
+                    if isinstance(source, dict):
+                        doc_name = source.get('document_name') or source.get('source', 'Unknown')
+                        page_num = source.get('page_number') or source.get('page', 0)
+
+                        # 특정 문서 필터
+                        if document_name and doc_name != document_name:
+                            continue
+
+                        # 전체 페이지 카운트
+                        page_key = f"{doc_name}:p{page_num}"
+                        page_counts[page_key] = page_counts.get(page_key, 0) + 1
+
+                        # 문서별 페이지 분포
+                        if doc_name not in doc_page_counts:
+                            doc_page_counts[doc_name] = {}
+                        doc_page_counts[doc_name][page_num] = doc_page_counts[doc_name].get(page_num, 0) + 1
+
+        # 상위 페이지 정렬
+        sorted_pages = sorted(page_counts.items(), key=lambda x: x[1], reverse=True)[:20]
+
+        return {
+            "pages": [
+                {"page": page, "count": count}
+                for page, count in sorted_pages
+            ],
+            "document_stats": {
+                doc: {
+                    "total_refs": sum(pages.values()),
+                    "page_count": len(pages),
+                    "top_pages": sorted(pages.items(), key=lambda x: x[1], reverse=True)[:5]
+                }
+                for doc, pages in doc_page_counts.items()
+            },
+            "period": {"from": start_date.isoformat(), "to": end_date.isoformat()}
+        }
+
+    except Exception as e:
+        logger.error(f"페이지 분포 조회 실패: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
+# 4. 성능 모니터링 API
+# ============================================================
+
+@router.get("/response-time-distribution")
+async def get_response_time_distribution(
+    collection_name: Optional[str] = Query(None, description="컬렉션 이름"),
+    days: int = Query(7, ge=1, le=30, description="최근 N일간 데이터")
+):
+    """
+    응답시간 분포 히스토그램 데이터
+
+    Returns:
+        dict: 응답시간 구간별 빈도 및 백분위
+    """
+    try:
+        end_date = date.today()
+        start_date = end_date - timedelta(days=days)
+
+        df = await statistics_service.query_logs_by_date_range(start_date, end_date, collection_name)
+
+        if df.empty or 'performance' not in df.columns:
+            return {
+                "histogram": [],
+                "percentiles": {"p50": 0, "p90": 0, "p95": 0, "p99": 0},
+                "stats": {"min": 0, "max": 0, "avg": 0}
+            }
+
+        # 응답시간 추출
+        response_times = df['performance'].apply(
+            lambda x: x.get('response_time_ms', None) if isinstance(x, dict) else None
+        ).dropna().tolist()
+
+        if not response_times:
+            return {
+                "histogram": [],
+                "percentiles": {"p50": 0, "p90": 0, "p95": 0, "p99": 0},
+                "stats": {"min": 0, "max": 0, "avg": 0}
+            }
+
+        import numpy as np
+        response_times = np.array(response_times)
+
+        # 히스토그램 구간 생성 (0-500, 500-1000, 1000-2000, 2000-5000, 5000+)
+        bins = [0, 500, 1000, 2000, 5000, 10000, float('inf')]
+        bin_labels = ["0-500ms", "500ms-1s", "1-2s", "2-5s", "5-10s", "10s+"]
+
+        histogram = []
+        for i in range(len(bins) - 1):
+            count = int(np.sum((response_times >= bins[i]) & (response_times < bins[i+1])))
+            histogram.append({
+                "range": bin_labels[i],
+                "count": count,
+                "percentage": round(count / len(response_times) * 100, 1)
+            })
+
+        # 백분위 계산
+        percentiles = {
+            "p50": float(np.percentile(response_times, 50)),
+            "p90": float(np.percentile(response_times, 90)),
+            "p95": float(np.percentile(response_times, 95)),
+            "p99": float(np.percentile(response_times, 99))
+        }
+
+        return {
+            "histogram": histogram,
+            "percentiles": percentiles,
+            "stats": {
+                "min": float(np.min(response_times)),
+                "max": float(np.max(response_times)),
+                "avg": float(np.mean(response_times)),
+                "total_count": len(response_times)
+            },
+            "period": {"from": start_date.isoformat(), "to": end_date.isoformat()}
+        }
+
+    except Exception as e:
+        logger.error(f"응답시간 분포 조회 실패: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/token-usage-trend")
+async def get_token_usage_trend(
+    collection_name: Optional[str] = Query(None, description="컬렉션 이름"),
+    days: int = Query(7, ge=1, le=30, description="최근 N일간 데이터")
+):
+    """
+    토큰 사용량 추이
+
+    Returns:
+        list: 일별 토큰 사용량
+    """
+    try:
+        end_date = date.today()
+        start_date = end_date - timedelta(days=days)
+
+        df = await statistics_service.query_logs_by_date_range(start_date, end_date, collection_name)
+
+        if df.empty:
+            return {"trend": [], "total": 0}
+
+        # 날짜별 토큰 집계
+        if 'created_at' in df.columns and 'performance' in df.columns:
+            df['date'] = pd.to_datetime(df['created_at']).dt.date
+            df['tokens'] = df['performance'].apply(
+                lambda x: x.get('token_count', 0) if isinstance(x, dict) else 0
+            )
+
+            daily_tokens = df.groupby('date')['tokens'].sum().reset_index()
+
+            trend = [
+                {"date": row['date'].isoformat(), "tokens": int(row['tokens'])}
+                for _, row in daily_tokens.iterrows()
+            ]
+
+            return {
+                "trend": sorted(trend, key=lambda x: x['date']),
+                "total": int(df['tokens'].sum()),
+                "avg_daily": int(df['tokens'].sum() / days) if days > 0 else 0,
+                "period": {"from": start_date.isoformat(), "to": end_date.isoformat()}
+            }
+
+        return {"trend": [], "total": 0}
+
+    except Exception as e:
+        logger.error(f"토큰 사용량 추이 조회 실패: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
+# 6. 실시간/운영 API
+# ============================================================
+
+@router.get("/active-sessions")
+async def get_active_sessions(
+    minutes: int = Query(5, ge=1, le=60, description="최근 N분 이내 활성"),
+    db: Session = Depends(get_db)
+):
+    """
+    실시간 활성 세션 수
+
+    Returns:
+        dict: 활성 세션 정보
+    """
+    try:
+        threshold = datetime.now() - timedelta(minutes=minutes)
+
+        # 최근 N분 내에 시작되었거나 아직 종료되지 않은 세션
+        active_sessions = db.query(ChatSession).filter(
+            or_(
+                ChatSession.started_at >= threshold,
+                ChatSession.ended_at.is_(None)
+            )
+        ).all()
+
+        # 컬렉션별 활성 세션 수
+        collection_counts = {}
+        for session in active_sessions:
+            col = session.collection_name
+            collection_counts[col] = collection_counts.get(col, 0) + 1
+
+        return {
+            "active_count": len(active_sessions),
+            "by_collection": collection_counts,
+            "threshold_minutes": minutes,
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"활성 세션 조회 실패: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/recent-queries")
+async def get_recent_queries(
+    collection_name: Optional[str] = Query(None, description="컬렉션 이름"),
+    limit: int = Query(20, ge=1, le=100, description="조회할 개수")
+):
+    """
+    최근 질문 실시간 피드
+
+    Returns:
+        list: 최근 질문 목록
+    """
+    try:
+        # 오늘 로그 파일에서 최근 질문 조회
+        today = date.today()
+        df = await statistics_service.query_logs_by_date_range(today, today, collection_name)
+
+        if df.empty:
+            return {"queries": [], "total": 0}
+
+        # 사용자 메시지만 필터링
+        if 'message_type' in df.columns:
+            user_messages = df[df['message_type'] == 'user'].copy()
+        else:
+            user_messages = df.copy()
+
+        if user_messages.empty:
+            return {"queries": [], "total": 0}
+
+        # 최근 순 정렬
+        if 'created_at' in user_messages.columns:
+            user_messages['created_at'] = pd.to_datetime(user_messages['created_at'])
+            user_messages = user_messages.sort_values('created_at', ascending=False)
+
+        # 상위 N개 추출
+        recent = user_messages.head(limit)
+
+        queries = []
+        for _, row in recent.iterrows():
+            query_data = {
+                "query": row.get('message_content', '')[:200],  # 200자 제한
+                "collection": row.get('collection_name', ''),
+                "timestamp": row['created_at'].isoformat() if 'created_at' in row and pd.notna(row['created_at']) else None,
+                "session_id": row.get('session_id', '')[:8] if row.get('session_id') else None  # 앞 8자리만
+            }
+
+            # 성능 정보 추가
+            if 'performance' in row and isinstance(row['performance'], dict):
+                query_data['response_time_ms'] = row['performance'].get('response_time_ms')
+
+            queries.append(query_data)
+
+        return {
+            "queries": queries,
+            "total": len(user_messages),
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"최근 질문 조회 실패: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

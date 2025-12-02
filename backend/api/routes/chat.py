@@ -96,10 +96,24 @@ async def log_chat_interaction_task(
 
         # 어시스턴트 응답 로깅
         retrieval_info = {}
-        if "retrieved_docs" in response_data:
+        if "retrieved_docs" in response_data and response_data["retrieved_docs"]:
+            docs = response_data["retrieved_docs"]
+            # sources 정보 추출 (문서명, 페이지 번호 등)
+            sources = []
+            for doc in docs:
+                payload = doc.get("payload", {})
+                source_info = {
+                    "document_name": payload.get("document_name") or payload.get("source", "Unknown"),
+                    "page_number": payload.get("page_number") or payload.get("page", 0),
+                    "score": doc.get("score", 0)
+                }
+                sources.append(source_info)
+
             retrieval_info = {
-                "retrieved_count": len(response_data["retrieved_docs"]),
-                "top_scores": [doc.get("score", 0) for doc in response_data["retrieved_docs"][:3]]
+                "retrieved_count": len(docs),
+                "top_scores": [doc.get("score", 0) for doc in docs[:5]],
+                "sources": sources,
+                "reranking_used": False  # TODO: RAG 서비스에서 전달 필요
             }
 
         await hybrid_logging_service.log_chat_interaction(
@@ -451,9 +465,10 @@ async def chat_stream(
 
         # 스트리밍 제너레이터
         collected_response = {"answer": "", "retrieved_docs": [], "usage": {}}
+        stream_error_info = None
 
         async def generate():
-            nonlocal collected_response
+            nonlocal collected_response, stream_error_info
             try:
                 async for chunk in rag_service.chat_stream(
                     collection_name=chat_request.collection_name,
@@ -488,7 +503,48 @@ async def chat_stream(
                     yield chunk
             except Exception as e:
                 logger.error(f"[CHAT API] Stream generation failed: {e}")
+                stream_error_info = {
+                    "error_type": type(e).__name__,
+                    "error_message": str(e)
+                }
                 yield f'data: {{"error": "스트리밍 실패: {str(e)}"}}\n\n'
+            finally:
+                # 스트리밍 완료 후 로깅 (finally 블록에서 실행)
+                final_response_time_ms = int((time.time() - start_time) * 1000)
+                final_token_count = collected_response.get("usage", {}).get("total_tokens", 0)
+
+                final_performance_metrics = {
+                    "response_time_ms": final_response_time_ms,
+                    "token_count": final_token_count,
+                    "retrieval_time_ms": None
+                }
+
+                final_llm_params = {
+                    "temperature": chat_request.temperature,
+                    "max_tokens": chat_request.max_tokens,
+                    "top_p": chat_request.top_p
+                }
+
+                # 동기적으로 로깅 태스크 실행
+                try:
+                    await log_chat_interaction_task(
+                        session_id=session_id,
+                        conversation_id=conversation_id,
+                        collection_name=chat_request.collection_name,
+                        message=chat_request.message,
+                        response_data=collected_response,
+                        reasoning_level=chat_request.reasoning_level,
+                        model=chat_request.model,
+                        llm_params=final_llm_params,
+                        performance_metrics=final_performance_metrics,
+                        error_info=stream_error_info,
+                        db=db,
+                        request_id=tracking_ids.get("request_id"),
+                        trace_id=tracking_ids.get("trace_id"),
+                        client_info=client_info
+                    )
+                except Exception as log_error:
+                    logger.error(f"[CHAT API] Stream logging failed: {log_error}")
 
         # 스트리밍 응답 생성
         response = StreamingResponse(
@@ -499,40 +555,6 @@ async def chat_stream(
                 "Connection": "keep-alive",
                 "X-Accel-Buffering": "no"
             }
-        )
-
-        # 백그라운드에서 로깅 (스트리밍 완료 후)
-        response_time_ms = int((time.time() - start_time) * 1000)
-
-        performance_metrics = {
-            "response_time_ms": response_time_ms,
-            "token_count": 0,  # 스트리밍에서는 나중에 업데이트
-            "retrieval_time_ms": None
-        }
-
-        llm_params = {
-            "temperature": chat_request.temperature,
-            "max_tokens": chat_request.max_tokens,
-            "top_p": chat_request.top_p
-        }
-
-        # 백그라운드 태스크로 로깅 추가
-        background_tasks.add_task(
-            log_chat_interaction_task,
-            session_id=session_id,
-            conversation_id=conversation_id,
-            collection_name=chat_request.collection_name,
-            message=chat_request.message,
-            response_data=collected_response,  # 수집된 응답 사용
-            reasoning_level=chat_request.reasoning_level,
-            model=chat_request.model,
-            llm_params=llm_params,
-            performance_metrics=performance_metrics,
-            error_info=None,
-            db=db,
-            request_id=tracking_ids.get("request_id"),
-            trace_id=tracking_ids.get("trace_id"),
-            client_info=client_info
         )
 
         return response

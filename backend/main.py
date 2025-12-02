@@ -2,6 +2,8 @@
 FastAPI 메인 애플리케이션
 """
 import logging
+import asyncio
+from datetime import date, timedelta
 from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
@@ -9,12 +11,13 @@ from fastapi.responses import JSONResponse
 
 from backend.config.settings import settings
 from backend.api.routes import document, dify, qdrant, chat, analytics
-from backend.database import init_db, get_db
+from backend.database import init_db, get_db, SessionLocal
 from backend.models import document as document_model  # Import to register models
 from backend.models import dify_upload_history, dify_config  # Import Dify models
 from backend.models import qdrant_upload_history  # Import Qdrant models
 from backend.models import chat_session, chat_statistics  # Import Chat models
 from backend.services.hybrid_logging_service import hybrid_logging_service
+from backend.services.statistics_service import statistics_service
 from backend.middleware.request_tracking import RequestTrackingMiddleware
 
 # 로거 설정
@@ -26,6 +29,32 @@ app = FastAPI(
     version=settings.API_VERSION,
     description="Docling Serve를 활용한 문서 파싱 API"
 )
+
+
+async def aggregate_pending_statistics():
+    """미집계 통계 자동 집계 (최근 7일)"""
+    try:
+        # 잠시 대기 (서버 시작 완료 후 실행)
+        await asyncio.sleep(5)
+
+        db = SessionLocal()
+        try:
+            today = date.today()
+            # 최근 7일간의 통계 집계
+            for days_ago in range(7, 0, -1):
+                target_date = today - timedelta(days=days_ago)
+                result = await statistics_service.aggregate_daily_stats(target_date, db)
+                if result.get("status") == "success":
+                    logger.info(f"Statistics aggregated for {target_date}")
+                elif result.get("status") == "no_data":
+                    logger.debug(f"No data to aggregate for {target_date}")
+        finally:
+            db.close()
+
+        print("[OK] Pending statistics aggregation completed")
+
+    except Exception as e:
+        logger.error(f"Failed to aggregate pending statistics: {e}")
 
 
 # 앱 시작 시 DB 초기화
@@ -61,6 +90,9 @@ async def startup_event():
     # 로깅 서비스 시작
     await hybrid_logging_service.start()
     print("[OK] Hybrid logging service started successfully")
+
+    # 자동 통계 집계 (백그라운드에서 실행)
+    asyncio.create_task(aggregate_pending_statistics())
 
 
 # 앱 종료 시 정리 작업
