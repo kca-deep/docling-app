@@ -503,6 +503,7 @@ class ColumnMapping(BaseModel):
     text_template: Optional[str] = None  # 텍스트 템플릿 (예: "{question}\n{answer}")
     tag_column: Optional[str] = None  # 태그 컬럼
     metadata_columns: List[str] = []  # 메타데이터로 저장할 컬럼들
+    heading_columns: List[str] = []  # headings로 사용할 컬럼들 (참조문서 표시용, 예: ["source", "page"])
 
 
 class DynamicEmbeddingRequest(BaseModel):

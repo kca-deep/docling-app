@@ -562,6 +562,9 @@ ID_CANDIDATES = ['id', 'faq_id', 'law_id', 'doc_id', 'item_id', 'code']
 TAG_CANDIDATES = ['tag', 'tags', 'category', 'categories', 'label', 'labels']
 QA_QUESTION_CANDIDATES = ['question', 'q', 'query', 'title']
 QA_ANSWER_CANDIDATES = ['answer', 'answer_text', 'a', 'response', 'content']
+# headings 컬럼 후보 (문서명, 페이지 등 참조문서 표시에 사용)
+HEADING_SOURCE_CANDIDATES = ['source', 'document', 'doc_name', 'file', 'filename', 'document_name', 'ref', 'reference']
+HEADING_PAGE_CANDIDATES = ['page', 'page_number', 'page_no', 'pg', 'section', 'chapter']
 
 
 def detect_column_mapping(headers: List[str]) -> dict:
@@ -574,7 +577,8 @@ def detect_column_mapping(headers: List[str]) -> dict:
         "tag_column": None,
         "is_qa_format": False,
         "question_column": None,
-        "answer_column": None
+        "answer_column": None,
+        "heading_columns": []  # 참조문서 표시용 컬럼들
     }
 
     # ID 컬럼 감지
@@ -621,6 +625,32 @@ def detect_column_mapping(headers: List[str]) -> dict:
                 break
         if detected["tag_column"]:
             break
+
+    # headings 컬럼 감지 (소스/문서명 + 페이지/섹션 순서로)
+    heading_source = None
+    heading_page = None
+
+    for candidate in HEADING_SOURCE_CANDIDATES:
+        for i, h in enumerate(headers_lower):
+            if candidate == h or candidate in h:
+                heading_source = headers[i]
+                break
+        if heading_source:
+            break
+
+    for candidate in HEADING_PAGE_CANDIDATES:
+        for i, h in enumerate(headers_lower):
+            if candidate == h or candidate in h:
+                heading_page = headers[i]
+                break
+        if heading_page:
+            break
+
+    # 감지된 컬럼들을 heading_columns에 추가 (소스 먼저, 페이지 다음)
+    if heading_source:
+        detected["heading_columns"].append(heading_source)
+    if heading_page:
+        detected["heading_columns"].append(heading_page)
 
     return detected
 
@@ -780,6 +810,18 @@ async def embed_excel_dynamic(request: DynamicEmbeddingRequest):
                     for col in mapping.text_columns:
                         if col in row.data:
                             metadata[col] = row.data[col]
+
+                    # headings 생성 (참조문서 표시용)
+                    if mapping.heading_columns:
+                        # 사용자가 지정한 컬럼들로 headings 생성
+                        headings = []
+                        for col in mapping.heading_columns:
+                            if col in row.data and row.data[col]:
+                                headings.append(str(row.data[col]))
+                        metadata["headings"] = headings if headings else [request.file_name, f"행 {row.row_index + 1}"]
+                    else:
+                        # 기본값: [파일명, 행 번호]
+                        metadata["headings"] = [request.file_name, f"행 {row.row_index + 1}"]
 
                     metadata_list.append(metadata)
 

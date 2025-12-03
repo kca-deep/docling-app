@@ -324,7 +324,7 @@ export function ChatContainer() {
       // 소스 문서 처리
       const sources: Source[] = (data.retrieved_docs || []).map((doc: RetrievedDocument) => ({
         id: doc.id,
-        title: doc.metadata?.filename || `문서 ${doc.id}`,
+        title: doc.metadata?.headings?.length ? doc.metadata.headings.join(' > ') : (doc.metadata?.filename || `문서 ${doc.id}`),
         content: doc.text,
         score: doc.score,
         metadata: {
@@ -470,7 +470,7 @@ export function ChatContainer() {
                 retrievedDocs = parsed.sources; // 원본 데이터 저장
                 sources = parsed.sources.map((doc: RetrievedDocument) => ({
                   id: doc.id,
-                  title: doc.metadata?.filename || `문서 ${doc.id}`,
+                  title: doc.metadata?.headings?.length ? doc.metadata.headings.join(' > ') : (doc.metadata?.filename || `문서 ${doc.id}`),
                   content: doc.text,
                   score: doc.score,
                   metadata: {
@@ -678,7 +678,7 @@ export function ChatContainer() {
       // 소스 문서 처리
       const sources: Source[] = (data.retrieved_docs || context.retrievedDocs).map((doc: RetrievedDocument) => ({
         id: doc.id,
-        title: doc.metadata?.filename || `문서 ${doc.id}`,
+        title: doc.metadata?.headings?.length ? doc.metadata.headings.join(' > ') : (doc.metadata?.filename || `문서 ${doc.id}`),
         content: doc.text,
         score: doc.score,
         metadata: {

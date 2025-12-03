@@ -29,6 +29,7 @@ import {
   Database,
   RefreshCw,
   Plus,
+  Trash2,
   Layers,
   Wand2,
   Settings2,
@@ -54,6 +55,7 @@ interface DetectedMapping {
   is_qa_format: boolean
   question_column: string | null
   answer_column: string | null
+  heading_columns: string[]  // 참조문서 표시용 컬럼들
 }
 
 interface ExcelPreviewResponse {
@@ -95,6 +97,7 @@ export default function ExcelEmbeddingPage() {
   const [textTemplate, setTextTemplate] = useState<string>("")
   const [tagColumn, setTagColumn] = useState<string>("")
   const [metadataColumns, setMetadataColumns] = useState<string[]>([])
+  const [headingColumns, setHeadingColumns] = useState<string[]>([])  // 참조문서 표시용
   const [useTemplate, setUseTemplate] = useState(false)
 
   // Collection 상태
@@ -102,6 +105,8 @@ export default function ExcelEmbeddingPage() {
   const [selectedCollection, setSelectedCollection] = useState("")
   const [loadingCollections, setLoadingCollections] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deletingCollection, setDeletingCollection] = useState(false)
   const [newCollectionName, setNewCollectionName] = useState("")
   const [distance, setDistance] = useState("Cosine")
 
@@ -163,6 +168,38 @@ export default function ExcelEmbeddingPage() {
     }
   }
 
+  // Collection 삭제
+  const deleteCollection = async () => {
+    if (!selectedCollection) {
+      toast.error("삭제할 Collection을 선택해주세요")
+      return
+    }
+
+    setDeletingCollection(true)
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/qdrant/collections/${encodeURIComponent(selectedCollection)}`,
+        { method: "DELETE" }
+      )
+
+      if (response.ok) {
+        toast.success(`Collection '${selectedCollection}'이 삭제되었습니다`)
+        setSelectedCollection("")
+        setDeleteDialogOpen(false)
+        fetchCollections()
+      } else {
+        const error = await response.json()
+        toast.error(error.detail || "Collection 삭제에 실패했습니다")
+      }
+    } catch (error) {
+      console.error("Failed to delete collection:", error)
+      toast.error("Collection 삭제에 실패했습니다")
+    } finally {
+      setDeletingCollection(false)
+    }
+  }
+
   // 파일 업로드 핸들러
   const handleFileUpload = async (file: File) => {
     if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
@@ -181,6 +218,7 @@ export default function ExcelEmbeddingPage() {
     setTextTemplate("")
     setTagColumn("")
     setMetadataColumns([])
+    setHeadingColumns([])
 
     try {
       const formData = new FormData()
@@ -201,6 +239,7 @@ export default function ExcelEmbeddingPage() {
           if (dm.id_column) setIdColumn(dm.id_column)
           if (dm.text_columns.length > 0) setTextColumns(dm.text_columns)
           if (dm.tag_column) setTagColumn(dm.tag_column)
+          if (dm.heading_columns && dm.heading_columns.length > 0) setHeadingColumns(dm.heading_columns)
 
           // Q&A 포맷이면 템플릿 자동 생성
           if (dm.is_qa_format && dm.question_column && dm.answer_column) {
@@ -278,6 +317,15 @@ export default function ExcelEmbeddingPage() {
     )
   }
 
+  // Heading 컬럼 토글
+  const toggleHeadingColumn = (column: string) => {
+    setHeadingColumns(prev =>
+      prev.includes(column)
+        ? prev.filter(c => c !== column)
+        : [...prev, column]
+    )
+  }
+
   // 임베딩 미리보기 텍스트 생성
   const generatePreviewText = (row: ExcelPreviewRow): string => {
     if (useTemplate && textTemplate) {
@@ -328,7 +376,8 @@ export default function ExcelEmbeddingPage() {
             text_columns: textColumns,
             text_template: useTemplate ? textTemplate : null,
             tag_column: tagColumn || null,
-            metadata_columns: metadataColumns
+            metadata_columns: metadataColumns,
+            heading_columns: headingColumns
           }
         })
       })
@@ -504,6 +553,9 @@ export default function ExcelEmbeddingPage() {
                                         {metadataColumns.includes(h) && (
                                           <Badge variant="default" className="text-[0.625rem] px-1">META</Badge>
                                         )}
+                                        {headingColumns.includes(h) && (
+                                          <Badge variant="secondary" className="text-[0.625rem] px-1 bg-amber-100 text-amber-800">REF</Badge>
+                                        )}
                                       </div>
                                     </th>
                                   ))}
@@ -649,6 +701,56 @@ export default function ExcelEmbeddingPage() {
                           Cancel
                         </Button>
                         <Button onClick={createCollection}>Create</Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+
+                  {/* 삭제 다이얼로그 */}
+                  <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        disabled={!selectedCollection}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>Collection 삭제</DialogTitle>
+                        <DialogDescription>
+                          정말로 이 Collection을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="py-4">
+                        <Alert>
+                          <AlertDescription>
+                            <strong>{selectedCollection}</strong> Collection이 삭제됩니다.
+                          </AlertDescription>
+                        </Alert>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+                          취소
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          onClick={deleteCollection}
+                          disabled={deletingCollection}
+                        >
+                          {deletingCollection ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              삭제 중...
+                            </>
+                          ) : (
+                            <>
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              삭제
+                            </>
+                          )}
+                        </Button>
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>
@@ -802,6 +904,58 @@ export default function ExcelEmbeddingPage() {
                           </Badge>
                         ))}
                     </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* 참조문서 표시용 컬럼 (Heading Columns) */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs flex items-center gap-1">
+                        <FileText className="h-3 w-3" />
+                        Reference Columns
+                      </Label>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-xs">
+                            <p className="text-xs">
+                              AI 챗봇에서 참조문서로 표시될 정보입니다.
+                              예: source 컬럼과 page 컬럼을 선택하면 "문서명 - 페이지 5" 형태로 표시됩니다.
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {previewData.headers.map((h) => (
+                        <Badge
+                          key={h}
+                          variant={headingColumns.includes(h) ? "default" : "outline"}
+                          className={`cursor-pointer text-xs ${headingColumns.includes(h) ? "bg-amber-100 text-amber-800 hover:bg-amber-200" : ""}`}
+                          onClick={() => toggleHeadingColumn(h)}
+                        >
+                          {h}
+                          {headingColumns.includes(h) && (
+                            <span className="ml-1 text-[0.5rem]">
+                              ({headingColumns.indexOf(h) + 1})
+                            </span>
+                          )}
+                        </Badge>
+                      ))}
+                    </div>
+                    {headingColumns.length > 0 && (
+                      <p className="text-[0.625rem] text-muted-foreground">
+                        참조문서 표시: {headingColumns.join(" - ")}
+                      </p>
+                    )}
+                    {headingColumns.length === 0 && (
+                      <p className="text-[0.625rem] text-muted-foreground">
+                        선택 안함 시 기본값: 파일명 - 행 번호
+                      </p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
