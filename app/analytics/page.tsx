@@ -2,13 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { PageContainer } from "@/components/page-container"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
   Tooltip as ShadcnTooltip,
   TooltipContent,
@@ -24,7 +23,7 @@ import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
 import {
   RefreshCw, TrendingUp, Users, MessageSquare,
-  Clock, Activity, Zap
+  Clock, Zap
 } from "lucide-react"
 import {
   XAxis, YAxis, CartesianGrid,
@@ -373,16 +372,9 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* 탭 컨텐츠 */}
-      <Tabs defaultValue="dashboard" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="dashboard">대시보드</TabsTrigger>
-          <TabsTrigger value="patterns">사용 패턴</TabsTrigger>
-        </TabsList>
-
-        {/* 대시보드 탭 (개요 + 실시간 통합) */}
-        <TabsContent value="dashboard" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* 대시보드 */}
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* 일별 추이 - 인터랙티브 차트 */}
             <Card className="col-span-1 lg:col-span-2">
               <CardHeader className="flex flex-row items-center justify-between gap-4 px-4 py-3 sm:px-6">
@@ -490,43 +482,56 @@ export default function AnalyticsPage() {
               </CardContent>
             </Card>
 
-            {/* 실시간 활성 세션 */}
+            {/* 최근 질문 피드 */}
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Activity className="h-5 w-5" />
-                  실시간 현황
-                </CardTitle>
-                <CardDescription>최근 5분 내 활동</CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between gap-4 px-4 py-3 sm:px-6">
+                <CardTitle className="text-sm font-medium">최근 질문</CardTitle>
+                <Badge variant="outline" className="gap-1 px-2 py-0.5 font-normal text-xs">
+                  <div className="h-1.5 w-1.5 bg-green-500 rounded-full animate-pulse" />
+                  30초 갱신
+                </Badge>
               </CardHeader>
-              <CardContent>
-                <div className="text-center mb-4">
-                  <div className="text-4xl font-bold text-green-500">
-                    {activeSessions?.active_count ?? 0}
-                  </div>
-                  <div className="text-sm text-muted-foreground mt-1">활성 세션</div>
-                </div>
-                {activeSessions?.by_collection && Object.keys(activeSessions.by_collection).length > 0 && (
-                  <div className="space-y-2">
-                    <div className="text-xs font-medium text-muted-foreground">컬렉션별</div>
-                    {Object.entries(activeSessions.by_collection).map(([col, count]) => (
-                      <div key={col} className="flex justify-between items-center text-sm">
-                        <span className="truncate">{col}</span>
-                        <Badge variant="secondary">{count}</Badge>
+              <CardContent className="px-4 sm:px-6">
+                <ScrollArea className="h-[168px]">
+                  <div className="space-y-1.5">
+                    {recentQueries.length > 0 ? recentQueries.slice(0, 10).map((q, idx) => (
+                      <div key={idx} className="flex items-center gap-2 p-1.5 rounded-md hover:bg-muted/50 transition-colors">
+                        <MessageSquare className="h-3 w-3 text-muted-foreground shrink-0" />
+                        <span className="text-xs flex-1 truncate">{q.query}</span>
+                        <span className="text-[10px] text-muted-foreground shrink-0">
+                          {q.timestamp ? format(new Date(q.timestamp), "HH:mm") : "-"}
+                        </span>
                       </div>
-                    ))}
+                    )) : (
+                      <p className="text-xs text-muted-foreground text-center py-4">
+                        질문 데이터 없음
+                      </p>
+                    )}
                   </div>
-                )}
+                </ScrollArea>
               </CardContent>
             </Card>
 
             {/* 시간대별 히트맵 */}
-            <Card className="col-span-1 lg:col-span-3">
-              <CardHeader>
-                <CardTitle>시간대별 사용량 히트맵</CardTitle>
-                <CardDescription>요일별/시간별 사용 패턴 (셀을 호버하여 상세 정보 확인)</CardDescription>
+            <Card className="col-span-1 lg:col-span-2">
+              <CardHeader className="flex flex-row items-center justify-between gap-4 px-4 py-3 sm:px-6">
+                <CardTitle className="text-sm font-medium">시간대별 히트맵</CardTitle>
+                {heatmap && heatmap.max_value > 0 && (
+                  <Badge variant="secondary" className="gap-1.5 px-2.5 py-1 font-normal">
+                    <Zap className="h-3 w-3 text-orange-500" />
+                    <span className="text-xs">피크: {heatmap.labels?.days?.[(() => {
+                      let peakDay = 0, peakHour = 0, peakVal = 0
+                      heatmap.heatmap.forEach((d, di) => d.forEach((v, hi) => { if (v > peakVal) { peakVal = v; peakDay = di; peakHour = hi } }))
+                      return peakDay
+                    })()]} {(() => {
+                      let peakHour = 0, peakVal = 0
+                      heatmap.heatmap.forEach((d) => d.forEach((v, hi) => { if (v > peakVal) { peakVal = v; peakHour = hi } }))
+                      return peakHour
+                    })()}시</span>
+                  </Badge>
+                )}
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-4 sm:px-6">
                 {heatmap && heatmap.labels?.days ? (
                   (() => {
                     // 피크 타임 계산
@@ -557,103 +562,96 @@ export default function AnalyticsPage() {
                     const totalSum = daySums.reduce((sum, val) => sum + val, 0)
 
                     return (
-                      <div className="space-y-4">
-                        {/* 피크 타임 표시 */}
-                        {peakValue > 0 && (
-                          <div className="flex items-center gap-2 p-3 bg-orange-50 dark:bg-orange-950/30 rounded-lg border border-orange-200 dark:border-orange-800">
-                            <Zap className="h-4 w-4 text-orange-500" />
-                            <span className="text-sm">
-                              <strong>피크 타임:</strong> {heatmap.labels.days[peakDay]} {peakHour}시 ({peakValue.toLocaleString()}건)
-                            </span>
-                          </div>
-                        )}
+                      <div className="space-y-3">
+                        <ScrollArea className="w-full">
+                          <div className="min-w-fit">
+                            {/* 히트맵 본체 */}
+                            <div className="space-y-1.5">
+                              {/* 시간 레이블 */}
+                              <div className="flex gap-1 ml-12">
+                                {Array.from({ length: 24 }, (_, h) => (
+                                  <div
+                                    key={h}
+                                    className={cn(
+                                      "w-5 text-center text-[10px]",
+                                      h % 6 === 0 ? "text-foreground font-medium" : "text-muted-foreground/50"
+                                    )}
+                                  >
+                                    {h % 6 === 0 ? h : ""}
+                                  </div>
+                                ))}
+                              </div>
 
-                        <div className="flex gap-4">
-                          {/* 히트맵 본체 */}
-                          <div className="flex-1 space-y-1.5">
-                            {/* 시간 레이블 */}
-                            <div className="flex gap-1 ml-12">
-                              {Array.from({ length: 24 }, (_, h) => (
-                                <div
-                                  key={h}
-                                  className={cn(
-                                    "w-5 text-center text-[10px]",
-                                    h % 6 === 0 ? "text-foreground font-medium" : "text-muted-foreground/50"
-                                  )}
-                                >
-                                  {h % 6 === 0 ? h : ""}
+                              {/* 히트맵 행 */}
+                              {heatmap.labels.days.map((day, dayIdx) => (
+                                <div key={day} className="flex items-center gap-2">
+                                  <span className="w-10 text-xs text-muted-foreground text-right shrink-0">{day}</span>
+                                  <div className="flex gap-1">
+                                    {heatmap.heatmap[dayIdx]?.map((value, hourIdx) => (
+                                      <HeatmapCell
+                                        key={hourIdx}
+                                        value={value}
+                                        maxValue={heatmap.max_value}
+                                        day={day}
+                                        hour={hourIdx}
+                                        isPeak={dayIdx === peakDay && hourIdx === peakHour && peakValue > 0}
+                                        animationDelay={dayIdx * 30 + hourIdx * 10}
+                                      />
+                                    ))}
+                                  </div>
+                                  {/* 요일별 합계 */}
+                                  <div className="flex items-center gap-2 ml-2 shrink-0">
+                                    <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
+                                      <div
+                                        className="h-full bg-emerald-500 rounded-full transition-all"
+                                        style={{ width: maxDaySum > 0 ? `${(daySums[dayIdx] / maxDaySum) * 100}%` : '0%' }}
+                                      />
+                                    </div>
+                                    <span className="text-xs text-muted-foreground w-12 text-right font-mono">
+                                      {daySums[dayIdx].toLocaleString()}
+                                    </span>
+                                  </div>
                                 </div>
                               ))}
-                            </div>
 
-                            {/* 히트맵 행 */}
-                            {heatmap.labels.days.map((day, dayIdx) => (
-                              <div key={day} className="flex items-center gap-2">
-                                <span className="w-10 text-xs text-muted-foreground text-right">{day}</span>
-                                <div className="flex gap-1">
-                                  {heatmap.heatmap[dayIdx]?.map((value, hourIdx) => (
-                                    <HeatmapCell
-                                      key={hourIdx}
-                                      value={value}
-                                      maxValue={heatmap.max_value}
-                                      day={day}
-                                      hour={hourIdx}
-                                      isPeak={dayIdx === peakDay && hourIdx === peakHour && peakValue > 0}
-                                      animationDelay={dayIdx * 30 + hourIdx * 10}
-                                    />
-                                  ))}
-                                </div>
-                                {/* 요일별 합계 */}
-                                <div className="flex items-center gap-2 ml-2">
-                                  <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
-                                    <div
-                                      className="h-full bg-emerald-500 rounded-full transition-all"
-                                      style={{ width: maxDaySum > 0 ? `${(daySums[dayIdx] / maxDaySum) * 100}%` : '0%' }}
-                                    />
-                                  </div>
-                                  <span className="text-xs text-muted-foreground w-12 text-right font-mono">
-                                    {daySums[dayIdx].toLocaleString()}
-                                  </span>
-                                </div>
+                              {/* 시간대별 합계 바 차트 */}
+                              <div className="flex items-end gap-1 ml-12 mt-3 pt-3 border-t h-16">
+                                {hourSums.map((sum, hourIdx) => {
+                                  const height = maxHourSum > 0 ? (sum / maxHourSum) * 100 : 0
+                                  return (
+                                    <ShadcnTooltip key={hourIdx}>
+                                      <TooltipTrigger asChild>
+                                        <div
+                                          className="w-5 bg-primary/80 hover:bg-primary rounded-t transition-all duration-300 cursor-pointer animate-in slide-in-from-bottom"
+                                          style={{
+                                            height: `${Math.max(height, 4)}%`,
+                                            animationDelay: `${hourIdx * 20 + 300}ms`,
+                                            animationFillMode: 'backwards'
+                                          }}
+                                        />
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" className="p-2">
+                                        <div className="text-xs">
+                                          <div className="font-medium">{hourIdx}시</div>
+                                          <div className="text-muted-foreground">{sum.toLocaleString()}건</div>
+                                        </div>
+                                      </TooltipContent>
+                                    </ShadcnTooltip>
+                                  )
+                                })}
                               </div>
-                            ))}
 
-                            {/* 시간대별 합계 바 차트 */}
-                            <div className="flex items-end gap-1 ml-12 mt-3 pt-3 border-t h-16">
-                              {hourSums.map((sum, hourIdx) => {
-                                const height = maxHourSum > 0 ? (sum / maxHourSum) * 100 : 0
-                                return (
-                                  <ShadcnTooltip key={hourIdx}>
-                                    <TooltipTrigger asChild>
-                                      <div
-                                        className="w-5 bg-primary/80 hover:bg-primary rounded-t transition-all duration-300 cursor-pointer animate-in slide-in-from-bottom"
-                                        style={{
-                                          height: `${Math.max(height, 4)}%`,
-                                          animationDelay: `${hourIdx * 20 + 300}ms`,
-                                          animationFillMode: 'backwards'
-                                        }}
-                                      />
-                                    </TooltipTrigger>
-                                    <TooltipContent side="top" className="p-2">
-                                      <div className="text-xs">
-                                        <div className="font-medium">{hourIdx}시</div>
-                                        <div className="text-muted-foreground">{sum.toLocaleString()}건</div>
-                                      </div>
-                                    </TooltipContent>
-                                  </ShadcnTooltip>
-                                )
-                              })}
-                            </div>
-
-                            {/* 시간대 구분 - 셀 너비 기반 고정 너비 (6셀 + 갭) */}
-                            <div className="flex ml-12 mt-1">
-                              <div style={{ width: '9rem' }} className="text-center text-[10px] text-muted-foreground">새벽 (0-6)</div>
-                              <div style={{ width: '9rem' }} className="text-center text-[10px] text-muted-foreground">오전 (6-12)</div>
-                              <div style={{ width: '9rem' }} className="text-center text-[10px] text-muted-foreground">오후 (12-18)</div>
-                              <div style={{ width: '8.75rem' }} className="text-center text-[10px] text-muted-foreground">저녁 (18-24)</div>
+                              {/* 시간대 구분 - 셀 너비 기반 고정 너비 (6셀 + 갭) */}
+                              <div className="flex ml-12 mt-1">
+                                <div style={{ width: '9rem' }} className="text-center text-[10px] text-muted-foreground">새벽 (0-6)</div>
+                                <div style={{ width: '9rem' }} className="text-center text-[10px] text-muted-foreground">오전 (6-12)</div>
+                                <div style={{ width: '9rem' }} className="text-center text-[10px] text-muted-foreground">오후 (12-18)</div>
+                                <div style={{ width: '8.75rem' }} className="text-center text-[10px] text-muted-foreground">저녁 (18-24)</div>
+                              </div>
                             </div>
                           </div>
-                        </div>
+                          <ScrollBar orientation="horizontal" />
+                        </ScrollArea>
 
                         {/* 범례 및 통계 */}
                         <div className="flex items-center justify-between pt-4 border-t">
@@ -681,68 +679,30 @@ export default function AnalyticsPage() {
                 )}
               </CardContent>
             </Card>
-          </div>
-        </TabsContent>
 
-        {/* 사용 패턴 탭 */}
-        <TabsContent value="patterns" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* 최근 질문 피드 */}
-            <Card className="col-span-1 lg:col-span-2">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5" />
-                  최근 질문
-                </CardTitle>
-                <CardDescription>실시간 질문 피드 (30초마다 갱신)</CardDescription>
+            {/* 인기 검색어 */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between gap-4 px-4 py-3 sm:px-6">
+                <CardTitle className="text-sm font-medium">인기 검색어</CardTitle>
+                <Badge variant="secondary" className="gap-1 px-2 py-0.5 font-normal text-xs">
+                  TOP 10
+                </Badge>
               </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-[320px]">
-                  <div className="space-y-2">
-                    {recentQueries.length > 0 ? recentQueries.map((q, idx) => (
-                      <div key={idx} className="p-2 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-sm flex-1 line-clamp-2">{q.query}</p>
-                          {q.response_time_ms && (
-                            <Badge variant="outline" className="shrink-0 text-xs">
-                              {q.response_time_ms.toFixed(0)}ms
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                          <span>{q.timestamp ? format(new Date(q.timestamp), "HH:mm:ss") : "-"}</span>
-                        </div>
+              <CardContent className="px-4 sm:px-6">
+                <ScrollArea className="h-[168px]">
+                  <div className="space-y-1">
+                    {summary?.top_queries?.slice(0, 10).map((query, idx) => (
+                      <div key={idx} className="flex items-center gap-2 p-1.5 rounded-md hover:bg-muted/50 transition-colors">
+                        <Badge variant="outline" className="text-[10px] w-4 h-4 p-0 flex items-center justify-center shrink-0">{idx + 1}</Badge>
+                        <span className="text-xs truncate flex-1">{query}</span>
                       </div>
-                    )) : (
-                      <p className="text-sm text-muted-foreground text-center py-8">
-                        오늘의 질문 데이터가 없습니다
-                      </p>
-                    )}
+                    )) || <p className="text-xs text-muted-foreground text-center py-4">데이터 없음</p>}
                   </div>
                 </ScrollArea>
               </CardContent>
             </Card>
-
-            {/* 인기 검색어 */}
-            <Card>
-              <CardHeader>
-                <CardTitle>인기 검색어</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {summary?.top_queries?.slice(0, 10).map((query, idx) => (
-                    <div key={idx} className="flex items-center gap-2 p-1.5 rounded hover:bg-muted">
-                      <Badge variant="outline" className="text-xs w-5 h-5 p-0 flex items-center justify-center">{idx + 1}</Badge>
-                      <span className="text-sm truncate flex-1">{query}</span>
-                    </div>
-                  )) || <p className="text-sm text-muted-foreground">데이터 없음</p>}
-                </div>
-              </CardContent>
-            </Card>
-
           </div>
-        </TabsContent>
-      </Tabs>
+        </div>
     </PageContainer>
   )
 }
