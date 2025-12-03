@@ -18,6 +18,7 @@ from collections import Counter
 
 from backend.models.chat_statistics import ChatStatistics
 from backend.models.chat_session import ChatSession
+from backend.utils.timezone import now_naive
 
 logger = logging.getLogger(__name__)
 
@@ -254,7 +255,7 @@ class StatisticsService:
                             setattr(existing, key, json.dumps(value, ensure_ascii=False))
                         else:
                             setattr(existing, key, value)
-                existing.updated_at = datetime.utcnow()
+                existing.updated_at = now_naive()
                 logger.debug(f"통계 업데이트: {stats['collection_name']} - {stats['date']}")
             else:
                 # 새로 생성

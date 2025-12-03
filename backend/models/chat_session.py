@@ -6,6 +6,7 @@
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Integer, Text
 from backend.database import Base
+from backend.utils.timezone import now_naive
 
 
 class ChatSession(Base):
@@ -22,7 +23,7 @@ class ChatSession(Base):
     user_hash = Column(String(64), nullable=True, index=True)
 
     # Timing information
-    started_at = Column(DateTime, default=datetime.utcnow, index=True)
+    started_at = Column(DateTime, default=now_naive, index=True)
     ended_at = Column(DateTime, nullable=True)
 
     # Message counts

@@ -6,6 +6,8 @@ import threading
 from typing import Dict, Optional
 from datetime import datetime, timedelta
 
+from backend.utils.timezone import now
+
 
 class ProgressInfo:
     """진행률 정보"""
@@ -20,8 +22,8 @@ class ProgressInfo:
         self.current_page = 0
         self.filename = filename
         self.status = "processing"
-        self.created_at = datetime.now()
-        self.updated_at = datetime.now()
+        self.created_at = now()
+        self.updated_at = now()
         self.error_message: Optional[str] = None
         self.start_time = time.time()
         self.md_content: Optional[str] = None
@@ -30,13 +32,13 @@ class ProgressInfo:
     def update_progress(self, current_page: int) -> None:
         """진행률 업데이트"""
         self.current_page = current_page
-        self.updated_at = datetime.now()
+        self.updated_at = now()
 
     def mark_completed(self, md_content: Optional[str] = None, processing_time: Optional[float] = None) -> None:
         """완료 상태로 변경"""
         self.status = "completed"
         self.current_page = self.total_pages
-        self.updated_at = datetime.now()
+        self.updated_at = now()
         self.md_content = md_content
         self.processing_time = processing_time
 
@@ -44,7 +46,7 @@ class ProgressInfo:
         """실패 상태로 변경"""
         self.status = "failed"
         self.error_message = error_message
-        self.updated_at = datetime.now()
+        self.updated_at = now()
 
     @property
     def progress_percentage(self) -> float:
@@ -141,7 +143,7 @@ class ProgressTracker:
 
     def cleanup_old_progress(self) -> int:
         """오래된 진행률 정보 정리 (30분 이상 지난 완료/실패 작업)"""
-        now = datetime.now()
+        current_time = now()
         removed_count = 0
 
         with self._lock:
@@ -149,7 +151,7 @@ class ProgressTracker:
             for task_id, progress in self._progress_store.items():
                 # 완료/실패 상태이고 cleanup_interval 이상 지난 작업 삭제
                 if progress.status in ["completed", "failed"]:
-                    time_diff = now - progress.updated_at
+                    time_diff = current_time - progress.updated_at
                     if time_diff > self._cleanup_interval:
                         tasks_to_remove.append(task_id)
 

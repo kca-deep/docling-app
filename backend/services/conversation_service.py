@@ -17,6 +17,7 @@ import uuid
 import logging
 
 from backend.config.settings import settings
+from backend.utils.timezone import now, now_iso, format_date
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ class Conversation:
         self.turn_count = 0
         self.min_score = 1.0
         self.user_hash = None
-        self.started_at = datetime.utcnow()
+        self.started_at = now()
         self.ended_at = None
 
     def add_message(
@@ -48,7 +49,7 @@ class Conversation:
         message = {
             "role": role,
             "content": content,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": now_iso()
         }
 
         if retrieved_docs:
@@ -79,7 +80,7 @@ class Conversation:
 
     def finalize(self):
         """대화 종료 처리"""
-        self.ended_at = datetime.utcnow()
+        self.ended_at = now()
         self.metadata = {
             "total_turns": self.turn_count,
             "has_error": self.has_error,
@@ -214,7 +215,7 @@ class ConversationService:
     async def save_conversation(self, conversation: Conversation):
         """대화를 JSONL 파일로 저장"""
         try:
-            date_str = datetime.now().strftime("%Y-%m-%d")
+            date_str = format_date()
             file_path = self.conv_dir / f"{date_str}.jsonl"
 
             # 대화 데이터 준비
@@ -338,7 +339,7 @@ class ConversationService:
 
     async def compress_old_files(self):
         """오래된 파일 압축 (gzip)"""
-        compress_after_date = datetime.now().date() - timedelta(days=self.compress_after_days)
+        compress_after_date = now().date() - timedelta(days=self.compress_after_days)
         compressed_count = 0
 
         for file_path in self.conv_dir.glob("*.jsonl"):
@@ -382,7 +383,7 @@ class ConversationService:
         await self.compress_old_files()
 
         # 오래된 파일 삭제
-        cutoff_date = datetime.now().date() - timedelta(days=retention_days)
+        cutoff_date = now().date() - timedelta(days=retention_days)
         deleted_count = 0
 
         for file_path in self.conv_dir.glob("*.jsonl*"):  # .jsonl 및 .jsonl.gz 파일 모두 확인

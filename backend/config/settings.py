@@ -10,6 +10,9 @@ from pathlib import Path
 class Settings(BaseSettings):
     """애플리케이션 설정"""
 
+    # 타임존 설정
+    TIMEZONE: str = "Asia/Seoul"
+
     # Database 설정
     DATABASE_URL: str = "sqlite:///./docling.db"
 

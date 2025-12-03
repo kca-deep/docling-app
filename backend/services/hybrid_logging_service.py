@@ -13,6 +13,8 @@ from pathlib import Path
 import uuid
 import logging
 
+from backend.utils.timezone import now, now_iso, format_date, format_datetime
+
 logger = logging.getLogger(__name__)
 
 
@@ -63,7 +65,7 @@ class HybridLoggingService:
 
             # 타임스탬프 추가
             if "created_at" not in log_data:
-                log_data["created_at"] = datetime.utcnow().isoformat()
+                log_data["created_at"] = now_iso()
 
             # 큐에 추가
             await self.queue.put(log_data)
@@ -108,7 +110,7 @@ class HybridLoggingService:
     async def _save_to_jsonl(self, batch: List[Dict[str, Any]]):
         """일별 JSONL 파일에 추가"""
         try:
-            date_str = datetime.now().strftime("%Y-%m-%d")
+            date_str = format_date()
             file_path = self.log_dir / f"{date_str}.jsonl"
 
             # 비동기 파일 쓰기
@@ -127,7 +129,7 @@ class HybridLoggingService:
     async def _emergency_save(self, batch: List[Dict[str, Any]]):
         """긴급 저장 (큐 오버플로우 또는 저장 실패 시)"""
         try:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = format_datetime(fmt="%Y%m%d_%H%M%S")
             emergency_file = self.log_dir / f"emergency_{timestamp}.jsonl"
 
             async with aiofiles.open(emergency_file, 'w', encoding='utf-8') as f:
@@ -172,7 +174,7 @@ class HybridLoggingService:
             "performance": performance or {},
             "error_info": error_info,
             "client_info": client_info or {},
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": now_iso()
         }
 
         await self.log_async(log_data)

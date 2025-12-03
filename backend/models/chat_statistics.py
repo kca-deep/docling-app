@@ -6,6 +6,7 @@
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Integer, Float, Text, Date
 from backend.database import Base
+from backend.utils.timezone import now_naive
 
 
 class ChatStatistics(Base):
@@ -53,8 +54,8 @@ class ChatStatistics(Base):
     reasoning_distribution = Column(Text, nullable=True)  # JSON object with level: count
 
     # Metadata
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=now_naive)
+    updated_at = Column(DateTime, default=now_naive, onupdate=now_naive)
 
     def to_dict(self):
         """Convert model to dictionary"""
