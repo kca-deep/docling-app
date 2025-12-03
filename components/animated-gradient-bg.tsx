@@ -1,40 +1,41 @@
 "use client";
 
-import { motion } from "framer-motion";
-
 export function AnimatedGradientBg() {
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      <motion.div
-        className="absolute inset-0 opacity-30 dark:opacity-20"
-        animate={{
-          background: [
-            "radial-gradient(circle at 20% 50%, rgba(120, 119, 198, 0.3), transparent 50%)",
-            "radial-gradient(circle at 80% 50%, rgba(255, 107, 107, 0.3), transparent 50%)",
-            "radial-gradient(circle at 50% 80%, rgba(78, 205, 196, 0.3), transparent 50%)",
-            "radial-gradient(circle at 20% 50%, rgba(120, 119, 198, 0.3), transparent 50%)",
-          ],
-        }}
-        transition={{
-          duration: 10,
-          repeat: Infinity,
-          ease: "linear",
+      {/* Chart-1 기반 그라데이션 (파란색) */}
+      <div
+        className="absolute w-[600px] h-[600px] rounded-full blur-3xl -top-[200px] -left-[100px]"
+        style={{
+          background: "radial-gradient(circle, var(--chart-1) 0%, transparent 70%)",
+          animation: "hero-gradient-1 15s ease-in-out infinite",
         }}
       />
-      <motion.div
-        className="absolute inset-0 opacity-20 dark:opacity-15"
-        animate={{
-          background: [
-            "radial-gradient(circle at 80% 20%, rgba(255, 159, 64, 0.3), transparent 50%)",
-            "radial-gradient(circle at 20% 80%, rgba(153, 102, 255, 0.3), transparent 50%)",
-            "radial-gradient(circle at 50% 20%, rgba(255, 206, 86, 0.3), transparent 50%)",
-            "radial-gradient(circle at 80% 20%, rgba(255, 159, 64, 0.3), transparent 50%)",
-          ],
+
+      {/* Chart-2 기반 그라데이션 (초록색) */}
+      <div
+        className="absolute w-[500px] h-[500px] rounded-full blur-3xl top-[50%] -right-[100px]"
+        style={{
+          background: "radial-gradient(circle, var(--chart-2) 0%, transparent 70%)",
+          animation: "hero-gradient-2 18s ease-in-out infinite",
         }}
-        transition={{
-          duration: 12,
-          repeat: Infinity,
-          ease: "linear",
+      />
+
+      {/* Chart-3 기반 그라데이션 (주황색) */}
+      <div
+        className="absolute w-[450px] h-[450px] rounded-full blur-3xl -bottom-[150px] left-[30%]"
+        style={{
+          background: "radial-gradient(circle, var(--chart-3) 0%, transparent 70%)",
+          animation: "hero-gradient-3 12s ease-in-out infinite",
+        }}
+      />
+
+      {/* Chart-5 기반 그라데이션 (보라색) - 추가 레이어 */}
+      <div
+        className="absolute w-[400px] h-[400px] rounded-full blur-3xl top-[20%] left-[60%]"
+        style={{
+          background: "radial-gradient(circle, var(--chart-5) 0%, transparent 70%)",
+          animation: "hero-gradient-2 20s ease-in-out infinite reverse",
         }}
       />
     </div>
