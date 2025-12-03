@@ -95,9 +95,11 @@ class StatisticsService:
 
             if data:
                 df = pd.DataFrame(data)
-                # 타임스탬프 변환
+                # 타임스탬프 변환 (mixed timezone 지원 - 기존 UTC와 새 KST 로그 호환)
                 if 'created_at' in df.columns:
-                    df['created_at'] = pd.to_datetime(df['created_at'])
+                    df['created_at'] = pd.to_datetime(df['created_at'], format='mixed', utc=True)
+                    # UTC로 통일 후 타임존 정보 제거 (naive datetime으로 변환)
+                    df['created_at'] = df['created_at'].dt.tz_localize(None)
                 return df
             else:
                 return pd.DataFrame()

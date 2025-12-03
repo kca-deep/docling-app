@@ -18,8 +18,11 @@ def now() -> datetime:
 
 
 def now_iso() -> str:
-    """현재 시간을 ISO 8601 형식 문자열로 반환"""
-    return now().isoformat()
+    """현재 시간을 ISO 8601 형식 문자열로 반환 (타임존 정보 없이)
+
+    로그 파일 및 pandas와의 호환성을 위해 타임존 offset을 제외한 형식으로 반환
+    """
+    return now_naive().isoformat()
 
 
 def now_naive() -> datetime:
