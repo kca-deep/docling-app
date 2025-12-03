@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { MessageList } from "./MessageList";
 import { InputArea } from "./InputArea";
 import { SuggestedPrompts } from "./SuggestedPrompts";
+import { SourceArtifactPanel } from "./SourceArtifactPanel";
 import { Card } from "@/components/ui/card";
 import { API_BASE_URL } from "@/lib/api-config";
 import { Button } from "@/components/ui/button";
@@ -99,6 +100,13 @@ interface ChatSettings {
   useReranking: boolean;
 }
 
+interface ArtifactState {
+  isOpen: boolean;
+  sources: Source[];
+  activeSourceId: string | null;
+  messageId: string | null;
+}
+
 export function ChatContainer() {
   const searchParams = useSearchParams();
   const { theme, setTheme } = useTheme();
@@ -118,6 +126,14 @@ export function ChatContainer() {
   const [sessionId] = useState(() => `session_${Date.now()}`);
   const [quotedMessage, setQuotedMessage] = useState<Message | null>(null);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+
+  // 참조문서 아티팩트 패널 상태
+  const [artifactState, setArtifactState] = useState<ArtifactState>({
+    isOpen: false,
+    sources: [],
+    activeSourceId: null,
+    messageId: null,
+  });
 
   // 우측 패널 상태
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
@@ -195,17 +211,25 @@ export function ChatContainer() {
     }
   }, [isFullscreen]);
 
-  // ESC 키로 전체화면 종료
+  // ESC 키로 아티팩트 패널 닫기 또는 전체화면 종료
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isFullscreen) {
-        setIsFullscreen(false);
+      if (e.key === "Escape") {
+        // 아티팩트 패널이 열려있으면 먼저 닫기
+        if (artifactState.isOpen) {
+          setArtifactState(prev => ({ ...prev, isOpen: false }));
+          return;
+        }
+        // 전체화면이면 전체화면 종료
+        if (isFullscreen) {
+          setIsFullscreen(false);
+        }
       }
     };
 
     document.addEventListener("keydown", handleEscape);
     return () => document.removeEventListener("keydown", handleEscape);
-  }, [isFullscreen]);
+  }, [isFullscreen, artifactState.isOpen]);
 
   // 백엔드에서 기본 설정 로드
   useEffect(() => {
@@ -340,8 +364,10 @@ export function ChatContainer() {
 
       setCurrentSources(sources);
 
+      const aiMessageId = (Date.now() + 1).toString();
+
       const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
+        id: aiMessageId,
         role: "assistant",
         content: data.answer || "응답을 생성할 수 없습니다.",
         timestamp: new Date(),
@@ -360,6 +386,16 @@ export function ChatContainer() {
       };
 
       setMessages((prev) => [...prev, aiMessage]);
+
+      // 참조문서 패널이 열려있고 새 sources가 있으면 자동 업데이트
+      if (artifactState.isOpen && sources.length > 0) {
+        setArtifactState({
+          isOpen: true,
+          sources,
+          activeSourceId: sources[0].id,
+          messageId: aiMessageId,
+        });
+      }
     } catch (error) {
       console.error("Error sending message:", error);
       toast.error("메시지 전송에 실패했습니다");
@@ -374,7 +410,7 @@ export function ChatContainer() {
     } finally {
       setIsLoading(false);
     }
-  }, [messages, selectedCollection, settings]);
+  }, [messages, selectedCollection, settings, artifactState.isOpen]);
 
   // 메시지 전송 (스트리밍)
   const handleStreamingSend = useCallback(async (userMessage: Message, quotedMsg: Message | null = null) => {
@@ -540,6 +576,16 @@ export function ChatContainer() {
         )
       );
 
+      // 참조문서 패널이 열려있고 새 sources가 있으면 자동 업데이트
+      if (artifactState.isOpen && sources.length > 0) {
+        setArtifactState({
+          isOpen: true,
+          sources,
+          activeSourceId: sources[0].id,
+          messageId: aiMessageId,
+        });
+      }
+
       setIsLoading(false);
       setAbortController(null); // 스트리밍 완료 후 AbortController 정리
     } catch (error) {
@@ -572,7 +618,7 @@ export function ChatContainer() {
       setIsLoading(false);
       setAbortController(null); // 에러 발생 시에도 AbortController 정리
     }
-  }, [messages, selectedCollection, settings]);
+  }, [messages, selectedCollection, settings, artifactState.isOpen]);
 
   const handleSend = useCallback(async () => {
     if (!input.trim() || !selectedCollection) {
@@ -752,6 +798,27 @@ export function ChatContainer() {
     setInput(prompt);
   }, []);
 
+  // 아티팩트 패널 열기
+  const handleOpenArtifact = useCallback((sources: Source[], messageId: string) => {
+    if (sources.length === 0) return;
+    setArtifactState({
+      isOpen: true,
+      sources,
+      activeSourceId: sources[0].id,
+      messageId,
+    });
+  }, []);
+
+  // 아티팩트 패널 닫기
+  const handleCloseArtifact = useCallback(() => {
+    setArtifactState(prev => ({ ...prev, isOpen: false }));
+  }, []);
+
+  // 아티팩트 소스 선택
+  const handleSelectArtifactSource = useCallback((sourceId: string) => {
+    setArtifactState(prev => ({ ...prev, activeSourceId: sourceId }));
+  }, []);
+
   // 스트리밍 중단 핸들러
   const handleStopStreaming = useCallback(() => {
     if (abortController) {
@@ -871,44 +938,69 @@ export function ChatContainer() {
         </div>
       </div>
 
-      {/* 메시지 목록 */}
-      <div className="flex-1 overflow-hidden">
-        <MessageList
-          messages={messages}
-          isLoading={isLoading}
-          isStreaming={settings.streamMode}
-          onRegenerate={handleRegenerate}
-          onQuote={handleQuote}
-          collectionName={selectedCollection}
-          onPromptSelect={handlePromptSelect}
-        />
-      </div>
+      {/* 메인 콘텐츠 영역 (6:4 분할) */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* 좌측: 채팅 영역 */}
+        <div className={cn(
+          "flex flex-col overflow-hidden transition-all duration-300 ease-in-out",
+          artifactState.isOpen ? "w-[60%] border-r" : "w-full"
+        )}>
+          {/* 메시지 목록 */}
+          <div className="flex-1 overflow-hidden">
+            <MessageList
+              messages={messages}
+              isLoading={isLoading}
+              isStreaming={settings.streamMode}
+              onRegenerate={handleRegenerate}
+              onQuote={handleQuote}
+              collectionName={selectedCollection}
+              onPromptSelect={handlePromptSelect}
+              onOpenArtifact={handleOpenArtifact}
+            />
+          </div>
 
-      {/* 입력 영역 */}
-      <InputArea
-        input={input}
-        setInput={setInput}
-        onSend={handleSend}
-        isLoading={isLoading}
-        disabled={!selectedCollection}
-        quotedMessage={quotedMessage && quotedMessage.role !== "system" ? { role: quotedMessage.role, content: quotedMessage.content } : null}
-        onClearQuote={handleClearQuote}
-        selectedModel={settings.model}
-        onModelChange={(model) => setSettings({ ...settings, model })}
-        onClearChat={handleClearChat}
-        isFullscreen={isFullscreen}
-        selectedCollection={selectedCollection}
-        onCollectionChange={handleCollectionChange}
-        collections={collections}
-        settings={settings}
-        onSettingsChange={setSettings}
-        settingsPanelOpen={rightPanelOpen}
-        onSettingsPanelChange={setRightPanelOpen}
-        isStreaming={isLoading && settings.streamMode}
-        onStopStreaming={handleStopStreaming}
-        deepThinkingEnabled={deepThinkingEnabled}
-        onDeepThinkingChange={setDeepThinkingEnabled}
-      />
+          {/* 입력 영역 */}
+          <InputArea
+            input={input}
+            setInput={setInput}
+            onSend={handleSend}
+            isLoading={isLoading}
+            disabled={!selectedCollection}
+            quotedMessage={quotedMessage && quotedMessage.role !== "system" ? { role: quotedMessage.role, content: quotedMessage.content } : null}
+            onClearQuote={handleClearQuote}
+            selectedModel={settings.model}
+            onModelChange={(model) => setSettings({ ...settings, model })}
+            onClearChat={handleClearChat}
+            isFullscreen={isFullscreen}
+            selectedCollection={selectedCollection}
+            onCollectionChange={handleCollectionChange}
+            collections={collections}
+            settings={settings}
+            onSettingsChange={setSettings}
+            settingsPanelOpen={rightPanelOpen}
+            onSettingsPanelChange={setRightPanelOpen}
+            isStreaming={isLoading && settings.streamMode}
+            onStopStreaming={handleStopStreaming}
+            deepThinkingEnabled={deepThinkingEnabled}
+            onDeepThinkingChange={setDeepThinkingEnabled}
+          />
+        </div>
+
+        {/* 우측: 참조문서 아티팩트 패널 */}
+        <div className={cn(
+          "overflow-hidden transition-all duration-300 ease-in-out",
+          artifactState.isOpen ? "w-[40%] opacity-100" : "w-0 opacity-0"
+        )}>
+          {artifactState.isOpen && (
+            <SourceArtifactPanel
+              sources={artifactState.sources}
+              activeSourceId={artifactState.activeSourceId}
+              onSourceSelect={handleSelectArtifactSource}
+              onClose={handleCloseArtifact}
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 

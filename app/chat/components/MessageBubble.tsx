@@ -8,16 +8,6 @@ import { MarkdownMessage } from "@/components/markdown-message";
 import { cn } from "@/lib/utils";
 import { useState, memo } from "react";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -47,6 +37,7 @@ interface Source {
 }
 
 interface MessageBubbleProps {
+  messageId: string;
   role: "user" | "assistant" | "system";
   content: string;
   timestamp: Date;
@@ -60,11 +51,13 @@ interface MessageBubbleProps {
   onCopy?: () => void;
   onRegenerate?: () => void;
   onQuote?: () => void;
+  onOpenArtifact?: (sources: Source[], messageId: string) => void;
   isLast?: boolean;
   isStreaming?: boolean;
 }
 
 export const MessageBubble = memo(function MessageBubble({
+  messageId,
   role,
   content,
   timestamp,
@@ -74,6 +67,7 @@ export const MessageBubble = memo(function MessageBubble({
   onCopy,
   onRegenerate,
   onQuote,
+  onOpenArtifact,
   isLast,
   isStreaming,
 }: MessageBubbleProps) {
@@ -296,134 +290,14 @@ export const MessageBubble = memo(function MessageBubble({
                     {sources.length}개 참조문서
                   </span>
                 </div>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-6 text-xs cursor-pointer">
-                      전체보기
-                    </Button>
-                  </DialogTrigger>
-                <DialogContent className="max-w-2xl w-[90vw] max-h-[80vh] p-0">
-                  <DialogHeader className="p-6 pb-3">
-                    <DialogTitle className="flex items-center gap-2">
-                      <FileText className="h-5 w-5 text-primary" />
-                      참조 문서
-                    </DialogTitle>
-                    <DialogDescription>
-                      {sources.length}개의 관련 문서를 찾았습니다
-                    </DialogDescription>
-                  </DialogHeader>
-                  <ScrollArea className="max-h-[calc(80vh-120px)] px-6 pb-6">
-                    <div className="space-y-3">
-                      {sources.map((source, index) => {
-                        const isExpanded = expandedIds.has(source.id);
-
-                        return (
-                          <Card
-                            key={source.id}
-                            className={cn(
-                              "transition-all cursor-pointer",
-                              "hover:shadow-lg hover:border-primary/50",
-                              isExpanded && "ring-2 ring-primary/20"
-                            )}
-                          >
-                            <CardHeader className="pb-3">
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="flex-1 min-w-0">
-                                  <CardTitle className="text-sm font-medium line-clamp-2 group-hover:text-primary transition-colors">
-                                    <span className="text-muted-foreground mr-2">
-                                      #{index + 1}
-                                    </span>
-                                    {source.title}
-                                  </CardTitle>
-                                  {source.metadata && (
-                                    <CardDescription className="mt-1 flex flex-wrap items-center gap-2 text-xs">
-                                      {source.metadata.file && (
-                                        <span className="flex items-center gap-1">
-                                          <FileText className="h-3 w-3" />
-                                          {source.metadata.file}
-                                        </span>
-                                      )}
-                                      {source.metadata.section && (
-                                        <span className="text-muted-foreground">
-                                          {source.metadata.section}
-                                        </span>
-                                      )}
-                                      {source.metadata.chunk_index !== undefined && (
-                                        <Badge variant="secondary" className="text-[0.65rem] px-1.5 py-0">
-                                          청크 #{source.metadata.chunk_index}
-                                        </Badge>
-                                      )}
-                                      {source.metadata.page && (
-                                        <span>페이지 {source.metadata.page}</span>
-                                      )}
-                                      {source.metadata.url && (
-                                        <a
-                                          href={source.metadata.url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="flex items-center gap-1 text-primary hover:underline hover:text-primary/80 transition-colors"
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          <Link className="h-3 w-3" />
-                                          <span>원본 링크</span>
-                                          <ExternalLink className="h-3 w-3" />
-                                        </a>
-                                      )}
-                                    </CardDescription>
-                                  )}
-                                </div>
-                                <Badge
-                                  variant="outline"
-                                  className={cn("flex-shrink-0", getScoreColor())}
-                                >
-                                  <span className="font-semibold">
-                                    {(source.score * 100).toFixed(0)}%
-                                  </span>
-                                </Badge>
-                              </div>
-                            </CardHeader>
-                            <CardContent>
-                              <Collapsible
-                                open={isExpanded}
-                                onOpenChange={() => toggleExpanded(source.id)}
-                              >
-                                <div className="space-y-2">
-                                  <div className={cn(
-                                    "text-sm text-muted-foreground",
-                                    !isExpanded && "line-clamp-3"
-                                  )}>
-                                    {source.content}
-                                  </div>
-                                  <div className="flex items-center justify-between pt-2">
-                                    <CollapsibleTrigger asChild>
-                                      <Button variant="ghost" size="sm" className="h-8">
-                                        {isExpanded ? (
-                                          <>
-                                            <ChevronUp className="h-4 w-4 mr-1" />
-                                            접기
-                                          </>
-                                        ) : (
-                                          <>
-                                            <ChevronDown className="h-4 w-4 mr-1" />
-                                            더 보기
-                                          </>
-                                        )}
-                                      </Button>
-                                    </CollapsibleTrigger>
-                                  </div>
-                                </div>
-                                <CollapsibleContent>
-                                  {/* 관련도 점수는 상단 Badge에 이미 표시되어 있으므로 제거 */}
-                                </CollapsibleContent>
-                              </Collapsible>
-                            </CardContent>
-                          </Card>
-                        );
-                      })}
-                    </div>
-                  </ScrollArea>
-                </DialogContent>
-              </Dialog>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs cursor-pointer"
+                  onClick={() => onOpenArtifact?.(sources, messageId)}
+                >
+                  전체보기
+                </Button>
               </div>
 
               {/* 참조 문서 요약 리스트 */}

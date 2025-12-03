@@ -31,6 +31,10 @@ interface Source {
     page?: number;
     file?: string;
     url?: string;
+    section?: string;
+    chunk_index?: number;
+    document_id?: number;
+    num_tokens?: number;
   };
 }
 
@@ -42,6 +46,7 @@ interface MessageListProps {
   onQuote?: (message: Message) => void;
   collectionName?: string;
   onPromptSelect?: (prompt: string) => void;
+  onOpenArtifact?: (sources: Source[], messageId: string) => void;
 }
 
 export const MessageList = memo(function MessageList({
@@ -51,7 +56,8 @@ export const MessageList = memo(function MessageList({
   onRegenerate,
   onQuote,
   collectionName,
-  onPromptSelect
+  onPromptSelect,
+  onOpenArtifact
 }: MessageListProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -136,6 +142,7 @@ export const MessageList = memo(function MessageList({
           {messages.map((message, index) => (
             <MessageBubble
               key={message.id}
+              messageId={message.id}
               role={message.role}
               content={message.content}
               timestamp={message.timestamp}
@@ -145,6 +152,7 @@ export const MessageList = memo(function MessageList({
               onCopy={() => handleCopy(message.content)}
               onRegenerate={() => handleRegenerate(index)}
               onQuote={() => onQuote?.(message)}
+              onOpenArtifact={onOpenArtifact}
               isLast={index === messages.length - 1}
               isStreaming={isLoading && index === messages.length - 1}
             />
