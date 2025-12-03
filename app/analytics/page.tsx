@@ -30,6 +30,7 @@ import {
   AreaChart, Area
 } from "recharts"
 import { toast } from "sonner"
+import { API_BASE_URL } from "@/lib/api-config"
 
 // 차트 설정
 const timelineChartConfig = {
@@ -127,7 +128,7 @@ export default function AnalyticsPage() {
   // 컬렉션 목록 조회
   const fetchCollections = useCallback(async () => {
     try {
-      const response = await fetch("http://localhost:8000/api/qdrant/collections")
+      const response = await fetch(`${API_BASE_URL}/api/qdrant/collections`)
       if (!response.ok) throw new Error("컬렉션 조회 실패")
       const data = await response.json()
       const names = (data.collections?.map((c: any) => c.name) || []).sort((a: string, b: string) => a.localeCompare(b))
@@ -154,12 +155,12 @@ export default function AnalyticsPage() {
         summaryRes, timelineRes, heatmapRes, convStatsRes,
         activeRes, recentRes
       ] = await Promise.allSettled([
-        fetch(`http://localhost:8000/api/analytics/summary?${dateParams}`),
-        fetch(`http://localhost:8000/api/analytics/timeline?${params}&period=daily`),
-        fetch(`http://localhost:8000/api/analytics/hourly-heatmap?${params}`),
-        fetch(`http://localhost:8000/api/analytics/conversation-stats?${params}`),
-        fetch(`http://localhost:8000/api/analytics/active-sessions?minutes=5`),
-        fetch(`http://localhost:8000/api/analytics/recent-queries?collection_name=${selectedCollection}&limit=20`)
+        fetch(`${API_BASE_URL}/api/analytics/summary?${dateParams}`),
+        fetch(`${API_BASE_URL}/api/analytics/timeline?${params}&period=daily`),
+        fetch(`${API_BASE_URL}/api/analytics/hourly-heatmap?${params}`),
+        fetch(`${API_BASE_URL}/api/analytics/conversation-stats?${params}`),
+        fetch(`${API_BASE_URL}/api/analytics/active-sessions?minutes=5`),
+        fetch(`${API_BASE_URL}/api/analytics/recent-queries?collection_name=${selectedCollection}&limit=20`)
       ])
 
       // 결과 처리
@@ -209,8 +210,8 @@ export default function AnalyticsPage() {
       if (!selectedCollection) return
       try {
         const [activeRes, recentRes] = await Promise.all([
-          fetch(`http://localhost:8000/api/analytics/active-sessions?minutes=5`),
-          fetch(`http://localhost:8000/api/analytics/recent-queries?collection_name=${selectedCollection}&limit=20`)
+          fetch(`${API_BASE_URL}/api/analytics/active-sessions?minutes=5`),
+          fetch(`${API_BASE_URL}/api/analytics/recent-queries?collection_name=${selectedCollection}&limit=20`)
         ])
         if (activeRes.ok) setActiveSessions(await activeRes.json())
         if (recentRes.ok) {

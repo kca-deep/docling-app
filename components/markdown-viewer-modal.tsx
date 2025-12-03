@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator"
 import { Loader2, Download, FileText, Clock, Calendar } from "lucide-react"
 import { MarkdownMessage } from "@/components/markdown-message"
 import { toast } from "sonner"
+import { API_BASE_URL } from "@/lib/api-config"
 
 interface DocumentDetail {
   id: number
@@ -44,7 +45,7 @@ export function MarkdownViewerModal({ documentId, open, onOpenChange }: Markdown
 
     setLoading(true)
     try {
-      const response = await fetch(`http://localhost:8000/api/documents/saved/${documentId}`)
+      const response = await fetch(`${API_BASE_URL}/api/documents/saved/${documentId}`)
       if (response.ok) {
         const data: DocumentDetail = await response.json()
         setDocument(data)
