@@ -639,31 +639,58 @@ export default function ExcelEmbeddingPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Select value={selectedCollection} onValueChange={setSelectedCollection}>
-                    <SelectTrigger className="flex-1">
-                      <SelectValue placeholder="Collection 선택" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {collections.map((col) => (
-                        <SelectItem key={col.name} value={col.name}>
-                          <div className="flex items-center gap-2">
-                            <span>{col.name}</span>
-                            <Badge variant="outline" className="text-xs">
-                              {col.points_count}
-                            </Badge>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                {/* 1줄: Collection 라벨 + 정보 배지 */}
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-semibold">Collection</Label>
+                  {selectedCollectionInfo && (
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant="outline" className="text-xs gap-1">
+                        <Layers className="h-3 w-3" />
+                        {selectedCollectionInfo.points_count.toLocaleString()}
+                      </Badge>
+                      <Badge variant="secondary" className="text-xs">
+                        {selectedCollectionInfo.distance}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
 
+                {/* 2줄: Select 드롭다운 (전체 너비) */}
+                <Select value={selectedCollection} onValueChange={setSelectedCollection}>
+                  <SelectTrigger className="h-10">
+                    <SelectValue placeholder="Collection 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {collections.map((col) => (
+                      <SelectItem key={col.name} value={col.name}>
+                        <div className="flex items-center justify-between w-full gap-3">
+                          <span className="font-medium">{col.name}</span>
+                          <Badge variant="outline" className="text-xs">
+                            {col.points_count.toLocaleString()}p
+                          </Badge>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* 3줄: 추가/삭제/새로고침 버튼 (우측 정렬) */}
+                <div className="flex items-center gap-1.5 justify-end">
                   <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" size="icon">
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </DialogTrigger>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <DialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-9 w-9">
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          </DialogTrigger>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-xs">새 Collection 생성</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                     <DialogContent className="sm:max-w-lg">
                       <DialogHeader>
                         <DialogTitle>New Collection</DialogTitle>
@@ -707,15 +734,25 @@ export default function ExcelEmbeddingPage() {
 
                   {/* 삭제 다이얼로그 */}
                   <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        disabled={!selectedCollection}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </DialogTrigger>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <DialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={!selectedCollection}
+                              className="h-9 w-9"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </DialogTrigger>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-xs">Collection 삭제</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                     <DialogContent className="sm:max-w-md">
                       <DialogHeader>
                         <DialogTitle>Collection 삭제</DialogTitle>
@@ -755,31 +792,29 @@ export default function ExcelEmbeddingPage() {
                     </DialogContent>
                   </Dialog>
 
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={fetchCollections}
-                    disabled={loadingCollections}
-                  >
-                    {loadingCollections ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4" />
-                    )}
-                  </Button>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={fetchCollections}
+                          disabled={loadingCollections}
+                          className="h-9 w-9"
+                        >
+                          {loadingCollections ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-xs">Collection 목록 새로고침</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
-
-                {selectedCollectionInfo && (
-                  <div className="flex gap-2">
-                    <Badge variant="secondary" className="text-xs">
-                      <Layers className="h-3 w-3 mr-1" />
-                      {selectedCollectionInfo.points_count} points
-                    </Badge>
-                    <Badge variant="outline" className="text-xs">
-                      {selectedCollectionInfo.distance}
-                    </Badge>
-                  </div>
-                )}
               </CardContent>
             </Card>
 

@@ -6,11 +6,17 @@ Analytics API 라우터
 import logging
 import pandas as pd
 import numpy as np
+import io
+from urllib.parse import quote
 from datetime import datetime, date, timedelta
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from openpyxl.utils.dataframe import dataframe_to_rows
 
 from backend.database import get_db
 from backend.models.chat_session import ChatSession
@@ -905,3 +911,240 @@ async def get_recent_queries(
     except Exception as e:
         logger.error(f"최근 질문 조회 실패: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
+# 7. Excel 내보내기 API
+# ============================================================
+
+@router.get("/export/excel")
+async def export_conversations_to_excel(
+    collection_name: str = Query(..., description="컬렉션 이름"),
+    date_from: Optional[date] = Query(None, description="시작 날짜"),
+    date_to: Optional[date] = Query(None, description="종료 날짜"),
+    db: Session = Depends(get_db)
+):
+    """
+    대화 내역을 Excel 파일로 내보내기
+
+    Args:
+        collection_name: 컬렉션 이름 (필수)
+        date_from: 시작 날짜 (선택, 기본값: 오늘)
+        date_to: 종료 날짜 (선택, 기본값: 오늘)
+        db: 데이터베이스 세션
+
+    Returns:
+        StreamingResponse: Excel 파일 스트림
+    """
+    try:
+        # 날짜 기본값 설정
+        if not date_from:
+            date_from = date.today()
+        if not date_to:
+            date_to = date.today()
+
+        # 날짜 변환
+        start_datetime = datetime.combine(date_from, datetime.min.time())
+        end_datetime = datetime.combine(date_to, datetime.max.time())
+
+        # conversations 로그에서 데이터 조회
+        conversations = await conversation_service.read_conversations(
+            start_date=start_datetime,
+            end_date=end_datetime,
+            collection_name=collection_name,
+            limit=10000  # 최대 10000건
+        )
+
+        # data 로그에서 추가 메타데이터 조회
+        logs_df = await statistics_service.query_logs_by_date_range(
+            date_from, date_to, collection_name
+        )
+
+        # Q&A 쌍으로 데이터 가공
+        export_data = []
+
+        for conv in conversations:
+            conv_id = conv.get("conversation_id", "")
+            conv_collection = conv.get("collection_name", "")
+            metadata = conv.get("metadata", {})
+            started_at = conv.get("started_at", "")
+            messages = conv.get("messages", [])
+
+            # 메시지를 Q&A 쌍으로 그룹화
+            i = 0
+            while i < len(messages):
+                user_msg = None
+                assistant_msg = None
+                retrieved_docs = []
+
+                # user 메시지 찾기
+                if i < len(messages) and messages[i].get("role") == "user":
+                    user_msg = messages[i]
+                    i += 1
+
+                # assistant 메시지 찾기
+                if i < len(messages) and messages[i].get("role") == "assistant":
+                    assistant_msg = messages[i]
+                    retrieved_docs = assistant_msg.get("retrieved_docs", [])
+                    i += 1
+
+                if user_msg:
+                    # 날짜/시간 형식 변환 (ISO -> yyyy-mm-dd hh:mm)
+                    timestamp_raw = user_msg.get("timestamp", started_at)
+                    try:
+                        if isinstance(timestamp_raw, str) and timestamp_raw:
+                            # ISO 형식 파싱 후 포맷 변환
+                            dt = datetime.fromisoformat(timestamp_raw.replace("Z", "+00:00"))
+                            formatted_timestamp = dt.strftime("%Y-%m-%d %H:%M")
+                        else:
+                            formatted_timestamp = str(timestamp_raw)
+                    except (ValueError, TypeError):
+                        formatted_timestamp = str(timestamp_raw)
+
+                    # 참조 문서 정보 추출 (챗봇 스타일)
+                    sources_list = []
+                    scores_list = []
+                    for idx, doc in enumerate(retrieved_docs, 1):
+                        doc_metadata = doc.get("metadata", {})
+                        source_name = doc_metadata.get("source_file", doc_metadata.get("source", "Unknown"))
+                        page_num = doc_metadata.get("page_number", doc_metadata.get("page", "-"))
+                        section = doc_metadata.get("section", doc_metadata.get("headings", ""))
+                        score = doc.get("score", 0)
+                        score_pct = round(score * 100, 1)
+
+                        # 챗봇 스타일 형식: #1. [99.9%] 파일명 (p.30) - 섹션
+                        source_str = f"#{idx}. [{score_pct}%] {source_name}"
+                        if page_num and page_num != "-":
+                            source_str += f" (p.{page_num})"
+                        if section:
+                            # 섹션이 리스트인 경우 처리
+                            if isinstance(section, list):
+                                section = " > ".join(str(s) for s in section[:2])  # 최대 2개
+                            source_str += f" - {section[:50]}"  # 최대 50자
+
+                        sources_list.append(source_str)
+                        scores_list.append(score)
+
+                    # data 로그에서 추가 정보 찾기
+                    performance_info = {}
+                    llm_info = {}
+                    if not logs_df.empty and 'session_id' in logs_df.columns:
+                        # session_id로 매칭 시도
+                        matching_logs = logs_df[
+                            (logs_df.get('message_type') == 'assistant') &
+                            (logs_df.get('message_content', '').str[:50] == (assistant_msg.get("content", "")[:50] if assistant_msg else ""))
+                        ] if assistant_msg else pd.DataFrame()
+
+                        if not matching_logs.empty:
+                            first_match = matching_logs.iloc[0]
+                            if 'performance' in first_match and isinstance(first_match['performance'], dict):
+                                performance_info = first_match['performance']
+                            if 'llm_model' in first_match:
+                                llm_info['model'] = first_match['llm_model']
+                            if 'reasoning_level' in first_match:
+                                llm_info['reasoning_level'] = first_match['reasoning_level']
+
+                    row = {
+                        "날짜/시간": formatted_timestamp,
+                        "세션 ID": conv_id[:8] if conv_id else "",
+                        "사용자 질문": user_msg.get("content", ""),
+                        "AI 응답": assistant_msg.get("content", "") if assistant_msg else "",
+                        "컬렉션": conv_collection,
+                        "응답시간(ms)": performance_info.get("response_time_ms", metadata.get("duration_seconds", 0) * 1000 if metadata.get("duration_seconds") else ""),
+                        "토큰수": performance_info.get("token_count", ""),
+                        "검색점수": round(scores_list[0], 4) if scores_list else "",
+                        "참조문서": "\n".join(sources_list) if sources_list else "",
+                        "에러여부": "Y" if metadata.get("has_error") else "N",
+                        "재생성여부": "Y" if metadata.get("has_regeneration") else "N",
+                        "LLM모델": llm_info.get("model", ""),
+                        "추론레벨": llm_info.get("reasoning_level", ""),
+                    }
+                    export_data.append(row)
+
+        # DataFrame 생성
+        df = pd.DataFrame(export_data)
+
+        if df.empty:
+            # 빈 데이터인 경우 헤더만 있는 DataFrame 생성
+            df = pd.DataFrame(columns=[
+                "날짜/시간", "세션 ID", "사용자 질문", "AI 응답", "컬렉션",
+                "응답시간(ms)", "토큰수", "검색점수", "참조문서",
+                "에러여부", "재생성여부", "LLM모델", "추론레벨"
+            ])
+
+        # Excel 워크북 생성
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "대화내역"
+
+        # 스타일 정의
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell_alignment = Alignment(vertical="top", wrap_text=True)
+        thin_border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+
+        # 헤더 작성
+        for col_idx, column in enumerate(df.columns, 1):
+            cell = ws.cell(row=1, column=col_idx, value=column)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            cell.border = thin_border
+
+        # 데이터 작성
+        for row_idx, row in enumerate(df.itertuples(index=False), 2):
+            for col_idx, value in enumerate(row, 1):
+                cell = ws.cell(row=row_idx, column=col_idx, value=value)
+                cell.alignment = cell_alignment
+                cell.border = thin_border
+
+        # 열 너비 설정
+        column_widths = {
+            "A": 20,  # 날짜/시간
+            "B": 12,  # 세션 ID
+            "C": 50,  # 사용자 질문
+            "D": 70,  # AI 응답
+            "E": 20,  # 컬렉션
+            "F": 12,  # 응답시간
+            "G": 10,  # 토큰수
+            "H": 10,  # 검색점수
+            "I": 30,  # 참조문서
+            "J": 10,  # 에러여부
+            "K": 10,  # 재생성여부
+            "L": 15,  # LLM모델
+            "M": 10,  # 추론레벨
+        }
+
+        for col_letter, width in column_widths.items():
+            ws.column_dimensions[col_letter].width = width
+
+        # 첫 번째 행 고정
+        ws.freeze_panes = "A2"
+
+        # 메모리 스트림에 저장
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        # 파일명 생성 (한글 포함 시 URL 인코딩)
+        filename = f"conversations_{collection_name}_{date_from.isoformat()}_{date_to.isoformat()}.xlsx"
+        encoded_filename = quote(filename, safe='')
+
+        # StreamingResponse로 반환
+        return StreamingResponse(
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Excel 내보내기 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"Excel 내보내기 실패: {str(e)}")

@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
+import { useTheme } from "next-themes"
 import { PageContainer } from "@/components/page-container"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -23,7 +24,7 @@ import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
 import {
   RefreshCw, TrendingUp, Users, MessageSquare,
-  Clock, Zap
+  Clock, Zap, Download
 } from "lucide-react"
 import {
   XAxis, YAxis, CartesianGrid,
@@ -36,15 +37,15 @@ import { API_BASE_URL } from "@/lib/api-config"
 const timelineChartConfig = {
   queries: {
     label: "쿼리",
-    color: "hsl(var(--chart-1))",
+    color: "var(--chart-1)",
   },
   sessions: {
     label: "세션",
-    color: "hsl(var(--chart-2))",
+    color: "var(--chart-2)",
   },
   avg_response_time: {
     label: "응답시간(ms)",
-    color: "hsl(var(--chart-3))",
+    color: "var(--chart-3)",
   },
 } satisfies ChartConfig
 
@@ -106,8 +107,25 @@ interface RecentQuery {
 // ============================================================
 
 export default function AnalyticsPage() {
+  const { resolvedTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null)
+
+  // 다크모드 차트 opacity 설정
+  const chartOpacity = useMemo(() => {
+    const isDark = resolvedTheme === 'dark'
+    return {
+      fill: isDark ? 0.55 : 0.4,
+      gradientStart: isDark ? 0.9 : 0.8,
+      gradientEnd: isDark ? 0.25 : 0.1,
+    }
+  }, [resolvedTheme])
+
+  // 클라이언트 마운트 확인 (hydration 이슈 방지)
+  useEffect(() => {
+    setMounted(true)
+  }, [])
   const [collections, setCollections] = useState<string[]>([])
   const [dateRange, setDateRange] = useState({
     from: addDays(new Date(), -7),
@@ -225,6 +243,50 @@ export default function AnalyticsPage() {
 
     return () => clearInterval(interval)
   }, [selectedCollection])
+
+  // Excel 다운로드 상태
+  const [downloading, setDownloading] = useState(false)
+
+  // Excel 다운로드 함수
+  const handleExcelDownload = useCallback(async () => {
+    if (!selectedCollection) {
+      toast.error("컬렉션을 선택해주세요")
+      return
+    }
+
+    setDownloading(true)
+    try {
+      const dateFromStr = format(dateRange.from, "yyyy-MM-dd")
+      const dateToStr = format(dateRange.to, "yyyy-MM-dd")
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/analytics/export/excel?collection_name=${encodeURIComponent(selectedCollection)}&date_from=${dateFromStr}&date_to=${dateToStr}`
+      )
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.detail || "다운로드 실패")
+      }
+
+      // Blob으로 변환 후 다운로드
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `conversations_${selectedCollection}_${dateFromStr}_${dateToStr}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+
+      toast.success("Excel 파일 다운로드 완료")
+    } catch (error) {
+      console.error("Excel 다운로드 오류:", error)
+      toast.error(error instanceof Error ? error.message : "다운로드 중 오류가 발생했습니다")
+    } finally {
+      setDownloading(false)
+    }
+  }, [selectedCollection, dateRange])
 
   // 히트맵 셀 컴포넌트 (개선된 버전)
   const HeatmapCell = ({
@@ -430,16 +492,16 @@ export default function AnalyticsPage() {
                   >
                     <defs>
                       <linearGradient id="fillQueries" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--color-queries)" stopOpacity={0.8} />
-                        <stop offset="95%" stopColor="var(--color-queries)" stopOpacity={0.1} />
+                        <stop offset="5%" stopColor="var(--color-queries)" stopOpacity={mounted ? chartOpacity.gradientStart : 0.8} />
+                        <stop offset="95%" stopColor="var(--color-queries)" stopOpacity={mounted ? chartOpacity.gradientEnd : 0.1} />
                       </linearGradient>
                       <linearGradient id="fillSessions" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--color-sessions)" stopOpacity={0.8} />
-                        <stop offset="95%" stopColor="var(--color-sessions)" stopOpacity={0.1} />
+                        <stop offset="5%" stopColor="var(--color-sessions)" stopOpacity={mounted ? chartOpacity.gradientStart : 0.8} />
+                        <stop offset="95%" stopColor="var(--color-sessions)" stopOpacity={mounted ? chartOpacity.gradientEnd : 0.1} />
                       </linearGradient>
                       <linearGradient id="fillResponseTime" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--color-avg_response_time)" stopOpacity={0.8} />
-                        <stop offset="95%" stopColor="var(--color-avg_response_time)" stopOpacity={0.1} />
+                        <stop offset="5%" stopColor="var(--color-avg_response_time)" stopOpacity={mounted ? chartOpacity.gradientStart : 0.8} />
+                        <stop offset="95%" stopColor="var(--color-avg_response_time)" stopOpacity={mounted ? chartOpacity.gradientEnd : 0.1} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid vertical={false} />
@@ -473,7 +535,7 @@ export default function AnalyticsPage() {
                       dataKey={activeTimelineMetric}
                       stroke={`var(--color-${activeTimelineMetric})`}
                       fill={activeTimelineMetric === "queries" ? "url(#fillQueries)" : activeTimelineMetric === "sessions" ? "url(#fillSessions)" : "url(#fillResponseTime)"}
-                      fillOpacity={0.4}
+                      fillOpacity={mounted ? chartOpacity.fill : 0.4}
                       strokeWidth={2}
                       dot={false}
                       activeDot={{ r: 5, strokeWidth: 2, className: "fill-background" }}
@@ -487,10 +549,28 @@ export default function AnalyticsPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between gap-4 px-4 py-3 sm:px-6">
                 <CardTitle className="text-sm font-medium">최근 질문</CardTitle>
-                <Badge variant="outline" className="gap-1 px-2 py-0.5 font-normal text-xs">
-                  <div className="h-1.5 w-1.5 bg-green-500 rounded-full animate-pulse" />
-                  30초 갱신
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <ShadcnTooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={handleExcelDownload}
+                        disabled={downloading || !selectedCollection}
+                      >
+                        <Download className={cn("h-3.5 w-3.5", downloading && "animate-bounce")} />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p className="text-xs">대화내역 Excel 다운로드</p>
+                    </TooltipContent>
+                  </ShadcnTooltip>
+                  <Badge variant="outline" className="gap-1 px-2 py-0.5 font-normal text-xs">
+                    <div className="h-1.5 w-1.5 bg-green-500 rounded-full animate-pulse" />
+                    30초 갱신
+                  </Badge>
+                </div>
               </CardHeader>
               <CardContent className="px-4 sm:px-6">
                 <ScrollArea className="h-[232px]">
