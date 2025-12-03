@@ -50,7 +50,7 @@ export default function SystemArchitecturePage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                           <div className="bg-background border-2 border-purple-500 rounded-lg p-4 text-center">
                             <Server className="h-7 w-7 mx-auto mb-2 text-purple-600" />
-                            <p className="font-semibold text-sm mb-1">KCA RAG 파이프라인</p>
+                            <p className="font-semibold text-sm mb-1">KCA-i RAG 파이프라인</p>
                             <Badge variant="secondary" className="text-xs">:3000</Badge>
                           </div>
                           <div className="bg-background border-2 border-purple-500 rounded-lg p-4 text-center">
