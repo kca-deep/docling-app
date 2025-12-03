@@ -7,14 +7,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Loader2, Upload, Database, Settings, Sparkles, FileQuestion } from "lucide-react"
+import { Loader2, Upload, Database, Settings, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 import { MarkdownViewerModal } from "@/components/markdown-viewer-modal"
 import { API_BASE_URL } from "@/lib/api-config"
 import { DocumentSelector } from "./components/DocumentSelector"
 import { DifySettingsPanel } from "./components/DifySettingsPanel"
 import { QdrantSettingsPanel } from "./components/QdrantSettingsPanel"
-import { QAEmbeddingPanel } from "./components/QAEmbeddingPanel"
 import { UploadResults } from "./components/UploadResults"
 import {
   Document,
@@ -529,13 +528,13 @@ function UploadPageContent() {
                 </div>
               </div>
 
-              {/* Segmented Control - 3탭 */}
+              {/* Segmented Control - 2탭 */}
               <div className="mt-3">
                 <div className="relative inline-flex w-full p-1 bg-muted/60 backdrop-blur-sm rounded-full border border-border/50 shadow-sm">
                   {/* 슬라이딩 배경 */}
                   <div
-                    className={`absolute top-1 bottom-1 w-[calc(33.333%-0.25rem)] bg-background rounded-full shadow-md transition-all duration-200 ease-out ${
-                      activeTab === "qdrant" ? "left-1" : activeTab === "qa" ? "left-[calc(33.333%+0.0625rem)]" : "left-[calc(66.666%+0.125rem)]"
+                    className={`absolute top-1 bottom-1 w-[calc(50%-0.25rem)] bg-background rounded-full shadow-md transition-all duration-200 ease-out ${
+                      activeTab === "qdrant" ? "left-1" : "left-[calc(50%+0.125rem)]"
                     }`}
                   />
 
@@ -550,19 +549,6 @@ function UploadPageContent() {
                   >
                     <Database className="h-3.5 w-3.5" />
                     Vector DB
-                  </button>
-
-                  {/* Q&A 버튼 */}
-                  <button
-                    onClick={() => setActiveTab("qa")}
-                    className={`relative z-10 flex-1 px-3 py-2 rounded-full text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 ${
-                      activeTab === "qa"
-                        ? "text-foreground"
-                        : "text-muted-foreground hover:text-foreground hover:scale-[1.02]"
-                    }`}
-                  >
-                    <FileQuestion className="h-3.5 w-3.5" />
-                    Q&A
                   </button>
 
                   {/* Dify 버튼 */}
@@ -585,7 +571,6 @@ function UploadPageContent() {
               <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as UploadTarget)}>
                 <TabsList className="hidden">
                   <TabsTrigger value="qdrant" />
-                  <TabsTrigger value="qa" />
                   <TabsTrigger value="dify" />
                 </TabsList>
 
@@ -648,22 +633,6 @@ function UploadPageContent() {
                 qdrantResults={qdrantResults}
               />
             </TabsContent>
-
-              {/* Q&A 탭 */}
-              <TabsContent value="qa" className="space-y-4 m-0 p-0">
-                <QAEmbeddingPanel
-                  collections={qdrantCollections}
-                  loadingCollections={loadingQdrantCollections}
-                  onFetchCollections={fetchQdrantCollections}
-                  createDialogOpen={qdrantCreateDialogOpen}
-                  onCreateDialogOpenChange={setQdrantCreateDialogOpen}
-                  newCollectionName={newCollectionName}
-                  onNewCollectionNameChange={setNewCollectionName}
-                  distance={distance}
-                  onDistanceChange={setDistance}
-                  onCreateCollection={createQdrantCollection}
-                />
-              </TabsContent>
 
               {/* Dify 탭 */}
               <TabsContent value="dify" className="space-y-4 m-0 p-0">
