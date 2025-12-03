@@ -492,9 +492,9 @@ export default function AnalyticsPage() {
                 </Badge>
               </CardHeader>
               <CardContent className="px-4 sm:px-6">
-                <ScrollArea className="h-[168px]">
+                <ScrollArea className="h-[232px]">
                   <div className="space-y-1.5">
-                    {recentQueries.length > 0 ? recentQueries.slice(0, 10).map((q, idx) => (
+                    {recentQueries.length > 0 ? recentQueries.slice(0, 15).map((q, idx) => (
                       <div key={idx} className="flex items-center gap-2 p-1.5 rounded-md hover:bg-muted/50 transition-colors">
                         <MessageSquare className="h-3 w-3 text-muted-foreground shrink-0" />
                         <span className="text-xs flex-1 truncate">{q.query}</span>
@@ -600,8 +600,8 @@ export default function AnalyticsPage() {
                                     ))}
                                   </div>
                                   {/* 요일별 합계 */}
-                                  <div className="flex items-center gap-2 ml-2 shrink-0">
-                                    <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
+                                  <div className="flex items-center gap-1 ml-1 shrink-0">
+                                    <div className="w-10 h-2 bg-muted rounded-full overflow-hidden">
                                       <div
                                         className="h-full bg-emerald-500 rounded-full transition-all"
                                         style={{ width: maxDaySum > 0 ? `${(daySums[dayIdx] / maxDaySum) * 100}%` : '0%' }}
@@ -685,13 +685,13 @@ export default function AnalyticsPage() {
               <CardHeader className="flex flex-row items-center justify-between gap-4 px-4 py-3 sm:px-6">
                 <CardTitle className="text-sm font-medium">인기 검색어</CardTitle>
                 <Badge variant="secondary" className="gap-1 px-2 py-0.5 font-normal text-xs">
-                  TOP 10
+                  TOP 15
                 </Badge>
               </CardHeader>
               <CardContent className="px-4 sm:px-6">
-                <ScrollArea className="h-[168px]">
+                <ScrollArea className="h-[232px]">
                   <div className="space-y-1">
-                    {summary?.top_queries?.slice(0, 10).map((query, idx) => (
+                    {summary?.top_queries?.slice(0, 15).map((query, idx) => (
                       <div key={idx} className="flex items-center gap-2 p-1.5 rounded-md hover:bg-muted/50 transition-colors">
                         <Badge variant="outline" className="text-[10px] w-4 h-4 p-0 flex items-center justify-center shrink-0">{idx + 1}</Badge>
                         <span className="text-xs truncate flex-1">{query}</span>
