@@ -131,32 +131,25 @@ export function SourcePanel({ sources }: SourcePanelProps) {
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
+                      {/* 제목 - 번호 + title만 표시 */}
                       <CardTitle className="text-sm font-medium line-clamp-2">
                         <span className="text-muted-foreground mr-2">
                           #{index + 1}
                         </span>
                         {source.title}
                       </CardTitle>
+                      {/* 메타 정보 - 중복 제거 */}
                       {source.metadata && (
                         <CardDescription className="mt-1 flex flex-wrap items-center gap-2 text-xs">
-                          {source.metadata.file && (
-                            <span className="flex items-center gap-1">
-                              <FileText className="h-3 w-3" />
-                              {source.metadata.file}
-                            </span>
-                          )}
-                          {source.metadata.section && (
-                            <span className="text-muted-foreground">
-                              {source.metadata.section}
-                            </span>
-                          )}
                           {source.metadata.chunk_index !== undefined && (
                             <Badge variant="secondary" className="text-[0.65rem] px-1.5 py-0">
                               청크 #{source.metadata.chunk_index}
                             </Badge>
                           )}
                           {source.metadata.page && (
-                            <span>페이지 {source.metadata.page}</span>
+                            <Badge variant="outline" className="text-[0.65rem] px-1.5 py-0">
+                              페이지 {source.metadata.page}
+                            </Badge>
                           )}
                           {source.metadata.url && (
                             <a
@@ -166,7 +159,7 @@ export function SourcePanel({ sources }: SourcePanelProps) {
                               className="flex items-center gap-1 hover:underline text-primary"
                             >
                               <Link className="h-3 w-3" />
-                              원본 링크
+                              원본
                               <ExternalLink className="h-3 w-3" />
                             </a>
                           )}

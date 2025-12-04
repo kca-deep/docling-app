@@ -9,7 +9,7 @@ import { SourceArtifactPanel } from "./SourceArtifactPanel";
 import { Card } from "@/components/ui/card";
 import { API_BASE_URL } from "@/lib/api-config";
 import { Button } from "@/components/ui/button";
-import { Maximize, Minimize, Bot, Sun, Moon } from "lucide-react";
+import { Maximize, Minimize, Bot, Sun, Moon, MoreVertical, RefreshCw, Sparkles } from "lucide-react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import {
@@ -26,6 +26,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 interface Message {
@@ -345,22 +352,34 @@ export function ChatContainer() {
 
       const data = await response.json();
 
-      // 소스 문서 처리
-      const sources: Source[] = (data.retrieved_docs || []).map((doc: RetrievedDocument) => ({
-        id: doc.id,
-        title: doc.metadata?.headings?.length ? doc.metadata.headings.join(' > ') : (doc.metadata?.filename || `문서 ${doc.id}`),
-        content: doc.text,
-        score: doc.score,
-        metadata: {
-          file: doc.metadata?.filename,
-          section: doc.metadata?.headings ? doc.metadata.headings.join(' > ') : undefined,
-          chunk_index: doc.metadata?.chunk_index,
-          document_id: doc.metadata?.document_id,
-          num_tokens: doc.metadata?.num_tokens,
-          page: doc.metadata?.page,
-          url: doc.metadata?.url,
-        },
-      }));
+      // 소스 문서 처리 (중복 항목 정리)
+      const sources: Source[] = (data.retrieved_docs || []).map((doc: RetrievedDocument) => {
+        const filename = doc.metadata?.filename;
+        const headings = doc.metadata?.headings;
+        const hasHeadings = headings && headings.length > 0;
+
+        // title: headings가 있으면 사용, 없으면 filename
+        const title = hasHeadings ? headings.join(' > ') : (filename || `문서 ${doc.id}`);
+
+        // section: headings가 있고 filename과 다를 때만 설정 (중복 방지)
+        const section = hasHeadings && headings.join(' > ') !== filename ? headings.join(' > ') : undefined;
+
+        return {
+          id: doc.id,
+          title,
+          content: doc.text,
+          score: doc.score,
+          metadata: {
+            file: filename,
+            section,  // title과 중복되지 않도록 조건부 설정
+            chunk_index: doc.metadata?.chunk_index,
+            document_id: doc.metadata?.document_id,
+            num_tokens: doc.metadata?.num_tokens,
+            page: doc.metadata?.page,
+            url: doc.metadata?.url,
+          },
+        };
+      });
 
       setCurrentSources(sources);
 
@@ -501,24 +520,36 @@ export function ChatContainer() {
             try {
               const parsed = JSON.parse(data);
 
-              // 소스 문서 처리
+              // 소스 문서 처리 (중복 항목 정리)
               if (parsed.sources) {
                 retrievedDocs = parsed.sources; // 원본 데이터 저장
-                sources = parsed.sources.map((doc: RetrievedDocument) => ({
-                  id: doc.id,
-                  title: doc.metadata?.headings?.length ? doc.metadata.headings.join(' > ') : (doc.metadata?.filename || `문서 ${doc.id}`),
-                  content: doc.text,
-                  score: doc.score,
-                  metadata: {
-                    file: doc.metadata?.filename,
-                    section: doc.metadata?.headings ? doc.metadata.headings.join(' > ') : undefined,
-                    chunk_index: doc.metadata?.chunk_index,
-                    document_id: doc.metadata?.document_id,
-                    num_tokens: doc.metadata?.num_tokens,
-                    page: doc.metadata?.page,
-                    url: doc.metadata?.url,
-                  },
-                }));
+                sources = parsed.sources.map((doc: RetrievedDocument) => {
+                  const filename = doc.metadata?.filename;
+                  const headings = doc.metadata?.headings;
+                  const hasHeadings = headings && headings.length > 0;
+
+                  // title: headings가 있으면 사용, 없으면 filename
+                  const title = hasHeadings ? headings.join(' > ') : (filename || `문서 ${doc.id}`);
+
+                  // section: headings가 있고 filename과 다를 때만 설정 (중복 방지)
+                  const section = hasHeadings && headings.join(' > ') !== filename ? headings.join(' > ') : undefined;
+
+                  return {
+                    id: doc.id,
+                    title,
+                    content: doc.text,
+                    score: doc.score,
+                    metadata: {
+                      file: filename,
+                      section,  // title과 중복되지 않도록 조건부 설정
+                      chunk_index: doc.metadata?.chunk_index,
+                      document_id: doc.metadata?.document_id,
+                      num_tokens: doc.metadata?.num_tokens,
+                      page: doc.metadata?.page,
+                      url: doc.metadata?.url,
+                    },
+                  };
+                });
                 setCurrentSources(sources);
               }
 
@@ -721,22 +752,34 @@ export function ChatContainer() {
 
       const data = await response.json();
 
-      // 소스 문서 처리
-      const sources: Source[] = (data.retrieved_docs || context.retrievedDocs).map((doc: RetrievedDocument) => ({
-        id: doc.id,
-        title: doc.metadata?.headings?.length ? doc.metadata.headings.join(' > ') : (doc.metadata?.filename || `문서 ${doc.id}`),
-        content: doc.text,
-        score: doc.score,
-        metadata: {
-          file: doc.metadata?.filename,
-          section: doc.metadata?.headings ? doc.metadata.headings.join(' > ') : undefined,
-          chunk_index: doc.metadata?.chunk_index,
-          document_id: doc.metadata?.document_id,
-          num_tokens: doc.metadata?.num_tokens,
-          page: doc.metadata?.page,
-          url: doc.metadata?.url,
-        },
-      }));
+      // 소스 문서 처리 (중복 항목 정리)
+      const sources: Source[] = (data.retrieved_docs || context.retrievedDocs).map((doc: RetrievedDocument) => {
+        const filename = doc.metadata?.filename;
+        const headings = doc.metadata?.headings;
+        const hasHeadings = headings && headings.length > 0;
+
+        // title: headings가 있으면 사용, 없으면 filename
+        const title = hasHeadings ? headings.join(' > ') : (filename || `문서 ${doc.id}`);
+
+        // section: headings가 있고 filename과 다를 때만 설정 (중복 방지)
+        const section = hasHeadings && headings.join(' > ') !== filename ? headings.join(' > ') : undefined;
+
+        return {
+          id: doc.id,
+          title,
+          content: doc.text,
+          score: doc.score,
+          metadata: {
+            file: filename,
+            section,  // title과 중복되지 않도록 조건부 설정
+            chunk_index: doc.metadata?.chunk_index,
+            document_id: doc.metadata?.document_id,
+            num_tokens: doc.metadata?.num_tokens,
+            page: doc.metadata?.page,
+            url: doc.metadata?.url,
+          },
+        };
+      });
 
       // 새 AI 메시지 생성
       const newAiMessage: Message = {
@@ -857,63 +900,43 @@ export function ChatContainer() {
           : "flex flex-col h-full overflow-hidden"
       }
     >
-      {/* 상단 헤더 - Claude 스타일 미니멀 */}
+      {/* 상단 헤더 - 미니멀 디자인 */}
       <div className={cn(
-        "flex items-center justify-between px-4 py-2.5 border-b flex-shrink-0",
-        isFullscreen ? "bg-background/90 backdrop-blur-xl" : "bg-background/95 backdrop-blur"
+        "flex items-center justify-between px-4 py-3 border-b flex-shrink-0 transition-colors",
+        isFullscreen ? "bg-background/95 backdrop-blur-xl" : "bg-background"
       )}>
-        {/* 왼쪽: 로고 */}
-        <div className="flex items-center gap-3">
-          {/* Icon Container with Gradient */}
-          <div className="relative">
-            <div
-              className="absolute inset-0 rounded-lg blur-sm opacity-75"
-              style={{ background: "linear-gradient(135deg, var(--chart-3), var(--chart-1))" }}
-            />
-            <div
-              className="relative p-2 rounded-lg shadow-lg"
-              style={{ background: "linear-gradient(135deg, var(--chart-3), var(--chart-1))" }}
-            >
-              <Bot className="h-5 w-5 text-white" strokeWidth={2.5} />
-            </div>
+        {/* 왼쪽: 심플 로고 */}
+        <div className="flex items-center gap-2.5">
+          {/* 미니멀 아이콘 */}
+          <div
+            className="p-1.5 rounded-lg"
+            style={{ backgroundColor: "color-mix(in oklch, var(--chart-1) 12%, transparent)" }}
+          >
+            <Bot className="h-4 w-4" style={{ color: "var(--chart-1)" }} strokeWidth={2.5} />
           </div>
 
-          {/* Text Container */}
-          <div className="hidden sm:flex flex-col">
-            <span
-              className="font-bold text-lg leading-none tracking-tight bg-clip-text text-transparent"
-              style={{ backgroundImage: "linear-gradient(90deg, var(--chart-3), var(--chart-1))" }}
-            >
-              KCA-i
-            </span>
-            <div className="flex items-baseline gap-1.5 mt-0.5">
-              <span className="font-bold text-xs text-foreground leading-none">RAG</span>
-              <span
-                className="text-[0.65rem] font-medium leading-tight bg-clip-text text-transparent"
-                style={{ backgroundImage: "linear-gradient(90deg, var(--chart-3), var(--chart-1))" }}
-              >
-                기반 챗봇
-              </span>
-            </div>
+          {/* 텍스트 */}
+          <div className="hidden sm:flex items-baseline gap-1.5">
+            <span className="font-semibold text-sm text-foreground">KCA-i</span>
+            <span className="text-xs text-muted-foreground">RAG 챗봇</span>
           </div>
         </div>
 
-        {/* 오른쪽: 컨트롤 버튼들 */}
-        <div className="flex items-center gap-1.5">
-          {/* 전체화면 토글 */}
+        {/* 오른쪽: 컨트롤 버튼들 (드롭다운 메뉴로 통합) */}
+        <div className="flex items-center gap-1">
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-9 w-9"
+                  className="h-8 w-8"
                   onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                 >
                   {mounted && theme === "dark" ? (
-                    <Sun className="h-4 w-4" />
+                    <Sun className="h-3.5 w-3.5" />
                   ) : (
-                    <Moon className="h-4 w-4" />
+                    <Moon className="h-3.5 w-3.5" />
                   )}
                 </Button>
               </TooltipTrigger>
@@ -922,43 +945,68 @@ export function ChatContainer() {
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9"
-                  onClick={() => {
-                    console.log('[Fullscreen Button] Clicked, current state:', isFullscreen);
-                    setIsFullscreen(!isFullscreen);
-                  }}
-                  title={isFullscreen ? "전체화면 종료 (ESC)" : "전체화면"}
-                >
-                  {isFullscreen ? (
+
+          <DropdownMenu>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                    >
+                      <MoreVertical className="h-3.5 w-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs">메뉴</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem
+                onClick={() => {
+                  console.log('[Fullscreen Button] Clicked, current state:', isFullscreen);
+                  setIsFullscreen(!isFullscreen);
+                }}
+              >
+                {isFullscreen ? (
+                  <>
                     <Minimize className="h-4 w-4" />
-                  ) : (
+                    <span>전체화면 종료</span>
+                  </>
+                ) : (
+                  <>
                     <Maximize className="h-4 w-4" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className="text-xs">{isFullscreen ? "전체화면 종료 (ESC)" : "전체화면"}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+                    <span>전체화면</span>
+                  </>
+                )}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => {
+                  setArtifactState(prev => ({ ...prev, isOpen: !prev.isOpen }));
+                }}
+              >
+                <Sparkles className="h-4 w-4" />
+                <span>참조문서 패널 {artifactState.isOpen ? '닫기' : '열기'}</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
       {/* 메인 콘텐츠 영역 (6:4 분할) */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden bg-muted/20">
         {/* 좌측: 채팅 영역 */}
         <div className={cn(
-          "flex flex-col overflow-hidden transition-all duration-300 ease-in-out",
-          artifactState.isOpen ? "w-[60%] border-r" : "w-full"
+          "flex flex-col overflow-hidden transition-all duration-200 ease-out bg-background",
+          artifactState.isOpen ? "w-[60%]" : "w-full"
         )}>
-          {/* 메시지 목록 */}
-          <div className="flex-1 overflow-hidden">
+          {/* 메시지 목록 - 더 넓은 여백 */}
+          <div className="flex-1 overflow-hidden px-2 sm:px-4">
             <MessageList
               messages={messages}
               isLoading={isLoading}
@@ -998,10 +1046,10 @@ export function ChatContainer() {
           />
         </div>
 
-        {/* 우측: 참조문서 아티팩트 패널 */}
+        {/* 우측: 참조문서 아티팩트 패널 - 부드러운 전환 */}
         <div className={cn(
-          "overflow-hidden transition-all duration-300 ease-in-out",
-          artifactState.isOpen ? "w-[40%] opacity-100" : "w-0 opacity-0"
+          "overflow-hidden transition-all duration-200 ease-out border-l bg-muted/30",
+          artifactState.isOpen ? "w-[40%] opacity-100" : "w-0 opacity-0 border-0"
         )}>
           {artifactState.isOpen && (
             <SourceArtifactPanel

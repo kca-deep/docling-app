@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Link2, Loader2, FileText, Download, Save, Settings, Upload, FileSpreadsheet, Trash2 } from "lucide-react";
+import { Link2, Loader2, FileText, Download, Save, Settings, Upload, FileSpreadsheet, Trash2, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -17,7 +17,6 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown } from "lucide-react";
 import ExcelJS from 'exceljs';
 
 interface ParseOptions {
@@ -68,6 +67,7 @@ export default function UrlParsePage() {
   const [processing, setProcessing] = useState(false);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [result, setResult] = useState<ParseResult | null>(null);
+  const [showFullContent, setShowFullContent] = useState(false);
 
   // 일괄 업로드 관련 state
   const [excelData, setExcelData] = useState<ExcelRow[]>([]);
@@ -323,13 +323,13 @@ export default function UrlParsePage() {
             <CardDescription>문서 파싱 시 적용할 옵션을 설정하세요</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Basic Options */}
-            <div className="grid grid-cols-4 gap-3">
-              <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                <Label htmlFor="do_ocr" className="flex flex-col gap-1 cursor-pointer flex-1">
-                  <span className="font-medium text-sm">OCR 인식</span>
-                  <span className="text-xs text-muted-foreground font-normal">
-                    이미지 내 텍스트
+            {/* Basic Options - Simpler List Style */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between py-2">
+                <Label htmlFor="do_ocr" className="cursor-pointer">
+                  <span className="font-medium">OCR 인식</span>
+                  <span className="block text-sm text-muted-foreground font-normal">
+                    이미지 내 텍스트 추출
                   </span>
                 </Label>
                 <Switch
@@ -340,12 +340,13 @@ export default function UrlParsePage() {
                   }
                 />
               </div>
+              <Separator />
 
-              <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                <Label htmlFor="do_table_structure" className="flex flex-col gap-1 cursor-pointer flex-1">
-                  <span className="font-medium text-sm">테이블 구조</span>
-                  <span className="text-xs text-muted-foreground font-normal">
-                    표 형식 데이터
+              <div className="flex items-center justify-between py-2">
+                <Label htmlFor="do_table_structure" className="cursor-pointer">
+                  <span className="font-medium">테이블 구조</span>
+                  <span className="block text-sm text-muted-foreground font-normal">
+                    표 형식 데이터 인식
                   </span>
                 </Label>
                 <Switch
@@ -356,12 +357,13 @@ export default function UrlParsePage() {
                   }
                 />
               </div>
+              <Separator />
 
-              <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                <Label htmlFor="include_images" className="flex flex-col gap-1 cursor-pointer flex-1">
-                  <span className="font-medium text-sm">이미지 포함</span>
-                  <span className="text-xs text-muted-foreground font-normal">
-                    문서 내 이미지
+              <div className="flex items-center justify-between py-2">
+                <Label htmlFor="include_images" className="cursor-pointer">
+                  <span className="font-medium">이미지 포함</span>
+                  <span className="block text-sm text-muted-foreground font-normal">
+                    문서 내 이미지 포함
                   </span>
                 </Label>
                 <Switch
@@ -372,12 +374,13 @@ export default function UrlParsePage() {
                   }
                 />
               </div>
+              <Separator />
 
-              <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                <Label htmlFor="do_formula_enrichment" className="flex flex-col gap-1 cursor-pointer flex-1">
-                  <span className="font-medium text-sm">수식 인식</span>
-                  <span className="text-xs text-muted-foreground font-normal">
-                    수학 공식
+              <div className="flex items-center justify-between py-2">
+                <Label htmlFor="do_formula_enrichment" className="cursor-pointer">
+                  <span className="font-medium">수식 인식</span>
+                  <span className="block text-sm text-muted-foreground font-normal">
+                    수학 공식 인식
                   </span>
                 </Label>
                 <Switch
@@ -391,11 +394,12 @@ export default function UrlParsePage() {
             </div>
 
             {/* Advanced Options (Collapsible) */}
+            <Separator />
             <Collapsible open={isAdvancedOpen} onOpenChange={setIsAdvancedOpen}>
               <CollapsibleTrigger asChild>
                 <Button
                   variant="ghost"
-                  className="w-full flex items-center justify-between p-2 hover:bg-accent hover:text-accent-foreground"
+                  className="w-full flex items-center justify-between px-0 hover:bg-transparent"
                 >
                   <span className="text-sm font-medium">고급 옵션</span>
                   <ChevronDown
@@ -405,10 +409,10 @@ export default function UrlParsePage() {
                   />
                 </Button>
               </CollapsibleTrigger>
-              <CollapsibleContent className="pt-4">
-                <div className="grid grid-cols-4 gap-3">
-                  <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                    <Label htmlFor="to_formats" className="text-sm whitespace-nowrap mr-2">
+              <CollapsibleContent className="pt-4 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="to_formats" className="text-sm font-medium">
                       출력 형식
                     </Label>
                     <Select
@@ -417,7 +421,7 @@ export default function UrlParsePage() {
                         setParseOptions({ ...parseOptions, to_formats: value })
                       }
                     >
-                      <SelectTrigger id="to_formats" className="h-9 w-auto min-w-[100px]">
+                      <SelectTrigger id="to_formats">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -430,8 +434,8 @@ export default function UrlParsePage() {
                     </Select>
                   </div>
 
-                  <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                    <Label htmlFor="table_mode" className="text-sm whitespace-nowrap mr-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="table_mode" className="text-sm font-medium">
                       테이블 모드
                     </Label>
                     <Select
@@ -440,7 +444,7 @@ export default function UrlParsePage() {
                         setParseOptions({ ...parseOptions, table_mode: value })
                       }
                     >
-                      <SelectTrigger id="table_mode" className="h-9 w-auto min-w-[100px]">
+                      <SelectTrigger id="table_mode">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -450,8 +454,8 @@ export default function UrlParsePage() {
                     </Select>
                   </div>
 
-                  <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                    <Label htmlFor="image_export_mode" className="text-sm whitespace-nowrap mr-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="image_export_mode" className="text-sm font-medium">
                       이미지 모드
                     </Label>
                     <Select
@@ -460,7 +464,7 @@ export default function UrlParsePage() {
                         setParseOptions({ ...parseOptions, image_export_mode: value })
                       }
                     >
-                      <SelectTrigger id="image_export_mode" className="h-9 w-auto min-w-[100px]">
+                      <SelectTrigger id="image_export_mode">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -471,8 +475,8 @@ export default function UrlParsePage() {
                     </Select>
                   </div>
 
-                  <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                    <Label htmlFor="pipeline" className="text-sm whitespace-nowrap mr-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="pipeline" className="text-sm font-medium">
                       파이프라인
                     </Label>
                     <Select
@@ -481,7 +485,7 @@ export default function UrlParsePage() {
                         setParseOptions({ ...parseOptions, pipeline: value })
                       }
                     >
-                      <SelectTrigger id="pipeline" className="h-9 w-auto min-w-[100px]">
+                      <SelectTrigger id="pipeline">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -501,14 +505,8 @@ export default function UrlParsePage() {
         {/* Main Tabs - Single URL vs Batch Upload */}
         <Tabs defaultValue="single" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="single">
-              <Link2 className="w-4 h-4 mr-2" />
-              단일 URL
-            </TabsTrigger>
-            <TabsTrigger value="batch">
-              <FileSpreadsheet className="w-4 h-4 mr-2" />
-              일괄 업로드
-            </TabsTrigger>
+            <TabsTrigger value="single">단일 URL</TabsTrigger>
+            <TabsTrigger value="batch">일괄 업로드</TabsTrigger>
           </TabsList>
 
           {/* Single URL Tab */}
@@ -520,22 +518,20 @@ export default function UrlParsePage() {
                 <CardDescription>파싱할 문서의 URL을 입력하세요</CardDescription>
               </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex gap-3">
-              <div className="flex-1">
-                <Input
-                  type="url"
-                  placeholder="https://example.com/document.pdf"
-                  value={sourceUrl}
-                  onChange={(e) => setSourceUrl(e.target.value)}
-                  disabled={processing}
-                  className="h-12 text-base"
-                />
-              </div>
+            <div className="flex flex-col gap-3">
+              <Input
+                type="url"
+                placeholder="https://example.com/document.pdf"
+                value={sourceUrl}
+                onChange={(e) => setSourceUrl(e.target.value)}
+                disabled={processing}
+                className="h-14 text-lg px-4"
+              />
               <Button
                 onClick={handleParse}
                 disabled={processing || !sourceUrl.trim()}
                 size="lg"
-                className="gap-2 min-w-[120px]"
+                className="gap-2 h-12"
               >
                 {processing ? (
                   <>
@@ -601,55 +597,44 @@ export default function UrlParsePage() {
 
                   {/* Markdown Content */}
                   <div className="space-y-3">
-                    <h4 className="text-sm font-medium">변환된 마크다운</h4>
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-medium">변환된 마크다운</h4>
+                      {result.document.md_content && result.document.md_content.length > 2000 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowFullContent(!showFullContent)}
+                          className="gap-2"
+                        >
+                          <ChevronsUpDown className="w-4 h-4" />
+                          {showFullContent ? "축소" : "전체 보기"}
+                        </Button>
+                      )}
+                    </div>
                     {result.document.md_content ? (
                       <>
-                      <Tabs defaultValue="preview" className="w-full">
-                        <TabsList className="grid w-full grid-cols-2">
-                          <TabsTrigger value="preview">미리보기</TabsTrigger>
-                          <TabsTrigger value="full">전체 내용</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="preview" className="mt-4 space-y-4">
-                          <ScrollArea className="h-96 w-full rounded-lg border bg-muted/50">
-                            <div className="p-4">
-                              <pre className="text-sm whitespace-pre-wrap break-words font-mono overflow-x-auto">
-                                {result.document.md_content.substring(0, 2000)}
-                                {result.document.md_content.length > 2000 &&
-                                  "\n\n... (내용이 잘렸습니다. '전체 내용' 탭을 확인하세요)"}
-                              </pre>
-                            </div>
-                          </ScrollArea>
-                          <div className="flex justify-end gap-2">
-                            <Button variant="outline" size="sm" onClick={handleSave}>
-                              <Save className="w-4 h-4 mr-2" />
-                              문서 저장
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={handleDownload}>
-                              <Download className="w-4 h-4 mr-2" />
-                              다운로드
-                            </Button>
+                        <ScrollArea className="h-96 w-full rounded-lg border bg-muted/50">
+                          <div className="p-4">
+                            <pre className="text-sm whitespace-pre-wrap break-words font-mono overflow-x-auto">
+                              {showFullContent
+                                ? result.document.md_content
+                                : result.document.md_content.substring(0, 2000)}
+                              {!showFullContent &&
+                                result.document.md_content.length > 2000 &&
+                                "\n\n... (내용이 잘렸습니다. '전체 보기'를 클릭하세요)"}
+                            </pre>
                           </div>
-                        </TabsContent>
-                        <TabsContent value="full" className="mt-4 space-y-4">
-                          <ScrollArea className="h-96 w-full rounded-lg border bg-muted/50">
-                            <div className="p-4">
-                              <pre className="text-sm whitespace-pre-wrap break-words font-mono overflow-x-auto">
-                                {result.document.md_content}
-                              </pre>
-                            </div>
-                          </ScrollArea>
-                          <div className="flex justify-end gap-2">
-                            <Button variant="outline" size="sm" onClick={handleSave}>
-                              <Save className="w-4 h-4 mr-2" />
-                              문서 저장
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={handleDownload}>
-                              <Download className="w-4 h-4 mr-2" />
-                              다운로드
-                            </Button>
-                          </div>
-                        </TabsContent>
-                      </Tabs>
+                        </ScrollArea>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" size="sm" onClick={handleSave}>
+                            <Save className="w-4 h-4 mr-2" />
+                            문서 저장
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={handleDownload}>
+                            <Download className="w-4 h-4 mr-2" />
+                            다운로드
+                          </Button>
+                        </div>
                       </>
                     ) : (
                       <Alert>
@@ -688,36 +673,47 @@ export default function UrlParsePage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex gap-3">
+                <div className="space-y-3">
                   <Button
                     variant="outline"
                     onClick={downloadExcelTemplate}
-                    className="gap-2"
+                    className="gap-2 w-full sm:w-auto"
                   >
-                    <FileSpreadsheet className="w-4 h-4" />
+                    <Download className="w-4 h-4" />
                     템플릿 다운로드
                   </Button>
 
-                  <div className="flex-1">
+                  <div className="relative">
                     <Input
                       type="file"
                       accept=".xlsx,.xls"
                       onChange={handleExcelUpload}
-                      className="cursor-pointer"
+                      className="cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
                     />
                   </div>
 
                   {excelData.length > 0 && (
-                    <Button
-                      variant="destructive"
-                      onClick={clearExcelData}
-                      className="gap-2"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      초기화
-                    </Button>
+                    <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/50">
+                      <div className="flex items-center gap-2">
+                        <FileSpreadsheet className="w-5 h-5 text-muted-foreground" />
+                        <span className="text-sm font-medium">
+                          {excelData.length}개의 URL이 로드됨
+                        </span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={clearExcelData}
+                        className="gap-2 text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        초기화
+                      </Button>
+                    </div>
                   )}
                 </div>
+
+                <Separator />
 
                 {/* Template Info */}
                 <div className="text-sm space-y-2">

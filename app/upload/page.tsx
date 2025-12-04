@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Loader2, Upload, Database, Settings, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 import { MarkdownViewerModal } from "@/components/markdown-viewer-modal"
@@ -492,12 +493,7 @@ function UploadPageContent() {
     <PageContainer maxWidth="wide" className="py-4">
       {/* Page Header */}
       <div className="space-y-2 mb-6">
-        <h1
-          className="text-3xl font-bold tracking-tight bg-clip-text text-transparent"
-          style={{
-            backgroundImage: "linear-gradient(90deg, var(--chart-2), var(--chart-1))"
-          }}
-        >
+        <h1 className="text-3xl font-bold tracking-tight">
           임베딩
         </h1>
         <p className="text-muted-foreground">저장된 문서를 벡터 DB 또는 Dify 지식베이스에 업로드합니다</p>
@@ -530,62 +526,32 @@ function UploadPageContent() {
         {/* 우측: Qdrant/Dify 설정 (30%) - Sticky */}
         <div className="lg:sticky lg:top-4 lg:self-start min-w-0 overflow-hidden">
           <Card className="min-w-0 overflow-hidden">
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-2">
-                <Upload className="h-5 w-5" style={{ color: "var(--chart-2)" }} />
-                <div>
-                  <CardTitle className="text-lg">임베딩 업로드 설정</CardTitle>
-                  <CardDescription className="mt-0.5">
-                    벡터 DB 또는 지식베이스에 문서 업로드
-                  </CardDescription>
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as UploadTarget)}>
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2 mb-3">
+                  <Upload className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <CardTitle className="text-lg">임베딩 업로드 설정</CardTitle>
+                    <CardDescription className="mt-0.5">
+                      벡터 DB 또는 지식베이스에 문서 업로드
+                    </CardDescription>
+                  </div>
                 </div>
-              </div>
 
-              {/* Segmented Control - 2탭 */}
-              <div className="mt-3">
-                <div className="relative inline-flex w-full p-1 bg-muted/60 backdrop-blur-sm rounded-full border border-border/50 shadow-sm">
-                  {/* 슬라이딩 배경 */}
-                  <div
-                    className={`absolute top-1 bottom-1 w-[calc(50%-0.25rem)] bg-background rounded-full shadow-md transition-all duration-200 ease-out ${
-                      activeTab === "qdrant" ? "left-1" : "left-[calc(50%+0.125rem)]"
-                    }`}
-                  />
-
-                  {/* Qdrant 버튼 */}
-                  <button
-                    onClick={() => setActiveTab("qdrant")}
-                    className={`relative z-10 flex-1 px-3 py-2 rounded-full text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 ${
-                      activeTab === "qdrant"
-                        ? "text-foreground"
-                        : "text-muted-foreground hover:text-foreground hover:scale-[1.02]"
-                    }`}
-                  >
-                    <Database className="h-3.5 w-3.5" style={{ color: activeTab === "qdrant" ? "var(--chart-2)" : undefined }} />
+                {/* Simple Tabs with Underline */}
+                <TabsList className="w-full">
+                  <TabsTrigger value="qdrant" className="flex-1 gap-1.5">
+                    <Database className="h-3.5 w-3.5" />
                     Vector DB
-                  </button>
-
-                  {/* Dify 버튼 */}
-                  <button
-                    onClick={() => setActiveTab("dify")}
-                    className={`relative z-10 flex-1 px-3 py-2 rounded-full text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 ${
-                      activeTab === "dify"
-                        ? "text-foreground"
-                        : "text-muted-foreground hover:text-foreground hover:scale-[1.02]"
-                    }`}
-                  >
-                    <Sparkles className="h-3.5 w-3.5" style={{ color: activeTab === "dify" ? "var(--chart-5)" : undefined }} />
+                  </TabsTrigger>
+                  <TabsTrigger value="dify" className="flex-1 gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5" />
                     Dify
-                  </button>
-                </div>
-              </div>
-            </CardHeader>
-
-            <CardContent>
-              <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as UploadTarget)}>
-                <TabsList className="hidden">
-                  <TabsTrigger value="qdrant" />
-                  <TabsTrigger value="dify" />
+                  </TabsTrigger>
                 </TabsList>
+              </CardHeader>
+
+              <CardContent>
 
                 {/* Qdrant 탭 */}
                 <TabsContent value="qdrant" className="space-y-4 m-0 p-0">
@@ -613,32 +579,39 @@ function UploadPageContent() {
               />
 
               {!selectedQdrantCollection && selectedDocs.size > 0 && (
-                <Alert>
-                  <AlertDescription>
+                <Alert variant="default" className="border-muted-foreground/20">
+                  <AlertDescription className="text-sm">
                     업로드하려면 상단에서 Collection을 먼저 선택해주세요.
                   </AlertDescription>
                 </Alert>
               )}
 
               {/* 업로드 버튼 */}
-              <Button
-                onClick={uploadToQdrant}
-                disabled={isQdrantUploadDisabled}
-                size="lg"
-                className="w-full gap-2"
-              >
-                {uploadingQdrant ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    업로드 중...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4" />
-                    Qdrant에 업로드 ({selectedDocs.size})
-                  </>
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={uploadToQdrant}
+                  disabled={isQdrantUploadDisabled}
+                  size="lg"
+                  className="flex-1 gap-2"
+                >
+                  {uploadingQdrant ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      업로드 중...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4" />
+                      Qdrant에 업로드
+                    </>
+                  )}
+                </Button>
+                {selectedDocs.size > 0 && (
+                  <Badge variant="secondary" className="text-sm px-3 py-1.5">
+                    {selectedDocs.size}
+                  </Badge>
                 )}
-              </Button>
+              </div>
 
               <UploadResults
                 uploadTarget="qdrant"
@@ -667,32 +640,39 @@ function UploadPageContent() {
               />
 
               {(!difyApiKey || !selectedDifyDataset) && selectedDocs.size > 0 && (
-                <Alert>
-                  <AlertDescription>
+                <Alert variant="default" className="border-muted-foreground/20">
+                  <AlertDescription className="text-sm">
                     업로드하려면 상단에서 API Key와 데이터셋을 먼저 설정해주세요.
                   </AlertDescription>
                 </Alert>
               )}
 
               {/* 업로드 버튼 */}
-              <Button
-                onClick={uploadToDify}
-                disabled={isDifyUploadDisabled}
-                size="lg"
-                className="w-full gap-2"
-              >
-                {uploadingDify ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    업로드 중...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4" />
-                    Dify에 업로드 ({selectedDocs.size})
-                  </>
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={uploadToDify}
+                  disabled={isDifyUploadDisabled}
+                  size="lg"
+                  className="flex-1 gap-2"
+                >
+                  {uploadingDify ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      업로드 중...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4" />
+                      Dify에 업로드
+                    </>
+                  )}
+                </Button>
+                {selectedDocs.size > 0 && (
+                  <Badge variant="secondary" className="text-sm px-3 py-1.5">
+                    {selectedDocs.size}
+                  </Badge>
                 )}
-              </Button>
+              </div>
 
               <UploadResults
                 uploadTarget="dify"
@@ -700,8 +680,8 @@ function UploadPageContent() {
                 qdrantResults={[]}
               />
               </TabsContent>
-              </Tabs>
-            </CardContent>
+              </CardContent>
+            </Tabs>
           </Card>
         </div>
       </div>

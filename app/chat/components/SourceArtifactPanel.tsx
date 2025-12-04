@@ -175,7 +175,7 @@ export function SourceArtifactPanel({
         </div>
       </div>
 
-      {/* 탭 네비게이션 */}
+      {/* 탭 네비게이션 - 번호만 표시 (파일명 중복 제거) */}
       <div className="flex items-center gap-1 px-2 py-2 border-b flex-shrink-0 bg-muted/30">
         {/* 이전 버튼 */}
         <Button
@@ -188,7 +188,7 @@ export function SourceArtifactPanel({
           <ChevronLeft className="h-4 w-4" />
         </Button>
 
-        {/* 탭들 */}
+        {/* 탭들 - 번호와 점수만 표시 */}
         <div
           ref={tabsContainerRef}
           className="flex-1 overflow-x-auto scrollbar-hide"
@@ -204,11 +204,11 @@ export function SourceArtifactPanel({
                   key={source.id}
                   value={source.id}
                   data-source-id={source.id}
-                  className="flex-none h-7 px-3 text-xs gap-1.5 overflow-hidden max-w-[180px]"
+                  className="flex-none h-7 px-2.5 text-xs gap-1 overflow-hidden"
                 >
-                  <span className="text-muted-foreground flex-shrink-0">#{index + 1}</span>
-                  <span className="truncate min-w-0 max-w-[120px]">
-                    {source.metadata?.file || source.title}
+                  <span className="font-medium">#{index + 1}</span>
+                  <span className="text-muted-foreground text-[10px]">
+                    {(source.score * 100).toFixed(0)}%
                   </span>
                 </TabsTrigger>
               ))}
@@ -228,45 +228,36 @@ export function SourceArtifactPanel({
         </Button>
       </div>
 
-      {/* 메타데이터 바 */}
+      {/* 메타데이터 바 - 중복 제거 */}
       {activeSource && (
         <div className="px-4 py-3 border-b flex-shrink-0 bg-muted/20">
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            {/* 파일명 */}
-            {activeSource.metadata?.file && (
-              <div className="flex items-center gap-1.5 text-muted-foreground">
-                <FileText className="h-3.5 w-3.5" />
-                <span className="font-medium">{activeSource.metadata.file}</span>
-              </div>
+          {/* 제목 (파일명 또는 headings) */}
+          <div className="flex items-center gap-2 mb-2">
+            <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            <span className="font-medium text-sm truncate">
+              {activeSource.title}
+            </span>
+          </div>
+
+          {/* 메타 정보 배지들 */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {activeSource.metadata?.page && (
+              <Badge variant="outline" className="text-xs">
+                페이지 {activeSource.metadata.page}
+              </Badge>
             )}
 
-            {/* 구분선 */}
-            {activeSource.metadata?.file && <span className="text-muted-foreground/50">|</span>}
-
-            {/* 메타 정보 배지들 */}
-            <div className="flex flex-wrap gap-1.5">
-              {activeSource.metadata?.page && (
-                <Badge variant="outline" className="text-xs">
-                  페이지 {activeSource.metadata.page}
-                </Badge>
-              )}
-
-              {activeSource.metadata?.chunk_index !== undefined && (
-                <Badge variant="outline" className="text-xs">
-                  청크 #{activeSource.metadata.chunk_index}
-                </Badge>
-              )}
-
-              {activeSource.metadata?.num_tokens && (
-                <Badge variant="outline" className="text-xs">
-                  {activeSource.metadata.num_tokens} 토큰
-                </Badge>
-              )}
-
-              <Badge className={cn("text-xs", getScoreColor(activeSource.score))}>
-                {(activeSource.score * 100).toFixed(0)}% {getScoreLabel(activeSource.score)}
+            {activeSource.metadata?.chunk_index !== undefined && (
+              <Badge variant="outline" className="text-xs">
+                청크 #{activeSource.metadata.chunk_index}
               </Badge>
-            </div>
+            )}
+
+            {activeSource.metadata?.num_tokens && (
+              <Badge variant="outline" className="text-xs">
+                {activeSource.metadata.num_tokens} 토큰
+              </Badge>
+            )}
 
             {/* 원본 링크 */}
             {activeSource.metadata?.url && (
@@ -274,26 +265,19 @@ export function SourceArtifactPanel({
                 href={activeSource.metadata.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 text-xs text-primary hover:underline ml-auto"
+                className="flex items-center gap-1 text-xs text-primary hover:underline"
               >
                 <Link className="h-3 w-3" />
-                원본 링크
+                원본
                 <ExternalLink className="h-3 w-3" />
               </a>
             )}
           </div>
 
-          {/* 섹션 정보 */}
-          {activeSource.metadata?.section && (
+          {/* 섹션 정보 - title과 다를 때만 표시 */}
+          {activeSource.metadata?.section && activeSource.metadata.section !== activeSource.title && (
             <div className="mt-2 text-xs text-muted-foreground">
               <span className="font-medium">섹션:</span> {activeSource.metadata.section}
-            </div>
-          )}
-
-          {/* 제목 */}
-          {activeSource.title && activeSource.title !== activeSource.metadata?.file && (
-            <div className="mt-2 text-sm font-medium">
-              {activeSource.title}
             </div>
           )}
         </div>

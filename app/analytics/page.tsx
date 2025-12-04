@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useTheme } from "next-themes"
 import { PageContainer } from "@/components/page-container"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -157,6 +157,10 @@ export default function AnalyticsPage() {
   // 일별 추이 차트 활성 메트릭
   const [activeTimelineMetric, setActiveTimelineMetric] = useState<"queries" | "sessions" | "avg_response_time">("queries")
 
+  // 최근 질문 페이지네이션
+  const [recentQueriesPage, setRecentQueriesPage] = useState(1)
+  const recentQueriesPerPage = 10
+
   // 컬렉션 목록 조회
   const fetchCollections = useCallback(async () => {
     try {
@@ -310,7 +314,7 @@ export default function AnalyticsPage() {
     return `color-mix(in oklch, var(--chart-2) ${opacity}%, transparent)`
   }
 
-  // 히트맵 셀 컴포넌트 (개선된 버전)
+  // 히트맵 셀 컴포넌트 (개선된 버전 - 크기 증가)
   const HeatmapCell = ({
     value,
     maxValue,
@@ -334,10 +338,10 @@ export default function AnalyticsPage() {
         <TooltipTrigger asChild>
           <div
             className={cn(
-              "w-5 h-5 rounded-md cursor-pointer transition-all duration-150",
-              "hover:scale-125 hover:ring-2 hover:ring-primary hover:ring-offset-1 hover:z-10",
+              "w-5 h-5 rounded cursor-pointer transition-all duration-150",
+              "hover:scale-110 hover:ring-2 hover:ring-primary hover:ring-offset-1 hover:z-10",
               "animate-in fade-in zoom-in-50",
-              intensity === 0 && "bg-muted"
+              intensity === 0 && "bg-muted border border-border/50"
             )}
             style={{
               animationDelay: `${animationDelay}ms`,
@@ -383,22 +387,16 @@ export default function AnalyticsPage() {
     <PageContainer maxWidth="wide">
       {/* 페이지 헤더 */}
       <div className="space-y-2 mb-6">
-        <h1
-          className="text-3xl font-bold tracking-tight bg-clip-text text-transparent"
-          style={{
-            backgroundImage: "linear-gradient(90deg, var(--chart-4), var(--chart-3))"
-          }}
-        >
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">
           통계
         </h1>
         <p className="text-muted-foreground">RAG 시스템 사용 현황 분석 대시보드</p>
       </div>
 
-      {/* 필터 영역 + 메트릭 뱃지 통합 */}
-      <div className="flex flex-wrap items-center gap-3 mb-6">
-        {/* 필터 컨트롤 */}
+      {/* 필터 컨트롤 - 단일 행으로 통합 */}
+      <div className="flex flex-wrap items-center gap-3 mb-6 p-4 bg-muted/30 rounded-lg border">
         <Select value={selectedCollection || ""} onValueChange={setSelectedCollection}>
-          <SelectTrigger className="w-[180px] h-9">
+          <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="컬렉션 선택" />
           </SelectTrigger>
           <SelectContent>
@@ -418,7 +416,7 @@ export default function AnalyticsPage() {
                 setDateRange(prev => ({ ...prev, from: date }))
               }
             }}
-            className="w-[130px] h-9"
+            className="w-[140px]"
           />
           <span className="text-sm text-muted-foreground">~</span>
           <Input
@@ -430,60 +428,58 @@ export default function AnalyticsPage() {
                 setDateRange(prev => ({ ...prev, to: date }))
               }
             }}
-            className="w-[130px] h-9"
+            className="w-[140px]"
           />
         </div>
 
-        <Button onClick={refreshAllData} disabled={loading} size="sm" variant="outline">
-          <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+        <Button onClick={refreshAllData} disabled={loading} size="default" variant="outline">
+          <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
+          새로고침
         </Button>
 
-        {/* 구분선 */}
-        <div className="hidden md:block h-6 w-px bg-border" />
+        {/* 실시간 활성 세션 */}
+        {activeSessions && (
+          <div className="flex items-center gap-2 ml-auto px-3 py-2 rounded-md bg-background border">
+            <div
+              className="h-2 w-2 rounded-full animate-pulse"
+              style={{ backgroundColor: metricColors.active }}
+            />
+            <span className="text-sm font-medium">{activeSessions.active_count}</span>
+            <span className="text-sm text-muted-foreground">활성 세션</span>
+          </div>
+        )}
+      </div>
 
-        {/* 메트릭 뱃지들 */}
-        <div className="flex flex-wrap items-center gap-2 ml-auto">
-          <Badge variant="secondary" className="gap-1.5 px-2.5 py-1 font-normal">
-            <MessageSquare className="h-3 w-3" style={{ color: metricColors.queries }} />
-            <span className="font-semibold tabular-nums">{(summary?.total_queries ?? 0).toLocaleString()}</span>
-            <span className="text-muted-foreground text-xs">쿼리</span>
-          </Badge>
-          <Badge variant="secondary" className="gap-1.5 px-2.5 py-1 font-normal">
-            <Users className="h-3 w-3" style={{ color: metricColors.sessions }} />
-            <span className="font-semibold tabular-nums">{(summary?.unique_sessions ?? 0).toLocaleString()}</span>
-            <span className="text-muted-foreground text-xs">세션</span>
-          </Badge>
-          <Badge variant="secondary" className="gap-1.5 px-2.5 py-1 font-normal">
-            <TrendingUp className="h-3 w-3" style={{ color: metricColors.turns }} />
-            <span className="font-semibold tabular-nums">{conversationStats?.avg_turns?.toFixed(1) || "0"}</span>
-            <span className="text-muted-foreground text-xs">턴</span>
-          </Badge>
-          <Badge variant="secondary" className="gap-1.5 px-2.5 py-1 font-normal">
-            <Clock className="h-3 w-3" style={{ color: metricColors.responseTime }} />
-            <span className="font-semibold tabular-nums">{(summary?.avg_response_time_ms ?? 0).toFixed(0)}</span>
-            <span className="text-muted-foreground text-xs">ms</span>
-          </Badge>
-          <Badge variant="secondary" className="gap-1.5 px-2.5 py-1 font-normal">
-            <Zap className="h-3 w-3" style={{ color: metricColors.tokens }} />
-            <span className="font-semibold tabular-nums">{((summary?.total_tokens ?? 0) / 1000).toFixed(1)}K</span>
-            <span className="text-muted-foreground text-xs">토큰</span>
-          </Badge>
+      {/* KPI 카드 - 미니멀 스타일 */}
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card">
+          <MessageSquare className="h-4 w-4 text-muted-foreground" style={{ color: metricColors.queries }} />
+          <span className="text-lg font-semibold tabular-nums">{(summary?.total_queries ?? 0).toLocaleString()}</span>
+          <span className="text-xs text-muted-foreground">쿼리</span>
+        </div>
 
-          {/* 실시간 활성 세션 */}
-          {activeSessions && (
-            <Badge
-              variant="outline"
-              className="gap-1.5 px-2.5 py-1 font-normal"
-              style={{ borderColor: `color-mix(in oklch, ${metricColors.active} 50%, transparent)` }}
-            >
-              <div
-                className="h-1.5 w-1.5 rounded-full animate-pulse"
-                style={{ backgroundColor: metricColors.active }}
-              />
-              <span className="font-semibold tabular-nums" style={{ color: metricColors.active }}>{activeSessions.active_count}</span>
-              <span className="text-muted-foreground text-xs">활성</span>
-            </Badge>
-          )}
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card">
+          <Users className="h-4 w-4 text-muted-foreground" style={{ color: metricColors.sessions }} />
+          <span className="text-lg font-semibold tabular-nums">{(summary?.unique_sessions ?? 0).toLocaleString()}</span>
+          <span className="text-xs text-muted-foreground">세션</span>
+        </div>
+
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card">
+          <TrendingUp className="h-4 w-4 text-muted-foreground" style={{ color: metricColors.turns }} />
+          <span className="text-lg font-semibold tabular-nums">{conversationStats?.avg_turns?.toFixed(1) || "0"}</span>
+          <span className="text-xs text-muted-foreground">평균 턴</span>
+        </div>
+
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card">
+          <Clock className="h-4 w-4 text-muted-foreground" style={{ color: metricColors.responseTime }} />
+          <span className="text-lg font-semibold tabular-nums">{(summary?.avg_response_time_ms ?? 0).toFixed(0)}</span>
+          <span className="text-xs text-muted-foreground">ms</span>
+        </div>
+
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card">
+          <Zap className="h-4 w-4 text-muted-foreground" style={{ color: metricColors.tokens }} />
+          <span className="text-lg font-semibold tabular-nums">{((summary?.total_tokens ?? 0) / 1000).toFixed(1)}K</span>
+          <span className="text-xs text-muted-foreground">토큰</span>
         </div>
       </div>
 
@@ -492,56 +488,43 @@ export default function AnalyticsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* 일별 추이 - 인터랙티브 차트 */}
             <Card className="col-span-1 lg:col-span-2">
-              <CardHeader className="flex flex-row items-center justify-between gap-4 px-4 py-3 sm:px-6">
-                <div className="flex items-center gap-3">
-                  <CardTitle className="text-sm font-medium">일별 사용 추이</CardTitle>
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <div className="w-4 h-0.5 rounded" style={{ backgroundColor: "var(--chart-5)" }} />
-                    <span>7일 이동평균</span>
+              <CardHeader className="px-6 py-4">
+                <div className="flex items-center justify-between mb-4">
+                  <CardTitle className="text-base font-semibold">일별 사용 추이</CardTitle>
+                  <div className="flex items-center gap-3">
+                    <Select value={activeTimelineMetric} onValueChange={(val) => setActiveTimelineMetric(val as typeof activeTimelineMetric)}>
+                      <SelectTrigger className="w-[140px] h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="queries">
+                          <div className="flex items-center gap-2">
+                            <MessageSquare className="h-3.5 w-3.5" style={{ color: metricColors.queries }} />
+                            <span>쿼리</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="sessions">
+                          <div className="flex items-center gap-2">
+                            <Users className="h-3.5 w-3.5" style={{ color: metricColors.sessions }} />
+                            <span>세션</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="avg_response_time">
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-3.5 w-3.5" style={{ color: metricColors.responseTime }} />
+                            <span>응답시간</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <div className="w-4 h-0.5 rounded" style={{ backgroundColor: "var(--chart-5)" }} />
+                      <span>7일 이동평균</span>
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {(["queries", "sessions", "avg_response_time"] as const).map((key) => {
-                    const totals = {
-                      queries: timeline.reduce((acc, curr) => acc + (curr.queries || 0), 0),
-                      sessions: timeline.reduce((acc, curr) => acc + (curr.sessions || 0), 0),
-                      avg_response_time: timeline.length > 0
-                        ? Math.round(timeline.reduce((acc, curr) => acc + (curr.avg_response_time || 0), 0) / timeline.length)
-                        : 0,
-                    }
-                    const config = {
-                      queries: { label: "쿼리", unit: "", icon: MessageSquare, colorVar: metricColors.queries },
-                      sessions: { label: "세션", unit: "", icon: Users, colorVar: metricColors.sessions },
-                      avg_response_time: { label: "응답", unit: "ms", icon: Clock, colorVar: metricColors.responseTime },
-                    }
-                    const { label, unit, icon: Icon, colorVar } = config[key]
-                    const isActive = activeTimelineMetric === key
-                    return (
-                      <button
-                        key={key}
-                        onClick={() => setActiveTimelineMetric(key)}
-                        className="focus:outline-none"
-                      >
-                        <Badge
-                          variant={isActive ? "default" : "secondary"}
-                          className={cn(
-                            "gap-1.5 px-2.5 py-1 font-normal cursor-pointer transition-all",
-                            isActive ? "ring-2 ring-offset-1 ring-primary/30" : "hover:bg-muted"
-                          )}
-                        >
-                          <Icon
-                            className="h-3 w-3"
-                            style={{ color: isActive ? undefined : colorVar }}
-                          />
-                          <span className="font-semibold tabular-nums">{totals[key].toLocaleString()}{unit}</span>
-                          <span className={cn("text-xs", isActive ? "text-primary-foreground/70" : "text-muted-foreground")}>{label}</span>
-                        </Badge>
-                      </button>
-                    )
-                  })}
-                </div>
               </CardHeader>
-              <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
+              <CardContent className="px-6 pb-6">
                 {(() => {
                   // 7일 이동평균 계산 후 데이터에 추가
                   const movingAvgValues = calculateMovingAverage(timeline, activeTimelineMetric)
@@ -662,75 +645,108 @@ export default function AnalyticsPage() {
 
             {/* 최근 질문 피드 */}
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between gap-4 px-4 py-3 sm:px-6">
-                <CardTitle className="text-sm font-medium">최근 질문</CardTitle>
-                <div className="flex items-center gap-2">
-                  <ShadcnTooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={handleExcelDownload}
-                        disabled={downloading || !selectedCollection}
-                      >
-                        <Download className={cn("h-3.5 w-3.5", downloading && "animate-bounce")} />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">
-                      <p className="text-xs">대화내역 Excel 다운로드</p>
-                    </TooltipContent>
-                  </ShadcnTooltip>
-                  <Badge variant="outline" className="gap-1 px-2 py-0.5 font-normal text-xs">
-                    <div
-                      className="h-1.5 w-1.5 rounded-full animate-pulse"
-                      style={{ backgroundColor: metricColors.active }}
-                    />
-                    30초 갱신
-                  </Badge>
+              <CardHeader className="px-6 py-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base font-semibold">최근 질문</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <ShadcnTooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={handleExcelDownload}
+                          disabled={downloading || !selectedCollection}
+                        >
+                          <Download className={cn("h-4 w-4", downloading && "animate-bounce")} />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        <p className="text-xs">대화내역 Excel 다운로드</p>
+                      </TooltipContent>
+                    </ShadcnTooltip>
+                    <Badge variant="outline" className="gap-1.5 px-2 py-1 font-normal text-xs">
+                      <div
+                        className="h-1.5 w-1.5 rounded-full animate-pulse"
+                        style={{ backgroundColor: metricColors.active }}
+                      />
+                      30초 갱신
+                    </Badge>
+                  </div>
                 </div>
               </CardHeader>
-              <CardContent className="px-4 sm:px-6">
-                <ScrollArea className="h-[232px]">
-                  <div className="space-y-1.5">
-                    {recentQueries.length > 0 ? recentQueries.slice(0, 15).map((q, idx) => (
-                      <div key={idx} className="flex items-center gap-2 p-1.5 rounded-md hover:bg-muted/50 transition-colors">
-                        <MessageSquare className="h-3 w-3 text-muted-foreground shrink-0" />
-                        <span className="text-xs flex-1 truncate">{q.query}</span>
-                        <span className="text-[10px] text-muted-foreground shrink-0">
-                          {q.timestamp ? format(new Date(q.timestamp), "HH:mm") : "-"}
-                        </span>
-                      </div>
-                    )) : (
-                      <p className="text-xs text-muted-foreground text-center py-4">
+              <CardContent className="px-6 pb-6">
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    {recentQueries.length > 0 ? (
+                      <>
+                        {recentQueries
+                          .slice((recentQueriesPage - 1) * recentQueriesPerPage, recentQueriesPage * recentQueriesPerPage)
+                          .map((q, idx) => (
+                            <div key={idx} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors border border-transparent hover:border-border">
+                              <MessageSquare className="h-4 w-4 text-muted-foreground shrink-0" />
+                              <span className="text-sm flex-1 truncate">{q.query}</span>
+                              <span className="text-xs text-muted-foreground shrink-0 tabular-nums">
+                                {q.timestamp ? format(new Date(q.timestamp), "HH:mm") : "-"}
+                              </span>
+                            </div>
+                          ))}
+                      </>
+                    ) : (
+                      <p className="text-sm text-muted-foreground text-center py-8">
                         질문 데이터 없음
                       </p>
                     )}
                   </div>
-                </ScrollArea>
+                  {recentQueries.length > recentQueriesPerPage && (
+                    <div className="flex items-center justify-center gap-2 pt-2 border-t">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setRecentQueriesPage(prev => Math.max(1, prev - 1))}
+                        disabled={recentQueriesPage === 1}
+                      >
+                        이전
+                      </Button>
+                      <span className="text-xs text-muted-foreground px-2">
+                        {recentQueriesPage} / {Math.ceil(recentQueries.length / recentQueriesPerPage)}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setRecentQueriesPage(prev => Math.min(Math.ceil(recentQueries.length / recentQueriesPerPage), prev + 1))}
+                        disabled={recentQueriesPage >= Math.ceil(recentQueries.length / recentQueriesPerPage)}
+                      >
+                        다음
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
 
             {/* 시간대별 히트맵 */}
             <Card className="col-span-1 lg:col-span-2">
-              <CardHeader className="flex flex-row items-center justify-between gap-4 px-4 py-3 sm:px-6">
-                <CardTitle className="text-sm font-medium">시간대별 히트맵</CardTitle>
-                {heatmap && heatmap.max_value > 0 && (
-                  <Badge variant="secondary" className="gap-1.5 px-2.5 py-1 font-normal">
-                    <Zap className="h-3 w-3" style={{ color: metricColors.responseTime }} />
-                    <span className="text-xs">피크: {heatmap.labels?.days?.[(() => {
-                      let peakDay = 0, peakHour = 0, peakVal = 0
-                      heatmap.heatmap.forEach((d, di) => d.forEach((v, hi) => { if (v > peakVal) { peakVal = v; peakDay = di; peakHour = hi } }))
-                      return peakDay
-                    })()]} {(() => {
-                      let peakHour = 0, peakVal = 0
-                      heatmap.heatmap.forEach((d) => d.forEach((v, hi) => { if (v > peakVal) { peakVal = v; peakHour = hi } }))
-                      return peakHour
-                    })()}시</span>
-                  </Badge>
-                )}
+              <CardHeader className="px-6 py-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base font-semibold">시간대별 히트맵</CardTitle>
+                  {heatmap && heatmap.max_value > 0 && (
+                    <Badge variant="secondary" className="gap-2 px-3 py-1.5 font-normal">
+                      <Zap className="h-4 w-4" style={{ color: metricColors.responseTime }} />
+                      <span className="text-sm">피크: {heatmap.labels?.days?.[(() => {
+                        let peakDay = 0, peakHour = 0, peakVal = 0
+                        heatmap.heatmap.forEach((d, di) => d.forEach((v, hi) => { if (v > peakVal) { peakVal = v; peakDay = di; peakHour = hi } }))
+                        return peakDay
+                      })()]} {(() => {
+                        let peakHour = 0, peakVal = 0
+                        heatmap.heatmap.forEach((d) => d.forEach((v, hi) => { if (v > peakVal) { peakVal = v; peakHour = hi } }))
+                        return peakHour
+                      })()}시</span>
+                    </Badge>
+                  )}
+                </div>
               </CardHeader>
-              <CardContent className="px-4 sm:px-6">
+              <CardContent className="px-6 pb-6">
                 {heatmap && heatmap.labels?.days ? (
                   (() => {
                     // 피크 타임 계산
@@ -765,26 +781,26 @@ export default function AnalyticsPage() {
                         <ScrollArea className="w-full">
                           <div className="min-w-fit">
                             {/* 히트맵 본체 */}
-                            <div className="space-y-1.5">
-                              {/* 시간 레이블 */}
-                              <div className="flex gap-1 ml-12">
+                            <div className="space-y-1">
+                              {/* 시간 레이블 - 3시간 단위로 표시 */}
+                              <div className="flex gap-1 ml-14">
                                 {Array.from({ length: 24 }, (_, h) => (
                                   <div
                                     key={h}
                                     className={cn(
                                       "w-5 text-center text-[10px]",
-                                      h % 6 === 0 ? "text-foreground font-medium" : "text-muted-foreground/50"
+                                      h % 3 === 0 ? "text-foreground font-medium" : "text-muted-foreground/50"
                                     )}
                                   >
-                                    {h % 6 === 0 ? h : ""}
+                                    {h % 3 === 0 ? h : ""}
                                   </div>
                                 ))}
                               </div>
 
-                              {/* 히트맵 행 */}
+                              {/* 히트맵 행 - 간격 증가 */}
                               {heatmap.labels.days.map((day, dayIdx) => (
                                 <div key={day} className="flex items-center gap-2">
-                                  <span className="w-10 text-xs text-muted-foreground text-right shrink-0">{day}</span>
+                                  <span className="w-12 text-xs text-muted-foreground text-right shrink-0">{day}</span>
                                   <div className="flex gap-1">
                                     {heatmap.heatmap[dayIdx]?.map((value, hourIdx) => (
                                       <HeatmapCell
@@ -798,9 +814,9 @@ export default function AnalyticsPage() {
                                       />
                                     ))}
                                   </div>
-                                  {/* 요일별 합계 */}
-                                  <div className="flex items-center gap-1 ml-1 shrink-0">
-                                    <div className="w-10 h-2 bg-muted rounded-full overflow-hidden">
+                                  {/* 요일별 합계 - 바 높이 증가 */}
+                                  <div className="flex items-center gap-1.5 ml-2 shrink-0">
+                                    <div className="w-12 h-3 bg-muted rounded-full overflow-hidden">
                                       <div
                                         className="h-full rounded-full transition-all"
                                         style={{
@@ -809,15 +825,15 @@ export default function AnalyticsPage() {
                                         }}
                                       />
                                     </div>
-                                    <span className="text-xs text-muted-foreground w-12 text-right font-mono">
+                                    <span className="text-xs text-muted-foreground w-14 text-right font-mono">
                                       {daySums[dayIdx].toLocaleString()}
                                     </span>
                                   </div>
                                 </div>
                               ))}
 
-                              {/* 시간대별 합계 바 차트 */}
-                              <div className="flex items-end gap-1 ml-12 mt-3 pt-3 border-t h-16">
+                              {/* 시간대별 합계 바 차트 - 높이 및 간격 증가 */}
+                              <div className="flex items-end gap-1 ml-14 mt-4 pt-4 border-t h-20">
                                 {hourSums.map((sum, hourIdx) => {
                                   const height = maxHourSum > 0 ? (sum / maxHourSum) * 100 : 0
                                   return (
@@ -850,12 +866,12 @@ export default function AnalyticsPage() {
                                 })}
                               </div>
 
-                              {/* 시간대 구분 - 셀 너비 기반 고정 너비 (6셀 + 갭) */}
+                              {/* 시간대 구분 */}
                               <div className="flex ml-12 mt-1">
-                                <div style={{ width: '9rem' }} className="text-center text-[10px] text-muted-foreground">새벽 (0-6)</div>
-                                <div style={{ width: '9rem' }} className="text-center text-[10px] text-muted-foreground">오전 (6-12)</div>
-                                <div style={{ width: '9rem' }} className="text-center text-[10px] text-muted-foreground">오후 (12-18)</div>
-                                <div style={{ width: '8.75rem' }} className="text-center text-[10px] text-muted-foreground">저녁 (18-24)</div>
+                                <div className="flex-1 text-center text-[10px] text-muted-foreground">새벽 (0-6)</div>
+                                <div className="flex-1 text-center text-[10px] text-muted-foreground">오전 (6-12)</div>
+                                <div className="flex-1 text-center text-[10px] text-muted-foreground">오후 (12-18)</div>
+                                <div className="flex-1 text-center text-[10px] text-muted-foreground">저녁 (18-24)</div>
                               </div>
                             </div>
                           </div>
@@ -867,11 +883,11 @@ export default function AnalyticsPage() {
                           <div className="flex items-center gap-3">
                             <span className="text-xs text-muted-foreground">0건</span>
                             <div className="flex gap-1">
-                              <div className="w-5 h-5 bg-muted rounded-md" />
+                              <div className="w-4 h-4 bg-muted rounded" />
                               {[20, 40, 60, 80, 100].map((opacity) => (
                                 <div
                                   key={opacity}
-                                  className="w-5 h-5 rounded-md"
+                                  className="w-4 h-4 rounded"
                                   style={{ backgroundColor: `color-mix(in oklch, var(--chart-2) ${opacity}%, transparent)` }}
                                 />
                               ))}
@@ -893,23 +909,23 @@ export default function AnalyticsPage() {
 
             {/* 인기 검색어 */}
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between gap-4 px-4 py-3 sm:px-6">
-                <CardTitle className="text-sm font-medium">인기 검색어</CardTitle>
-                <Badge variant="secondary" className="gap-1 px-2 py-0.5 font-normal text-xs">
-                  TOP 15
-                </Badge>
+              <CardHeader className="px-6 py-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base font-semibold">인기 검색어</CardTitle>
+                  <Badge variant="secondary" className="gap-1 px-2.5 py-1 font-normal text-xs">
+                    TOP 10
+                  </Badge>
+                </div>
               </CardHeader>
-              <CardContent className="px-4 sm:px-6">
-                <ScrollArea className="h-[232px]">
-                  <div className="space-y-1">
-                    {summary?.top_queries?.slice(0, 15).map((query, idx) => (
-                      <div key={idx} className="flex items-center gap-2 p-1.5 rounded-md hover:bg-muted/50 transition-colors">
-                        <Badge variant="outline" className="text-[10px] w-4 h-4 p-0 flex items-center justify-center shrink-0">{idx + 1}</Badge>
-                        <span className="text-xs truncate flex-1">{query}</span>
-                      </div>
-                    )) || <p className="text-xs text-muted-foreground text-center py-4">데이터 없음</p>}
-                  </div>
-                </ScrollArea>
+              <CardContent className="px-6 pb-6">
+                <div className="space-y-2">
+                  {summary?.top_queries?.slice(0, 10).map((query, idx) => (
+                    <div key={idx} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors border border-transparent hover:border-border">
+                      <Badge variant="outline" className="text-xs w-6 h-6 p-0 flex items-center justify-center shrink-0 font-medium">{idx + 1}</Badge>
+                      <span className="text-sm truncate flex-1">{query}</span>
+                    </div>
+                  )) || <p className="text-sm text-muted-foreground text-center py-8">데이터 없음</p>}
+                </div>
               </CardContent>
             </Card>
           </div>
