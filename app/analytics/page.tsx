@@ -28,7 +28,7 @@ import {
 } from "lucide-react"
 import {
   XAxis, YAxis, CartesianGrid,
-  AreaChart, Area
+  ComposedChart, Bar, Line
 } from "recharts"
 import { toast } from "sonner"
 import { API_BASE_URL } from "@/lib/api-config"
@@ -47,7 +47,21 @@ const timelineChartConfig = {
     label: "응답시간(ms)",
     color: "var(--chart-3)",
   },
+  movingAvg: {
+    label: "7일 이동평균",
+    color: "var(--chart-5)",
+  },
 } satisfies ChartConfig
+
+// 7일 이동평균 계산 함수
+function calculateMovingAverage(data: TimelineData[], metric: keyof TimelineData, window: number = 7): (number | null)[] {
+  return data.map((_, idx) => {
+    if (idx < window - 1) return null // 충분한 데이터가 없으면 null
+    const slice = data.slice(idx - window + 1, idx + 1)
+    const sum = slice.reduce((acc, item) => acc + (Number(item[metric]) || 0), 0)
+    return Math.round(sum / window)
+  })
+}
 
 
 // ============================================================
@@ -469,7 +483,13 @@ export default function AnalyticsPage() {
             {/* 일별 추이 - 인터랙티브 차트 */}
             <Card className="col-span-1 lg:col-span-2">
               <CardHeader className="flex flex-row items-center justify-between gap-4 px-4 py-3 sm:px-6">
-                <CardTitle className="text-sm font-medium">일별 사용 추이</CardTitle>
+                <div className="flex items-center gap-3">
+                  <CardTitle className="text-sm font-medium">일별 사용 추이</CardTitle>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <div className="w-4 h-0.5 rounded" style={{ backgroundColor: "var(--chart-5)" }} />
+                    <span>7일 이동평균</span>
+                  </div>
+                </div>
                 <div className="flex items-center gap-2">
                   {(["queries", "sessions", "avg_response_time"] as const).map((key) => {
                     const totals = {
@@ -512,67 +532,149 @@ export default function AnalyticsPage() {
                 </div>
               </CardHeader>
               <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
-                <ChartContainer
-                  config={timelineChartConfig}
-                  className="aspect-auto h-[200px] w-full"
-                >
-                  <AreaChart
-                    accessibilityLayer
-                    data={timeline}
-                    margin={{ left: 12, right: 12 }}
-                  >
-                    <defs>
-                      <linearGradient id="fillQueries" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--color-queries)" stopOpacity={mounted ? chartOpacity.gradientStart : 0.8} />
-                        <stop offset="95%" stopColor="var(--color-queries)" stopOpacity={mounted ? chartOpacity.gradientEnd : 0.1} />
-                      </linearGradient>
-                      <linearGradient id="fillSessions" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--color-sessions)" stopOpacity={mounted ? chartOpacity.gradientStart : 0.8} />
-                        <stop offset="95%" stopColor="var(--color-sessions)" stopOpacity={mounted ? chartOpacity.gradientEnd : 0.1} />
-                      </linearGradient>
-                      <linearGradient id="fillResponseTime" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--color-avg_response_time)" stopOpacity={mounted ? chartOpacity.gradientStart : 0.8} />
-                        <stop offset="95%" stopColor="var(--color-avg_response_time)" stopOpacity={mounted ? chartOpacity.gradientEnd : 0.1} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid vertical={false} />
-                    <XAxis
-                      dataKey="date"
-                      tickLine={false}
-                      axisLine={false}
-                      tickMargin={8}
-                      minTickGap={32}
-                      tickFormatter={(v) => format(new Date(v), "M/d")}
-                    />
-                    <YAxis
-                      tickLine={false}
-                      axisLine={false}
-                      tickMargin={8}
-                      width={45}
-                      tickFormatter={(v) => activeTimelineMetric === "avg_response_time" ? `${v}` : v.toLocaleString()}
-                    />
-                    <ChartTooltip
-                      cursor={false}
-                      content={
-                        <ChartTooltipContent
-                          className="w-[150px]"
-                          labelFormatter={(value) => format(new Date(value), "M월 d일 (EEE)")}
-                          indicator="line"
+                {(() => {
+                  // 7일 이동평균 계산 후 데이터에 추가
+                  const movingAvgValues = calculateMovingAverage(timeline, activeTimelineMetric)
+                  const chartData = timeline.map((item, idx) => ({
+                    ...item,
+                    movingAvg: movingAvgValues[idx],
+                    // 주말 표시를 위한 플래그
+                    isWeekend: new Date(item.date).getDay() === 0 || new Date(item.date).getDay() === 6,
+                  }))
+
+                  // 최대/최소값 인덱스 계산
+                  const values = timeline.map(d => Number(d[activeTimelineMetric]) || 0)
+                  const maxValue = Math.max(...values)
+                  const minValue = Math.min(...values.filter(v => v > 0))
+                  const maxIdx = values.indexOf(maxValue)
+                  const minIdx = values.indexOf(minValue)
+
+                  return (
+                    <ChartContainer
+                      config={timelineChartConfig}
+                      className="aspect-auto h-[220px] w-full"
+                    >
+                      <ComposedChart
+                        accessibilityLayer
+                        data={chartData}
+                        margin={{ left: 12, right: 12, top: 10 }}
+                      >
+                        <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                        <XAxis
+                          dataKey="date"
+                          tickLine={false}
+                          axisLine={false}
+                          tickMargin={8}
+                          minTickGap={32}
+                          tickFormatter={(v) => format(new Date(v), "M/d")}
                         />
-                      }
-                    />
-                    <Area
-                      type="natural"
-                      dataKey={activeTimelineMetric}
-                      stroke={`var(--color-${activeTimelineMetric})`}
-                      fill={activeTimelineMetric === "queries" ? "url(#fillQueries)" : activeTimelineMetric === "sessions" ? "url(#fillSessions)" : "url(#fillResponseTime)"}
-                      fillOpacity={mounted ? chartOpacity.fill : 0.4}
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 5, strokeWidth: 2, className: "fill-background" }}
-                    />
-                  </AreaChart>
-                </ChartContainer>
+                        <YAxis
+                          tickLine={false}
+                          axisLine={false}
+                          tickMargin={8}
+                          width={45}
+                          tickFormatter={(v) => activeTimelineMetric === "avg_response_time" ? `${v}` : v.toLocaleString()}
+                        />
+                        <ChartTooltip
+                          cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+                          content={
+                            <ChartTooltipContent
+                              className="w-[180px]"
+                              labelFormatter={(value) => {
+                                try {
+                                  const date = new Date(value)
+                                  if (isNaN(date.getTime())) return String(value)
+                                  const dayNames = ['일', '월', '화', '수', '목', '금', '토']
+                                  const isWeekend = date.getDay() === 0 || date.getDay() === 6
+                                  return (
+                                    <span className={isWeekend ? "text-destructive" : ""}>
+                                      {format(date, "M월 d일")} ({dayNames[date.getDay()]})
+                                    </span>
+                                  )
+                                } catch {
+                                  return String(value)
+                                }
+                              }}
+                              indicator="line"
+                            />
+                          }
+                        />
+                        {/* 바 차트 - 일별 데이터 */}
+                        <Bar
+                          dataKey={activeTimelineMetric}
+                          fill={`var(--color-${activeTimelineMetric})`}
+                          radius={[4, 4, 0, 0]}
+                          fillOpacity={mounted ? 0.8 : 0.6}
+                          shape={(props: any) => {
+                            const { x, y, width, height, index } = props
+                            const isMax = index === maxIdx && maxValue > 0
+                            const isMin = index === minIdx && minValue > 0
+                            const isWeekend = chartData[index]?.isWeekend
+
+                            return (
+                              <g>
+                                <rect
+                                  x={x}
+                                  y={y}
+                                  width={width}
+                                  height={height}
+                                  rx={4}
+                                  ry={4}
+                                  fill={`var(--color-${activeTimelineMetric})`}
+                                  fillOpacity={isWeekend ? 0.5 : 0.8}
+                                  stroke={isMax ? "var(--chart-3)" : isMin ? "var(--chart-4)" : "none"}
+                                  strokeWidth={isMax || isMin ? 2 : 0}
+                                />
+                                {/* 최대값 마커 */}
+                                {isMax && (
+                                  <text
+                                    x={x + width / 2}
+                                    y={y - 6}
+                                    textAnchor="middle"
+                                    fill="var(--chart-3)"
+                                    fontSize={10}
+                                    fontWeight="bold"
+                                  >
+                                    ▲
+                                  </text>
+                                )}
+                                {/* 최소값 마커 */}
+                                {isMin && (
+                                  <text
+                                    x={x + width / 2}
+                                    y={y - 6}
+                                    textAnchor="middle"
+                                    fill="var(--chart-4)"
+                                    fontSize={10}
+                                    fontWeight="bold"
+                                  >
+                                    ▼
+                                  </text>
+                                )}
+                              </g>
+                            )
+                          }}
+                        />
+                        {/* 7일 이동평균 라인 */}
+                        <Line
+                          type="monotone"
+                          dataKey="movingAvg"
+                          stroke="var(--color-movingAvg)"
+                          strokeWidth={2.5}
+                          dot={false}
+                          strokeDasharray="0"
+                          connectNulls={false}
+                          activeDot={{
+                            r: 5,
+                            strokeWidth: 2,
+                            fill: "var(--background)",
+                            stroke: "var(--color-movingAvg)"
+                          }}
+                        />
+                      </ComposedChart>
+                    </ChartContainer>
+                  )
+                })()}
               </CardContent>
             </Card>
 
