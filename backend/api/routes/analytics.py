@@ -30,6 +30,17 @@ from backend.services.hybrid_logging_service import hybrid_logging_service
 # 로거 설정
 logger = logging.getLogger(__name__)
 
+
+def _normalize_collection(collection_name: Optional[str]) -> Optional[str]:
+    """
+    컬렉션 이름 정규화
+    - "ALL", 빈 문자열, None → None (전체 조회)
+    - 그 외 → 그대로 반환
+    """
+    if collection_name in ("ALL", "", None):
+        return None
+    return collection_name
+
 router = APIRouter(
     prefix="/api/analytics",
     tags=["analytics"],
@@ -65,8 +76,11 @@ async def get_analytics_summary(
             - top_queries: 인기 쿼리 목록
     """
     try:
+        # "ALL" → None 정규화 (전체 조회)
+        normalized_collection = _normalize_collection(collection_name)
+
         summary = await statistics_service.get_summary(
-            collection_name=collection_name,
+            collection_name=normalized_collection,
             date_from=date_from,
             date_to=date_to,
             db=db
@@ -89,7 +103,7 @@ async def get_timeline_data(
     시계열 데이터 조회
 
     Args:
-        collection_name: 컬렉션 이름
+        collection_name: 컬렉션 이름 ('ALL'은 전체 조회)
         period: 집계 주기 ("daily" 또는 "hourly")
         days: 조회할 일수 (기본: 7일)
         db: 데이터베이스 세션
@@ -110,8 +124,11 @@ async def get_timeline_data(
         if days < 1 or days > 90:
             raise ValueError(f"Days must be between 1 and 90")
 
+        # "ALL" → None 정규화 (전체 조회)
+        normalized_collection = _normalize_collection(collection_name)
+
         timeline = await statistics_service.get_timeline(
-            collection_name=collection_name,
+            collection_name=normalized_collection,
             period=period,
             days=days,
             db=db
@@ -437,7 +454,7 @@ async def get_collection_stats(db: Session = Depends(get_db)):
 
 @router.get("/hourly-heatmap")
 async def get_hourly_heatmap(
-    collection_name: Optional[str] = Query(None, description="컬렉션 이름"),
+    collection_name: Optional[str] = Query(None, description="컬렉션 이름 ('ALL'은 전체 조회)"),
     days: int = Query(7, ge=1, le=30, description="최근 N일간 데이터"),
     db: Session = Depends(get_db)
 ):
@@ -448,11 +465,14 @@ async def get_hourly_heatmap(
         dict: 요일(0-6) x 시간(0-23) 매트릭스
     """
     try:
+        # "ALL" → None 정규화 (전체 조회)
+        normalized_collection = _normalize_collection(collection_name)
+
         end_date = date.today()
         start_date = end_date - timedelta(days=days)
 
         # 로그 데이터 조회
-        df = await statistics_service.query_logs_by_date_range(start_date, end_date, collection_name)
+        df = await statistics_service.query_logs_by_date_range(start_date, end_date, normalized_collection)
 
         if df.empty:
             # 빈 히트맵 반환
@@ -500,7 +520,7 @@ async def get_hourly_heatmap(
 
 @router.get("/conversation-stats")
 async def get_conversation_stats(
-    collection_name: Optional[str] = Query(None, description="컬렉션 이름"),
+    collection_name: Optional[str] = Query(None, description="컬렉션 이름 ('ALL'은 전체 조회)"),
     days: int = Query(7, ge=1, le=30, description="최근 N일간 데이터"),
     db: Session = Depends(get_db)
 ):
@@ -511,6 +531,9 @@ async def get_conversation_stats(
         dict: 대화 관련 통계
     """
     try:
+        # "ALL" → None 정규화 (전체 조회)
+        normalized_collection = _normalize_collection(collection_name)
+
         # ChatSession 테이블에서 조회
         query = db.query(ChatSession)
 
@@ -519,8 +542,8 @@ async def get_conversation_stats(
 
         query = query.filter(ChatSession.started_at >= start_date)
 
-        if collection_name:
-            query = query.filter(ChatSession.collection_name == collection_name)
+        if normalized_collection:
+            query = query.filter(ChatSession.collection_name == normalized_collection)
 
         sessions = query.all()
 
@@ -576,7 +599,7 @@ async def get_conversation_stats(
 
 @router.get("/top-documents")
 async def get_top_documents(
-    collection_name: Optional[str] = Query(None, description="컬렉션 이름"),
+    collection_name: Optional[str] = Query(None, description="컬렉션 이름 ('ALL'은 전체 조회)"),
     days: int = Query(7, ge=1, le=30, description="최근 N일간 데이터"),
     limit: int = Query(10, ge=1, le=50, description="조회할 문서 수")
 ):
@@ -587,10 +610,13 @@ async def get_top_documents(
         list: 문서별 참조 횟수
     """
     try:
+        # "ALL" → None 정규화 (전체 조회)
+        normalized_collection = _normalize_collection(collection_name)
+
         end_date = date.today()
         start_date = end_date - timedelta(days=days)
 
-        df = await statistics_service.query_logs_by_date_range(start_date, end_date, collection_name)
+        df = await statistics_service.query_logs_by_date_range(start_date, end_date, normalized_collection)
 
         if df.empty or 'retrieval_info' not in df.columns:
             return {"documents": [], "total": 0}
@@ -624,7 +650,7 @@ async def get_top_documents(
 
 @router.get("/page-distribution")
 async def get_page_distribution(
-    collection_name: Optional[str] = Query(None, description="컬렉션 이름"),
+    collection_name: Optional[str] = Query(None, description="컬렉션 이름 ('ALL'은 전체 조회)"),
     document_name: Optional[str] = Query(None, description="특정 문서 필터"),
     days: int = Query(7, ge=1, le=30, description="최근 N일간 데이터")
 ):
@@ -635,10 +661,13 @@ async def get_page_distribution(
         dict: 페이지별 참조 횟수
     """
     try:
+        # "ALL" → None 정규화 (전체 조회)
+        normalized_collection = _normalize_collection(collection_name)
+
         end_date = date.today()
         start_date = end_date - timedelta(days=days)
 
-        df = await statistics_service.query_logs_by_date_range(start_date, end_date, collection_name)
+        df = await statistics_service.query_logs_by_date_range(start_date, end_date, normalized_collection)
 
         if df.empty or 'retrieval_info' not in df.columns:
             return {"pages": [], "document_stats": {}}
@@ -697,7 +726,7 @@ async def get_page_distribution(
 
 @router.get("/response-time-distribution")
 async def get_response_time_distribution(
-    collection_name: Optional[str] = Query(None, description="컬렉션 이름"),
+    collection_name: Optional[str] = Query(None, description="컬렉션 이름 ('ALL'은 전체 조회)"),
     days: int = Query(7, ge=1, le=30, description="최근 N일간 데이터")
 ):
     """
@@ -707,10 +736,13 @@ async def get_response_time_distribution(
         dict: 응답시간 구간별 빈도 및 백분위
     """
     try:
+        # "ALL" → None 정규화 (전체 조회)
+        normalized_collection = _normalize_collection(collection_name)
+
         end_date = date.today()
         start_date = end_date - timedelta(days=days)
 
-        df = await statistics_service.query_logs_by_date_range(start_date, end_date, collection_name)
+        df = await statistics_service.query_logs_by_date_range(start_date, end_date, normalized_collection)
 
         if df.empty or 'performance' not in df.columns:
             return {
@@ -774,7 +806,7 @@ async def get_response_time_distribution(
 
 @router.get("/token-usage-trend")
 async def get_token_usage_trend(
-    collection_name: Optional[str] = Query(None, description="컬렉션 이름"),
+    collection_name: Optional[str] = Query(None, description="컬렉션 이름 ('ALL'은 전체 조회)"),
     days: int = Query(7, ge=1, le=30, description="최근 N일간 데이터")
 ):
     """
@@ -784,10 +816,13 @@ async def get_token_usage_trend(
         list: 일별 토큰 사용량
     """
     try:
+        # "ALL" → None 정규화 (전체 조회)
+        normalized_collection = _normalize_collection(collection_name)
+
         end_date = date.today()
         start_date = end_date - timedelta(days=days)
 
-        df = await statistics_service.query_logs_by_date_range(start_date, end_date, collection_name)
+        df = await statistics_service.query_logs_by_date_range(start_date, end_date, normalized_collection)
 
         if df.empty:
             return {"trend": [], "total": 0}

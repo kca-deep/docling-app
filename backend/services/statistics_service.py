@@ -469,15 +469,29 @@ class StatisticsService:
 
     async def get_timeline(
         self,
-        collection_name: str,
+        collection_name: Optional[str],
         period: str,  # "daily" or "hourly"
         days: int,
         db: Session
     ) -> List[Dict[str, Any]]:
-        """시계열 데이터 조회 (전체 통계는 collection_name='ALL')"""
+        """시계열 데이터 조회
+
+        Args:
+            collection_name: 컬렉션 이름 (None이면 전체 조회)
+            period: 집계 주기 ("daily" 또는 "hourly")
+            days: 조회할 일수
+            db: 데이터베이스 세션
+
+        Returns:
+            List[Dict]: 시계열 데이터
+        """
         try:
             end_date = date.today()
             start_date = end_date - timedelta(days=days)
+
+            # 전체 조회 시 JSONL에서 직접 계산 (DB에 "ALL" 레코드가 없을 수 있음)
+            if collection_name is None:
+                return await self._get_timeline_from_logs(None, start_date, end_date)
 
             query = db.query(ChatStatistics).filter(
                 and_(
@@ -581,7 +595,20 @@ class StatisticsService:
         end_date: date,
         collection_name: Optional[str] = None
     ) -> pd.DataFrame:
-        """날짜 범위로 로그 조회 (pandas DataFrame 반환)"""
+        """날짜 범위로 로그 조회 (pandas DataFrame 반환)
+
+        Args:
+            start_date: 시작 날짜
+            end_date: 종료 날짜
+            collection_name: 컬렉션 이름 (None이면 전체 조회, "ALL"도 전체 조회로 처리)
+
+        Returns:
+            pd.DataFrame: 로그 데이터
+        """
+        # 방어적 처리: "ALL" 또는 빈 문자열 → None (전체 조회)
+        if collection_name in ("ALL", ""):
+            collection_name = None
+
         dfs = []
         current_date = start_date
 
