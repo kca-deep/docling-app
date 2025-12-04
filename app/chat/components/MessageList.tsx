@@ -2,11 +2,9 @@
 
 import { useEffect, useRef, useState, memo } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Bot } from "lucide-react";
 import { MessageBubble } from "./MessageBubble";
 import { SuggestedPrompts } from "./SuggestedPrompts";
+import { ThinkingIndicator } from "./ThinkingIndicator";
 import { toast } from "sonner";
 
 interface Message {
@@ -171,25 +169,7 @@ export const MessageList = memo(function MessageList({
             !isStreaming ||
             (isStreaming && (messages.length === 0 || messages[messages.length - 1].role !== 'assistant'))
           ) && (
-            <div className="flex gap-3 w-full">
-              <Avatar className="h-8 w-8 flex-shrink-0">
-                <AvatarFallback className="bg-muted">
-                  <Bot className="h-4 w-4 animate-pulse" />
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 max-w-[calc(100%-3rem)]">
-                <div className="rounded-2xl px-4 py-3 bg-muted transition-all">
-                  <div className="flex items-center gap-3">
-                    <div className="flex gap-1.5">
-                      <div className="h-2.5 w-2.5 bg-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <div className="h-2.5 w-2.5 bg-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <div className="h-2.5 w-2.5 bg-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                    </div>
-                    <span className="text-sm text-muted-foreground font-medium">KCA-i가 생각하고 있습니다...</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <ThinkingIndicator />
           )}
 
           {/* 새 메시지 알림 (사용자가 스크롤했을 때만) */}
