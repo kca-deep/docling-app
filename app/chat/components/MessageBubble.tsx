@@ -187,13 +187,19 @@ export const MessageBubble = memo(function MessageBubble({
       <Avatar className="h-8 w-8 flex-shrink-0">
         <AvatarFallback
           className={cn(
-            role === "user"
-              ? "bg-primary text-primary-foreground"
-              : "bg-muted text-muted-foreground"
+            role === "user" && "text-white",
+            role !== "user" && role !== "assistant" && "bg-muted text-muted-foreground"
           )}
+          style={
+            role === "user"
+              ? { background: "linear-gradient(135deg, var(--chart-1), var(--chart-2))" }
+              : role === "assistant"
+              ? { background: "color-mix(in oklch, var(--chart-3) 15%, var(--muted))" }
+              : undefined
+          }
         >
           {role === "assistant" ? (
-            <Bot className="h-4 w-4" />
+            <Bot className="h-4 w-4" style={{ color: "var(--chart-3)" }} />
           ) : role === "system" ? (
             <RefreshCw className="h-4 w-4" />
           ) : (
@@ -213,12 +219,15 @@ export const MessageBubble = memo(function MessageBubble({
         <div
           className={cn(
             "rounded-2xl px-4 py-3 transition-colors inline-block max-w-full",
-            role === "user"
-              ? "bg-primary text-primary-foreground"
-              : role === "system"
-              ? "bg-muted/50"
-              : "bg-muted/80"
+            role === "user" && "text-white",
+            role === "system" && "bg-muted/50",
+            role === "assistant" && "bg-muted/80"
           )}
+          style={
+            role === "user"
+              ? { background: "linear-gradient(135deg, var(--chart-1), var(--chart-2))" }
+              : undefined
+          }
         >
           <div className="min-w-0">
             {parsedContent && parsedContent.hasThought ? (
@@ -285,7 +294,7 @@ export const MessageBubble = memo(function MessageBubble({
               {/* 참조 문서 요약 */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                  <FileText className="h-3.5 w-3.5" style={{ color: "var(--chart-2)" }} />
                   <span className="text-xs font-medium text-muted-foreground">
                     {sources.length}개 참조문서
                   </span>
@@ -295,6 +304,7 @@ export const MessageBubble = memo(function MessageBubble({
                   size="sm"
                   className="h-6 text-xs cursor-pointer"
                   onClick={() => onOpenArtifact?.(sources, messageId)}
+                  style={{ color: "var(--chart-1)" }}
                 >
                   전체보기
                 </Button>

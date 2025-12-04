@@ -128,13 +128,13 @@ export const InputArea = memo(function InputArea({
       value: "gpt-oss-20b",
       label: "GPT-OSS 20B",
       description: "빠른 응답, 범용 질문에 적합",
-      icon: <Sparkles className="h-4 w-4" />,
+      icon: <Sparkles className="h-4 w-4" style={{ color: "var(--chart-1)" }} />,
     },
     {
       value: "exaone-deep-7.8b",
       label: "EXAONE 7.8B",
       description: "경량화, 빠른 추론",
-      icon: <Zap className="h-4 w-4" />,
+      icon: <Zap className="h-4 w-4" style={{ color: "var(--chart-3)" }} />,
     },
   ];
 
@@ -228,10 +228,13 @@ export const InputArea = memo(function InputArea({
                         "h-9 w-9 rounded-full transition-all",
                         isStreaming
                           ? "bg-muted hover:bg-muted/80 text-foreground"
-                          : canSend
-                          ? "bg-primary hover:bg-primary/90"
-                          : "opacity-30 cursor-not-allowed bg-muted"
+                          : !canSend && "opacity-30 cursor-not-allowed bg-muted"
                       )}
+                      style={
+                        !isStreaming && canSend
+                          ? { background: "linear-gradient(135deg, var(--chart-1), var(--chart-2))" }
+                          : undefined
+                      }
                     >
                       {isStreaming ? (
                         <StopCircle className="h-5 w-5" />
@@ -260,7 +263,7 @@ export const InputArea = memo(function InputArea({
               <Select value={selectedCollection} onValueChange={onCollectionChange}>
                 <SelectTrigger className="h-8 w-auto min-w-[140px] border-muted hover:bg-muted/50 transition-colors gap-2 rounded-full">
                   <div className="flex items-center gap-1.5">
-                    <Database className="h-3.5 w-3.5" />
+                    <Database className="h-3.5 w-3.5" style={{ color: "var(--chart-2)" }} />
                     <span className="text-xs font-medium">{selectedCollection || "컬렉션 선택"}</span>
                   </div>
                 </SelectTrigger>
@@ -295,16 +298,19 @@ export const InputArea = memo(function InputArea({
                         "h-8 w-8 transition-colors",
                         deepThinkingEnabled && "bg-muted"
                       )}
+                      style={
+                        deepThinkingEnabled
+                          ? { backgroundColor: "color-mix(in oklch, var(--chart-5) 15%, transparent)" }
+                          : undefined
+                      }
                       disabled={isLoading}
                       onClick={() => onDeepThinkingChange(!deepThinkingEnabled)}
                     >
                       <Brain
-                        className={cn(
-                          "h-3.5 w-3.5 transition-colors",
-                          deepThinkingEnabled
-                            ? "text-foreground"
-                            : "text-muted-foreground"
-                        )}
+                        className="h-3.5 w-3.5 transition-colors"
+                        style={{
+                          color: deepThinkingEnabled ? "var(--chart-5)" : undefined
+                        }}
                       />
                     </Button>
                   </TooltipTrigger>

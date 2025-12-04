@@ -416,6 +416,19 @@ export default function ExcelEmbeddingPage() {
 
   return (
     <PageContainer maxWidth="wide" className="py-4">
+      {/* Page Header */}
+      <div className="space-y-2 mb-6">
+        <h1
+          className="text-3xl font-bold tracking-tight bg-clip-text text-transparent"
+          style={{
+            backgroundImage: "linear-gradient(90deg, var(--chart-2), var(--chart-3))"
+          }}
+        >
+          Excel 임베딩
+        </h1>
+        <p className="text-muted-foreground">Excel 파일의 데이터를 벡터 DB에 임베딩합니다</p>
+      </div>
+
       <div className="space-y-4">
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_24rem] gap-4">
           {/* 좌측: 파일 업로드 및 미리보기 */}
@@ -424,21 +437,22 @@ export default function ExcelEmbeddingPage() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <FileSpreadsheet className="h-4 w-4" />
+                  <FileSpreadsheet className="h-4 w-4" style={{ color: "var(--chart-2)" }} />
                   Excel 파일
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {!uploadedFile ? (
                   <div
-                    className={`
-                      border-2 border-dashed rounded-lg p-6 text-center cursor-pointer
-                      transition-colors duration-200
-                      ${isDragging
-                        ? 'border-primary bg-primary/5'
-                        : 'border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50'
-                      }
-                    `}
+                    className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors duration-200"
+                    style={{
+                      borderColor: isDragging
+                        ? "var(--chart-2)"
+                        : "color-mix(in oklch, var(--muted-foreground) 25%, transparent)",
+                      backgroundColor: isDragging
+                        ? "color-mix(in oklch, var(--chart-2) 5%, transparent)"
+                        : undefined
+                    }}
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
@@ -451,7 +465,10 @@ export default function ExcelEmbeddingPage() {
                       onChange={handleFileSelect}
                       className="hidden"
                     />
-                    <FileSpreadsheet className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
+                    <FileSpreadsheet
+                      className="h-10 w-10 mx-auto mb-2"
+                      style={{ color: isDragging ? "var(--chart-2)" : undefined }}
+                    />
                     <p className="text-sm text-muted-foreground">
                       Excel 파일을 드래그하거나 <span className="text-primary font-medium">클릭하여 선택</span>
                     </p>
@@ -634,7 +651,7 @@ export default function ExcelEmbeddingPage() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Database className="h-4 w-4" />
+                  <Database className="h-4 w-4" style={{ color: "var(--chart-2)" }} />
                   Collection
                 </CardTitle>
               </CardHeader>
@@ -823,7 +840,7 @@ export default function ExcelEmbeddingPage() {
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base flex items-center gap-2">
-                    <Settings2 className="h-4 w-4" />
+                    <Settings2 className="h-4 w-4" style={{ color: "var(--chart-5)" }} />
                     Column Mapping
                   </CardTitle>
                 </CardHeader>
@@ -1016,12 +1033,12 @@ export default function ExcelEmbeddingPage() {
               <Card>
                 <CardContent className="py-4">
                   <div className="flex items-center gap-4 text-sm">
-                    <div className="flex items-center gap-1.5 text-green-600">
+                    <div className="flex items-center gap-1.5" style={{ color: "var(--chart-2)" }}>
                       <CheckCircle2 className="h-4 w-4" />
                       <span>{embeddingResults.filter(r => r.success).length} success</span>
                     </div>
                     {embeddingResults.filter(r => !r.success).length > 0 && (
-                      <div className="flex items-center gap-1.5 text-red-600">
+                      <div className="flex items-center gap-1.5 text-destructive">
                         <XCircle className="h-4 w-4" />
                         <span>{embeddingResults.filter(r => !r.success).length} failed</span>
                       </div>

@@ -407,6 +407,19 @@ export default function ParsePage() {
 
   return (
     <PageContainer maxWidth="wide" className="py-4">
+      {/* Page Header */}
+      <div className="space-y-2 mb-6">
+        <h1
+          className="text-3xl font-bold tracking-tight bg-clip-text text-transparent"
+          style={{
+            backgroundImage: "linear-gradient(90deg, var(--chart-1), var(--chart-2))"
+          }}
+        >
+          문서변환
+        </h1>
+        <p className="text-muted-foreground">PDF, DOCX, PPTX 문서를 마크다운으로 변환합니다</p>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-4">
         {/* Left Column: File Upload (70%) */}
         <div className="space-y-4">
@@ -418,11 +431,15 @@ export default function ParsePage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div
-              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                isDragging
-                  ? "border-primary bg-primary/10"
-                  : "border-muted-foreground/25 hover:border-primary/50"
-              }`}
+              className="border-2 border-dashed rounded-lg p-8 text-center transition-colors"
+              style={{
+                borderColor: isDragging
+                  ? "var(--chart-1)"
+                  : "color-mix(in oklch, var(--muted-foreground) 25%, transparent)",
+                backgroundColor: isDragging
+                  ? "color-mix(in oklch, var(--chart-1) 10%, transparent)"
+                  : undefined
+              }}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
@@ -440,7 +457,10 @@ export default function ParsePage() {
                 htmlFor="file-upload"
                 className="cursor-pointer flex flex-col items-center space-y-3"
               >
-                <FolderOpen className={`w-12 h-12 ${isDragging ? "text-primary" : "text-muted-foreground"}`} />
+                <FolderOpen
+                  className="w-12 h-12"
+                  style={{ color: isDragging ? "var(--chart-1)" : undefined }}
+                />
                 <div>
                   <p className="text-base font-medium">
                     파일 선택 또는 드래그 앤 드롭
@@ -479,13 +499,13 @@ export default function ParsePage() {
                         <div className="flex items-center space-x-3 flex-1 min-w-0">
                           <div className="flex-shrink-0">
                             {fileStatus.status === "pending" && (
-                              <FileText className="w-5 h-5 text-muted-foreground" />
+                              <FileText className="w-5 h-5" style={{ color: "var(--chart-1)" }} />
                             )}
                             {fileStatus.status === "processing" && (
-                              <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" />
+                              <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--chart-3)" }} />
                             )}
                             {fileStatus.status === "success" && (
-                              <CheckCircle2 className="w-5 h-5 text-foreground" />
+                              <CheckCircle2 className="w-5 h-5" style={{ color: "var(--chart-2)" }} />
                             )}
                             {fileStatus.status === "error" && (
                               <XCircle className="w-5 h-5 text-destructive" />
@@ -565,7 +585,7 @@ export default function ParsePage() {
                   <div className="flex gap-4 text-sm">
                     {successCount > 0 && (
                       <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-foreground" />
+                        <CheckCircle2 className="w-4 h-4" style={{ color: "var(--chart-2)" }} />
                         <span>성공: {successCount}개</span>
                       </div>
                     )}
@@ -629,7 +649,7 @@ export default function ParsePage() {
           <Card className="min-w-0 overflow-hidden">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
-                <Settings className="w-4 h-4" />
+                <Settings className="w-4 h-4" style={{ color: "var(--chart-5)" }} />
                 파싱 옵션
               </CardTitle>
             </CardHeader>
@@ -649,7 +669,7 @@ export default function ParsePage() {
                   <SelectContent>
                     <SelectItem value="docling">
                       <div className="flex items-center gap-2">
-                        <Zap className="w-3.5 h-3.5" />
+                        <Zap className="w-3.5 h-3.5" style={{ color: "var(--chart-3)" }} />
                         <span>Docling</span>
                         <Badge variant="secondary" className="text-xs">
                           빠름
@@ -658,7 +678,7 @@ export default function ParsePage() {
                     </SelectItem>
                     <SelectItem value="qwen3-vl">
                       <div className="flex items-center gap-2">
-                        <Sparkles className="w-3.5 h-3.5" />
+                        <Sparkles className="w-3.5 h-3.5" style={{ color: "var(--chart-5)" }} />
                         <span>Qwen3-VL</span>
                         <Badge variant="secondary" className="text-xs">
                           AI
@@ -737,7 +757,7 @@ export default function ParsePage() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-3">
                 {selectedResult?.status === "success" ? (
-                  <CheckCircle2 className="w-5 h-5 text-foreground flex-shrink-0" />
+                  <CheckCircle2 className="w-5 h-5 flex-shrink-0" style={{ color: "var(--chart-2)" }} />
                 ) : (
                   <XCircle className="w-5 h-5 text-destructive flex-shrink-0" />
                 )}

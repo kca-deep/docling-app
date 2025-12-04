@@ -864,22 +864,34 @@ export function ChatContainer() {
       )}>
         {/* 왼쪽: 로고 */}
         <div className="flex items-center gap-3">
-          {/* Icon Container */}
+          {/* Icon Container with Gradient */}
           <div className="relative">
-            <div className="absolute inset-0 bg-primary rounded-lg blur-sm opacity-75" />
-            <div className="relative bg-primary p-2 rounded-lg shadow-lg">
-              <Bot className="h-5 w-5 text-primary-foreground" strokeWidth={2.5} />
+            <div
+              className="absolute inset-0 rounded-lg blur-sm opacity-75"
+              style={{ background: "linear-gradient(135deg, var(--chart-3), var(--chart-1))" }}
+            />
+            <div
+              className="relative p-2 rounded-lg shadow-lg"
+              style={{ background: "linear-gradient(135deg, var(--chart-3), var(--chart-1))" }}
+            >
+              <Bot className="h-5 w-5 text-white" strokeWidth={2.5} />
             </div>
           </div>
 
           {/* Text Container */}
           <div className="hidden sm:flex flex-col">
-            <span className="font-bold text-lg text-foreground leading-none tracking-tight">
+            <span
+              className="font-bold text-lg leading-none tracking-tight bg-clip-text text-transparent"
+              style={{ backgroundImage: "linear-gradient(90deg, var(--chart-3), var(--chart-1))" }}
+            >
               KCA-i
             </span>
             <div className="flex items-baseline gap-1.5 mt-0.5">
               <span className="font-bold text-xs text-foreground leading-none">RAG</span>
-              <span className="text-[0.65rem] text-muted-foreground font-medium leading-tight">
+              <span
+                className="text-[0.65rem] font-medium leading-tight bg-clip-text text-transparent"
+                style={{ backgroundImage: "linear-gradient(90deg, var(--chart-3), var(--chart-1))" }}
+              >
                 기반 챗봇
               </span>
             </div>

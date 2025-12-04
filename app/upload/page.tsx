@@ -490,6 +490,19 @@ function UploadPageContent() {
 
   return (
     <PageContainer maxWidth="wide" className="py-4">
+      {/* Page Header */}
+      <div className="space-y-2 mb-6">
+        <h1
+          className="text-3xl font-bold tracking-tight bg-clip-text text-transparent"
+          style={{
+            backgroundImage: "linear-gradient(90deg, var(--chart-2), var(--chart-1))"
+          }}
+        >
+          임베딩
+        </h1>
+        <p className="text-muted-foreground">저장된 문서를 벡터 DB 또는 Dify 지식베이스에 업로드합니다</p>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-[7fr_3fr] gap-4">
         {/* 좌측: 문서 목록 (70%) */}
         <div className="space-y-4 min-w-0">
@@ -519,7 +532,7 @@ function UploadPageContent() {
           <Card className="min-w-0 overflow-hidden">
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
-                <Upload className="h-5 w-5" />
+                <Upload className="h-5 w-5" style={{ color: "var(--chart-2)" }} />
                 <div>
                   <CardTitle className="text-lg">임베딩 업로드 설정</CardTitle>
                   <CardDescription className="mt-0.5">
@@ -547,7 +560,7 @@ function UploadPageContent() {
                         : "text-muted-foreground hover:text-foreground hover:scale-[1.02]"
                     }`}
                   >
-                    <Database className="h-3.5 w-3.5" />
+                    <Database className="h-3.5 w-3.5" style={{ color: activeTab === "qdrant" ? "var(--chart-2)" : undefined }} />
                     Vector DB
                   </button>
 
@@ -560,7 +573,7 @@ function UploadPageContent() {
                         : "text-muted-foreground hover:text-foreground hover:scale-[1.02]"
                     }`}
                   >
-                    <Sparkles className="h-3.5 w-3.5" />
+                    <Sparkles className="h-3.5 w-3.5" style={{ color: activeTab === "dify" ? "var(--chart-5)" : undefined }} />
                     Dify
                   </button>
                 </div>

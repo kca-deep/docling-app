@@ -288,6 +288,14 @@ export default function AnalyticsPage() {
     }
   }, [selectedCollection, dateRange])
 
+  // 히트맵 색상 계산 (CSS 변수 기반)
+  const getHeatmapColor = (intensity: number): string => {
+    if (intensity === 0) return 'transparent'
+    // chart-2 (초록) 기반으로 intensity에 따라 opacity 조절
+    const opacity = Math.round(20 + intensity * 80) // 20% ~ 100%
+    return `color-mix(in oklch, var(--chart-2) ${opacity}%, transparent)`
+  }
+
   // 히트맵 셀 컴포넌트 (개선된 버전)
   const HeatmapCell = ({
     value,
@@ -305,20 +313,6 @@ export default function AnalyticsPage() {
     animationDelay?: number
   }) => {
     const intensity = maxValue > 0 ? value / maxValue : 0
-
-    // GitHub 스타일 녹색 그라데이션
-    const bgColor = intensity === 0
-      ? 'bg-muted'
-      : intensity < 0.2
-        ? 'bg-emerald-200 dark:bg-emerald-900/60'
-        : intensity < 0.4
-          ? 'bg-emerald-300 dark:bg-emerald-800'
-          : intensity < 0.6
-            ? 'bg-emerald-400 dark:bg-emerald-700'
-            : intensity < 0.8
-              ? 'bg-emerald-500 dark:bg-emerald-600'
-              : 'bg-emerald-600 dark:bg-emerald-500'
-
     const percentage = maxValue > 0 ? ((value / maxValue) * 100).toFixed(1) : 0
 
     return (
@@ -329,10 +323,14 @@ export default function AnalyticsPage() {
               "w-5 h-5 rounded-md cursor-pointer transition-all duration-150",
               "hover:scale-125 hover:ring-2 hover:ring-primary hover:ring-offset-1 hover:z-10",
               "animate-in fade-in zoom-in-50",
-              bgColor,
-              isPeak && "ring-2 ring-orange-400 ring-offset-1"
+              intensity === 0 && "bg-muted"
             )}
-            style={{ animationDelay: `${animationDelay}ms`, animationFillMode: 'backwards' }}
+            style={{
+              animationDelay: `${animationDelay}ms`,
+              animationFillMode: 'backwards',
+              backgroundColor: intensity > 0 ? getHeatmapColor(intensity) : undefined,
+              boxShadow: isPeak ? `0 0 0 2px var(--chart-3), 0 0 0 4px var(--background)` : undefined
+            }}
           />
         </TooltipTrigger>
         <TooltipContent side="top" className="p-0">
@@ -357,8 +355,31 @@ export default function AnalyticsPage() {
     )
   }
 
+  // 메트릭 색상 정의 (CSS 변수 사용)
+  const metricColors = {
+    queries: "var(--chart-1)",      // 파랑
+    sessions: "var(--chart-5)",     // 보라
+    turns: "var(--chart-2)",        // 초록
+    responseTime: "var(--chart-3)", // 주황
+    tokens: "var(--chart-3)",       // 주황
+    active: "var(--chart-2)",       // 초록
+  }
+
   return (
     <PageContainer maxWidth="wide">
+      {/* 페이지 헤더 */}
+      <div className="space-y-2 mb-6">
+        <h1
+          className="text-3xl font-bold tracking-tight bg-clip-text text-transparent"
+          style={{
+            backgroundImage: "linear-gradient(90deg, var(--chart-4), var(--chart-3))"
+          }}
+        >
+          통계
+        </h1>
+        <p className="text-muted-foreground">RAG 시스템 사용 현황 분석 대시보드</p>
+      </div>
+
       {/* 필터 영역 + 메트릭 뱃지 통합 */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
         {/* 필터 컨트롤 */}
@@ -399,36 +420,43 @@ export default function AnalyticsPage() {
         {/* 메트릭 뱃지들 */}
         <div className="flex flex-wrap items-center gap-2 ml-auto">
           <Badge variant="secondary" className="gap-1.5 px-2.5 py-1 font-normal">
-            <MessageSquare className="h-3 w-3 text-blue-500" />
+            <MessageSquare className="h-3 w-3" style={{ color: metricColors.queries }} />
             <span className="font-semibold tabular-nums">{(summary?.total_queries ?? 0).toLocaleString()}</span>
             <span className="text-muted-foreground text-xs">쿼리</span>
           </Badge>
           <Badge variant="secondary" className="gap-1.5 px-2.5 py-1 font-normal">
-            <Users className="h-3 w-3 text-purple-500" />
+            <Users className="h-3 w-3" style={{ color: metricColors.sessions }} />
             <span className="font-semibold tabular-nums">{(summary?.unique_sessions ?? 0).toLocaleString()}</span>
             <span className="text-muted-foreground text-xs">세션</span>
           </Badge>
           <Badge variant="secondary" className="gap-1.5 px-2.5 py-1 font-normal">
-            <TrendingUp className="h-3 w-3 text-emerald-500" />
+            <TrendingUp className="h-3 w-3" style={{ color: metricColors.turns }} />
             <span className="font-semibold tabular-nums">{conversationStats?.avg_turns?.toFixed(1) || "0"}</span>
             <span className="text-muted-foreground text-xs">턴</span>
           </Badge>
           <Badge variant="secondary" className="gap-1.5 px-2.5 py-1 font-normal">
-            <Clock className="h-3 w-3 text-orange-500" />
+            <Clock className="h-3 w-3" style={{ color: metricColors.responseTime }} />
             <span className="font-semibold tabular-nums">{(summary?.avg_response_time_ms ?? 0).toFixed(0)}</span>
             <span className="text-muted-foreground text-xs">ms</span>
           </Badge>
           <Badge variant="secondary" className="gap-1.5 px-2.5 py-1 font-normal">
-            <Zap className="h-3 w-3 text-yellow-500" />
+            <Zap className="h-3 w-3" style={{ color: metricColors.tokens }} />
             <span className="font-semibold tabular-nums">{((summary?.total_tokens ?? 0) / 1000).toFixed(1)}K</span>
             <span className="text-muted-foreground text-xs">토큰</span>
           </Badge>
 
           {/* 실시간 활성 세션 */}
           {activeSessions && (
-            <Badge variant="outline" className="gap-1.5 px-2.5 py-1 font-normal border-green-500/50">
-              <div className="h-1.5 w-1.5 bg-green-500 rounded-full animate-pulse" />
-              <span className="font-semibold tabular-nums text-green-600 dark:text-green-400">{activeSessions.active_count}</span>
+            <Badge
+              variant="outline"
+              className="gap-1.5 px-2.5 py-1 font-normal"
+              style={{ borderColor: `color-mix(in oklch, ${metricColors.active} 50%, transparent)` }}
+            >
+              <div
+                className="h-1.5 w-1.5 rounded-full animate-pulse"
+                style={{ backgroundColor: metricColors.active }}
+              />
+              <span className="font-semibold tabular-nums" style={{ color: metricColors.active }}>{activeSessions.active_count}</span>
               <span className="text-muted-foreground text-xs">활성</span>
             </Badge>
           )}
@@ -452,11 +480,11 @@ export default function AnalyticsPage() {
                         : 0,
                     }
                     const config = {
-                      queries: { label: "쿼리", unit: "", icon: MessageSquare, color: "text-blue-500" },
-                      sessions: { label: "세션", unit: "", icon: Users, color: "text-purple-500" },
-                      avg_response_time: { label: "응답", unit: "ms", icon: Clock, color: "text-orange-500" },
+                      queries: { label: "쿼리", unit: "", icon: MessageSquare, colorVar: metricColors.queries },
+                      sessions: { label: "세션", unit: "", icon: Users, colorVar: metricColors.sessions },
+                      avg_response_time: { label: "응답", unit: "ms", icon: Clock, colorVar: metricColors.responseTime },
                     }
-                    const { label, unit, icon: Icon, color } = config[key]
+                    const { label, unit, icon: Icon, colorVar } = config[key]
                     const isActive = activeTimelineMetric === key
                     return (
                       <button
@@ -471,7 +499,10 @@ export default function AnalyticsPage() {
                             isActive ? "ring-2 ring-offset-1 ring-primary/30" : "hover:bg-muted"
                           )}
                         >
-                          <Icon className={cn("h-3 w-3", isActive ? "text-primary-foreground" : color)} />
+                          <Icon
+                            className="h-3 w-3"
+                            style={{ color: isActive ? undefined : colorVar }}
+                          />
                           <span className="font-semibold tabular-nums">{totals[key].toLocaleString()}{unit}</span>
                           <span className={cn("text-xs", isActive ? "text-primary-foreground/70" : "text-muted-foreground")}>{label}</span>
                         </Badge>
@@ -567,7 +598,10 @@ export default function AnalyticsPage() {
                     </TooltipContent>
                   </ShadcnTooltip>
                   <Badge variant="outline" className="gap-1 px-2 py-0.5 font-normal text-xs">
-                    <div className="h-1.5 w-1.5 bg-green-500 rounded-full animate-pulse" />
+                    <div
+                      className="h-1.5 w-1.5 rounded-full animate-pulse"
+                      style={{ backgroundColor: metricColors.active }}
+                    />
                     30초 갱신
                   </Badge>
                 </div>
@@ -599,7 +633,7 @@ export default function AnalyticsPage() {
                 <CardTitle className="text-sm font-medium">시간대별 히트맵</CardTitle>
                 {heatmap && heatmap.max_value > 0 && (
                   <Badge variant="secondary" className="gap-1.5 px-2.5 py-1 font-normal">
-                    <Zap className="h-3 w-3 text-orange-500" />
+                    <Zap className="h-3 w-3" style={{ color: metricColors.responseTime }} />
                     <span className="text-xs">피크: {heatmap.labels?.days?.[(() => {
                       let peakDay = 0, peakHour = 0, peakVal = 0
                       heatmap.heatmap.forEach((d, di) => d.forEach((v, hi) => { if (v > peakVal) { peakVal = v; peakDay = di; peakHour = hi } }))
@@ -684,8 +718,11 @@ export default function AnalyticsPage() {
                                   <div className="flex items-center gap-1 ml-1 shrink-0">
                                     <div className="w-10 h-2 bg-muted rounded-full overflow-hidden">
                                       <div
-                                        className="h-full bg-emerald-500 rounded-full transition-all"
-                                        style={{ width: maxDaySum > 0 ? `${(daySums[dayIdx] / maxDaySum) * 100}%` : '0%' }}
+                                        className="h-full rounded-full transition-all"
+                                        style={{
+                                          width: maxDaySum > 0 ? `${(daySums[dayIdx] / maxDaySum) * 100}%` : '0%',
+                                          backgroundColor: 'var(--chart-2)'
+                                        }}
                                       />
                                     </div>
                                     <span className="text-xs text-muted-foreground w-12 text-right font-mono">
@@ -703,11 +740,18 @@ export default function AnalyticsPage() {
                                     <ShadcnTooltip key={hourIdx}>
                                       <TooltipTrigger asChild>
                                         <div
-                                          className="w-5 bg-primary/80 hover:bg-primary rounded-t transition-all duration-300 cursor-pointer animate-in slide-in-from-bottom"
+                                          className="w-5 rounded-t transition-all duration-300 cursor-pointer animate-in slide-in-from-bottom hover:opacity-100"
                                           style={{
                                             height: `${Math.max(height, 4)}%`,
                                             animationDelay: `${hourIdx * 20 + 300}ms`,
-                                            animationFillMode: 'backwards'
+                                            animationFillMode: 'backwards',
+                                            backgroundColor: 'color-mix(in oklch, var(--chart-1) 80%, transparent)'
+                                          }}
+                                          onMouseEnter={(e) => {
+                                            e.currentTarget.style.backgroundColor = 'var(--chart-1)'
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            e.currentTarget.style.backgroundColor = 'color-mix(in oklch, var(--chart-1) 80%, transparent)'
                                           }}
                                         />
                                       </TooltipTrigger>
@@ -740,11 +784,13 @@ export default function AnalyticsPage() {
                             <span className="text-xs text-muted-foreground">0건</span>
                             <div className="flex gap-1">
                               <div className="w-5 h-5 bg-muted rounded-md" />
-                              <div className="w-5 h-5 bg-emerald-200 dark:bg-emerald-900/60 rounded-md" />
-                              <div className="w-5 h-5 bg-emerald-300 dark:bg-emerald-800 rounded-md" />
-                              <div className="w-5 h-5 bg-emerald-400 dark:bg-emerald-700 rounded-md" />
-                              <div className="w-5 h-5 bg-emerald-500 dark:bg-emerald-600 rounded-md" />
-                              <div className="w-5 h-5 bg-emerald-600 dark:bg-emerald-500 rounded-md" />
+                              {[20, 40, 60, 80, 100].map((opacity) => (
+                                <div
+                                  key={opacity}
+                                  className="w-5 h-5 rounded-md"
+                                  style={{ backgroundColor: `color-mix(in oklch, var(--chart-2) ${opacity}%, transparent)` }}
+                                />
+                              ))}
                             </div>
                             <span className="text-xs text-muted-foreground">{heatmap.max_value.toLocaleString()}건</span>
                           </div>

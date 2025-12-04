@@ -13,13 +13,20 @@ export default function SystemArchitecturePage() {
       <div className="space-y-6">
         {/* 페이지 헤더 */}
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">시스템 구성도</h1>
+          <h1
+            className="text-3xl font-bold tracking-tight bg-clip-text text-transparent"
+            style={{
+              backgroundImage: "linear-gradient(90deg, var(--chart-5), var(--chart-1))"
+            }}
+          >
+            시스템 구성도
+          </h1>
           <p className="text-muted-foreground">RTX 5090 GPU 서버의 하드웨어 및 서비스 구성 정보</p>
         </div>
           <Card className="border-2">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Server className="h-5 w-5" />
+                <Server className="h-5 w-5" style={{ color: "var(--chart-5)" }} />
                 시스템 아키텍처 다이어그램
               </CardTitle>
               <CardDescription>RTX 5090 GPU 서버의 전체 구성도</CardDescription>
