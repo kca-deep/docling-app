@@ -1,5 +1,6 @@
 """
 Dify 연동 API 라우트
+인증 필수: 관리자만 접근 가능
 """
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
@@ -9,6 +10,7 @@ import httpx
 from backend.services.dify_service import DifyService
 from backend.services import document_crud, dify_history_crud, dify_config_crud
 from backend.database import get_db
+from backend.dependencies.auth import get_current_active_user
 from backend.models.schemas import (
     DifyConfigRequest,
     DifyConfigSaveRequest,
@@ -21,7 +23,11 @@ from backend.models.schemas import (
     DifyUploadHistoryResponse
 )
 
-router = APIRouter(prefix="/api/dify", tags=["dify"])
+router = APIRouter(
+    prefix="/api/dify",
+    tags=["dify"],
+    dependencies=[Depends(get_current_active_user)]  # 모든 엔드포인트 인증 필수
+)
 dify_service = DifyService()
 
 

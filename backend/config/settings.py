@@ -13,6 +13,18 @@ class Settings(BaseSettings):
     # 타임존 설정
     TIMEZONE: str = "Asia/Seoul"
 
+    # ===========================================
+    # 인증 설정 (Authentication)
+    # ===========================================
+    # 관리자 사용자명
+    ADMIN_USERNAME: str = "admin"
+    # 관리자 비밀번호 (첫 실행 시 해시 처리)
+    ADMIN_PASSWORD: str = "changeme"
+    # JWT 토큰 서명 비밀 키
+    SESSION_SECRET: str = "your-secret-key-change-in-production"
+    # 세션 만료 시간 (시간 단위)
+    SESSION_EXPIRE_HOURS: int = 24
+
     # Database 설정
     DATABASE_URL: str = "sqlite:///./docling.db"
 

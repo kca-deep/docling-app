@@ -1,5 +1,6 @@
 """
 문서 변환 API 라우트
+인증 필수: 관리자만 접근 가능
 """
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Depends, BackgroundTasks
 from fastapi.responses import JSONResponse
@@ -11,6 +12,8 @@ from backend.services.qwen3_service import qwen3_service
 from backend.services import document_crud
 from backend.services.progress_tracker import progress_tracker
 from backend.database import get_db
+from backend.dependencies.auth import get_current_active_user
+from backend.models.user import User
 from backend.models.schemas import (
     ConvertResult,
     TaskStatusResponse,
@@ -24,7 +27,11 @@ from backend.models.schemas import (
     ProgressResponse,
 )
 
-router = APIRouter(prefix="/api/documents", tags=["documents"])
+router = APIRouter(
+    prefix="/api/documents",
+    tags=["documents"],
+    dependencies=[Depends(get_current_active_user)]  # 모든 엔드포인트 인증 필수
+)
 docling_service = DoclingService()
 
 

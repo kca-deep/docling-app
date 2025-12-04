@@ -2,27 +2,41 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { FileText, Home, MessageSquare, Database, Sheet, BarChart3, Layers, LucideIcon } from "lucide-react"
+import { FileText, Home, MessageSquare, Database, Sheet, BarChart3, Layers, LogOut, LucideIcon } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { useAuth } from "@/components/auth/auth-provider"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 interface NavItem {
   href: string
   label: string
   icon: LucideIcon
+  requiresAuth?: boolean
 }
 
 export function NavHeader() {
   const pathname = usePathname()
+  const { isAuthenticated, isLoading, logout, user } = useAuth()
+
+  // 로그인 페이지에서는 네비게이션 숨김
+  if (pathname === "/login") {
+    return null
+  }
 
   const navItems: NavItem[] = [
-    { href: "/", label: "홈", icon: Home },
-    { href: "/parse", label: "문서 파싱", icon: FileText },
-    { href: "/upload", label: "벡터 업로드", icon: Database },
-    { href: "/excel-embedding", label: "엑셀 임베딩", icon: Sheet },
-    { href: "/chat?fullscreen=true", label: "AI 챗봇", icon: MessageSquare },
-    { href: "/analytics", label: "사용 통계", icon: BarChart3 },
+    { href: "/", label: "홈", icon: Home, requiresAuth: false },
+    { href: "/parse", label: "문서 파싱", icon: FileText, requiresAuth: true },
+    { href: "/upload", label: "벡터 업로드", icon: Database, requiresAuth: true },
+    { href: "/excel-embedding", label: "엑셀 임베딩", icon: Sheet, requiresAuth: true },
+    { href: "/chat?fullscreen=true", label: "AI 챗봇", icon: MessageSquare, requiresAuth: false },
+    { href: "/analytics", label: "사용 통계", icon: BarChart3, requiresAuth: true },
   ]
+
+  // 인증 상태에 따라 표시할 메뉴 필터링
+  const visibleNavItems = navItems.filter(
+    (item) => !item.requiresAuth || isAuthenticated
+  )
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -41,7 +55,7 @@ export function NavHeader() {
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center gap-1">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const Icon = item.icon
             const itemPathname = item.href.split("?")[0]
             const isActive = pathname === itemPathname
@@ -64,11 +78,11 @@ export function NavHeader() {
           })}
         </nav>
 
-        {/* Right: Mobile Nav + Theme Toggle */}
+        {/* Right: Mobile Nav + Theme Toggle + Auth */}
         <div className="flex items-center gap-1">
           {/* Mobile Navigation */}
           <nav className="md:hidden flex items-center gap-0.5">
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const Icon = item.icon
               const itemPathname = item.href.split("?")[0]
               const isActive = pathname === itemPathname
@@ -94,6 +108,32 @@ export function NavHeader() {
 
           {/* Theme Toggle */}
           <ThemeToggle />
+
+          {/* Auth: Login/Logout */}
+          {!isLoading && (
+            isAuthenticated ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => logout()}
+                className="text-muted-foreground hover:text-foreground gap-1.5"
+                title={`${user?.username} 로그아웃`}
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">로그아웃</span>
+              </Button>
+            ) : (
+              <Link href="/login">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  로그인
+                </Button>
+              </Link>
+            )
+          )}
         </div>
       </div>
     </header>

@@ -1,6 +1,7 @@
 """
 Analytics API 라우터
 채팅 로그 및 통계 조회 엔드포인트
+인증 필수: 관리자만 접근 가능
 """
 
 import logging
@@ -19,6 +20,7 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils.dataframe import dataframe_to_rows
 
 from backend.database import get_db
+from backend.dependencies.auth import get_current_active_user
 from backend.models.chat_session import ChatSession
 from backend.models.chat_statistics import ChatStatistics
 from backend.services.statistics_service import statistics_service
@@ -28,7 +30,11 @@ from backend.services.hybrid_logging_service import hybrid_logging_service
 # 로거 설정
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/analytics", tags=["analytics"])
+router = APIRouter(
+    prefix="/api/analytics",
+    tags=["analytics"],
+    dependencies=[Depends(get_current_active_user)]  # 모든 엔드포인트 인증 필수
+)
 
 
 @router.get("/summary")

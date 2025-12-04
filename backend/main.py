@@ -10,14 +10,16 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from backend.config.settings import settings
-from backend.api.routes import document, dify, qdrant, chat, analytics
+from backend.api.routes import document, dify, qdrant, chat, analytics, auth
 from backend.database import init_db, get_db, SessionLocal
 from backend.models import document as document_model  # Import to register models
 from backend.models import dify_upload_history, dify_config  # Import Dify models
 from backend.models import qdrant_upload_history  # Import Qdrant models
 from backend.models import chat_session, chat_statistics  # Import Chat models
+from backend.models import user as user_model  # Import User model for auth
 from backend.services.hybrid_logging_service import hybrid_logging_service
 from backend.services.statistics_service import statistics_service
+from backend.services.auth_service import auth_service
 from backend.middleware.request_tracking import RequestTrackingMiddleware
 
 # 로거 설정
@@ -64,6 +66,14 @@ async def startup_event():
     # 데이터베이스 초기화
     init_db()
     print("[OK] Database initialized successfully")
+
+    # 기본 관리자 계정 생성
+    db = SessionLocal()
+    try:
+        auth_service.ensure_admin_exists(db)
+        print("[OK] Admin user verified")
+    finally:
+        db.close()
 
     # SQLite 최적화 설정 적용
     try:
@@ -132,6 +142,7 @@ async def catch_exceptions_middleware(request: Request, call_next):
 
 
 # 라우터 등록
+app.include_router(auth.router)  # 인증 라우터 (가장 먼저 등록)
 app.include_router(document.router)
 app.include_router(dify.router)
 app.include_router(qdrant.router)

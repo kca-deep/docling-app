@@ -1,5 +1,6 @@
 """
 Qdrant Vector DB 연동 API 라우트
+인증 필수: 관리자만 접근 가능
 """
 import uuid
 import io
@@ -13,6 +14,7 @@ from backend.services.embedding_service import EmbeddingService
 from backend.services import document_crud, qdrant_history_crud
 from backend.database import get_db
 from backend.config.settings import settings
+from backend.dependencies.auth import get_current_active_user
 from backend.models.schemas import (
     QdrantCollectionsResponse,
     QdrantCollectionCreateRequest,
@@ -35,7 +37,11 @@ from backend.models.schemas import (
     DynamicEmbeddingResult
 )
 
-router = APIRouter(prefix="/api/qdrant", tags=["qdrant"])
+router = APIRouter(
+    prefix="/api/qdrant",
+    tags=["qdrant"],
+    dependencies=[Depends(get_current_active_user)]  # 모든 엔드포인트 인증 필수
+)
 
 # 서비스 인스턴스 생성
 qdrant_service = QdrantService(

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AuthProvider } from "@/components/auth/auth-provider";
 import { NavHeader } from "@/components/nav-header";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -29,11 +30,13 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <div className="min-h-screen bg-background">
-            <NavHeader />
-            <main className="w-full overflow-x-hidden">{children}</main>
-          </div>
-          <Toaster />
+          <AuthProvider>
+            <div className="min-h-screen bg-background">
+              <NavHeader />
+              <main className="w-full overflow-x-hidden">{children}</main>
+            </div>
+            <Toaster />
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>
