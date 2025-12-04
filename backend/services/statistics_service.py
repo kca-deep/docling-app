@@ -474,7 +474,7 @@ class StatisticsService:
         days: int,
         db: Session
     ) -> List[Dict[str, Any]]:
-        """시계열 데이터 조회"""
+        """시계열 데이터 조회 (전체 통계는 collection_name='ALL')"""
         try:
             end_date = date.today()
             start_date = end_date - timedelta(days=days)
@@ -519,9 +519,11 @@ class StatisticsService:
         start_date: date,
         end_date: date
     ) -> List[Dict[str, Any]]:
-        """JSONL 로그에서 직접 타임라인 계산"""
+        """JSONL 로그에서 직접 타임라인 계산 (ALL이면 전체 조회)"""
         try:
-            df = await self.query_logs_by_date_range(start_date, end_date, collection_name)
+            # ALL이면 전체 로그 조회 (collection_name=None)
+            filter_collection = None if collection_name == "ALL" else collection_name
+            df = await self.query_logs_by_date_range(start_date, end_date, filter_collection)
 
             if df.empty:
                 return []

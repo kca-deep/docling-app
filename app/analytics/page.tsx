@@ -124,7 +124,7 @@ export default function AnalyticsPage() {
   const { resolvedTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [selectedCollection, setSelectedCollection] = useState<string | null>(null)
+  const [selectedCollection, setSelectedCollection] = useState<string>("ALL")
 
   // 다크모드 차트 opacity 설정
   const chartOpacity = useMemo(() => {
@@ -169,24 +169,22 @@ export default function AnalyticsPage() {
       const data = await response.json()
       const names = (data.collections?.map((c: any) => c.name) || []).sort((a: string, b: string) => a.localeCompare(b))
       setCollections(names)
-      if (names.length > 0 && !selectedCollection) {
-        setSelectedCollection(names[0])
-      }
     } catch (error) {
       console.error("컬렉션 조회 오류:", error)
     }
-  }, [selectedCollection])
+  }, [])
 
   // 모든 데이터 새로고침
   const refreshAllData = useCallback(async () => {
-    if (!selectedCollection) return
-
     setLoading(true)
     const days = Math.ceil((dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24)) || 7
+    // ALL은 DB에 저장된 전체 집계 데이터
     const params = `collection_name=${selectedCollection}&days=${days}`
     const dateParams = `collection_name=${selectedCollection}&date_from=${format(dateRange.from, "yyyy-MM-dd")}&date_to=${format(dateRange.to, "yyyy-MM-dd")}`
 
     try {
+      // 최근 질문은 ALL일 때 전체 조회 (collection_name 생략)
+      const recentQueriesParams = selectedCollection === "ALL" ? "limit=20" : `collection_name=${selectedCollection}&limit=20`
       const [
         summaryRes, timelineRes, heatmapRes, convStatsRes,
         activeRes, recentRes
@@ -196,7 +194,7 @@ export default function AnalyticsPage() {
         fetch(`${API_BASE_URL}/api/analytics/hourly-heatmap?${params}`),
         fetch(`${API_BASE_URL}/api/analytics/conversation-stats?${params}`),
         fetch(`${API_BASE_URL}/api/analytics/active-sessions?minutes=5`),
-        fetch(`${API_BASE_URL}/api/analytics/recent-queries?collection_name=${selectedCollection}&limit=20`)
+        fetch(`${API_BASE_URL}/api/analytics/recent-queries?${recentQueriesParams}`)
       ])
 
       // 결과 처리
@@ -235,19 +233,17 @@ export default function AnalyticsPage() {
   }, [])
 
   useEffect(() => {
-    if (selectedCollection) {
-      refreshAllData()
-    }
+    refreshAllData()
   }, [selectedCollection, dateRange, refreshAllData])
 
   // 실시간 데이터 자동 갱신 (30초)
   useEffect(() => {
     const interval = setInterval(async () => {
-      if (!selectedCollection) return
       try {
+        const recentParams = selectedCollection === "ALL" ? "limit=20" : `collection_name=${selectedCollection}&limit=20`
         const [activeRes, recentRes] = await Promise.all([
           fetch(`${API_BASE_URL}/api/analytics/active-sessions?minutes=5`),
-          fetch(`${API_BASE_URL}/api/analytics/recent-queries?collection_name=${selectedCollection}&limit=20`)
+          fetch(`${API_BASE_URL}/api/analytics/recent-queries?${recentParams}`)
         ])
         if (activeRes.ok) setActiveSessions(await activeRes.json())
         if (recentRes.ok) {
@@ -395,11 +391,12 @@ export default function AnalyticsPage() {
 
       {/* 필터 컨트롤 - 단일 행으로 통합 */}
       <div className="flex flex-wrap items-center gap-3 mb-6 p-4 bg-muted/30 rounded-lg border">
-        <Select value={selectedCollection || ""} onValueChange={setSelectedCollection}>
+        <Select value={selectedCollection} onValueChange={setSelectedCollection}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="컬렉션 선택" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="ALL">전체</SelectItem>
             {collections.map((collection) => (
               <SelectItem key={collection} value={collection}>{collection}</SelectItem>
             ))}

@@ -80,7 +80,7 @@ async def get_analytics_summary(
 
 @router.get("/timeline")
 async def get_timeline_data(
-    collection_name: str = Query(..., description="컬렉션 이름"),
+    collection_name: str = Query(..., description="컬렉션 이름 (전체: ALL)"),
     period: str = Query("daily", description="집계 주기 (daily/hourly)"),
     days: int = Query(7, description="최근 N일간 데이터"),
     db: Session = Depends(get_db)
