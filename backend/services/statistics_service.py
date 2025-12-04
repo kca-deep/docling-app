@@ -10,6 +10,7 @@ import numpy as np
 from datetime import datetime, timedelta, date
 from typing import Dict, List, Optional, Any, Tuple
 from pathlib import Path
+from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc
 import logging
@@ -95,11 +96,16 @@ class StatisticsService:
 
             if data:
                 df = pd.DataFrame(data)
-                # 타임스탬프 변환 (mixed timezone 지원 - 기존 UTC와 새 KST 로그 호환)
+                # 타임스탬프 파싱 및 KST 기준 통일
                 if 'created_at' in df.columns:
-                    df['created_at'] = pd.to_datetime(df['created_at'], format='mixed', utc=True)
-                    # UTC로 통일 후 타임존 정보 제거 (naive datetime으로 변환)
-                    df['created_at'] = df['created_at'].dt.tz_localize(None)
+                    df['created_at'] = pd.to_datetime(df['created_at'], format='mixed')
+
+                    # 타임존 처리: KST 기준 naive datetime으로 통일
+                    # - naive datetime: 이미 KST로 저장된 것으로 간주 (변환 없음)
+                    # - timezone-aware datetime: KST로 변환 후 타임존 정보 제거
+                    if df['created_at'].dt.tz is not None:
+                        kst = ZoneInfo('Asia/Seoul')
+                        df['created_at'] = df['created_at'].dt.tz_convert(kst).dt.tz_localize(None)
                 return df
             else:
                 return pd.DataFrame()
@@ -662,12 +668,13 @@ class StatisticsService:
                 hourly_dist = df.groupby('hour').size().to_dict()
                 report["usage_patterns"]["hourly_distribution"] = {int(k): int(v) for k, v in hourly_dist.items()}
 
-            # 컬렉션별 통계
+            # 컬렉션별 통계 (사용자 메시지만 필터링하여 쿼리 수 계산)
             if 'collection_name' in df.columns:
-                collection_stats = df.groupby('collection_name').agg({
-                    'session_id': 'count',
-                    'session_id': 'nunique'
-                }).to_dict('index')
+                user_df = df[df['message_type'] == 'user'] if 'message_type' in df.columns else df
+                collection_stats = user_df.groupby('collection_name').agg(
+                    total_queries=('session_id', 'count'),
+                    unique_sessions=('session_id', 'nunique')
+                ).to_dict('index')
                 report["collections"] = collection_stats
 
             return report

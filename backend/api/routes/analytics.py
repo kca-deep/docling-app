@@ -271,8 +271,7 @@ async def get_logs(
 @router.post("/aggregate")
 async def trigger_aggregation(
     background_tasks: BackgroundTasks,
-    target_date: date = Query(..., description="집계할 날짜"),
-    db: Session = Depends(get_db)
+    target_date: date = Query(..., description="집계할 날짜")
 ):
     """
     특정 날짜의 통계 집계 트리거 (관리자용)
@@ -280,7 +279,6 @@ async def trigger_aggregation(
     Args:
         target_date: 집계할 날짜
         background_tasks: 백그라운드 태스크
-        db: 데이터베이스 세션
 
     Returns:
         dict: 집계 작업 상태
@@ -288,8 +286,14 @@ async def trigger_aggregation(
     try:
         # 백그라운드로 집계 실행
         async def run_aggregation():
-            result = await statistics_service.aggregate_daily_stats(target_date, db)
-            logger.info(f"집계 완료: {result}")
+            # 백그라운드 태스크에서 새 DB 세션 생성 (요청 컨텍스트 외부에서 실행되므로)
+            from backend.database import SessionLocal
+            db = SessionLocal()
+            try:
+                result = await statistics_service.aggregate_daily_stats(target_date, db)
+                logger.info(f"집계 완료: {result}")
+            finally:
+                db.close()
 
         background_tasks.add_task(run_aggregation)
 
@@ -458,10 +462,13 @@ async def get_hourly_heatmap(
             df['hour'] = df['created_at'].dt.hour
             df['dayofweek'] = df['created_at'].dt.dayofweek  # 0=Monday, 6=Sunday
 
+            # 사용자 메시지만 필터링 (쿼리 수만 카운팅, assistant 메시지 제외)
+            user_df = df[df['message_type'] == 'user'] if 'message_type' in df.columns else df
+
             # 히트맵 매트릭스 생성 (7일 x 24시간)
             heatmap = [[0]*24 for _ in range(7)]
 
-            for _, row in df.iterrows():
+            for _, row in user_df.iterrows():
                 day = int(row['dayofweek'])
                 hour = int(row['hour'])
                 heatmap[day][hour] += 1

@@ -28,7 +28,7 @@ import {
 } from "lucide-react"
 import {
   XAxis, YAxis, CartesianGrid,
-  ComposedChart, Bar, Line
+  ComposedChart, Area, Line
 } from "recharts"
 import { toast } from "sonner"
 import { API_BASE_URL } from "@/lib/api-config"
@@ -411,15 +411,25 @@ export default function AnalyticsPage() {
         <div className="flex gap-2 items-center">
           <Input
             type="date"
-            value={format(dateRange.from, "yyyy-MM-dd")}
-            onChange={(e) => setDateRange(prev => ({ ...prev, from: new Date(e.target.value) }))}
+            value={dateRange.from instanceof Date && !isNaN(dateRange.from.getTime()) ? format(dateRange.from, "yyyy-MM-dd") : ""}
+            onChange={(e) => {
+              const date = new Date(e.target.value)
+              if (!isNaN(date.getTime())) {
+                setDateRange(prev => ({ ...prev, from: date }))
+              }
+            }}
             className="w-[130px] h-9"
           />
           <span className="text-sm text-muted-foreground">~</span>
           <Input
             type="date"
-            value={format(dateRange.to, "yyyy-MM-dd")}
-            onChange={(e) => setDateRange(prev => ({ ...prev, to: new Date(e.target.value) }))}
+            value={dateRange.to instanceof Date && !isNaN(dateRange.to.getTime()) ? format(dateRange.to, "yyyy-MM-dd") : ""}
+            onChange={(e) => {
+              const date = new Date(e.target.value)
+              if (!isNaN(date.getTime())) {
+                setDateRange(prev => ({ ...prev, to: date }))
+              }
+            }}
             className="w-[130px] h-9"
           />
         </div>
@@ -538,16 +548,14 @@ export default function AnalyticsPage() {
                   const chartData = timeline.map((item, idx) => ({
                     ...item,
                     movingAvg: movingAvgValues[idx],
-                    // 주말 표시를 위한 플래그
-                    isWeekend: new Date(item.date).getDay() === 0 || new Date(item.date).getDay() === 6,
                   }))
 
-                  // 최대/최소값 인덱스 계산
-                  const values = timeline.map(d => Number(d[activeTimelineMetric]) || 0)
-                  const maxValue = Math.max(...values)
-                  const minValue = Math.min(...values.filter(v => v > 0))
-                  const maxIdx = values.indexOf(maxValue)
-                  const minIdx = values.indexOf(minValue)
+                  // 그라데이션 ID 매핑
+                  const gradientMap = {
+                    queries: "fillQueries",
+                    sessions: "fillSessions",
+                    avg_response_time: "fillResponseTime",
+                  }
 
                   return (
                     <ChartContainer
@@ -559,14 +567,34 @@ export default function AnalyticsPage() {
                         data={chartData}
                         margin={{ left: 12, right: 12, top: 10 }}
                       >
-                        <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                        <defs>
+                          <linearGradient id="fillQueries" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="var(--color-queries)" stopOpacity={mounted ? chartOpacity.gradientStart : 0.8} />
+                            <stop offset="95%" stopColor="var(--color-queries)" stopOpacity={mounted ? chartOpacity.gradientEnd : 0.1} />
+                          </linearGradient>
+                          <linearGradient id="fillSessions" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="var(--color-sessions)" stopOpacity={mounted ? chartOpacity.gradientStart : 0.8} />
+                            <stop offset="95%" stopColor="var(--color-sessions)" stopOpacity={mounted ? chartOpacity.gradientEnd : 0.1} />
+                          </linearGradient>
+                          <linearGradient id="fillResponseTime" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="var(--color-avg_response_time)" stopOpacity={mounted ? chartOpacity.gradientStart : 0.8} />
+                            <stop offset="95%" stopColor="var(--color-avg_response_time)" stopOpacity={mounted ? chartOpacity.gradientEnd : 0.1} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid vertical={false} />
                         <XAxis
                           dataKey="date"
                           tickLine={false}
                           axisLine={false}
                           tickMargin={8}
                           minTickGap={32}
-                          tickFormatter={(v) => format(new Date(v), "M/d")}
+                          tickFormatter={(v) => {
+                            try {
+                              return format(new Date(v), "M/d")
+                            } catch {
+                              return String(v)
+                            }
+                          }}
                         />
                         <YAxis
                           tickLine={false}
@@ -576,7 +604,7 @@ export default function AnalyticsPage() {
                           tickFormatter={(v) => activeTimelineMetric === "avg_response_time" ? `${v}` : v.toLocaleString()}
                         />
                         <ChartTooltip
-                          cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+                          cursor={false}
                           content={
                             <ChartTooltipContent
                               className="w-[180px]"
@@ -599,61 +627,16 @@ export default function AnalyticsPage() {
                             />
                           }
                         />
-                        {/* 바 차트 - 일별 데이터 */}
-                        <Bar
+                        {/* Area 차트 - 일별 데이터 */}
+                        <Area
+                          type="natural"
                           dataKey={activeTimelineMetric}
-                          fill={`var(--color-${activeTimelineMetric})`}
-                          radius={[4, 4, 0, 0]}
-                          fillOpacity={mounted ? 0.8 : 0.6}
-                          shape={(props: any) => {
-                            const { x, y, width, height, index } = props
-                            const isMax = index === maxIdx && maxValue > 0
-                            const isMin = index === minIdx && minValue > 0
-                            const isWeekend = chartData[index]?.isWeekend
-
-                            return (
-                              <g>
-                                <rect
-                                  x={x}
-                                  y={y}
-                                  width={width}
-                                  height={height}
-                                  rx={4}
-                                  ry={4}
-                                  fill={`var(--color-${activeTimelineMetric})`}
-                                  fillOpacity={isWeekend ? 0.5 : 0.8}
-                                  stroke={isMax ? "var(--chart-3)" : isMin ? "var(--chart-4)" : "none"}
-                                  strokeWidth={isMax || isMin ? 2 : 0}
-                                />
-                                {/* 최대값 마커 */}
-                                {isMax && (
-                                  <text
-                                    x={x + width / 2}
-                                    y={y - 6}
-                                    textAnchor="middle"
-                                    fill="var(--chart-3)"
-                                    fontSize={10}
-                                    fontWeight="bold"
-                                  >
-                                    ▲
-                                  </text>
-                                )}
-                                {/* 최소값 마커 */}
-                                {isMin && (
-                                  <text
-                                    x={x + width / 2}
-                                    y={y - 6}
-                                    textAnchor="middle"
-                                    fill="var(--chart-4)"
-                                    fontSize={10}
-                                    fontWeight="bold"
-                                  >
-                                    ▼
-                                  </text>
-                                )}
-                              </g>
-                            )
-                          }}
+                          stroke={`var(--color-${activeTimelineMetric})`}
+                          fill={`url(#${gradientMap[activeTimelineMetric]})`}
+                          fillOpacity={mounted ? chartOpacity.fill : 0.4}
+                          strokeWidth={2}
+                          dot={false}
+                          activeDot={{ r: 5, strokeWidth: 2, className: "fill-background" }}
                         />
                         {/* 7일 이동평균 라인 */}
                         <Line
@@ -662,7 +645,6 @@ export default function AnalyticsPage() {
                           stroke="var(--color-movingAvg)"
                           strokeWidth={2.5}
                           dot={false}
-                          strokeDasharray="0"
                           connectNulls={false}
                           activeDot={{
                             r: 5,
