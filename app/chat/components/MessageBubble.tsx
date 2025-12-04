@@ -3,7 +3,7 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bot, User, FileText, Copy, Check, RefreshCw, Reply, StopCircle } from "lucide-react";
+import { Wand2, User, FileText, Copy, Check, RefreshCw, Reply, StopCircle } from "lucide-react";
 import { MarkdownMessage } from "@/components/markdown-message";
 import { cn } from "@/lib/utils";
 import { useState, memo } from "react";
@@ -199,7 +199,7 @@ export const MessageBubble = memo(function MessageBubble({
           }
         >
           {role === "assistant" ? (
-            <Bot className="h-4 w-4" style={{ color: "var(--chart-3)" }} />
+            <Wand2 className="h-4 w-4" style={{ color: "var(--chart-3)" }} />
           ) : role === "system" ? (
             <RefreshCw className="h-4 w-4" />
           ) : (

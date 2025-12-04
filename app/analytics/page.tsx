@@ -387,10 +387,10 @@ export default function AnalyticsPage() {
     <PageContainer maxWidth="wide">
       {/* 페이지 헤더 */}
       <div className="space-y-2 mb-6">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">
-          통계
+        <h1 className="text-2xl font-semibold tracking-tight">
+          사용 통계
         </h1>
-        <p className="text-muted-foreground">RAG 시스템 사용 현황 분석 대시보드</p>
+        <p className="text-sm text-muted-foreground">RAG 시스템 사용량 및 성능 분석</p>
       </div>
 
       {/* 필터 컨트롤 - 단일 행으로 통합 */}

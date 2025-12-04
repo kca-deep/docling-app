@@ -418,15 +418,10 @@ export default function ExcelEmbeddingPage() {
     <PageContainer maxWidth="wide" className="py-4">
       {/* Page Header */}
       <div className="space-y-2 mb-6">
-        <h1
-          className="text-3xl font-bold tracking-tight bg-clip-text text-transparent"
-          style={{
-            backgroundImage: "linear-gradient(90deg, var(--chart-2), var(--chart-3))"
-          }}
-        >
-          Excel 임베딩
+        <h1 className="text-2xl font-semibold tracking-tight">
+          엑셀 임베딩
         </h1>
-        <p className="text-muted-foreground">Excel 파일의 데이터를 벡터 DB에 임베딩합니다</p>
+        <p className="text-sm text-muted-foreground">엑셀 데이터를 벡터 DB에 직접 업로드</p>
       </div>
 
       <div className="space-y-4">

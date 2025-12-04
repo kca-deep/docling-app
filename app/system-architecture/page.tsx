@@ -12,16 +12,11 @@ export default function SystemArchitecturePage() {
     <PageContainer>
       <div className="space-y-6">
         {/* 페이지 헤더 */}
-        <div className="space-y-2">
-          <h1
-            className="text-3xl font-bold tracking-tight bg-clip-text text-transparent"
-            style={{
-              backgroundImage: "linear-gradient(90deg, var(--chart-5), var(--chart-1))"
-            }}
-          >
-            시스템 구성도
+        <div className="space-y-2 mb-6">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            시스템 구성
           </h1>
-          <p className="text-muted-foreground">RTX 5090 GPU 서버의 하드웨어 및 서비스 구성 정보</p>
+          <p className="text-sm text-muted-foreground">AI 서비스 인프라 구성도</p>
         </div>
           <Card className="border-2">
             <CardHeader>

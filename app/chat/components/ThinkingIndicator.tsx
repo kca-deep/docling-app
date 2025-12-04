@@ -3,7 +3,7 @@
 import { useEffect, useState, memo } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Bot, Search, FileText, Sparkles } from "lucide-react";
+import { Wand2, Search, FileText, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ThinkingStage {
@@ -66,7 +66,7 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
             background: `linear-gradient(135deg, ${currentStage.colorVar}, color-mix(in oklch, ${currentStage.colorVar} 60%, var(--muted)))`,
           }}
         >
-          <Bot className="h-4 w-4 text-white" />
+          <Wand2 className="h-4 w-4 text-white" />
           {/* Orbital ring effect */}
           <div
             className="absolute inset-0 rounded-full border-2 border-transparent animate-spin"

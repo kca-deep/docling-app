@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { FileText, Home, Network, Files, Database, MessageSquare, Server, Upload, Sheet, BarChart3, LucideIcon } from "lucide-react"
+import { FileText, Home, MessageSquare, Server, Database, Sheet, BarChart3, Layers, LucideIcon } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { cn } from "@/lib/utils"
 
@@ -10,60 +10,41 @@ interface NavItem {
   href: string
   label: string
   icon: LucideIcon
-  colorVar: string
 }
 
 export function NavHeader() {
   const pathname = usePathname()
 
   const navItems: NavItem[] = [
-    { href: "/", label: "Home", icon: Home, colorVar: "var(--chart-1)" },
-    { href: "/system-architecture", label: "구성도", icon: Server, colorVar: "var(--chart-5)" },
-    { href: "/parse", label: "문서변환", icon: FileText, colorVar: "var(--chart-1)" },
-    { href: "/upload", label: "임베딩", icon: Upload, colorVar: "var(--chart-2)" },
-    { href: "/excel-embedding", label: "Excel", icon: Sheet, colorVar: "var(--chart-2)" },
-    { href: "/chat?fullscreen=true", label: "AI 챗봇", icon: MessageSquare, colorVar: "var(--chart-3)" },
-    { href: "/analytics", label: "통계", icon: BarChart3, colorVar: "var(--chart-4)" },
+    { href: "/", label: "홈", icon: Home },
+    { href: "/parse", label: "문서 파싱", icon: FileText },
+    { href: "/upload", label: "벡터 업로드", icon: Database },
+    { href: "/excel-embedding", label: "엑셀 임베딩", icon: Sheet },
+    { href: "/chat?fullscreen=true", label: "AI 챗봇", icon: MessageSquare },
+    { href: "/analytics", label: "사용 통계", icon: BarChart3 },
+    { href: "/system-architecture", label: "시스템 구성", icon: Server },
   ]
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="grid grid-cols-[auto_1fr_auto] h-12 items-center px-4 md:px-6 max-w-7xl mx-auto gap-4">
-        {/* Logo - Left */}
-        <div className="flex items-center">
-          <Link href="/" className="group flex items-center gap-3 relative">
-            {/* Icon Container with Gradient Background */}
-            <div className="relative">
-              <div
-                className="absolute inset-0 rounded-lg blur-sm opacity-75 group-hover:opacity-100 transition-opacity"
-                style={{ background: "linear-gradient(135deg, var(--chart-1), var(--chart-2), var(--chart-3))" }}
-              />
-              <div
-                className="relative p-2 rounded-lg shadow-lg group-hover:shadow-xl transition-all"
-                style={{ background: "linear-gradient(135deg, var(--chart-1), var(--chart-2))" }}
-              >
-                <FileText className="h-5 w-5 text-white" strokeWidth={2.5} />
-              </div>
-            </div>
+      <div className="flex h-12 items-center justify-between px-4 md:px-6 max-w-7xl mx-auto">
+        {/* Logo */}
+        <Link href="/" className="flex items-center gap-2 group">
+          <div
+            className="p-1.5 rounded-md bg-gradient-to-br from-blue-500 to-indigo-600 shadow-sm group-hover:shadow-md transition-all duration-300"
+          >
+            <Layers className="h-4 w-4 text-white" />
+          </div>
+          <span className="hidden sm:inline font-semibold text-base bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent group-hover:from-blue-500 group-hover:to-purple-500 transition-all duration-300">
+            KCA-RAG
+          </span>
+        </Link>
 
-            {/* Text Container */}
-            <div className="hidden sm:flex items-baseline gap-1.5">
-              <span
-                className="font-bold text-lg leading-none tracking-tight bg-clip-text text-transparent"
-                style={{ backgroundImage: "linear-gradient(90deg, var(--chart-1), var(--chart-2), var(--chart-3))" }}
-              >
-                KCA
-              </span>
-              <span className="font-bold text-lg text-foreground leading-none">RAG</span>
-            </div>
-          </Link>
-        </div>
-
-        {/* Navigation - Center */}
-        <nav className="hidden md:flex items-center justify-center gap-0.5">
+        {/* Desktop Navigation */}
+        <nav className="hidden md:flex items-center gap-1">
           {navItems.map((item) => {
             const Icon = item.icon
-            const itemPathname = item.href.split('?')[0]
+            const itemPathname = item.href.split("?")[0]
             const isActive = pathname === itemPathname
 
             return (
@@ -71,42 +52,26 @@ export function NavHeader() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "relative inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-[13px] font-medium transition-all duration-200 ease-in-out hover:scale-105",
+                  "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
                   isActive
-                    ? "text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-muted text-foreground"
+                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                 )}
-                style={{
-                  backgroundColor: isActive ? `color-mix(in oklch, ${item.colorVar} 15%, transparent)` : undefined,
-                }}
-                onMouseEnter={(e) => {
-                  if (!isActive) {
-                    e.currentTarget.style.backgroundColor = `color-mix(in oklch, ${item.colorVar} 8%, transparent)`
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isActive) {
-                    e.currentTarget.style.backgroundColor = 'transparent'
-                  }
-                }}
               >
-                <Icon
-                  className="mr-1.5 h-4 w-4 flex-shrink-0 transition-colors"
-                  style={{ color: item.colorVar }}
-                />
+                <Icon className="h-4 w-4" />
                 <span>{item.label}</span>
               </Link>
             )
           })}
         </nav>
 
-        {/* Mobile Navigation & Theme Toggle - Right */}
-        <div className="flex items-center justify-end gap-1">
-          {/* Mobile menu */}
-          <div className="md:hidden flex gap-0.5">
+        {/* Right: Mobile Nav + Theme Toggle */}
+        <div className="flex items-center gap-1">
+          {/* Mobile Navigation */}
+          <nav className="md:hidden flex items-center gap-0.5">
             {navItems.map((item) => {
               const Icon = item.icon
-              const itemPathname = item.href.split('?')[0]
+              const itemPathname = item.href.split("?")[0]
               const isActive = pathname === itemPathname
 
               return (
@@ -114,32 +79,19 @@ export function NavHeader() {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "relative inline-flex items-center justify-center rounded-md text-sm font-medium transition-all duration-200 ease-in-out hover:scale-105 h-9 w-9"
+                    "inline-flex items-center justify-center h-9 w-9 rounded-md transition-colors",
+                    isActive
+                      ? "bg-muted text-foreground"
+                      : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                   )}
-                  style={{
-                    backgroundColor: isActive ? `color-mix(in oklch, ${item.colorVar} 15%, transparent)` : undefined,
-                  }}
                   title={item.label}
-                  onMouseEnter={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.backgroundColor = `color-mix(in oklch, ${item.colorVar} 8%, transparent)`
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.backgroundColor = 'transparent'
-                    }
-                  }}
                 >
-                  <Icon
-                    className="h-4 w-4 transition-colors"
-                    style={{ color: isActive ? item.colorVar : undefined }}
-                  />
+                  <Icon className="h-4 w-4" />
                   <span className="sr-only">{item.label}</span>
                 </Link>
               )
             })}
-          </div>
+          </nav>
 
           {/* Theme Toggle */}
           <ThemeToggle />

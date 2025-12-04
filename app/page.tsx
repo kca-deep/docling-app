@@ -72,10 +72,23 @@ export default function HomePage() {
 
   return (
     <>
-      {/* Hero Section - 전체 너비 배경 */}
+      {/* Hero Section */}
       <div className="relative w-full text-center min-h-[calc(100vh-4rem)] lg:min-h-[85vh] flex flex-col justify-center overflow-hidden">
-        {/* Simplified Background Gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[color:var(--chart-1)]/5 via-background to-[color:var(--chart-3)]/5 -z-10" />
+        {/* Background layers - z-0 to stay above layout bg-background */}
+        <div className="absolute inset-0 z-0">
+          {/* Solid background base */}
+          <div className="absolute inset-0 bg-background" />
+          {/* Gradient overlay */}
+          <div className="absolute inset-0 bg-gradient-to-br from-[color:var(--chart-1)]/15 via-transparent to-[color:var(--chart-3)]/15" />
+          {/* Dot pattern overlay */}
+          <div
+            className="absolute inset-0 opacity-40"
+            style={{
+              backgroundImage: 'radial-gradient(circle, oklch(0.5 0 0) 1px, transparent 1px)',
+              backgroundSize: '24px 24px',
+            }}
+          />
+        </div>
 
         {/* 중앙 정렬된 컨텐츠 */}
         <div className="relative z-10 w-full max-w-7xl mx-auto px-6 md:px-8 lg:px-12 py-12 md:py-16 space-y-8">

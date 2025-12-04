@@ -493,10 +493,10 @@ function UploadPageContent() {
     <PageContainer maxWidth="wide" className="py-4">
       {/* Page Header */}
       <div className="space-y-2 mb-6">
-        <h1 className="text-3xl font-bold tracking-tight">
-          임베딩
+        <h1 className="text-2xl font-semibold tracking-tight">
+          벡터 업로드
         </h1>
-        <p className="text-muted-foreground">저장된 문서를 벡터 DB 또는 Dify 지식베이스에 업로드합니다</p>
+        <p className="text-sm text-muted-foreground">파싱된 문서를 Qdrant 또는 Dify에 업로드</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[7fr_3fr] gap-4">

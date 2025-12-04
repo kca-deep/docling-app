@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { MessageSquare, X, Sparkles } from "lucide-react"
+import { Wand2, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
@@ -17,20 +17,20 @@ export function FloatingChatButton() {
           className={cn(
             "rounded-full shadow-2xl hover:shadow-3xl transition-all duration-300",
             "w-14 h-14 p-0 relative overflow-hidden group",
-            "bg-gradient-to-r from-primary to-primary/80"
+            "bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700"
           )}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
           {/* 애니메이션 배경 */}
-          <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-transparent animate-pulse" />
+          <div className="absolute inset-0 bg-gradient-to-tr from-violet-400/30 via-transparent to-purple-400/30 animate-pulse" />
 
           {/* 아이콘 */}
           <div className="relative">
-            <MessageSquare
+            <Wand2
               className={cn(
-                "w-6 h-6 transition-all duration-300",
-                isHovered && "scale-110 rotate-12"
+                "w-6 h-6 transition-all duration-300 text-white",
+                isHovered && "scale-110 -rotate-12"
               )}
             />
             {/* 반짝이 효과 */}
@@ -42,7 +42,7 @@ export function FloatingChatButton() {
             className={cn(
               "absolute left-full ml-3 whitespace-nowrap",
               "bg-background border rounded-lg px-3 py-1.5 shadow-lg",
-              "transition-all duration-300 text-sm font-medium",
+              "transition-all duration-300 text-sm font-medium text-foreground",
               isHovered ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-2 pointer-events-none"
             )}
           >
@@ -50,7 +50,7 @@ export function FloatingChatButton() {
           </span>
 
           {/* 펄스 효과 */}
-          <span className="absolute inset-0 rounded-full animate-ping bg-primary/20" />
+          <span className="absolute inset-0 rounded-full animate-ping bg-purple-400/20" />
         </Button>
       </Link>
 

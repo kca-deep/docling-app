@@ -414,11 +414,11 @@ export default function ParsePage() {
   return (
     <PageContainer maxWidth="wide" className="py-4">
       {/* Page Header */}
-      <div className="space-y-1 mb-6">
-        <h1 className="text-3xl font-bold tracking-tight" style={{ color: "var(--chart-1)" }}>
-          문서변환
+      <div className="space-y-2 mb-6">
+        <h1 className="text-2xl font-semibold tracking-tight">
+          문서 파싱
         </h1>
-        <p className="text-sm text-muted-foreground">PDF, DOCX, PPTX 문서를 마크다운으로 변환합니다</p>
+        <p className="text-sm text-muted-foreground">문서를 업로드하여 마크다운으로 변환</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-4">

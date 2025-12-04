@@ -9,7 +9,7 @@ import { SourceArtifactPanel } from "./SourceArtifactPanel";
 import { Card } from "@/components/ui/card";
 import { API_BASE_URL } from "@/lib/api-config";
 import { Button } from "@/components/ui/button";
-import { Maximize, Minimize, Bot, Sun, Moon, MoreVertical, RefreshCw, Sparkles } from "lucide-react";
+import { Maximize, Minimize, Wand2, Sun, Moon, MoreVertical, RefreshCw, Sparkles } from "lucide-react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import {
@@ -905,20 +905,26 @@ export function ChatContainer() {
         "flex items-center justify-between px-4 py-3 border-b flex-shrink-0 transition-colors",
         isFullscreen ? "bg-background/95 backdrop-blur-xl" : "bg-background"
       )}>
-        {/* 왼쪽: 심플 로고 */}
-        <div className="flex items-center gap-2.5">
-          {/* 미니멀 아이콘 */}
-          <div
-            className="p-1.5 rounded-lg"
-            style={{ backgroundColor: "color-mix(in oklch, var(--chart-1) 12%, transparent)" }}
-          >
-            <Bot className="h-4 w-4" style={{ color: "var(--chart-1)" }} strokeWidth={2.5} />
+        {/* 왼쪽: 로고 + 수직 텍스트 */}
+        <div className="flex items-center gap-3">
+          {/* 그라데이션 아이콘 */}
+          <div className="relative">
+            <div
+              className="p-2 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-lg"
+              style={{
+                background: "linear-gradient(135deg, var(--chart-1) 0%, var(--chart-2) 100%)"
+              }}
+            >
+              <Wand2 className="h-5 w-5 text-white" strokeWidth={2} />
+            </div>
+            {/* 온라인 상태 표시 */}
+            <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-background" />
           </div>
 
-          {/* 텍스트 */}
-          <div className="hidden sm:flex items-baseline gap-1.5">
-            <span className="font-semibold text-sm text-foreground">KCA-i</span>
-            <span className="text-xs text-muted-foreground">RAG 챗봇</span>
+          {/* 수직 텍스트 레이아웃 */}
+          <div className="hidden sm:flex flex-col">
+            <span className="font-bold text-base text-foreground leading-tight">KCA-i</span>
+            <span className="text-[11px] text-muted-foreground leading-tight">지능형 챗봇</span>
           </div>
         </div>
 
