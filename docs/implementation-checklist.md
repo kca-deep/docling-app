@@ -9,57 +9,57 @@
 ### Day 1: DB 모델 및 CRUD
 
 **백엔드 파일 생성**:
-- [ ] `backend/models/qdrant_collection.py` - SQLAlchemy 모델
+- [x] `backend/models/qdrant_collection.py` - SQLAlchemy 모델
   ```python
   # 필드: id, collection_name, owner_id, visibility, description, allowed_users, created_at, updated_at
   # 메서드: can_access(user_id), can_modify(user_id)
   ```
-- [ ] `backend/services/collection_crud.py` - CRUD 서비스
+- [x] `backend/services/collection_crud.py` - CRUD 서비스
   ```python
   # 메서드: create, get_by_name, get_accessible_collections, update_visibility, delete, check_ownership
   ```
-- [ ] `backend/scripts/migrate_collections.py` - 마이그레이션 스크립트
+- [x] `backend/scripts/migrate_collections.py` - 마이그레이션 스크립트
   - 기존 Qdrant 컬렉션 → SQLite (visibility="public")
 
 **백엔드 파일 수정**:
-- [ ] `backend/main.py` - 모델 import 및 startup에 마이그레이션 추가
-- [ ] `backend/models/__init__.py` - QdrantCollection export
+- [x] `backend/main.py` - 모델 import 및 startup에 마이그레이션 추가
+- [ ] `backend/models/__init__.py` - QdrantCollection export (직접 import 방식 사용)
 
 ### Day 2: 컬렉션 관리 페이지 기본 구조
 
 **프론트엔드 파일 생성**:
-- [ ] `app/collections/page.tsx` - 메인 페이지
-  - 컬렉션 카드 그리드 레이아웃
-  - 각 카드: 이름, visibility 배지, 벡터수, 문서수, 버튼들
+- [x] `app/collections/page.tsx` - 메인 페이지
+  - 컬렉션 카드 그리드 레이아웃 (컴팩트 버전으로 개선)
+  - 각 카드: 이름, visibility 배지, 벡터수, HoverCard로 상세정보
 
 **백엔드 API 수정**:
-- [ ] `backend/api/routes/qdrant.py`
+- [x] `backend/api/routes/qdrant.py`
   - `POST /api/qdrant/collections` 수정: visibility, description 파라미터 추가
   - `GET /api/qdrant/collections` 수정: SQLite 메타데이터 조인
 
 ### Day 3: 모달 컴포넌트
 
 **프론트엔드 파일 생성**:
-- [ ] `app/collections/components/CreateCollectionModal.tsx`
+- [x] `app/collections/components/CreateCollectionModal.tsx`
   - 이름, 설명, 공개설정 (public/private/shared)
   - 고급설정: 벡터크기, 거리메트릭
-- [ ] `app/collections/components/CollectionSettingsModal.tsx`
+- [x] `app/collections/components/CollectionSettingsModal.tsx`
   - 탭: 일반 / 공개설정 / 위험영역
   - 공개설정 변경, 공유 사용자 선택
-- [ ] `app/collections/components/DeleteConfirmModal.tsx`
+- [x] `app/collections/components/DeleteConfirmModal.tsx`
 
 **백엔드 API 추가**:
-- [ ] `backend/api/routes/qdrant.py`
+- [x] `backend/api/routes/qdrant.py`
   - `PATCH /api/qdrant/collections/{name}/settings` - 설정 변경
   - `DELETE /api/qdrant/collections/{name}` 수정 - 소유자 권한 확인
 
 ### Day 4: 필터/검색 및 마무리
 
 **프론트엔드 수정**:
-- [ ] `app/collections/page.tsx`
+- [x] `app/collections/page.tsx`
   - 검색 입력, 공개상태 필터, 정렬 드롭다운
   - "데이터 업로드하러 가기" 링크
-  - 프롬프트 생성 버튼 (placeholder)
+  - 프롬프트 생성 버튼 (placeholder - 비활성화 상태)
 
 ---
 
@@ -76,7 +76,7 @@
 ### Day 6: 메뉴 구조 변경
 
 **프론트엔드 수정**:
-- [ ] `components/nav-header.tsx`
+- [x] `components/nav-header.tsx`
   ```typescript
   // 변경 전: 문서파싱 | URL파싱 | 벡터업로드 | Excel임베딩 | 채팅 | ...
   // 변경 후: 문서파싱 | 컬렉션관리 | 데이터업로드 | 채팅 | ...
@@ -91,8 +91,8 @@
 ### Day 7: 백엔드 접근 제어
 
 **백엔드 수정**:
-- [ ] `backend/api/routes/qdrant.py`
-  - `GET /collections`: 비로그인 시 public만 반환
+- [x] `backend/api/routes/qdrant.py`
+  - `GET /collections`: 비로그인 시 public만 반환 (get_current_user_optional 사용)
 - [ ] `backend/api/routes/chat.py`
   - `GET /collections`: 접근 가능한 컬렉션만
   - `POST /`, `POST /stream`: 컬렉션 접근 권한 확인
