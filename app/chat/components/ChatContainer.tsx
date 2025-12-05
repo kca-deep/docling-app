@@ -9,7 +9,7 @@ import { SourceArtifactPanel } from "./SourceArtifactPanel";
 import { Card } from "@/components/ui/card";
 import { API_BASE_URL } from "@/lib/api-config";
 import { Button } from "@/components/ui/button";
-import { Maximize, Minimize, Wand2, Sun, Moon, MoreVertical, RefreshCw, Sparkles } from "lucide-react";
+import { Maximize, Minimize, Wand2, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import {
@@ -26,13 +26,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 interface Message {
@@ -959,55 +952,30 @@ export function ChatContainer() {
             </Tooltip>
           </TooltipProvider>
 
-          <DropdownMenu>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                    >
-                      <MoreVertical className="h-3.5 w-3.5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p className="text-xs">메뉴</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem
-                onClick={() => {
-                  console.log('[Fullscreen Button] Clicked, current state:', isFullscreen);
-                  setIsFullscreen(!isFullscreen);
-                }}
-              >
-                {isFullscreen ? (
-                  <>
-                    <Minimize className="h-4 w-4" />
-                    <span>전체화면 종료</span>
-                  </>
-                ) : (
-                  <>
-                    <Maximize className="h-4 w-4" />
-                    <span>전체화면</span>
-                  </>
-                )}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => {
-                  setArtifactState(prev => ({ ...prev, isOpen: !prev.isOpen }));
-                }}
-              >
-                <Sparkles className="h-4 w-4" />
-                <span>참조문서 패널 {artifactState.isOpen ? '닫기' : '열기'}</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => {
+                    console.log('[Fullscreen Button] Clicked, current state:', isFullscreen);
+                    setIsFullscreen(!isFullscreen);
+                  }}
+                >
+                  {isFullscreen ? (
+                    <Minimize className="h-3.5 w-3.5" />
+                  ) : (
+                    <Maximize className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs">{isFullscreen ? "전체화면 종료" : "전체화면"}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </div>
 

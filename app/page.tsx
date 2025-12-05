@@ -74,7 +74,7 @@ export default function HomePage() {
     { icon: Zap, label: "처리 속도", value: "3초", unit: "/문서" },
     { icon: Shield, label: "정확도", value: "99.5", unit: "%" },
     { icon: TrendingUp, label: "처리량", value: "1000+", unit: "/일" },
-    { icon: Sparkles, label: "AI 모델", value: "5", unit: "개" },
+    { icon: Sparkles, label: "AI 모델", value: "4", unit: "개" },
   ]
 
   return (
@@ -85,13 +85,15 @@ export default function HomePage() {
         <div className="absolute inset-0 z-0">
           {/* Solid background base */}
           <div className="absolute inset-0 bg-background" />
-          {/* Gradient overlay */}
-          <div className="absolute inset-0 bg-gradient-to-br from-[color:var(--chart-1)]/15 via-transparent to-[color:var(--chart-3)]/15" />
-          {/* Dot pattern overlay */}
+          {/* Gradient overlay - 다크모드에서 더 강한 그라데이션 */}
+          <div className="absolute inset-0 bg-gradient-to-br from-[color:var(--chart-1)]/10 via-transparent to-[color:var(--chart-3)]/10 dark:from-[color:var(--chart-1)]/20 dark:via-[color:var(--chart-2)]/5 dark:to-[color:var(--chart-3)]/20" />
+          {/* Radial glow effect - 다크모드에서 중앙 글로우 */}
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[color:var(--chart-1)]/5 via-transparent to-transparent dark:from-[color:var(--chart-1)]/10 dark:via-transparent dark:to-transparent" />
+          {/* Dot pattern overlay - 다크모드에서 더 밝은 도트 */}
           <div
-            className="absolute inset-0 opacity-40"
+            className="absolute inset-0 opacity-30 dark:opacity-20"
             style={{
-              backgroundImage: 'radial-gradient(circle, oklch(0.5 0 0) 1px, transparent 1px)',
+              backgroundImage: 'radial-gradient(circle, hsl(var(--muted-foreground) / 0.3) 1px, transparent 1px)',
               backgroundSize: '24px 24px',
             }}
           />

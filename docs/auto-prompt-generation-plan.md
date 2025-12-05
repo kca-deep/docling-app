@@ -18,6 +18,10 @@
 7. [구현 로드맵](#7-구현-로드맵)
 8. [위험 관리](#8-위험-관리)
 9. [참고 자료](#9-참고-자료)
+10. [메뉴 구조 개편 및 페이지 통합](#10-메뉴-구조-개편-및-페이지-통합)
+11. [컬렉션 관리 페이지](#11-컬렉션-관리-페이지)
+12. [다음 단계](#12-다음-단계)
+13. [버전 히스토리](#13-버전-히스토리)
 
 ---
 
@@ -1360,44 +1364,791 @@ export function PromptGeneratorModal({
 
 ---
 
-## 10. 다음 단계
+## 10. 메뉴 구조 개편 및 페이지 통합
 
-### 10.1 즉시 실행 가능한 작업
+### 10.1 현재 문제점
 
-1. **메타 프롬프트 작성** (30분)
+**현재 메뉴 구조 (8개)**:
+```
+홈 | 문서파싱 | URL파싱 | 벡터업로드 | Excel임베딩 | 채팅 | 분석 | 시스템구조
+```
+
+**문제점**:
+- 메뉴가 많아 사용자 혼란
+- 벡터업로드와 Excel임베딩에 컬렉션 생성/삭제 기능이 중복 (~200줄 코드 중복)
+- 컬렉션 관리 기능이 분산되어 있음
+- 공개/비공개 설정 기능 추가 시 메뉴가 더 복잡해짐
+- 문서파싱과 URL파싱이 유사한 기능인데 분리됨
+
+**현재 페이지별 컬렉션 기능 중복**:
+```
+┌─────────────────────────────────────────────────────────────┐
+│  /upload 페이지                                              │
+│  • 컬렉션 선택 ✓                                             │
+│  • 컬렉션 생성 (중복)                                        │
+│  • 컬렉션 삭제 (중복)                                        │
+├─────────────────────────────────────────────────────────────┤
+│  /excel-embedding 페이지                                     │
+│  • 컬렉션 선택 ✓                                             │
+│  • 컬렉션 생성 (중복)                                        │
+│  • 컬렉션 삭제 (중복)                                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 10.2 개선 목표 (방안 B: 메뉴 통합)
+
+**개선된 메뉴 구조 (6개)**:
+```
+홈 | 문서파싱 | 컬렉션관리 | 데이터업로드 | 채팅 | 분석
+     (탭)                      (탭)
+```
+
+**통합 내용**:
+| 현재 | 개선 후 |
+|------|---------|
+| 문서파싱 (/parse) | 문서파싱 (/parse) - 파일 업로드 탭 |
+| URL파싱 (/url-parse) | 문서파싱 (/parse) - URL 파싱 탭 |
+| 벡터업로드 (/upload) | 데이터업로드 (/upload) - 파싱문서 탭 |
+| Excel임베딩 (/excel-embedding) | 데이터업로드 (/upload) - Excel 탭 |
+| (없음) | 컬렉션관리 (/collections) - 신규 |
+| 시스템구조 (/system-architecture) | Footer 또는 설정으로 이동 |
+
+### 10.3 페이지별 역할 재정의
+
+**책임 분리 원칙**:
+```
+┌─────────────────────────────────────────────────────────────┐
+│  /parse (문서 파싱)                                          │
+│  • 역할: 문서를 마크다운으로 변환                            │
+│  • 탭: [파일 업로드] [URL 파싱]                              │
+│  • 결과: 파싱된 문서가 DB에 저장됨                           │
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│  /collections (컬렉션 관리) ★ 신규                           │
+│  • 역할: 컬렉션 생성/삭제/설정 관리                          │
+│  • 기능:                                                     │
+│    - 컬렉션 CRUD (생성, 조회, 수정, 삭제)                    │
+│    - 공개/비공개/공유 설정                                   │
+│    - 프롬프트 자동 생성                                      │
+│    - 컬렉션별 문서 현황                                      │
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│  /upload (데이터 업로드)                                     │
+│  • 역할: 데이터를 벡터화하여 컬렉션에 업로드                 │
+│  • 탭: [파싱 문서] [Excel 파일]                              │
+│  • 컬렉션 기능: 선택만 (생성/삭제 제거)                      │
+│  • 안내: "컬렉션 관리에서 먼저 생성하세요" 링크              │
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│  /chat (채팅)                                                │
+│  • 역할: 벡터 검색 기반 RAG 채팅                             │
+│  • 컬렉션: 접근 가능한 컬렉션만 표시                         │
+│    - 비로그인: public 컬렉션만                               │
+│    - 로그인: public + 본인 소유 + 공유받은 컬렉션            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 10.4 사용자 워크플로우 변경
+
+**첫 사용 시 (컬렉션 없음)**:
+```
+1. /parse → 문서 파싱
+2. /collections → 컬렉션 생성 (공개 설정 필수)
+3. /upload → 컬렉션 선택 → 데이터 업로드
+4. /chat → 검색
+```
+
+**기존 사용자 (컬렉션 있음)**:
+```
+1. /upload → 기존 컬렉션 선택 → 업로드
+2. 필요시 /collections → 설정 변경
+```
+
+**데이터 업로드 페이지에서 컬렉션이 없을 때**:
+```
+┌─────────────────────────────────────┐
+│ 컬렉션                              │
+│ ┌───────────────────────────────┐  │
+│ │ 컬렉션이 없습니다          ▼  │  │
+│ └───────────────────────────────┘  │
+│                                     │
+│ ⚠️ 업로드할 컬렉션이 없습니다       │
+│    먼저 컬렉션을 생성해주세요       │
+│    [컬렉션 관리로 이동 →]           │
+└─────────────────────────────────────┘
+```
+
+### 10.5 코드 변경 영향
+
+**제거되는 코드**:
+| 파일 | 제거 내용 | 라인 수 |
+|------|----------|---------|
+| `/upload/page.tsx` | CreateCollectionDialog, DeleteConfirmDialog, 핸들러 | ~100줄 |
+| `/excel-embedding/page.tsx` | 동일한 다이얼로그 및 핸들러 | ~100줄 |
+| **총 제거** | | **~200줄** |
+
+**추가되는 코드**:
+| 파일 | 추가 내용 | 라인 수 |
+|------|----------|---------|
+| `/collections/page.tsx` | 컬렉션 관리 페이지 전체 | ~500줄 |
+| `/upload/page.tsx` | Excel 탭 통합, 안내 링크 | ~50줄 |
+| `/parse/page.tsx` | URL 파싱 탭 통합 | ~50줄 |
+| **총 추가** | | **~600줄** |
+
+**순 효과**: 중복 제거로 유지보수성 향상, 기능 통합으로 코드 응집도 증가
+
+### 10.6 라우팅 변경
+
+**리다이렉트 설정**:
+```typescript
+// 기존 URL 호환성 유지
+/qdrant → /upload?tab=documents (기존 유지)
+/url-parse → /parse?tab=url (신규)
+/excel-embedding → /upload?tab=excel (신규)
+```
+
+**nav-header.tsx 변경**:
+```typescript
+// 현재
+{ name: "문서 파싱", href: "/parse" },
+{ name: "URL 파싱", href: "/url-parse" },
+{ name: "벡터 업로드", href: "/upload" },
+{ name: "Excel 임베딩", href: "/excel-embedding" },
+
+// 변경 후
+{ name: "문서 파싱", href: "/parse" },
+{ name: "컬렉션 관리", href: "/collections" },
+{ name: "데이터 업로드", href: "/upload" },
+```
+
+---
+
+## 11. 컬렉션 관리 페이지
+
+### 11.1 개요
+
+컬렉션 관리 페이지(`/collections`)는 기존에 분산되어 있던 컬렉션 관련 기능을 통합하는 중앙 관리 페이지입니다.
+
+**통합되는 기능**:
+- 컬렉션 CRUD (생성, 조회, 수정, 삭제)
+- 공개/비공개/공유 설정
+- 프롬프트 자동 생성 (섹션 1-9의 기능)
+- 컬렉션별 문서 현황
+
+### 11.2 페이지 UI/UX 설계
+
+**전체 레이아웃**:
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  컬렉션 관리                                    [+ 새 컬렉션]   │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─ 필터/검색 ─────────────────────────────────────────────────┐│
+│  │ [검색: 컬렉션명...]  [공개 상태: 전체 ▼]  [정렬: 최신순 ▼] ││
+│  └─────────────────────────────────────────────────────────────┘│
+│                                                                 │
+│  ┌─ 컬렉션 카드 그리드 ────────────────────────────────────────┐│
+│  │                                                             ││
+│  │  ┌─────────────────────────────┐ ┌─────────────────────────┐││
+│  │  │ 1. 인사 및 복무   [공개]    │ │ 2. 예산관리    [공개]   │││
+│  │  │ 벡터: 1,234 | 문서: 12      │ │ 벡터: 856 | 문서: 8     │││
+│  │  │ 소유자: admin               │ │ 소유자: admin           │││
+│  │  │ 생성일: 2025-01-10          │ │ 생성일: 2025-01-12      │││
+│  │  │                             │ │                         │││
+│  │  │ [설정] [프롬프트] [삭제]    │ │ [설정] [프롬프트] [삭제]│││
+│  │  └─────────────────────────────┘ └─────────────────────────┘││
+│  │                                                             ││
+│  │  ┌─────────────────────────────┐ ┌─────────────────────────┐││
+│  │  │ 3. 보안 정책    [비공개]    │ │ 4. 기술문서    [공유]   │││
+│  │  │ 벡터: 523 | 문서: 5         │ │ 벡터: 2,100 | 문서: 15  │││
+│  │  │ 소유자: admin               │ │ 공유: user1 외 2명      │││
+│  │  │ 생성일: 2025-01-17          │ │ 생성일: 2025-01-15      │││
+│  │  │                             │ │                         │││
+│  │  │ [설정] [프롬프트] [삭제]    │ │ [설정] [프롬프트] [삭제]│││
+│  │  └─────────────────────────────┘ └─────────────────────────┘││
+│  │                                                             ││
+│  └─────────────────────────────────────────────────────────────┘│
+│                                                                 │
+│  ┌─ 빠른 이동 ─────────────────────────────────────────────────┐│
+│  │ [데이터 업로드하러 가기 →]                                  ││
+│  └─────────────────────────────────────────────────────────────┘│
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**컬렉션 카드 상세**:
+```
+┌─────────────────────────────────────────┐
+│ 3. 보안 정책                  [비공개]  │
+├─────────────────────────────────────────┤
+│ 벡터: 523개                             │
+│ 업로드된 문서: 5개                      │
+│ 소유자: admin                           │
+│ 생성일: 2025-01-17                      │
+│ 설명: 정보보안, 개인정보보호 문서       │
+├─────────────────────────────────────────┤
+│ [설정]  [프롬프트 생성]  [삭제]         │
+└─────────────────────────────────────────┘
+
+공개 상태 배지:
+- [공개]: 초록색 배경
+- [비공개]: 회색 배경
+- [공유]: 파란색 배경
+```
+
+**컬렉션 생성 모달**:
+```
+┌───────────────────────────────────────────────────────────┐
+│  새 컬렉션 생성                                 [X]        │
+├───────────────────────────────────────────────────────────┤
+│                                                           │
+│  컬렉션 이름 *                                            │
+│  ┌─────────────────────────────────────────────────────┐ │
+│  │ 3. 보안 정책                                         │ │
+│  └─────────────────────────────────────────────────────┘ │
+│                                                           │
+│  설명 (선택)                                              │
+│  ┌─────────────────────────────────────────────────────┐ │
+│  │ 정보보안, 개인정보보호 관련 내부 문서               │ │
+│  └─────────────────────────────────────────────────────┘ │
+│                                                           │
+│  ───────────────────────────────────────────────────────  │
+│                                                           │
+│  공개 설정 *                                              │
+│                                                           │
+│  ○ 비공개 (Private)                                       │
+│    본인만 접근 가능                                       │
+│                                                           │
+│  ● 공개 (Public)                                          │
+│    모든 사용자가 검색 가능 (비로그인 포함)               │
+│                                                           │
+│  ○ 공유 (Shared)                                          │
+│    선택한 사용자만 접근 가능                             │
+│    [사용자 선택 ▼]                                        │
+│                                                           │
+│  ───────────────────────────────────────────────────────  │
+│                                                           │
+│  고급 설정                                                │
+│                                                           │
+│  벡터 크기: [1024 ▼]                                      │
+│  거리 메트릭: [Cosine ▼]                                  │
+│                                                           │
+│              [취소]          [생성]                       │
+│                                                           │
+└───────────────────────────────────────────────────────────┘
+```
+
+**컬렉션 설정 모달**:
+```
+┌───────────────────────────────────────────────────────────┐
+│  컬렉션 설정: 3. 보안 정책                      [X]        │
+├───────────────────────────────────────────────────────────┤
+│                                                           │
+│  [일반]  [공개 설정]  [위험 영역]  ← 탭                    │
+│                                                           │
+│  ─────────────── 공개 설정 ───────────────                 │
+│                                                           │
+│  현재 상태: 비공개                                        │
+│                                                           │
+│  ○ 비공개 (Private)                             [현재]    │
+│                                                           │
+│  ○ 공개 (Public)                                          │
+│    모든 사용자가 이 컬렉션을 검색할 수 있습니다          │
+│                                                           │
+│  ○ 공유 (Shared)                                          │
+│    접근 허용 사용자:                                      │
+│    ┌───────────────────────────────────────────────────┐ │
+│    │ □ user1 (김철수)                                  │ │
+│    │ □ user2 (박영희)                                  │ │
+│    │ □ user3 (이민수)                                  │ │
+│    └───────────────────────────────────────────────────┘ │
+│                                                           │
+│              [취소]          [저장]                       │
+│                                                           │
+└───────────────────────────────────────────────────────────┘
+```
+
+### 11.3 데이터베이스 스키마
+
+**새로운 SQLite 테이블**: `qdrant_collections`
+
+```sql
+CREATE TABLE qdrant_collections (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    collection_name VARCHAR(255) UNIQUE NOT NULL,
+    owner_id INTEGER NOT NULL,
+    visibility VARCHAR(20) NOT NULL DEFAULT 'private',
+    description TEXT,
+    allowed_users JSON,  -- 공유받은 사용자 ID 목록
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE,
+    CHECK (visibility IN ('public', 'private', 'shared'))
+);
+
+CREATE INDEX idx_qdrant_collections_owner ON qdrant_collections(owner_id);
+CREATE INDEX idx_qdrant_collections_visibility ON qdrant_collections(visibility);
+```
+
+**visibility 값**:
+| 값 | 설명 |
+|---|------|
+| `public` | 모든 사용자(비로그인 포함) 접근 가능 |
+| `private` | 소유자만 접근 가능 |
+| `shared` | 소유자 + allowed_users에 지정된 사용자 접근 가능 |
+
+### 11.4 SQLAlchemy 모델
+
+**파일**: `backend/models/qdrant_collection.py`
+
+```python
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, JSON, CheckConstraint
+from sqlalchemy.orm import relationship
+from datetime import datetime
+from backend.database import Base
+
+class QdrantCollection(Base):
+    __tablename__ = "qdrant_collections"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    collection_name = Column(String(255), unique=True, nullable=False, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    visibility = Column(
+        String(20),
+        nullable=False,
+        default="private",
+        index=True
+    )
+    description = Column(String(500), nullable=True)
+    allowed_users = Column(JSON, default=list)  # [user_id1, user_id2, ...]
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    owner = relationship("User", back_populates="collections")
+
+    __table_args__ = (
+        CheckConstraint(
+            "visibility IN ('public', 'private', 'shared')",
+            name="check_visibility"
+        ),
+    )
+
+    def can_access(self, user_id: int | None) -> bool:
+        """사용자가 이 컬렉션에 접근 가능한지 확인"""
+        if self.visibility == "public":
+            return True
+        if user_id is None:
+            return False
+        if self.owner_id == user_id:
+            return True
+        if self.visibility == "shared" and user_id in (self.allowed_users or []):
+            return True
+        return False
+
+    def can_modify(self, user_id: int | None) -> bool:
+        """사용자가 이 컬렉션을 수정할 수 있는지 확인"""
+        if user_id is None:
+            return False
+        return self.owner_id == user_id
+```
+
+### 11.5 API 명세
+
+#### 11.5.1 컬렉션 생성
+
+**엔드포인트**: `POST /api/qdrant/collections`
+
+**Request Body**:
+```json
+{
+  "collection_name": "3. 보안 정책",
+  "vector_size": 1024,
+  "distance": "Cosine",
+  "visibility": "private",
+  "description": "보안 관련 내부 문서 컬렉션"
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "collection_name": "3. 보안 정책",
+  "visibility": "private",
+  "owner_id": 1,
+  "message": "컬렉션이 생성되었습니다"
+}
+```
+
+#### 11.5.2 컬렉션 목록 조회
+
+**엔드포인트**: `GET /api/qdrant/collections`
+
+**동작**:
+- 비로그인: `visibility="public"` 컬렉션만 반환
+- 로그인: public + 본인 소유 + shared(본인 포함) 컬렉션 반환
+
+**Response**:
+```json
+{
+  "collections": [
+    {
+      "name": "1. 인사 및 복무",
+      "visibility": "public",
+      "is_owner": false,
+      "vectors_count": 1234,
+      "documents_count": 12,
+      "description": "인사 및 복무 관련 규정",
+      "created_at": "2025-01-10T10:00:00"
+    },
+    {
+      "name": "3. 보안 정책",
+      "visibility": "private",
+      "is_owner": true,
+      "vectors_count": 523,
+      "documents_count": 5,
+      "description": "보안 관련 내부 문서",
+      "created_at": "2025-01-17T14:30:00"
+    }
+  ]
+}
+```
+
+#### 11.5.3 컬렉션 삭제
+
+**엔드포인트**: `DELETE /api/qdrant/collections/{collection_name}`
+
+**접근 제어 추가**:
+- 소유자만 삭제 가능
+- 비소유자 요청 시 403 Forbidden
+
+**에러 응답**:
+```json
+{
+  "detail": "이 컬렉션을 삭제할 권한이 없습니다"
+}
+```
+
+#### 11.5.4 컬렉션 설정 변경
+
+**엔드포인트**: `PATCH /api/qdrant/collections/{collection_name}/settings`
+
+**Request Body**:
+```json
+{
+  "visibility": "shared",
+  "description": "팀 공유용 컬렉션",
+  "allowed_users": [2, 3, 5]
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "collection_name": "3. 보안 정책",
+  "visibility": "shared",
+  "allowed_users": [2, 3, 5],
+  "message": "설정이 변경되었습니다"
+}
+```
+
+#### 11.5.5 채팅 엔드포인트 접근 제어
+
+**엔드포인트**: `POST /api/chat/` 및 `POST /api/chat/stream`
+
+**접근 제어 추가**:
+```python
+# 요청한 컬렉션에 대한 접근 권한 확인
+collection = collection_crud.get_by_name(db, chat_request.collection_name)
+if not collection or not collection.can_access(user.id if user else None):
+    raise HTTPException(
+        status_code=403,
+        detail="이 컬렉션에 접근할 권한이 없습니다"
+    )
+```
+
+### 11.6 CRUD 서비스
+
+**파일**: `backend/services/collection_crud.py`
+
+```python
+from sqlalchemy.orm import Session
+from sqlalchemy import or_
+from backend.models.qdrant_collection import QdrantCollection
+from typing import List, Optional
+
+class CollectionCRUD:
+    def create(
+        self,
+        db: Session,
+        collection_name: str,
+        owner_id: int,
+        visibility: str = "private",
+        description: str = None
+    ) -> QdrantCollection:
+        """컬렉션 메타데이터 생성"""
+        collection = QdrantCollection(
+            collection_name=collection_name,
+            owner_id=owner_id,
+            visibility=visibility,
+            description=description
+        )
+        db.add(collection)
+        db.commit()
+        db.refresh(collection)
+        return collection
+
+    def get_by_name(self, db: Session, collection_name: str) -> Optional[QdrantCollection]:
+        """컬렉션명으로 조회"""
+        return db.query(QdrantCollection).filter(
+            QdrantCollection.collection_name == collection_name
+        ).first()
+
+    def get_accessible_collections(
+        self,
+        db: Session,
+        user_id: Optional[int],
+        qdrant_collection_names: List[str]
+    ) -> List[QdrantCollection]:
+        """
+        사용자가 접근 가능한 컬렉션 목록 조회
+        - user_id=None: public 컬렉션만
+        - user_id=N: public + 소유 + shared(본인 포함)
+        """
+        query = db.query(QdrantCollection).filter(
+            QdrantCollection.collection_name.in_(qdrant_collection_names)
+        )
+
+        if user_id is None:
+            # 비로그인: public만
+            query = query.filter(QdrantCollection.visibility == "public")
+        else:
+            # 로그인: public OR 소유자 OR shared에 포함
+            query = query.filter(
+                or_(
+                    QdrantCollection.visibility == "public",
+                    QdrantCollection.owner_id == user_id,
+                    # SQLite JSON 함수로 allowed_users 확인
+                    QdrantCollection.allowed_users.contains(str(user_id))
+                )
+            )
+
+        return query.all()
+
+    def update_visibility(
+        self,
+        db: Session,
+        collection_name: str,
+        visibility: str,
+        allowed_users: List[int] = None
+    ) -> Optional[QdrantCollection]:
+        """컬렉션 공개 설정 변경"""
+        collection = self.get_by_name(db, collection_name)
+        if collection:
+            collection.visibility = visibility
+            if allowed_users is not None:
+                collection.allowed_users = allowed_users
+            db.commit()
+            db.refresh(collection)
+        return collection
+
+    def delete(self, db: Session, collection_name: str) -> bool:
+        """컬렉션 메타데이터 삭제"""
+        collection = self.get_by_name(db, collection_name)
+        if collection:
+            db.delete(collection)
+            db.commit()
+            return True
+        return False
+
+    def check_ownership(
+        self,
+        db: Session,
+        collection_name: str,
+        user_id: int
+    ) -> bool:
+        """컬렉션 소유권 확인"""
+        collection = self.get_by_name(db, collection_name)
+        return collection and collection.owner_id == user_id
+
+collection_crud = CollectionCRUD()
+```
+
+### 11.7 마이그레이션 전략
+
+**기존 컬렉션 처리**:
+
+```python
+# backend/scripts/migrate_collections.py
+async def migrate_existing_collections():
+    """
+    기존 Qdrant 컬렉션을 SQLite로 마이그레이션
+    기본값: visibility="public" (하위 호환성)
+    """
+    db = SessionLocal()
+
+    # 1. Qdrant에서 모든 컬렉션 조회
+    qdrant_collections = await qdrant_service.get_collections()
+
+    # 2. admin 사용자 조회 (기존 컬렉션의 소유자로 지정)
+    admin_user = db.query(User).filter(User.role == "admin").first()
+    if not admin_user:
+        raise Exception("Admin user not found")
+
+    # 3. 각 컬렉션을 SQLite에 등록
+    for col in qdrant_collections:
+        existing = collection_crud.get_by_name(db, col.name)
+        if not existing:
+            collection_crud.create(
+                db=db,
+                collection_name=col.name,
+                owner_id=admin_user.id,
+                visibility="public",  # 기존 컬렉션은 public으로 (하위 호환)
+                description=f"마이그레이션된 컬렉션 ({col.vectors_count} vectors)"
+            )
+            print(f"Migrated: {col.name}")
+        else:
+            print(f"Already exists: {col.name}")
+
+    db.close()
+```
+
+**시작 시 자동 마이그레이션**:
+
+```python
+# backend/main.py
+@app.on_event("startup")
+async def startup_event():
+    # 기존 로직...
+    Base.metadata.create_all(bind=engine)
+
+    # 기존 컬렉션 마이그레이션 (1회성)
+    await migrate_existing_collections()
+```
+
+### 11.8 통합 구현 로드맵
+
+기존 섹션 7의 구현 로드맵과 메뉴 개편 및 컬렉션 관리 기능을 통합한 로드맵입니다.
+
+> **구현 우선순위 원칙**: 컬렉션 관리 UI를 먼저 완성하여 사용자가 즉시 활용할 수 있도록 합니다. 프롬프트 자동 생성 기능은 컬렉션 관리가 안정화된 후 추가합니다.
+
+**Phase 1: 컬렉션 관리 UI 우선 구현 (4일)**
+
+| 일차 | 작업 |
+|------|------|
+| Day 1 | • **DB 모델 생성**: `QdrantCollection` SQLAlchemy 모델<br>• **CRUD 서비스**: `collection_crud.py` 구현<br>• **마이그레이션 스크립트**: 기존 Qdrant 컬렉션 → SQLite (visibility="public") |
+| Day 2 | • `/collections` 페이지 기본 구조 생성<br>• 컬렉션 목록 카드 UI 구현<br>• 컬렉션 생성 API 수정 (visibility, description 추가) |
+| Day 3 | • 컬렉션 생성 모달 (공개 설정 포함)<br>• 컬렉션 삭제 기능 (소유자 권한 확인)<br>• 컬렉션 설정 변경 모달 |
+| Day 4 | • 필터/검색 기능 (공개 상태, 이름)<br>• "데이터 업로드하러 가기" 링크<br>• 프롬프트 생성 버튼 (placeholder - 추후 연동) |
+
+**Phase 2: 기존 페이지 수정 및 메뉴 개편 (2일)**
+
+| 일차 | 작업 |
+|------|------|
+| Day 5 | • `/upload` 페이지에서 컬렉션 생성/삭제 버튼 제거<br>• Excel 탭 통합 (기존 `/excel-embedding` 기능 병합)<br>• 컬렉션 없을 때 안내 메시지 + 링크 추가 |
+| Day 6 | • `/parse` 페이지에 URL 파싱 탭 통합<br>• 리다이렉트 설정 (`/excel-embedding` → `/upload?tab=excel`)<br>• `nav-header.tsx` 메뉴 구조 변경 |
+
+**Phase 3: 접근 제어 적용 (2일)**
+
+| 일차 | 작업 |
+|------|------|
+| Day 7 | • `/api/qdrant/collections` 접근 제어 적용<br>• `/api/chat/collections` 비로그인 시 public만 반환<br>• `/api/chat/` 및 `/api/chat/stream` 컬렉션 접근 권한 확인 |
+| Day 8 | • 채팅 페이지 컬렉션 드롭다운에 공개 상태 표시<br>• 비로그인 시 "로그인하여 더 많은 컬렉션 보기" 안내<br>• 데이터 업로드 페이지에서도 접근 가능한 컬렉션만 표시 |
+
+**Phase 4: 컬렉션 관리 테스트 및 안정화 (1일)**
+
+| 일차 | 작업 |
+|------|------|
+| Day 9 | • 전체 워크플로우 테스트: 문서 파싱 → 컬렉션 생성 → 데이터 업로드 → 채팅<br>• 접근 제어 테스트 (비로그인, 로그인, 소유자)<br>• 버그 수정 및 UX 개선 |
+
+---
+
+**[마일스톤] 컬렉션 관리 기능 완료 (Day 9)**
+
+> 이 시점에서 컬렉션 관리 UI가 완성되며, 사용자는 컬렉션 생성/삭제/설정 변경 및 접근 제어 기능을 사용할 수 있습니다. 프롬프트 자동 생성 버튼은 placeholder 상태입니다.
+
+---
+
+**Phase 5: 프롬프트 자동 생성 백엔드 (4일)**
+
+| 일차 | 작업 |
+|------|------|
+| Day 10-11 | • 섹션 7의 Phase 1 (백엔드 기반 구축)<br>• `document_selector_service.py`, `prompt_generator_service.py`<br>• 메타 프롬프트 작성 (`backend/prompts/meta/meta_prompt.md`) |
+| Day 12-13 | • 섹션 7의 Phase 2 (API 개발)<br>• `/api/prompts/generate`, `/api/prompts/save` 등<br>• `prompt_validator.py`, `file_manager_service.py` |
+
+**Phase 6: 프롬프트 자동 생성 프론트엔드 (2일)**
+
+| 일차 | 작업 |
+|------|------|
+| Day 14 | • `PromptGeneratorModal.tsx` 구현<br>• 문서 선택, 템플릿 선택 UI<br>• 진행 상태 표시 (progress bar) |
+| Day 15 | • 프롬프트/추천 질문 미리보기 및 편집<br>• 저장 기능 연동<br>• 컬렉션 관리 페이지에 프롬프트 생성 버튼 활성화 |
+
+**Phase 7: 최종 테스트 및 문서화 (1일)**
+
+| 일차 | 작업 |
+|------|------|
+| Day 16 | • 프롬프트 자동 생성 전체 테스트<br>• 다양한 문서 유형 테스트 (규정, 예산, 기술문서)<br>• 사용자 가이드 작성 및 문서화 |
+
+**총 예상 기간: 16일 (약 3-4주)**
+
+**로드맵 요약**:
+| Phase | 기간 | 내용 | 마일스톤 |
+|-------|------|------|----------|
+| Phase 1-4 | Day 1-9 | 컬렉션 관리 UI 완성 | **컬렉션 관리 기능 릴리스 가능** |
+| Phase 5-7 | Day 10-16 | 프롬프트 자동 생성 추가 | **전체 기능 완료** |
+
+---
+
+## 12. 다음 단계
+
+### 12.1 즉시 실행 가능한 작업
+
+1. **DB 모델 생성**
+   - `backend/models/qdrant_collection.py` 작성
+   - `backend/services/collection_crud.py` 작성
+
+2. **메뉴 구조 확정**
+   - 최종 메뉴 순서: 홈 | 문서파싱 | 컬렉션관리 | 데이터업로드 | 채팅 | 분석
+   - 시스템구조 페이지 처리 방안 결정 (footer 이동 또는 유지)
+
+3. **메타 프롬프트 작성**
    - `backend/prompts/meta/meta_prompt.md` 생성
    - regulation.md를 참조하여 구조 정의
 
-2. **수동 테스트** (1시간)
-   - 메타 프롬프트를 LLM에 직접 입력
-   - regulation.md 재생성 시도
-   - 품질 평가
+### 12.2 승인 필요 사항
 
-3. **백엔드 서비스 스켈레톤 작성** (2시간)
-   - `document_sampler_service.py` (기본 구조만)
-   - `prompt_generator_service.py` (기본 구조만)
-
-### 10.2 승인 필요 사항
-
-- [ ] 메타 프롬프트 초안 검토
+- [ ] 메뉴 구조 개편안 승인
+- [ ] 컬렉션 관리 페이지 UI/UX 디자인 승인
 - [ ] API 명세 최종 확인
-- [ ] UI/UX 디자인 승인
 - [ ] 구현 우선순위 조정
+- [ ] 메타 프롬프트 초안 검토
 
-### 10.3 추가 논의 사항
+### 12.3 추가 논의 사항
 
 - LLM 모델 선택 (GPT-OSS vs EXAONE vs HyperCLOVA)
 - 토큰 제한 조정 (4000 → 6000?)
 - 추천 질문 개수 (6개 고정 vs 가변)
 - 백업 보관 기간 (무제한 vs 30일)
+- 컬렉션 공유 기능 범위 (shared visibility 필요 여부)
+- 기존 컬렉션 기본 visibility (public vs private)
+- 시스템 구조 페이지 위치 (메뉴 유지 vs footer 이동)
 
 ---
 
-## 11. 버전 히스토리
+## 13. 버전 히스토리
 
 | 버전 | 날짜 | 변경 사항 |
 |------|------|----------|
 | 1.0 | 2025-01-17 | 초안 작성 (Sequential Thinking MCP 기반) |
+| 1.1 | 2025-12-05 | 섹션 10 추가: 컬렉션 공개/비공개 설정 기능 |
+| 1.2 | 2025-12-05 | 메뉴 구조 개편 (방안 B 적용):<br>• 섹션 10: 메뉴 구조 개편 및 페이지 통합<br>• 섹션 11: 컬렉션 관리 페이지 (기존 섹션 10 통합)<br>• 구현 로드맵 통합 (14일) |
+| 1.3 | 2025-12-05 | 구현 로드맵 순서 변경 (11.8):<br>• 컬렉션 관리 UI 우선 구현 (Day 1-9)<br>• 프롬프트 자동 생성은 후순위 (Day 10-16)<br>• Day 9 마일스톤 추가: 컬렉션 관리 기능 릴리스 가능<br>• 총 기간: 14일 → 16일 |
 
 ---
 

@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Layers, Loader2, AlertCircle } from "lucide-react"
+import { Sparkles, Loader2, AlertCircle } from "lucide-react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -67,21 +67,21 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-6">
+    <div className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-[color:var(--chart-1)]/5 via-background to-[color:var(--chart-3)]/5 p-6">
       <div className="w-full max-w-sm">
-        <Card className="shadow-lg">
+        <Card className="shadow-lg border-2">
           <CardHeader className="text-center pb-2">
             {/* Logo */}
             <div className="flex justify-center mb-4">
-              <div className="p-3 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg">
-                <Layers className="h-8 w-8 text-white" />
+              <div className="p-4 rounded-xl bg-[color:var(--chart-1)]/10 border-2 border-[color:var(--chart-1)]/20">
+                <Sparkles className="h-8 w-8 text-[color:var(--chart-1)]" />
               </div>
             </div>
-            <CardTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent">
+            <CardTitle className="text-2xl font-bold text-foreground">
               KCA-RAG
             </CardTitle>
             <CardDescription className="text-muted-foreground">
-              관리자 로그인
+              Document AI Pipeline
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -128,7 +128,7 @@ function LoginForm() {
               {/* Submit Button */}
               <Button
                 type="submit"
-                className="w-full"
+                className="w-full bg-[color:var(--chart-1)] hover:bg-[color:var(--chart-1)]/90 text-white"
                 disabled={isSubmitting || !username || !password}
               >
                 {isSubmitting ? (
@@ -146,7 +146,7 @@ function LoginForm() {
 
         {/* Footer */}
         <p className="mt-4 text-center text-sm text-muted-foreground">
-          KCA-RAG Pipeline v1.0
+          관리자 로그인
         </p>
       </div>
     </div>

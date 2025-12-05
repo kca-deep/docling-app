@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { FileText, Home, MessageSquare, Database, Sheet, BarChart3, Layers, LogOut, LucideIcon } from "lucide-react"
+import { FileText, Home, MessageSquare, Database, Sheet, BarChart3, Sparkles, LogOut, LucideIcon } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { useAuth } from "@/components/auth/auth-provider"
 import { Button } from "@/components/ui/button"
@@ -40,17 +40,16 @@ export function NavHeader() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="flex h-12 items-center justify-between px-4 md:px-6 max-w-7xl mx-auto">
+      <div className="flex h-14 items-center justify-between px-4 md:px-6 max-w-7xl mx-auto">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 group">
-          <div
-            className="p-1.5 rounded-md bg-gradient-to-br from-blue-500 to-indigo-600 shadow-sm group-hover:shadow-md transition-all duration-300"
-          >
-            <Layers className="h-4 w-4 text-white" />
+        <Link href="/" className="flex items-center gap-2.5 group">
+          <div className="p-2 rounded-lg bg-[color:var(--chart-1)]/10 border border-[color:var(--chart-1)]/20 group-hover:bg-[color:var(--chart-1)]/15 transition-all duration-300">
+            <Sparkles className="h-5 w-5 text-[color:var(--chart-1)]" />
           </div>
-          <span className="hidden sm:inline font-semibold text-base bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent group-hover:from-blue-500 group-hover:to-purple-500 transition-all duration-300">
-            KCA-RAG
-          </span>
+          <div className="hidden sm:flex flex-col leading-none">
+            <span className="font-bold text-base text-foreground">KCA-RAG</span>
+            <span className="text-xs text-muted-foreground">Document AI Pipeline</span>
+          </div>
         </Link>
 
         {/* Desktop Navigation */}
@@ -65,7 +64,7 @@ export function NavHeader() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
+                  "inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors",
                   isActive
                     ? "bg-muted text-foreground"
                     : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
