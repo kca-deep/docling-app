@@ -2,12 +2,12 @@
 LLM API 서비스 (다중 모델 지원)
 OpenAI 호환 엔드포인트를 사용하는 LLM 서비스
 """
-import httpx
 import logging
 import sys
 from typing import List, Dict, Any, Optional, AsyncGenerator
 from backend.services.prompt_loader import PromptLoader
 from backend.config.settings import settings
+from backend.services.http_client import http_manager
 
 # 로거 설정
 logger = logging.getLogger("uvicorn")
@@ -32,11 +32,8 @@ class LLMService:
         """
         self.base_url = base_url
         self.model = model
-        # UTF-8 인코딩 명시 및 타임아웃 설정
-        self.client = httpx.AsyncClient(
-            timeout=120.0,
-            headers={"Accept-Charset": "utf-8"}
-        )
+        # 싱글톤 HTTP 클라이언트 매니저 사용
+        self.client = http_manager.get_client("llm")
         # 프롬프트 로더 (기본값으로 fallback)
         self.prompt_loader = prompt_loader or PromptLoader()
 
@@ -273,5 +270,10 @@ class LLMService:
         return messages
 
     async def close(self):
-        """클라이언트 연결 종료"""
-        await self.client.aclose()
+        """
+        클라이언트 연결 종료
+
+        Note: HTTP 클라이언트 매니저가 관리하므로 개별 종료 불필요
+        앱 종료 시 http_manager.close_all()에서 일괄 처리됨
+        """
+        pass  # HTTP 클라이언트 매니저에서 관리

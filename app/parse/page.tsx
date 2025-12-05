@@ -157,6 +157,7 @@ export default function ParsePage() {
 
       const response = await fetch(`${API_BASE_URL}/api/documents/convert`, {
         method: "POST",
+        credentials: 'include',
         body: formData,
       });
 
@@ -228,7 +229,9 @@ export default function ParsePage() {
     return new Promise((resolve) => {
       const pollInterval = setInterval(async () => {
         try {
-          const response = await fetch(`${API_BASE_URL}/api/documents/progress/${taskId}`);
+          const response = await fetch(`${API_BASE_URL}/api/documents/progress/${taskId}`, {
+            credentials: 'include'
+          });
 
           if (response.ok) {
             const progressData: ProgressInfo = await response.json();
@@ -343,6 +346,7 @@ export default function ParsePage() {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: 'include',
         body: JSON.stringify(saveRequest),
       }).then(async (response) => {
         if (!response.ok) {
@@ -380,6 +384,7 @@ export default function ParsePage() {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: 'include',
         body: JSON.stringify(saveRequest),
       }).then(async (response) => {
         if (!response.ok) {

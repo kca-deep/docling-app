@@ -119,7 +119,9 @@ export default function ExcelEmbeddingPage() {
   const fetchCollections = async () => {
     setLoadingCollections(true)
     try {
-      const response = await fetch(`${API_BASE_URL}/api/qdrant/collections`)
+      const response = await fetch(`${API_BASE_URL}/api/qdrant/collections`, {
+        credentials: 'include'
+      })
       if (response.ok) {
         const data = await response.json()
         const sorted = [...(data.collections || [])].sort((a, b) =>
@@ -146,6 +148,7 @@ export default function ExcelEmbeddingPage() {
       const response = await fetch(`${API_BASE_URL}/api/qdrant/collections`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify({
           collection_name: newCollectionName,
           vector_size: 1024,
@@ -180,7 +183,7 @@ export default function ExcelEmbeddingPage() {
     try {
       const response = await fetch(
         `${API_BASE_URL}/api/qdrant/collections/${encodeURIComponent(selectedCollection)}`,
-        { method: "DELETE" }
+        { method: "DELETE", credentials: 'include' }
       )
 
       if (response.ok) {
@@ -226,6 +229,7 @@ export default function ExcelEmbeddingPage() {
 
       const response = await fetch(`${API_BASE_URL}/api/qdrant/excel/preview`, {
         method: 'POST',
+        credentials: 'include',
         body: formData,
       })
 
@@ -367,6 +371,7 @@ export default function ExcelEmbeddingPage() {
       const response = await fetch(`${API_BASE_URL}/api/qdrant/excel/embed`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           collection_name: selectedCollection,
           file_name: previewData.file_name,

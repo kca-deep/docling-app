@@ -5,11 +5,13 @@ Cross-encoder 기반 문서 재순위 기능을 제공합니다.
 벡터 검색 결과를 더 정확한 관련도 점수로 재정렬하여
 RAG 시스템의 검색 정확도를 향상시킵니다.
 """
+import logging
+from typing import List, Dict, Any, Optional, Union
 
 import httpx
-from typing import List, Dict, Any, Optional, Union
+
 from backend.config.settings import settings
-import logging
+from backend.services.http_client import http_manager
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +36,8 @@ class RerankerService:
         self.base_url = settings.RERANKER_URL
         self.model = settings.RERANKER_MODEL
         self.timeout = settings.RERANKER_TIMEOUT
+        # 싱글톤 HTTP 클라이언트 매니저 사용
+        self.client = http_manager.get_client("reranker")
         logger.info(f"RerankerService initialized: {self.base_url}, model={self.model}")
 
     async def rerank(
@@ -77,29 +81,28 @@ class RerankerService:
             payload["top_n"] = top_n
 
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                logger.debug(f"Reranking {len(documents)} documents for query: {query[:50]}...")
-                response = await client.post(url, json=payload)
-                response.raise_for_status()
-                result = response.json()
+            logger.debug(f"Reranking {len(documents)} documents for query: {query[:50]}...")
+            response = await self.client.post(url, json=payload)
+            response.raise_for_status()
+            result = response.json()
 
-                # 결과를 RerankResult 객체로 변환
-                rerank_results = [
-                    RerankResult(
-                        index=item["index"],
-                        relevance_score=item["relevance_score"],
-                        document=item.get("document")
-                    )
-                    for item in result.get("results", [])
-                ]
-
-                top_score = rerank_results[0].relevance_score if rerank_results else 0
-                logger.info(
-                    f"Reranking completed: {len(rerank_results)} results, "
-                    f"top score: {top_score:.4f}"
+            # 결과를 RerankResult 객체로 변환
+            rerank_results = [
+                RerankResult(
+                    index=item["index"],
+                    relevance_score=item["relevance_score"],
+                    document=item.get("document")
                 )
+                for item in result.get("results", [])
+            ]
 
-                return rerank_results
+            top_score = rerank_results[0].relevance_score if rerank_results else 0
+            logger.info(
+                f"Reranking completed: {len(rerank_results)} results, "
+                f"top score: {top_score:.4f}"
+            )
+
+            return rerank_results
 
         except httpx.TimeoutException as e:
             logger.error(f"Reranker API timeout: {e}")

@@ -87,7 +87,9 @@ function UploadPageContent() {
         params.append("search", search)
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/documents/saved?${params}`)
+      const response = await fetch(`${API_BASE_URL}/api/documents/saved?${params}`, {
+        credentials: 'include'
+      })
       if (response.ok) {
         const data = await response.json()
         setDocuments(data.items || [])
@@ -115,6 +117,7 @@ function UploadPageContent() {
       const response = await fetch(`${API_BASE_URL}/api/dify/datasets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify({ api_key: difyApiKey, base_url: difyBaseUrl })
       })
 
@@ -149,6 +152,7 @@ function UploadPageContent() {
       const response = await fetch(`${API_BASE_URL}/api/dify/config`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify({
           config_name: difyConfigName,
           api_key: difyApiKey,
@@ -175,7 +179,9 @@ function UploadPageContent() {
   // Dify 활성 설정 불러오기
   const loadActiveDifyConfig = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/dify/config/active`)
+      const response = await fetch(`${API_BASE_URL}/api/dify/config/active`, {
+        credentials: 'include'
+      })
       if (response.ok) {
         const data = await response.json()
         if (data.api_key) {
@@ -195,7 +201,9 @@ function UploadPageContent() {
   const fetchQdrantCollections = async () => {
     setLoadingQdrantCollections(true)
     try {
-      const response = await fetch(`${API_BASE_URL}/api/qdrant/collections`)
+      const response = await fetch(`${API_BASE_URL}/api/qdrant/collections`, {
+        credentials: 'include'
+      })
       if (response.ok) {
         const data = await response.json()
         // 컬렉션명으로 오름차순 정렬
@@ -226,6 +234,7 @@ function UploadPageContent() {
       const response = await fetch(`${API_BASE_URL}/api/qdrant/collections`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify({
           collection_name: newCollectionName,
           vector_size: 1024,
@@ -259,7 +268,8 @@ function UploadPageContent() {
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/qdrant/collections/${encodeURIComponent(selectedQdrantCollection)}`, {
-        method: "DELETE"
+        method: "DELETE",
+        credentials: 'include'
       })
 
       if (response.ok) {
@@ -282,7 +292,9 @@ function UploadPageContent() {
   // Qdrant 청킹 설정 불러오기
   const fetchQdrantConfig = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/qdrant/config`)
+      const response = await fetch(`${API_BASE_URL}/api/qdrant/config`, {
+        credentials: 'include'
+      })
       if (response.ok) {
         const data = await response.json()
         setChunkSize(data.default_chunk_size)
@@ -314,6 +326,7 @@ function UploadPageContent() {
       const response = await fetch(`${API_BASE_URL}/api/dify/upload`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify({
           api_key: difyApiKey,
           base_url: difyBaseUrl,
@@ -368,6 +381,7 @@ function UploadPageContent() {
       const response = await fetch(`${API_BASE_URL}/api/qdrant/upload`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify({
           collection_name: selectedQdrantCollection,
           document_ids: Array.from(selectedDocs),

@@ -26,7 +26,8 @@ export const SuggestedPrompts = memo(function SuggestedPrompts({ collectionName,
       try {
         setLoading(true);
         const response = await fetch(
-          `${API_BASE_URL}/api/chat/suggested-prompts/${collectionName}`
+          `${API_BASE_URL}/api/chat/suggested-prompts/${collectionName}`,
+          { credentials: 'include' }
         );
 
         if (response.ok) {

@@ -164,7 +164,9 @@ export default function AnalyticsPage() {
   // 컬렉션 목록 조회
   const fetchCollections = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/qdrant/collections`)
+      const response = await fetch(`${API_BASE_URL}/api/qdrant/collections`, {
+        credentials: 'include'
+      })
       if (!response.ok) throw new Error("컬렉션 조회 실패")
       const data = await response.json()
       const names = (data.collections?.map((c: any) => c.name) || []).sort((a: string, b: string) => a.localeCompare(b))
@@ -189,12 +191,12 @@ export default function AnalyticsPage() {
         summaryRes, timelineRes, heatmapRes, convStatsRes,
         activeRes, recentRes
       ] = await Promise.allSettled([
-        fetch(`${API_BASE_URL}/api/analytics/summary?${dateParams}`),
-        fetch(`${API_BASE_URL}/api/analytics/timeline?${params}&period=daily`),
-        fetch(`${API_BASE_URL}/api/analytics/hourly-heatmap?${params}`),
-        fetch(`${API_BASE_URL}/api/analytics/conversation-stats?${params}`),
-        fetch(`${API_BASE_URL}/api/analytics/active-sessions?minutes=5`),
-        fetch(`${API_BASE_URL}/api/analytics/recent-queries?${recentQueriesParams}`)
+        fetch(`${API_BASE_URL}/api/analytics/summary?${dateParams}`, { credentials: 'include' }),
+        fetch(`${API_BASE_URL}/api/analytics/timeline?${params}&period=daily`, { credentials: 'include' }),
+        fetch(`${API_BASE_URL}/api/analytics/hourly-heatmap?${params}`, { credentials: 'include' }),
+        fetch(`${API_BASE_URL}/api/analytics/conversation-stats?${params}`, { credentials: 'include' }),
+        fetch(`${API_BASE_URL}/api/analytics/active-sessions?minutes=5`, { credentials: 'include' }),
+        fetch(`${API_BASE_URL}/api/analytics/recent-queries?${recentQueriesParams}`, { credentials: 'include' })
       ])
 
       // 결과 처리
@@ -242,8 +244,8 @@ export default function AnalyticsPage() {
       try {
         const recentParams = selectedCollection === "ALL" ? "limit=20" : `collection_name=${selectedCollection}&limit=20`
         const [activeRes, recentRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/analytics/active-sessions?minutes=5`),
-          fetch(`${API_BASE_URL}/api/analytics/recent-queries?${recentParams}`)
+          fetch(`${API_BASE_URL}/api/analytics/active-sessions?minutes=5`, { credentials: 'include' }),
+          fetch(`${API_BASE_URL}/api/analytics/recent-queries?${recentParams}`, { credentials: 'include' })
         ])
         if (activeRes.ok) setActiveSessions(await activeRes.json())
         if (recentRes.ok) {
@@ -271,7 +273,8 @@ export default function AnalyticsPage() {
       // "ALL"이면 collection_name 파라미터 생략 (전체 조회)
       const collectionParam = selectedCollection === "ALL" ? "" : `collection_name=${encodeURIComponent(selectedCollection)}&`
       const response = await fetch(
-        `${API_BASE_URL}/api/analytics/export/excel?${collectionParam}date_from=${dateFromStr}&date_to=${dateToStr}`
+        `${API_BASE_URL}/api/analytics/export/excel?${collectionParam}date_from=${dateFromStr}&date_to=${dateToStr}`,
+        { credentials: 'include' }
       )
 
       if (!response.ok) {

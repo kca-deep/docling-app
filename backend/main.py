@@ -21,6 +21,10 @@ from backend.services.hybrid_logging_service import hybrid_logging_service
 from backend.services.statistics_service import statistics_service
 from backend.services.auth_service import auth_service
 from backend.middleware.request_tracking import RequestTrackingMiddleware
+from backend.middleware.rate_limit import limiter, rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from backend.services.health_service import health_service
+from backend.services.http_client import http_manager
 
 # 로거 설정
 logger = logging.getLogger(__name__)
@@ -31,6 +35,10 @@ app = FastAPI(
     version=settings.API_VERSION,
     description="Docling Serve를 활용한 문서 파싱 API"
 )
+
+# Rate Limiting 설정
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 
 async def aggregate_pending_statistics():
@@ -114,6 +122,10 @@ async def shutdown_event():
     await hybrid_logging_service.stop()
     print("[OK] Hybrid logging service stopped successfully")
 
+    # HTTP 클라이언트 연결 정리
+    await http_manager.close_all()
+    print("[OK] HTTP client connections closed successfully")
+
 # 요청 추적 미들웨어 추가 (CORS보다 먼저 등록)
 app.add_middleware(RequestTrackingMiddleware)
 
@@ -162,8 +174,28 @@ async def root():
 
 @app.get("/health")
 async def health():
-    """헬스 체크"""
-    return {"status": "ok"}
+    """간단한 헬스 체크 (Liveness probe)"""
+    return await health_service.get_simple_health()
+
+
+@app.get("/health/live")
+async def health_live():
+    """Liveness probe - 앱 자체 상태 확인"""
+    return await health_service.get_simple_health()
+
+
+@app.get("/health/ready")
+async def health_ready():
+    """
+    Readiness probe - 모든 의존성 서비스 확인
+
+    Returns:
+        200: 모든 서비스 정상
+        503: 필수 서비스 장애
+    """
+    result = await health_service.get_full_health()
+    status_code = 200 if result["status"] in ["healthy", "degraded"] else 503
+    return JSONResponse(content=result, status_code=status_code)
 
 
 @app.get("/favicon.ico")

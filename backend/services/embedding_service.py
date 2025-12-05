@@ -1,8 +1,12 @@
 """
 BGE-M3 임베딩 서비스
 """
-import httpx
+import logging
 from typing import List, Union
+
+from backend.services.http_client import http_manager
+
+logger = logging.getLogger(__name__)
 
 
 class EmbeddingService:
@@ -18,7 +22,8 @@ class EmbeddingService:
         """
         self.base_url = base_url
         self.model = model
-        self.client = httpx.AsyncClient(timeout=60.0)
+        # 싱글톤 HTTP 클라이언트 매니저 사용
+        self.client = http_manager.get_client("embedding")
 
     async def get_embeddings(
         self,
@@ -57,11 +62,11 @@ class EmbeddingService:
             for item in result.get('data', []):
                 embeddings.append(item.get('embedding', []))
 
-            print(f"[INFO] Successfully generated {len(embeddings)} embeddings")
+            logger.info(f"Successfully generated {len(embeddings)} embeddings")
             return embeddings
 
         except Exception as e:
-            print(f"[ERROR] Failed to generate embeddings: {e}")
+            logger.error(f"Failed to generate embeddings: {e}")
             raise Exception(f"임베딩 생성 실패: {str(e)}")
 
     async def get_embedding_dimension(self) -> int:
@@ -74,5 +79,10 @@ class EmbeddingService:
         return 1024
 
     async def close(self):
-        """클라이언트 연결 종료"""
-        await self.client.aclose()
+        """
+        클라이언트 연결 종료
+
+        Note: HTTP 클라이언트 매니저가 관리하므로 개별 종료 불필요
+        앱 종료 시 http_manager.close_all()에서 일괄 처리됨
+        """
+        pass  # HTTP 클라이언트 매니저에서 관리

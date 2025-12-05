@@ -1,20 +1,24 @@
 """
 Dify API 연동 서비스
 """
-import httpx
+import logging
 from typing import List, Dict, Any
 from backend.models.schemas import (
     DifyDatasetListResponse,
     DifyDatasetResponse,
     DifyUploadResult
 )
+from backend.services.http_client import http_manager
+
+logger = logging.getLogger(__name__)
 
 
 class DifyService:
     """Dify API와의 통신을 담당하는 서비스"""
 
     def __init__(self):
-        self.client = httpx.AsyncClient(timeout=30.0)
+        # 싱글톤 HTTP 클라이언트 매니저 사용
+        self.client = http_manager.get_client("dify")
 
     async def get_datasets(
         self,
@@ -50,45 +54,39 @@ class DifyService:
 
         try:
             response = await self.client.get(url, headers=headers, params=params)
-            print(f"[DEBUG] Dify API Status Code: {response.status_code}")
-            print(f"[DEBUG] Dify API URL: {url}")
+            logger.debug(f"Dify API Status Code: {response.status_code}")
+            logger.debug(f"Dify API URL: {url}")
 
             response.raise_for_status()
 
             data = response.json()
 
             # 디버깅: 실제 응답 로깅
-            print(f"[DEBUG] Dify API Response Keys: {data.keys() if isinstance(data, dict) else 'Not a dict'}")
-            print(f"[DEBUG] Dify API Response: {data}")
+            logger.debug(f"Dify API Response Keys: {data.keys() if isinstance(data, dict) else 'Not a dict'}")
 
             # 응답 데이터를 Pydantic 모델로 변환
             try:
                 result = DifyDatasetListResponse(**data)
-                print(f"[DEBUG] Successfully parsed {len(result.data)} datasets")
+                logger.debug(f"Successfully parsed {len(result.data)} datasets")
                 return result
             except Exception as parse_error:
-                print(f"[ERROR] Pydantic Validation Error: {parse_error}")
-                print(f"[ERROR] Failed field validation. Checking each dataset...")
+                logger.error(f"Pydantic Validation Error: {parse_error}")
+                logger.error("Failed field validation. Checking each dataset...")
 
                 # 각 데이터셋을 개별적으로 확인
                 if isinstance(data, dict) and 'data' in data:
                     for idx, dataset in enumerate(data['data']):
-                        print(f"[DEBUG] Dataset {idx}: {dataset}")
+                        logger.debug(f"Dataset {idx}: {dataset}")
                         try:
                             DifyDatasetResponse(**dataset)
-                            print(f"[DEBUG] Dataset {idx} validation OK")
+                            logger.debug(f"Dataset {idx} validation OK")
                         except Exception as dataset_error:
-                            print(f"[ERROR] Dataset {idx} validation failed: {dataset_error}")
+                            logger.error(f"Dataset {idx} validation failed: {dataset_error}")
 
                 raise parse_error
 
-        except httpx.HTTPStatusError as e:
-            print(f"[ERROR] HTTP Error: {e.response.status_code}")
-            print(f"[ERROR] Response Text: {e.response.text}")
-            raise
         except Exception as e:
-            print(f"[ERROR] Exception Type: {type(e).__name__}")
-            print(f"[ERROR] Exception Message: {str(e)}")
+            logger.error(f"Dify API Exception: {type(e).__name__} - {str(e)}")
             raise
 
     async def upload_document_to_dataset(
@@ -135,5 +133,10 @@ class DifyService:
         return response.json()
 
     async def close(self):
-        """HTTP 클라이언트 종료"""
-        await self.client.aclose()
+        """
+        HTTP 클라이언트 종료
+
+        Note: HTTP 클라이언트 매니저가 관리하므로 개별 종료 불필요
+        앱 종료 시 http_manager.close_all()에서 일괄 처리됨
+        """
+        pass  # HTTP 클라이언트 매니저에서 관리

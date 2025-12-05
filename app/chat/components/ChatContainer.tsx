@@ -242,7 +242,9 @@ export function ChatContainer() {
   useEffect(() => {
     const loadDefaultSettings = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/chat/default-settings`);
+        const response = await fetch(`${API_BASE_URL}/api/chat/default-settings`, {
+          credentials: 'include'
+        });
         if (response.ok) {
           const data = await response.json();
           setDefaultReasoningLevel(data.reasoning_level); // 기본값 저장
@@ -285,7 +287,9 @@ export function ChatContainer() {
   useEffect(() => {
     const fetchCollections = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/chat/collections`);
+        const response = await fetch(`${API_BASE_URL}/api/chat/collections`, {
+          credentials: 'include'
+        });
         if (response.ok) {
           const data = await response.json();
           // 컬렉션명으로 오름차순 정렬
@@ -329,6 +333,7 @@ export function ChatContainer() {
       const response = await fetch(`${API_BASE_URL}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify({
           collection_name: selectedCollection,
           message: userMessage.content,
@@ -468,6 +473,7 @@ export function ChatContainer() {
       const response = await fetch(`${API_BASE_URL}/api/chat/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify({
           collection_name: selectedCollection,
           message: userMessage.content,
@@ -721,6 +727,7 @@ export function ChatContainer() {
       const response = await fetch(`${API_BASE_URL}/api/chat/regenerate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify({
           query: context.originalQuery,
           collection_name: context.collectionName,

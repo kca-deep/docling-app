@@ -45,7 +45,9 @@ export function MarkdownViewerModal({ documentId, open, onOpenChange }: Markdown
 
     setLoading(true)
     try {
-      const response = await fetch(`${API_BASE_URL}/api/documents/saved/${documentId}`)
+      const response = await fetch(`${API_BASE_URL}/api/documents/saved/${documentId}`, {
+        credentials: 'include'
+      })
       if (response.ok) {
         const data: DocumentDetail = await response.json()
         setDocument(data)

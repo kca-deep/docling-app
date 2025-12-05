@@ -97,6 +97,25 @@ class Settings(BaseSettings):
     CONVERSATION_RETENTION_DAYS: int = 30  # 30일 보존
     CONVERSATION_COMPRESS_AFTER_DAYS: int = 7  # 7일 후 압축
 
+    # ===========================================
+    # Rate Limiting 설정
+    # ===========================================
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_DEFAULT: str = "100/minute"
+    RATE_LIMIT_AUTH: str = "5/minute"
+    RATE_LIMIT_CHAT: str = "30/minute"
+    RATE_LIMIT_UPLOAD: str = "10/minute"
+    RATE_LIMIT_SEARCH: str = "60/minute"
+    RATE_LIMIT_STORAGE_URI: str = "memory://"
+
+    # ===========================================
+    # HTTP Client 설정
+    # ===========================================
+    HTTP_MAX_CONNECTIONS: int = 100
+    HTTP_MAX_KEEPALIVE: int = 20
+    HTTP_TIMEOUT_DEFAULT: float = 30.0
+    HTTP_ENABLE_HTTP2: bool = True
+
     # Qwen3 VL OCR 설정
     QWEN3_VL_BASE_URL: str = "http://localhost:8084"
     QWEN3_VL_MODEL: str = "qwen3-vl-8b"
