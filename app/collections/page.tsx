@@ -302,7 +302,7 @@ export default function CollectionsPage() {
 
       {/* 컬렉션 그리드 */}
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <Card key={i} className="py-3 px-4">
               <div className="flex items-center gap-3">
@@ -340,7 +340,7 @@ export default function CollectionsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {filteredCollections.map((collection) => (
             <Card key={collection.name} className="group hover:shadow-md transition-shadow py-3 px-4">
               <div className="flex items-center gap-3">
