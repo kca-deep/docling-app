@@ -263,18 +263,15 @@ export default function AnalyticsPage() {
 
   // Excel 다운로드 함수
   const handleExcelDownload = useCallback(async () => {
-    if (!selectedCollection) {
-      toast.error("컬렉션을 선택해주세요")
-      return
-    }
-
     setDownloading(true)
     try {
       const dateFromStr = format(dateRange.from, "yyyy-MM-dd")
       const dateToStr = format(dateRange.to, "yyyy-MM-dd")
 
+      // "ALL"이면 collection_name 파라미터 생략 (전체 조회)
+      const collectionParam = selectedCollection === "ALL" ? "" : `collection_name=${encodeURIComponent(selectedCollection)}&`
       const response = await fetch(
-        `${API_BASE_URL}/api/analytics/export/excel?collection_name=${encodeURIComponent(selectedCollection)}&date_from=${dateFromStr}&date_to=${dateToStr}`
+        `${API_BASE_URL}/api/analytics/export/excel?${collectionParam}date_from=${dateFromStr}&date_to=${dateToStr}`
       )
 
       if (!response.ok) {
@@ -432,6 +429,11 @@ export default function AnalyticsPage() {
         <Button onClick={refreshAllData} disabled={loading} size="default" variant="outline">
           <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
           새로고침
+        </Button>
+
+        <Button onClick={handleExcelDownload} disabled={downloading || loading} size="default" variant="outline">
+          <Download className={cn("h-4 w-4 mr-2", downloading && "animate-bounce")} />
+          다운로드
         </Button>
 
         {/* 실시간 활성 세션 */}
@@ -645,31 +647,13 @@ export default function AnalyticsPage() {
               <CardHeader className="px-6 py-4">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base font-semibold">최근 질문</CardTitle>
-                  <div className="flex items-center gap-2">
-                    <ShadcnTooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={handleExcelDownload}
-                          disabled={downloading || !selectedCollection}
-                        >
-                          <Download className={cn("h-4 w-4", downloading && "animate-bounce")} />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        <p className="text-xs">대화내역 Excel 다운로드</p>
-                      </TooltipContent>
-                    </ShadcnTooltip>
-                    <Badge variant="outline" className="gap-1.5 px-2 py-1 font-normal text-xs">
-                      <div
-                        className="h-1.5 w-1.5 rounded-full animate-pulse"
-                        style={{ backgroundColor: metricColors.active }}
-                      />
-                      30초 갱신
-                    </Badge>
-                  </div>
+                  <Badge variant="outline" className="gap-1.5 px-2 py-1 font-normal text-xs">
+                    <div
+                      className="h-1.5 w-1.5 rounded-full animate-pulse"
+                      style={{ backgroundColor: metricColors.active }}
+                    />
+                    30초 갱신
+                  </Badge>
                 </div>
               </CardHeader>
               <CardContent className="px-6 pb-6">

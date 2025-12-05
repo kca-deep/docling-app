@@ -873,12 +873,9 @@ async def get_active_sessions(
     try:
         threshold = datetime.now() - timedelta(minutes=minutes)
 
-        # 최근 N분 내에 시작되었거나 아직 종료되지 않은 세션
+        # 최근 N분 내에 시작된 세션만 활성으로 간주
         active_sessions = db.query(ChatSession).filter(
-            or_(
-                ChatSession.started_at >= threshold,
-                ChatSession.ended_at.is_(None)
-            )
+            ChatSession.started_at >= threshold
         ).all()
 
         # 컬렉션별 활성 세션 수
@@ -908,12 +905,13 @@ async def get_recent_queries(
     최근 질문 실시간 피드
 
     Returns:
-        list: 최근 질문 목록
+        list: 최근 질문 목록 (최근 7일간)
     """
     try:
-        # 오늘 로그 파일에서 최근 질문 조회
-        today = date.today()
-        df = await statistics_service.query_logs_by_date_range(today, today, collection_name)
+        # 최근 7일간 로그에서 최근 질문 조회
+        end_date = date.today()
+        start_date = end_date - timedelta(days=6)
+        df = await statistics_service.query_logs_by_date_range(start_date, end_date, collection_name)
 
         if df.empty:
             return {"queries": [], "total": 0}
@@ -967,7 +965,7 @@ async def get_recent_queries(
 
 @router.get("/export/excel")
 async def export_conversations_to_excel(
-    collection_name: str = Query(..., description="컬렉션 이름"),
+    collection_name: Optional[str] = Query(None, description="컬렉션 이름 (미지정 또는 ALL시 전체)"),
     date_from: Optional[date] = Query(None, description="시작 날짜"),
     date_to: Optional[date] = Query(None, description="종료 날짜"),
     db: Session = Depends(get_db)
@@ -976,7 +974,7 @@ async def export_conversations_to_excel(
     대화 내역을 Excel 파일로 내보내기
 
     Args:
-        collection_name: 컬렉션 이름 (필수)
+        collection_name: 컬렉션 이름 (선택, 미지정 또는 ALL시 전체)
         date_from: 시작 날짜 (선택, 기본값: 오늘)
         date_to: 종료 날짜 (선택, 기본값: 오늘)
         db: 데이터베이스 세션
@@ -991,6 +989,9 @@ async def export_conversations_to_excel(
         if not date_to:
             date_to = date.today()
 
+        # "ALL"이면 None으로 변환 (전체 조회)
+        effective_collection = None if collection_name in (None, "ALL") else collection_name
+
         # 날짜 변환
         start_datetime = datetime.combine(date_from, datetime.min.time())
         end_datetime = datetime.combine(date_to, datetime.max.time())
@@ -999,13 +1000,13 @@ async def export_conversations_to_excel(
         conversations = await conversation_service.read_conversations(
             start_date=start_datetime,
             end_date=end_datetime,
-            collection_name=collection_name,
+            collection_name=effective_collection,
             limit=10000  # 최대 10000건
         )
 
         # data 로그에서 추가 메타데이터 조회
         logs_df = await statistics_service.query_logs_by_date_range(
-            date_from, date_to, collection_name
+            date_from, date_to, effective_collection
         )
 
         # Q&A 쌍으로 데이터 가공
