@@ -142,7 +142,7 @@ export default function AnalyticsPage() {
   }, [])
   const [collections, setCollections] = useState<string[]>([])
   const [dateRange, setDateRange] = useState({
-    from: addDays(new Date(), -7),
+    from: addDays(new Date(), -30),
     to: new Date()
   })
 
