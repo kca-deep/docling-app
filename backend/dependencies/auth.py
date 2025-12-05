@@ -115,3 +115,7 @@ async def require_admin(
         )
 
     return user
+
+
+# Alias for get_current_user to make optional authentication explicit
+get_current_user_optional = get_current_user

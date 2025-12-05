@@ -286,6 +286,11 @@ class QdrantCollectionInfo(BaseModel):
     points_count: int
     vector_size: int
     distance: str
+    # 메타데이터 필드 (SQLite에서 조회)
+    visibility: str = "public"  # public, private, shared
+    description: Optional[str] = None
+    owner_id: Optional[int] = None
+    is_owner: bool = False  # 현재 사용자가 소유자인지 여부
 
 
 class QdrantCollectionCreateRequest(BaseModel):
@@ -293,6 +298,15 @@ class QdrantCollectionCreateRequest(BaseModel):
     collection_name: str
     vector_size: int = 1024
     distance: str = "Cosine"  # Cosine, Euclidean, Dot
+    visibility: str = "public"  # public, private, shared
+    description: Optional[str] = None
+
+
+class QdrantCollectionSettingsRequest(BaseModel):
+    """컬렉션 설정 변경 요청"""
+    visibility: Optional[str] = None  # public, private, shared
+    description: Optional[str] = None
+    allowed_users: Optional[List[int]] = None  # visibility=shared일 때 사용
 
 
 class QdrantCollectionResponse(BaseModel):

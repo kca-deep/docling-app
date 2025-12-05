@@ -1,25 +1,31 @@
 """
 Qdrant Vector DB 연동 API 라우트
-인증 필수: 관리자만 접근 가능
+컬렉션 가시성(visibility) 기반 접근 제어:
+- public: 모든 사용자 접근 가능
+- private: 소유자만 접근 가능
+- shared: 소유자 + 허용된 사용자 접근 가능
 """
 import uuid
 import io
+import logging
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 
 from backend.services.qdrant_service import QdrantService
 from backend.services.chunking_service import ChunkingService
 from backend.services.embedding_service import EmbeddingService
-from backend.services import document_crud, qdrant_history_crud
+from backend.services import document_crud, qdrant_history_crud, collection_crud
 from backend.database import get_db
 from backend.config.settings import settings
-from backend.dependencies.auth import get_current_active_user
+from backend.dependencies.auth import get_current_active_user, get_current_user_optional
+from backend.models.user import User
 from backend.models.schemas import (
     QdrantCollectionsResponse,
     QdrantCollectionCreateRequest,
     QdrantCollectionResponse,
     QdrantCollectionInfo,
+    QdrantCollectionSettingsRequest,
     QdrantUploadRequest,
     QdrantUploadResponse,
     QdrantUploadResult,
@@ -37,10 +43,12 @@ from backend.models.schemas import (
     DynamicEmbeddingResult
 )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(
     prefix="/api/qdrant",
-    tags=["qdrant"],
-    dependencies=[Depends(get_current_active_user)]  # 모든 엔드포인트 인증 필수
+    tags=["qdrant"]
+    # 인증은 엔드포인트별로 처리
 )
 
 # 서비스 인스턴스 생성
@@ -56,7 +64,9 @@ embedding_service = EmbeddingService(
 
 
 @router.get("/config", response_model=QdrantConfigResponse)
-async def get_qdrant_config():
+async def get_qdrant_config(
+    current_user: User = Depends(get_current_active_user)
+):
     """
     Qdrant 청킹 설정값 조회 API
 
@@ -70,9 +80,16 @@ async def get_qdrant_config():
 
 
 @router.get("/collections", response_model=QdrantCollectionsResponse)
-async def get_collections():
+async def get_collections(
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     """
     Qdrant Collection 목록 조회 API
+
+    사용자 권한에 따라 접근 가능한 컬렉션만 반환:
+    - 비로그인: public 컬렉션만
+    - 로그인: public + 소유 + 공유된(allowed) 컬렉션
 
     Returns:
         QdrantCollectionsResponse: Collection 목록
@@ -81,14 +98,44 @@ async def get_collections():
         HTTPException: Qdrant 서버 연결 실패 시
     """
     try:
-        collections = await qdrant_service.get_collections()
+        # 1. Qdrant에서 모든 컬렉션 조회
+        qdrant_collections = await qdrant_service.get_collections()
+        qdrant_names = [col.name for col in qdrant_collections]
+
+        # 2. SQLite에서 접근 가능한 컬렉션 메타데이터 조회
+        user_id = current_user.id if current_user else None
+        accessible_metadata = collection_crud.get_accessible_collections(
+            db=db,
+            user_id=user_id,
+            qdrant_collection_names=qdrant_names
+        )
+
+        # 3. 메타데이터를 딕셔너리로 변환 (빠른 조회용)
+        metadata_map = {col.collection_name: col for col in accessible_metadata}
+
+        # 4. Qdrant 데이터와 SQLite 메타데이터 병합
+        result_collections = []
+        for qdrant_col in qdrant_collections:
+            if qdrant_col.name in metadata_map:
+                meta = metadata_map[qdrant_col.name]
+                result_collections.append(QdrantCollectionInfo(
+                    name=qdrant_col.name,
+                    vectors_count=qdrant_col.vectors_count,
+                    points_count=qdrant_col.points_count,
+                    vector_size=qdrant_col.vector_size,
+                    distance=qdrant_col.distance,
+                    visibility=meta.visibility,
+                    description=meta.description,
+                    owner_id=meta.owner_id,
+                    is_owner=user_id is not None and meta.owner_id == user_id
+                ))
 
         return QdrantCollectionsResponse(
-            collections=collections
+            collections=result_collections
         )
 
     except Exception as e:
-        print(f"[ERROR] Failed to get collections: {e}")
+        logger.error(f"Failed to get collections: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Qdrant collection 목록 조회 실패: {str(e)}"
@@ -96,12 +143,18 @@ async def get_collections():
 
 
 @router.post("/collections", response_model=QdrantCollectionResponse)
-async def create_collection(request: QdrantCollectionCreateRequest):
+async def create_collection(
+    request: QdrantCollectionCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
     """
     Qdrant Collection 생성 API
 
     Args:
-        request: Collection 생성 요청
+        request: Collection 생성 요청 (visibility, description 포함)
+        db: DB 세션
+        current_user: 현재 로그인 사용자 (소유자로 지정)
 
     Returns:
         QdrantCollectionResponse: 생성 결과
@@ -132,12 +185,34 @@ async def create_collection(request: QdrantCollectionCreateRequest):
                 detail=f"Distance metric은 {valid_distances} 중 하나여야 합니다"
             )
 
-        # Collection 생성
+        # Visibility 검증
+        valid_visibilities = ["public", "private", "shared"]
+        if request.visibility not in valid_visibilities:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Visibility는 {valid_visibilities} 중 하나여야 합니다"
+            )
+
+        # 1. Qdrant에 Collection 생성
         await qdrant_service.create_collection(
             collection_name=request.collection_name,
             vector_size=request.vector_size,
             distance=request.distance
         )
+
+        # 2. SQLite에 메타데이터 저장
+        try:
+            collection_crud.create_collection(
+                db=db,
+                collection_name=request.collection_name,
+                owner_id=current_user.id,
+                visibility=request.visibility,
+                description=request.description
+            )
+            logger.info(f"Created collection metadata: {request.collection_name} (owner={current_user.id})")
+        except Exception as e:
+            # SQLite 저장 실패 시에도 Qdrant에는 생성되었으므로 경고만 로깅
+            logger.warning(f"Failed to save collection metadata to SQLite: {e}")
 
         return QdrantCollectionResponse(
             success=True,
@@ -148,7 +223,7 @@ async def create_collection(request: QdrantCollectionCreateRequest):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[ERROR] Failed to create collection: {e}")
+        logger.error(f"Failed to create collection: {e}")
 
         # 이미 존재하는 경우
         if "이미 존재합니다" in str(e):
@@ -164,12 +239,20 @@ async def create_collection(request: QdrantCollectionCreateRequest):
 
 
 @router.delete("/collections/{collection_name}", response_model=QdrantCollectionResponse)
-async def delete_collection(collection_name: str):
+async def delete_collection(
+    collection_name: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
     """
     Qdrant Collection 삭제 API
 
+    소유자 또는 관리자만 삭제 가능
+
     Args:
         collection_name: 삭제할 Collection 이름
+        db: DB 세션
+        current_user: 현재 로그인 사용자
 
     Returns:
         QdrantCollectionResponse: 삭제 결과
@@ -185,8 +268,27 @@ async def delete_collection(collection_name: str):
                 detail="Collection 이름은 필수입니다"
             )
 
-        # Collection 삭제
+        # 소유권 확인 (관리자는 모든 컬렉션 삭제 가능)
+        collection_meta = collection_crud.get_by_name(db, collection_name)
+        if collection_meta:
+            is_owner = collection_meta.owner_id == current_user.id
+            is_admin = current_user.role == "admin"
+            if not is_owner and not is_admin:
+                raise HTTPException(
+                    status_code=403,
+                    detail="컬렉션 삭제 권한이 없습니다. 소유자만 삭제할 수 있습니다."
+                )
+
+        # 1. Qdrant에서 Collection 삭제
         await qdrant_service.delete_collection(collection_name)
+
+        # 2. SQLite에서 메타데이터 삭제
+        try:
+            collection_crud.delete_collection(db, collection_name)
+            logger.info(f"Deleted collection metadata: {collection_name}")
+        except Exception as e:
+            # SQLite 삭제 실패 시에도 Qdrant에서는 삭제되었으므로 경고만 로깅
+            logger.warning(f"Failed to delete collection metadata from SQLite: {e}")
 
         return QdrantCollectionResponse(
             success=True,
@@ -197,7 +299,7 @@ async def delete_collection(collection_name: str):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[ERROR] Failed to delete collection: {e}")
+        logger.error(f"Failed to delete collection: {e}")
 
         # 존재하지 않는 경우
         if "존재하지 않습니다" in str(e):
@@ -212,10 +314,93 @@ async def delete_collection(collection_name: str):
         )
 
 
+@router.patch("/collections/{collection_name}/settings", response_model=QdrantCollectionResponse)
+async def update_collection_settings(
+    collection_name: str,
+    request: QdrantCollectionSettingsRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    컬렉션 설정 변경 API
+
+    소유자만 설정 변경 가능
+
+    Args:
+        collection_name: 컬렉션 이름
+        request: 설정 변경 요청 (visibility, description, allowed_users)
+        db: DB 세션
+        current_user: 현재 로그인 사용자
+
+    Returns:
+        QdrantCollectionResponse: 변경 결과
+
+    Raises:
+        HTTPException: 설정 변경 실패 시
+    """
+    try:
+        # 컬렉션 메타데이터 조회
+        collection_meta = collection_crud.get_by_name(db, collection_name)
+        if not collection_meta:
+            raise HTTPException(
+                status_code=404,
+                detail=f"컬렉션 '{collection_name}'의 메타데이터를 찾을 수 없습니다"
+            )
+
+        # 소유권 확인
+        if collection_meta.owner_id != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="컬렉션 설정 변경 권한이 없습니다. 소유자만 변경할 수 있습니다."
+            )
+
+        # Visibility 검증
+        if request.visibility:
+            valid_visibilities = ["public", "private", "shared"]
+            if request.visibility not in valid_visibilities:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Visibility는 {valid_visibilities} 중 하나여야 합니다"
+                )
+
+        # 설정 업데이트
+        updated = collection_crud.update_settings(
+            db=db,
+            collection_name=collection_name,
+            description=request.description,
+            visibility=request.visibility,
+            allowed_users=request.allowed_users
+        )
+
+        if not updated:
+            raise HTTPException(
+                status_code=500,
+                detail="설정 변경에 실패했습니다"
+            )
+
+        logger.info(f"Updated collection settings: {collection_name}")
+
+        return QdrantCollectionResponse(
+            success=True,
+            collection_name=collection_name,
+            message=f"Collection '{collection_name}' 설정이 변경되었습니다"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update collection settings: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"설정 변경 실패: {str(e)}"
+        )
+
+
 @router.post("/upload", response_model=QdrantUploadResponse)
 async def upload_documents(
     request: QdrantUploadRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     문서를 Qdrant에 임베딩 및 업로드
@@ -382,7 +567,10 @@ async def upload_documents(
 # ==================== Q&A Excel Embedding Endpoints ====================
 
 @router.post("/qa/preview", response_model=QAPreviewResponse)
-async def preview_qa_excel(file: UploadFile = File(...)):
+async def preview_qa_excel(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_active_user)
+):
     """
     Q&A Excel 파일 미리보기 API
 
@@ -468,7 +656,10 @@ async def preview_qa_excel(file: UploadFile = File(...)):
 
 
 @router.post("/qa/embed", response_model=QAEmbeddingResponse)
-async def embed_qa_rows(request: QAEmbeddingRequest):
+async def embed_qa_rows(
+    request: QAEmbeddingRequest,
+    current_user: User = Depends(get_current_active_user)
+):
     """
     Q&A 행별 임베딩 및 Qdrant 업로드 API
 
@@ -662,7 +853,10 @@ def detect_column_mapping(headers: List[str]) -> dict:
 
 
 @router.post("/excel/preview", response_model=ExcelPreviewResponse)
-async def preview_excel(file: UploadFile = File(...)):
+async def preview_excel(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_active_user)
+):
     """
     Excel 파일 미리보기 및 스마트 컬럼 감지 API
 
@@ -736,7 +930,10 @@ async def preview_excel(file: UploadFile = File(...)):
 
 
 @router.post("/excel/embed", response_model=DynamicEmbeddingResponse)
-async def embed_excel_dynamic(request: DynamicEmbeddingRequest):
+async def embed_excel_dynamic(
+    request: DynamicEmbeddingRequest,
+    current_user: User = Depends(get_current_active_user)
+):
     """
     동적 컬럼 매핑을 사용한 Excel 임베딩 API
 

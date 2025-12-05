@@ -15,6 +15,7 @@ from backend.database import init_db, get_db, SessionLocal
 from backend.models import document as document_model  # Import to register models
 from backend.models import dify_upload_history, dify_config  # Import Dify models
 from backend.models import qdrant_upload_history  # Import Qdrant models
+from backend.models import qdrant_collection as qdrant_collection_model  # Import QdrantCollection model
 from backend.models import chat_session, chat_statistics  # Import Chat models
 from backend.models import user as user_model  # Import User model for auth
 from backend.services.hybrid_logging_service import hybrid_logging_service
@@ -39,6 +40,29 @@ app = FastAPI(
 # Rate Limiting 설정
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
+
+async def migrate_qdrant_collections():
+    """기존 Qdrant 컬렉션을 SQLite로 마이그레이션"""
+    try:
+        # 잠시 대기 (서버 시작 완료 후 실행)
+        await asyncio.sleep(3)
+
+        from backend.scripts.migrate_collections import run_migration_if_needed
+
+        db = SessionLocal()
+        try:
+            migrated = await run_migration_if_needed(db)
+            if migrated:
+                print("[OK] Qdrant collections migrated to SQLite")
+            else:
+                print("[OK] Qdrant collections already synced with SQLite")
+        finally:
+            db.close()
+
+    except Exception as e:
+        logger.error(f"Failed to migrate Qdrant collections: {e}")
+        print(f"[WARN] Qdrant collection migration skipped: {e}")
 
 
 async def aggregate_pending_statistics():
@@ -82,6 +106,9 @@ async def startup_event():
         print("[OK] Admin user verified")
     finally:
         db.close()
+
+    # 기존 Qdrant 컬렉션 마이그레이션 (백그라운드에서 실행)
+    asyncio.create_task(migrate_qdrant_collections())
 
     # SQLite 최적화 설정 적용
     try:
