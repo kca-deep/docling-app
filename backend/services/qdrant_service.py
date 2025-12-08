@@ -67,11 +67,13 @@ class QdrantService:
                     vector_size = first_vector.size
                     distance = distance_map.get(first_vector.distance, "Unknown")
 
+                # points_count를 vectors_count에도 사용 (단일 벡터 구성에서는 동일)
+                points = collection_info.points_count or 0
                 result.append(
                     QdrantCollectionInfo(
                         name=collection.name,
-                        vectors_count=collection_info.vectors_count or 0,
-                        points_count=collection_info.points_count or 0,
+                        vectors_count=points,
+                        points_count=points,
                         vector_size=vector_size,
                         distance=distance
                     )

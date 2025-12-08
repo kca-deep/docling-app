@@ -85,6 +85,10 @@ interface Collection {
   points_count: number;
   vector_size: number;
   distance: string;
+  visibility?: string;
+  description?: string;
+  owner_id?: number;
+  is_owner?: boolean;
 }
 
 interface ChatSettings {

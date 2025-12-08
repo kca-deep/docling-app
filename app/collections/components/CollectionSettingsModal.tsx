@@ -49,6 +49,7 @@ interface CollectionSettingsModalProps {
   onOpenChange: (open: boolean) => void
   collection: Collection | null
   onSuccess: () => void
+  onDelete?: () => void
 }
 
 type Visibility = "public" | "private" | "shared"
@@ -58,6 +59,7 @@ export function CollectionSettingsModal({
   onOpenChange,
   collection,
   onSuccess,
+  onDelete,
 }: CollectionSettingsModalProps) {
   const [activeTab, setActiveTab] = useState("general")
   const [description, setDescription] = useState("")
@@ -78,27 +80,30 @@ export function CollectionSettingsModal({
 
     setSaving(true)
     try {
-      // 추후 백엔드 API 구현 시 활성화
-      // const response = await fetch(
-      //   `${API_BASE_URL}/api/qdrant/collections/${encodeURIComponent(collection.name)}/settings`,
-      //   {
-      //     method: "PATCH",
-      //     headers: { "Content-Type": "application/json" },
-      //     credentials: 'include',
-      //     body: JSON.stringify({
-      //       visibility,
-      //       description,
-      //     }),
-      //   }
-      // )
+      const response = await fetch(
+        `${API_BASE_URL}/api/qdrant/collections/${encodeURIComponent(collection.name)}/settings`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: 'include',
+          body: JSON.stringify({
+            visibility,
+            description,
+          }),
+        }
+      )
 
-      // 임시: 성공 메시지 표시
-      toast.success("설정이 저장되었습니다 (백엔드 API 준비 중)")
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.detail || "설정 저장에 실패했습니다")
+      }
+
+      toast.success("설정이 저장되었습니다")
       onOpenChange(false)
       onSuccess()
     } catch (error) {
       console.error("Failed to save settings:", error)
-      toast.error("설정 저장에 실패했습니다")
+      toast.error(error instanceof Error ? error.message : "설정 저장에 실패했습니다")
     } finally {
       setSaving(false)
     }
@@ -298,7 +303,7 @@ export function CollectionSettingsModal({
                     className="mt-2"
                     onClick={() => {
                       onOpenChange(false)
-                      // 삭제 모달은 부모 컴포넌트에서 처리
+                      onDelete?.()
                     }}
                   >
                     컬렉션 삭제

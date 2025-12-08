@@ -86,9 +86,8 @@ export function CreateCollectionModal({
           collection_name: name.trim(),
           vector_size: parseInt(vectorSize),
           distance: distance,
-          // 추후 백엔드에서 지원할 필드
-          // visibility: visibility,
-          // description: description,
+          visibility: visibility,
+          description: description.trim() || null,
         }),
       })
 

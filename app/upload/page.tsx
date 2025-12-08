@@ -61,11 +61,6 @@ function UploadPageContent() {
   const [chunkSize, setChunkSize] = useState(1000)
   const [chunkOverlap, setChunkOverlap] = useState(200)
   const [loadingQdrantCollections, setLoadingQdrantCollections] = useState(false)
-  const [qdrantCreateDialogOpen, setQdrantCreateDialogOpen] = useState(false)
-  const [qdrantDeleteDialogOpen, setQdrantDeleteDialogOpen] = useState(false)
-  const [newCollectionName, setNewCollectionName] = useState("")
-  const [distance, setDistance] = useState("Cosine")
-  const [deletingCollection, setDeletingCollection] = useState(false)
   const [qdrantResults, setQdrantResults] = useState<QdrantUploadResult[]>([])
   const [uploadingQdrant, setUploadingQdrant] = useState(false)
 
@@ -220,72 +215,6 @@ function UploadPageContent() {
       toast.error("Collection 목록을 가져오는데 실패했습니다")
     } finally {
       setLoadingQdrantCollections(false)
-    }
-  }
-
-  // Qdrant Collection 생성
-  const createQdrantCollection = async () => {
-    if (!newCollectionName) {
-      toast.error("Collection 이름을 입력해주세요")
-      return
-    }
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/qdrant/collections`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: 'include',
-        body: JSON.stringify({
-          collection_name: newCollectionName,
-          vector_size: 1024,
-          distance: distance
-        })
-      })
-
-      if (response.ok) {
-        toast.success(`Collection '${newCollectionName}'이 생성되었습니다`)
-        setNewCollectionName("")
-        setQdrantCreateDialogOpen(false)
-        fetchQdrantCollections()
-      } else {
-        const error = await response.json()
-        toast.error(error.detail || "Collection 생성에 실패했습니다")
-      }
-    } catch (error) {
-      console.error("Failed to create Qdrant collection:", error)
-      toast.error("Collection 생성에 실패했습니다")
-    }
-  }
-
-  // Qdrant Collection 삭제
-  const deleteQdrantCollection = async () => {
-    if (!selectedQdrantCollection) {
-      toast.error("삭제할 Collection을 선택해주세요")
-      return
-    }
-
-    setDeletingCollection(true)
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/qdrant/collections/${encodeURIComponent(selectedQdrantCollection)}`, {
-        method: "DELETE",
-        credentials: 'include'
-      })
-
-      if (response.ok) {
-        toast.success(`Collection '${selectedQdrantCollection}'이 삭제되었습니다`)
-        setSelectedQdrantCollection("")
-        setQdrantDeleteDialogOpen(false)
-        fetchQdrantCollections()
-      } else {
-        const error = await response.json()
-        toast.error(error.detail || "Collection 삭제에 실패했습니다")
-      }
-    } catch (error) {
-      console.error("Failed to delete Qdrant collection:", error)
-      toast.error("Collection 삭제에 실패했습니다")
-    } finally {
-      setDeletingCollection(false)
     }
   }
 
@@ -575,21 +504,10 @@ function UploadPageContent() {
                 chunkSize={chunkSize}
                 chunkOverlap={chunkOverlap}
                 loadingCollections={loadingQdrantCollections}
-                createDialogOpen={qdrantCreateDialogOpen}
-                deleteDialogOpen={qdrantDeleteDialogOpen}
-                newCollectionName={newCollectionName}
-                distance={distance}
-                deleting={deletingCollection}
                 onSelectedCollectionChange={setSelectedQdrantCollection}
                 onChunkSizeChange={setChunkSize}
                 onChunkOverlapChange={setChunkOverlap}
                 onFetchCollections={fetchQdrantCollections}
-                onCreateDialogOpenChange={setQdrantCreateDialogOpen}
-                onDeleteDialogOpenChange={setQdrantDeleteDialogOpen}
-                onNewCollectionNameChange={setNewCollectionName}
-                onDistanceChange={setDistance}
-                onCreateCollection={createQdrantCollection}
-                onDeleteCollection={deleteQdrantCollection}
               />
 
               {!selectedQdrantCollection && selectedDocs.size > 0 && (

@@ -68,10 +68,10 @@
 ### Day 5: 데이터 업로드 페이지 정리
 
 **프론트엔드 수정**:
-- [ ] `app/qdrant/page.tsx` (또는 `/upload`)
-  - 컬렉션 생성/삭제 버튼 제거
-  - 컬렉션 없을 때: "컬렉션 관리에서 먼저 생성하세요" + 링크
-  - Excel 탭 통합 (기존 `/excel-embedding` 병합)
+- [x] `app/upload/page.tsx` 및 `QdrantSettingsPanel.tsx`
+  - 컬렉션 생성/삭제 버튼 제거 (컬렉션 관리 페이지로 이동)
+  - "컬렉션 관리" 링크 추가
+  - visibility 배지 표시
 
 ### Day 6: 메뉴 구조 변경
 
@@ -93,23 +93,25 @@
 **백엔드 수정**:
 - [x] `backend/api/routes/qdrant.py`
   - `GET /collections`: 비로그인 시 public만 반환 (get_current_user_optional 사용)
-- [ ] `backend/api/routes/chat.py`
-  - `GET /collections`: 접근 가능한 컬렉션만
-  - `POST /`, `POST /stream`: 컬렉션 접근 권한 확인
+- [x] `backend/api/routes/chat.py`
+  - `GET /collections`: 접근 가능한 컬렉션만 (collection_crud.get_accessible_collections 사용)
+  - visibility, description, owner_id, is_owner 메타데이터 반환
 
 ### Day 8: 프론트엔드 접근 제어 UI
 
 **프론트엔드 수정**:
-- [ ] `app/chat/page.tsx`
-  - 컬렉션 드롭다운에 visibility 배지 표시
-  - 비로그인 시 "로그인하여 더 많은 컬렉션 보기" 안내
-- [ ] `app/qdrant/page.tsx`
-  - 접근 가능한 컬렉션만 표시
+- [x] `app/chat/components/InputArea.tsx` 및 `ChatContainer.tsx`
+  - 컬렉션 드롭다운에 visibility 아이콘 표시 (Globe/Lock/Users)
+  - Collection 인터페이스에 visibility, description, owner_id, is_owner 추가
+- [x] `app/upload/components/QdrantSettingsPanel.tsx`
+  - 접근 가능한 컬렉션만 표시 (백엔드 API가 필터링)
+  - visibility 배지 표시
 
 ---
 
 ## Phase 4: 테스트 및 안정화 (Day 9)
 
+- [x] 코드 구현 완료
 - [ ] 워크플로우 테스트: 문서파싱 → 컬렉션생성 → 업로드 → 채팅
 - [ ] 접근 제어 테스트: 비로그인 / 로그인 / 소유자
 - [ ] 버그 수정 및 UX 개선
@@ -156,7 +158,7 @@
 ### Day 14: 모달 기본 구조
 
 **프론트엔드 파일 생성**:
-- [ ] `app/collections/components/PromptGeneratorModal.tsx`
+- [x] `app/collections/components/PromptGeneratorModal.tsx`
   - Step 1: 문서 선택 드롭다운
   - Step 2: 템플릿 선택 (regulation/budget/default)
   - Step 3: 파일명 입력
@@ -165,11 +167,11 @@
 ### Day 15: 미리보기 및 편집
 
 **프론트엔드 파일 생성**:
-- [ ] `app/collections/components/PromptEditor.tsx` - 마크다운 편집
-- [ ] `app/collections/components/SuggestedQuestionsEditor.tsx` - 질문 편집
+- [x] `app/collections/components/PromptEditor.tsx` - 마크다운 편집
+- [x] `app/collections/components/SuggestedQuestionsEditor.tsx` - 질문 편집
 
 **프론트엔드 수정**:
-- [ ] `app/collections/page.tsx` - 프롬프트 생성 버튼 활성화
+- [x] `app/collections/page.tsx` - 프롬프트 생성 버튼 활성화
 
 ---
 

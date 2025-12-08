@@ -1,17 +1,15 @@
 "use client"
 
+import Link from "next/link"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Loader2, Database, RefreshCw, Trash2, Plus, Layers, FileStack } from "lucide-react"
+import { Loader2, RefreshCw, Layers, FileStack, Settings, Globe, Lock, Users } from "lucide-react"
 import { QdrantCollection } from "../types"
-import { cn } from "@/lib/utils"
 
 interface QdrantSettingsPanelProps {
   selectedCollection: string
@@ -19,21 +17,22 @@ interface QdrantSettingsPanelProps {
   chunkSize: number
   chunkOverlap: number
   loadingCollections: boolean
-  createDialogOpen: boolean
-  deleteDialogOpen: boolean
-  newCollectionName: string
-  distance: string
-  deleting: boolean
   onSelectedCollectionChange: (value: string) => void
   onChunkSizeChange: (value: number) => void
   onChunkOverlapChange: (value: number) => void
   onFetchCollections: () => void
-  onCreateDialogOpenChange: (open: boolean) => void
-  onDeleteDialogOpenChange: (open: boolean) => void
-  onNewCollectionNameChange: (value: string) => void
-  onDistanceChange: (value: string) => void
-  onCreateCollection: () => void
-  onDeleteCollection: () => void
+}
+
+// Visibility icon helper
+function VisibilityIcon({ visibility }: { visibility?: string }) {
+  switch (visibility) {
+    case "private":
+      return <Lock className="h-3 w-3" />
+    case "shared":
+      return <Users className="h-3 w-3" />
+    default:
+      return <Globe className="h-3 w-3" />
+  }
 }
 
 export function QdrantSettingsPanel({
@@ -42,21 +41,10 @@ export function QdrantSettingsPanel({
   chunkSize,
   chunkOverlap,
   loadingCollections,
-  createDialogOpen,
-  deleteDialogOpen,
-  newCollectionName,
-  distance,
-  deleting,
   onSelectedCollectionChange,
   onChunkSizeChange,
   onChunkOverlapChange,
   onFetchCollections,
-  onCreateDialogOpenChange,
-  onDeleteDialogOpenChange,
-  onNewCollectionNameChange,
-  onDistanceChange,
-  onCreateCollection,
-  onDeleteCollection,
 }: QdrantSettingsPanelProps) {
   // 선택된 컬렉션 정보 찾기
   const selectedCollectionInfo = collections.find(col => col.name === selectedCollection)
@@ -73,12 +61,12 @@ export function QdrantSettingsPanel({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Badge variant="outline" className="text-xs gap-1">
-                      <Layers className="h-3 w-3" />
-                      {selectedCollectionInfo.points_count.toLocaleString()}
+                      <VisibilityIcon visibility={selectedCollectionInfo.visibility} />
+                      {selectedCollectionInfo.visibility || "public"}
                     </Badge>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p className="text-xs">총 포인트 수</p>
+                    <p className="text-xs">공개 설정</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -103,147 +91,39 @@ export function QdrantSettingsPanel({
             <SelectValue placeholder="Collection 선택" />
           </SelectTrigger>
           <SelectContent>
-            {collections.map((col) => (
-              <SelectItem key={col.name} value={col.name}>
-                <div className="flex items-center justify-between w-full gap-3">
-                  <span className="font-medium">{col.name}</span>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs">
-                      {col.points_count.toLocaleString()}p
-                    </Badge>
-                    <Badge variant="secondary" className="text-xs">
-                      {col.vectors_count.toLocaleString()}v
-                    </Badge>
+            {collections.length === 0 ? (
+              <div className="px-2 py-3 text-center text-sm text-muted-foreground">
+                접근 가능한 컬렉션이 없습니다
+              </div>
+            ) : (
+              collections.map((col) => (
+                <SelectItem key={col.name} value={col.name}>
+                  <div className="flex items-center justify-between w-full gap-3">
+                    <span className="font-medium">{col.name}</span>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs gap-1">
+                        <VisibilityIcon visibility={col.visibility} />
+                      </Badge>
+                      <Badge variant="secondary" className="text-xs">
+                        {col.vectors_count.toLocaleString()}v
+                      </Badge>
+                    </div>
                   </div>
-                </div>
-              </SelectItem>
-            ))}
+                </SelectItem>
+              ))
+            )}
           </SelectContent>
         </Select>
       </div>
 
-      {/* Collection 관리 버튼 - Chat 스타일 */}
-      <div className="flex items-center gap-1.5 justify-end">
-        <Dialog open={createDialogOpen} onOpenChange={onCreateDialogOpenChange}>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <DialogTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-9 w-9">
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </DialogTrigger>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className="text-xs">새 Collection 생성</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-              <DialogContent className="sm:max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>새 Collection 생성</DialogTitle>
-                  <DialogDescription>
-                    새로운 Qdrant Collection을 생성합니다
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="newCollectionName">Collection 이름</Label>
-                    <Input
-                      id="newCollectionName"
-                      placeholder="예: documents"
-                      value={newCollectionName}
-                      onChange={(e) => onNewCollectionNameChange(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Vector 크기</Label>
-                    <Input value="1024 (BGE-M3 고정)" disabled />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="qdrant-distance">Distance Metric</Label>
-                    <Select value={distance} onValueChange={onDistanceChange}>
-                      <SelectTrigger id="qdrant-distance">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Cosine">Cosine</SelectItem>
-                        <SelectItem value="Euclidean">Euclidean</SelectItem>
-                        <SelectItem value="Dot">Dot</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => onCreateDialogOpenChange(false)}>
-                    취소
-                  </Button>
-                  <Button onClick={onCreateCollection}>
-                    <Database className="h-4 w-4 mr-2" />
-                    생성
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-        </Dialog>
-
-        <Dialog open={deleteDialogOpen} onOpenChange={onDeleteDialogOpenChange}>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <DialogTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    disabled={!selectedCollection}
-                    className="h-9 w-9"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </DialogTrigger>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className="text-xs">Collection 삭제</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-              <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Collection 삭제</DialogTitle>
-                  <DialogDescription>
-                    정말로 이 Collection을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="py-4">
-                  <Alert>
-                    <AlertDescription>
-                      <strong>{selectedCollection}</strong> Collection이 삭제됩니다.
-                    </AlertDescription>
-                  </Alert>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => onDeleteDialogOpenChange(false)}>
-                    취소
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={onDeleteCollection}
-                    disabled={deleting}
-                  >
-                    {deleting ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        삭제 중...
-                      </>
-                    ) : (
-                      <>
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        삭제
-                      </>
-                    )}
-                  </Button>
-                </DialogFooter>
-          </DialogContent>
-        </Dialog>
+      {/* Collection 관리 링크 및 새로고침 */}
+      <div className="flex items-center gap-1.5 justify-between">
+        <Link href="/collections">
+          <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground">
+            <Settings className="h-3.5 w-3.5" />
+            컬렉션 관리
+          </Button>
+        </Link>
 
         <TooltipProvider>
           <Tooltip>
@@ -253,7 +133,7 @@ export function QdrantSettingsPanel({
                 disabled={loadingCollections}
                 variant="ghost"
                 size="icon"
-                className="h-9 w-9"
+                className="h-8 w-8"
               >
                 {loadingCollections ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

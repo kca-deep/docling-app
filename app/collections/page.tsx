@@ -30,15 +30,12 @@ import {
   Plus,
   Search,
   Settings,
-  Trash2,
-  Upload,
-  FileText,
-  Wand2,
   RefreshCw,
   Globe,
   Lock,
   Users,
   ArrowUpDown,
+  Sparkles,
 } from "lucide-react"
 import { toast } from "sonner"
 import { API_BASE_URL } from "@/lib/api-config"
@@ -46,6 +43,7 @@ import { cn } from "@/lib/utils"
 import { CreateCollectionModal } from "./components/CreateCollectionModal"
 import { CollectionSettingsModal } from "./components/CollectionSettingsModal"
 import { DeleteConfirmModal } from "./components/DeleteConfirmModal"
+import { PromptGeneratorModal } from "./components/PromptGeneratorModal"
 
 // 컬렉션 타입 정의
 interface Collection {
@@ -78,6 +76,7 @@ export default function CollectionsPage() {
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [promptGeneratorOpen, setPromptGeneratorOpen] = useState(false)
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null)
 
   // 컬렉션 목록 가져오기
@@ -148,6 +147,12 @@ export default function CollectionsPage() {
   const openDeleteModal = (collection: Collection) => {
     setSelectedCollection(collection)
     setDeleteModalOpen(true)
+  }
+
+  // 프롬프트 생성 모달 열기
+  const openPromptGenerator = (collection: Collection) => {
+    setSelectedCollection(collection)
+    setPromptGeneratorOpen(true)
   }
 
   // 컬렉션 삭제
@@ -304,17 +309,12 @@ export default function CollectionsPage() {
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Card key={i} className="py-3 px-4">
-              <div className="flex items-center gap-3">
-                <Skeleton className="h-5 w-32" />
-                <Skeleton className="h-5 w-5 rounded-full" />
-                <Skeleton className="h-4 w-20" />
-                <div className="flex-1" />
-                <div className="flex gap-1">
-                  <Skeleton className="h-8 w-8" />
-                  <Skeleton className="h-8 w-8" />
-                  <Skeleton className="h-8 w-8" />
-                </div>
+            <Card key={i} className="px-4 py-2">
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-5 flex-1" />
+                <Skeleton className="h-5 w-14" />
+                <Skeleton className="h-5 w-5" />
+                <Skeleton className="h-7 w-7" />
               </div>
             </Card>
           ))}
@@ -342,20 +342,20 @@ export default function CollectionsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {filteredCollections.map((collection) => (
-            <Card key={collection.name} className="group hover:shadow-md transition-shadow py-3 px-4">
-              <div className="flex items-center gap-3">
-                {/* 컬렉션 이름 + HoverCard로 설명 표시 */}
+            <Card key={collection.name} className="group hover:shadow-md transition-shadow px-4 py-2">
+              {/* 1줄 레이아웃: 이름 + 뱃지 + 버튼들 */}
+              <div className="flex items-center gap-2">
                 <HoverCard openDelay={300}>
                   <HoverCardTrigger asChild>
-                    <button className="font-medium text-sm truncate max-w-[140px] hover:text-primary transition-colors text-left">
+                    <span className="font-medium text-sm truncate min-w-0 flex-1 cursor-pointer hover:text-primary transition-colors" title={collection.name}>
                       {collection.name}
-                    </button>
+                    </span>
                   </HoverCardTrigger>
                   <HoverCardContent className="w-80" side="bottom" align="start">
                     <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Database className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">{collection.name}</span>
+                      <div className="flex items-start gap-2">
+                        <Database className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                        <span className="font-medium break-all">{collection.name}</span>
                       </div>
                       {collection.description ? (
                         <p className="text-sm text-muted-foreground">
@@ -366,7 +366,7 @@ export default function CollectionsPage() {
                           설명 없음
                         </p>
                       )}
-                      <div className="flex gap-4 text-xs text-muted-foreground pt-1 border-t">
+                      <div className="flex gap-4 text-xs text-muted-foreground pt-2 border-t">
                         <span>벡터: {collection.vectors_count.toLocaleString()}</span>
                         <span>차원: {collection.vector_size}</span>
                         <span>거리: {collection.distance}</span>
@@ -375,68 +375,60 @@ export default function CollectionsPage() {
                   </HoverCardContent>
                 </HoverCard>
 
-                {/* Visibility 뱃지 (컴팩트) */}
-                {getVisibilityBadge(collection.visibility, true)}
+                {/* 벡터 수 뱃지 */}
+                {collection.vectors_count === 0 ? (
+                  <Badge variant="outline" className="text-muted-foreground shrink-0 text-xs">
+                    비어있음
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="shrink-0 text-xs">
+                    {collection.vectors_count.toLocaleString()}
+                  </Badge>
+                )}
 
-                {/* 벡터 수 */}
-                <span className="text-xs text-muted-foreground whitespace-nowrap">
-                  <Database className="h-3 w-3 inline mr-1" />
-                  {collection.vectors_count.toLocaleString()}
-                </span>
-
-                {/* Spacer */}
-                <div className="flex-1" />
-
-                {/* 액션 버튼 (아이콘만) */}
-                <div className="flex gap-1">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => openSettingsModal(collection)}
-                        >
-                          <Settings className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>설정</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => openDeleteModal(collection)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>삭제</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="default"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => window.location.href = `/upload?tab=qdrant&collection=${encodeURIComponent(collection.name)}`}
-                        >
-                          <Upload className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>업로드</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                {/* Visibility 뱃지 */}
+                <div className="shrink-0">
+                  {getVisibilityBadge(collection.visibility, true)}
                 </div>
+
+                {/* 프롬프트 생성 버튼 */}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7 shrink-0"
+                        onClick={() => openPromptGenerator(collection)}
+                        disabled={collection.vectors_count === 0}
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {collection.vectors_count === 0
+                        ? "문서를 업로드한 후 프롬프트를 생성할 수 있습니다"
+                        : "프롬프트 생성"}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+
+                {/* 설정 버튼 */}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7 shrink-0"
+                        onClick={() => openSettingsModal(collection)}
+                      >
+                        <Settings className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>설정</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </Card>
           ))}
@@ -466,6 +458,7 @@ export default function CollectionsPage() {
         onOpenChange={setSettingsModalOpen}
         collection={selectedCollection}
         onSuccess={fetchCollections}
+        onDelete={() => selectedCollection && openDeleteModal(selectedCollection)}
       />
 
       <DeleteConfirmModal
@@ -473,6 +466,13 @@ export default function CollectionsPage() {
         onOpenChange={setDeleteModalOpen}
         collectionName={selectedCollection?.name || ""}
         onConfirm={handleDeleteCollection}
+      />
+
+      <PromptGeneratorModal
+        open={promptGeneratorOpen}
+        onOpenChange={setPromptGeneratorOpen}
+        collectionName={selectedCollection?.name || ""}
+        onSuccess={fetchCollections}
       />
     </PageContainer>
   )

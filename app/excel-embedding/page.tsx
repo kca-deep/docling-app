@@ -28,18 +28,20 @@ import {
   XCircle,
   Database,
   RefreshCw,
-  Plus,
-  Trash2,
   Layers,
-  Wand2,
   Settings2,
   FileText,
   Tag,
   Hash,
   Info,
   Table,
-  ChevronDown
+  ChevronDown,
+  Settings,
+  Globe,
+  Lock,
+  Users
 } from "lucide-react"
+import Link from "next/link"
 import { toast } from "sonner"
 import { API_BASE_URL } from "@/lib/api-config"
 
@@ -72,6 +74,22 @@ interface QdrantCollection {
   points_count: number
   vector_size: number
   distance: string
+  visibility?: string
+  description?: string
+  owner_id?: number
+  is_owner?: boolean
+}
+
+// Visibility icon helper
+function VisibilityIcon({ visibility }: { visibility?: string }) {
+  switch (visibility) {
+    case "private":
+      return <Lock className="h-3 w-3" />
+    case "shared":
+      return <Users className="h-3 w-3" />
+    default:
+      return <Globe className="h-3 w-3" />
+  }
 }
 
 interface EmbeddingResult {
@@ -104,11 +122,6 @@ export default function ExcelEmbeddingPage() {
   const [collections, setCollections] = useState<QdrantCollection[]>([])
   const [selectedCollection, setSelectedCollection] = useState("")
   const [loadingCollections, setLoadingCollections] = useState(false)
-  const [createDialogOpen, setCreateDialogOpen] = useState(false)
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [deletingCollection, setDeletingCollection] = useState(false)
-  const [newCollectionName, setNewCollectionName] = useState("")
-  const [distance, setDistance] = useState("Cosine")
 
   // 임베딩 상태
   const [isEmbedding, setIsEmbedding] = useState(false)
@@ -134,72 +147,6 @@ export default function ExcelEmbeddingPage() {
       toast.error("Collection 목록을 불러오는데 실패했습니다")
     } finally {
       setLoadingCollections(false)
-    }
-  }
-
-  // Collection 생성
-  const createCollection = async () => {
-    if (!newCollectionName.trim()) {
-      toast.error("Collection 이름을 입력해주세요")
-      return
-    }
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/qdrant/collections`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: 'include',
-        body: JSON.stringify({
-          collection_name: newCollectionName,
-          vector_size: 1024,
-          distance: distance
-        })
-      })
-
-      if (response.ok) {
-        toast.success(`Collection '${newCollectionName}'이 생성되었습니다`)
-        setNewCollectionName("")
-        setCreateDialogOpen(false)
-        fetchCollections()
-      } else {
-        const error = await response.json()
-        toast.error(error.detail || "Collection 생성에 실패했습니다")
-      }
-    } catch (error) {
-      console.error("Failed to create collection:", error)
-      toast.error("Collection 생성에 실패했습니다")
-    }
-  }
-
-  // Collection 삭제
-  const deleteCollection = async () => {
-    if (!selectedCollection) {
-      toast.error("삭제할 Collection을 선택해주세요")
-      return
-    }
-
-    setDeletingCollection(true)
-
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/qdrant/collections/${encodeURIComponent(selectedCollection)}`,
-        { method: "DELETE", credentials: 'include' }
-      )
-
-      if (response.ok) {
-        toast.success(`Collection '${selectedCollection}'이 삭제되었습니다`)
-        setSelectedCollection("")
-        setDeleteDialogOpen(false)
-        fetchCollections()
-      } else {
-        const error = await response.json()
-        toast.error(error.detail || "Collection 삭제에 실패했습니다")
-      }
-    } catch (error) {
-      console.error("Failed to delete collection:", error)
-      toast.error("Collection 삭제에 실패했습니다")
-    } finally {
-      setDeletingCollection(false)
     }
   }
 
@@ -661,12 +608,22 @@ export default function ExcelEmbeddingPage() {
                   <Label className="text-sm font-semibold">Collection</Label>
                   {selectedCollectionInfo && (
                     <div className="flex items-center gap-1.5">
-                      <Badge variant="outline" className="text-xs gap-1">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge variant="outline" className="text-xs gap-1">
+                              <VisibilityIcon visibility={selectedCollectionInfo.visibility} />
+                              {selectedCollectionInfo.visibility || "public"}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-xs">공개 설정</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <Badge variant="secondary" className="text-xs gap-1">
                         <Layers className="h-3 w-3" />
-                        {selectedCollectionInfo.points_count.toLocaleString()}
-                      </Badge>
-                      <Badge variant="secondary" className="text-xs">
-                        {selectedCollectionInfo.distance}
+                        {selectedCollectionInfo.vectors_count.toLocaleString()}
                       </Badge>
                     </div>
                   )}
@@ -678,136 +635,36 @@ export default function ExcelEmbeddingPage() {
                     <SelectValue placeholder="Collection 선택" />
                   </SelectTrigger>
                   <SelectContent>
-                    {collections.map((col) => (
-                      <SelectItem key={col.name} value={col.name}>
-                        <div className="flex items-center justify-between w-full gap-3">
-                          <span className="font-medium">{col.name}</span>
-                          <Badge variant="outline" className="text-xs">
-                            {col.points_count.toLocaleString()}p
-                          </Badge>
-                        </div>
-                      </SelectItem>
-                    ))}
+                    {collections.length === 0 ? (
+                      <div className="px-2 py-3 text-center text-sm text-muted-foreground">
+                        접근 가능한 컬렉션이 없습니다
+                      </div>
+                    ) : (
+                      collections.map((col) => (
+                        <SelectItem key={col.name} value={col.name}>
+                          <div className="flex items-center justify-between w-full gap-3">
+                            <div className="flex items-center gap-2">
+                              <VisibilityIcon visibility={col.visibility} />
+                              <span className="font-medium">{col.name}</span>
+                            </div>
+                            <Badge variant="secondary" className="text-xs">
+                              {col.vectors_count.toLocaleString()}v
+                            </Badge>
+                          </div>
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
 
-                {/* 3줄: 추가/삭제/새로고침 버튼 (우측 정렬) */}
-                <div className="flex items-center gap-1.5 justify-end">
-                  <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <DialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-9 w-9">
-                              <Plus className="h-4 w-4" />
-                            </Button>
-                          </DialogTrigger>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p className="text-xs">새 Collection 생성</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    <DialogContent className="sm:max-w-lg">
-                      <DialogHeader>
-                        <DialogTitle>New Collection</DialogTitle>
-                        <DialogDescription>새 Qdrant Collection 생성</DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4 py-4">
-                        <div className="space-y-2">
-                          <Label>Collection Name</Label>
-                          <Input
-                            value={newCollectionName}
-                            onChange={(e) => setNewCollectionName(e.target.value)}
-                            placeholder="e.g., faq_data"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Vector Size</Label>
-                          <Input value="1024" placeholder="BGE-M3" disabled />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Distance Metric</Label>
-                          <Select value={distance} onValueChange={setDistance}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Cosine">Cosine</SelectItem>
-                              <SelectItem value="Euclidean">Euclidean</SelectItem>
-                              <SelectItem value="Dot">Dot</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
-                          Cancel
-                        </Button>
-                        <Button onClick={createCollection}>Create</Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-
-                  {/* 삭제 다이얼로그 */}
-                  <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <DialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              disabled={!selectedCollection}
-                              className="h-9 w-9"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </DialogTrigger>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p className="text-xs">Collection 삭제</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    <DialogContent className="sm:max-w-md">
-                      <DialogHeader>
-                        <DialogTitle>Collection 삭제</DialogTitle>
-                        <DialogDescription>
-                          정말로 이 Collection을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="py-4">
-                        <Alert>
-                          <AlertDescription>
-                            <strong>{selectedCollection}</strong> Collection이 삭제됩니다.
-                          </AlertDescription>
-                        </Alert>
-                      </div>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
-                          취소
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          onClick={deleteCollection}
-                          disabled={deletingCollection}
-                        >
-                          {deletingCollection ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              삭제 중...
-                            </>
-                          ) : (
-                            <>
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              삭제
-                            </>
-                          )}
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
+                {/* 3줄: 컬렉션 관리 링크 + 새로고침 버튼 */}
+                <div className="flex items-center gap-1.5 justify-between">
+                  <Link href="/collections">
+                    <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground">
+                      <Settings className="h-3.5 w-3.5" />
+                      컬렉션 관리
+                    </Button>
+                  </Link>
 
                   <TooltipProvider>
                     <Tooltip>
@@ -817,7 +674,7 @@ export default function ExcelEmbeddingPage() {
                           size="icon"
                           onClick={fetchCollections}
                           disabled={loadingCollections}
-                          className="h-9 w-9"
+                          className="h-8 w-8"
                         >
                           {loadingCollections ? (
                             <Loader2 className="h-4 w-4 animate-spin" />

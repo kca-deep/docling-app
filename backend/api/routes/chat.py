@@ -26,6 +26,9 @@ from backend.services.reranker_service import RerankerService
 from backend.config.settings import settings
 from backend.services.hybrid_logging_service import hybrid_logging_service
 from backend.services.conversation_service import conversation_service
+from backend.services import collection_crud
+from backend.dependencies.auth import get_current_user_optional
+from backend.models.user import User
 
 # 로거 설정
 logger = logging.getLogger("uvicorn")
@@ -730,9 +733,16 @@ async def regenerate(request: RegenerateRequest):
 
 
 @router.get("/collections")
-async def get_collections():
+async def get_collections(
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     """
-    사용 가능한 Qdrant 컬렉션 목록 조회
+    사용 가능한 Qdrant 컬렉션 목록 조회 (접근 제어 적용)
+
+    사용자 권한에 따라 접근 가능한 컬렉션만 반환:
+    - 비로그인: public 컬렉션만
+    - 로그인: public + 소유 + 공유된(allowed) 컬렉션
 
     Returns:
         dict: 컬렉션 목록
@@ -742,11 +752,42 @@ async def get_collections():
         HTTPException: 조회 실패 시
     """
     try:
-        collections = await qdrant_service.get_collections()
-        return {"collections": [col.model_dump() for col in collections]}
+        # 1. Qdrant에서 모든 컬렉션 조회
+        qdrant_collections = await qdrant_service.get_collections()
+        qdrant_names = [col.name for col in qdrant_collections]
+
+        # 2. SQLite에서 접근 가능한 컬렉션 메타데이터 조회
+        user_id = current_user.id if current_user else None
+        accessible_metadata = collection_crud.get_accessible_collections(
+            db=db,
+            user_id=user_id,
+            qdrant_collection_names=qdrant_names
+        )
+
+        # 3. 메타데이터를 딕셔너리로 변환 (빠른 조회용)
+        metadata_map = {col.collection_name: col for col in accessible_metadata}
+
+        # 4. Qdrant 데이터와 SQLite 메타데이터 병합
+        result_collections = []
+        for qdrant_col in qdrant_collections:
+            if qdrant_col.name in metadata_map:
+                meta = metadata_map[qdrant_col.name]
+                result_collections.append({
+                    "name": qdrant_col.name,
+                    "vectors_count": qdrant_col.vectors_count,
+                    "points_count": qdrant_col.points_count,
+                    "vector_size": qdrant_col.vector_size,
+                    "distance": qdrant_col.distance,
+                    "visibility": meta.visibility,
+                    "description": meta.description,
+                    "owner_id": meta.owner_id,
+                    "is_owner": user_id is not None and meta.owner_id == user_id
+                })
+
+        return {"collections": result_collections}
 
     except Exception as e:
-        print(f"[ERROR] Get collections failed: {e}")
+        logger.error(f"[ERROR] Get collections failed: {e}")
         raise HTTPException(status_code=500, detail=f"컬렉션 조회 실패: {str(e)}")
 
 

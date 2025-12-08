@@ -34,6 +34,9 @@ import {
   Trash2,
   Settings,
   Brain,
+  Globe,
+  Lock,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -55,6 +58,22 @@ interface Collection {
   points_count: number;
   vector_size: number;
   distance: string;
+  visibility?: string;
+  description?: string;
+  owner_id?: number;
+  is_owner?: boolean;
+}
+
+// Visibility icon helper
+function VisibilityIcon({ visibility, className }: { visibility?: string; className?: string }) {
+  switch (visibility) {
+    case "private":
+      return <Lock className={cn("h-3 w-3", className)} />;
+    case "shared":
+      return <Users className={cn("h-3 w-3", className)} />;
+    default:
+      return <Globe className={cn("h-3 w-3", className)} />;
+  }
 }
 
 interface ChatSettings {
@@ -270,14 +289,17 @@ export const InputArea = memo(function InputArea({
                 <SelectContent>
                   {collections.length === 0 ? (
                     <div className="p-2 text-center text-sm text-muted-foreground">
-                      컬렉션이 없습니다
+                      접근 가능한 컬렉션이 없습니다
                     </div>
                   ) : (
                     collections.map((collection) => (
                       <SelectItem key={collection.name} value={collection.name}>
-                        <div className="flex items-center justify-between gap-2">
-                          <span>{collection.name}</span>
-                          <Badge variant="secondary" className="ml-2 text-xs">
+                        <div className="flex items-center justify-between gap-3 w-full">
+                          <div className="flex items-center gap-2">
+                            <VisibilityIcon visibility={collection.visibility} className="text-muted-foreground" />
+                            <span>{collection.name}</span>
+                          </div>
+                          <Badge variant="secondary" className="text-xs">
                             {collection.points_count.toLocaleString()}
                           </Badge>
                         </div>
