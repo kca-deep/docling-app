@@ -89,11 +89,12 @@ class PromptLoader:
             collection_name: 컬렉션 이름
 
         Returns:
-            str: 프롬프트 파일명 (예: "regulation.md", "default.md")
+            str: 프롬프트 파일명 (예: "regulation.md", "default.md", "casual.md")
         """
-        # collection_name이 None이면 default.md
+        # collection_name이 None이면 casual.md (일상대화 모드)
         if not collection_name:
-            return "default.md"
+            print(f"[INFO] No collection specified, using casual.md for casual conversation")
+            return "casual.md"
 
         # mapping.json 로드
         mapping = self._load_mapping()

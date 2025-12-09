@@ -383,8 +383,9 @@ export default function AnalyticsPage() {
     <PageContainer maxWidth="wide">
       {/* 페이지 헤더 */}
       <div className="space-y-2 mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          사용 통계
+        <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
+          <TrendingUp className="h-6 w-6" />
+          통계
         </h1>
         <p className="text-sm text-muted-foreground">RAG 시스템 사용량 및 성능 분석</p>
       </div>

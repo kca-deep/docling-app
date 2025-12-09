@@ -2,12 +2,12 @@
   "version": "1.0",
   "collection_prompts": {
     "1. 인사 및 복무": {
-      "prompt_file": "regulation.md",
-      "description": "인사규정, 복무규정 등 법령 문서",
+      "prompt_file": "1. 인사 및 복무_prompt.md",
+      "description": "1. 인사 및 복무 컬렉션 프롬프트",
       "recommended_params": {
         "top_k": 10,
         "temperature": 0.3,
-        "reasoning_level": "high"
+        "reasoning_level": "medium"
       }
     },
     "2. 예산관리": {

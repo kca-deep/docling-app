@@ -36,6 +36,7 @@ import {
   Users,
   ArrowUpDown,
   Sparkles,
+  FolderCog,
 } from "lucide-react"
 import { toast } from "sonner"
 import { API_BASE_URL } from "@/lib/api-config"
@@ -235,8 +236,8 @@ export default function CollectionsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-            <Database className="h-6 w-6" />
-            컬렉션 관리
+            <FolderCog className="h-6 w-6" />
+            컬렉션
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             벡터 데이터베이스 컬렉션 생성, 설정 및 관리

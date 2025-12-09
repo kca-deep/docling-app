@@ -332,7 +332,7 @@ export function ChatContainer() {
         headers: { "Content-Type": "application/json" },
         credentials: 'include',
         body: JSON.stringify({
-          collection_name: selectedCollection,
+          collection_name: selectedCollection || null,  // 빈 문자열이면 null로 전송 (일상대화 모드)
           message: userMessage.content,
           model: settings.model,
           reasoning_level: settings.reasoningLevel,
@@ -459,12 +459,16 @@ export function ChatContainer() {
         ];
       }
 
+      // 일상대화 모드 체크
+      const isCasualMode = !selectedCollection;
+
       console.log('='.repeat(80));
       console.log('[FRONTEND] Making API call to streaming endpoint');
       console.log(`[FRONTEND] API_BASE_URL: ${API_BASE_URL}`);
       console.log(`[FRONTEND] Full URL: ${API_BASE_URL}/api/chat/stream`);
       console.log(`[FRONTEND] Model: ${settings.model}`);
-      console.log(`[FRONTEND] Collection: ${selectedCollection}`);
+      console.log(`[FRONTEND] Collection: ${selectedCollection || '(일상대화 모드)'}`);
+      console.log(`[FRONTEND] Mode: ${isCasualMode ? 'Casual' : 'RAG'}`);
       console.log('='.repeat(80));
 
       const response = await fetch(`${API_BASE_URL}/api/chat/stream`, {
@@ -472,7 +476,7 @@ export function ChatContainer() {
         headers: { "Content-Type": "application/json" },
         credentials: 'include',
         body: JSON.stringify({
-          collection_name: selectedCollection,
+          collection_name: selectedCollection || null,  // 빈 문자열이면 null로 전송 (일상대화 모드)
           message: userMessage.content,
           model: settings.model,
           reasoning_level: settings.reasoningLevel,
@@ -655,8 +659,8 @@ export function ChatContainer() {
   }, [messages, selectedCollection, settings, artifactState.isOpen]);
 
   const handleSend = useCallback(async () => {
-    if (!input.trim() || !selectedCollection) {
-      toast.error("컬렉션을 선택하고 메시지를 입력해주세요");
+    if (!input.trim()) {
+      toast.error("메시지를 입력해주세요");
       return;
     }
 
@@ -680,18 +684,13 @@ export function ChatContainer() {
     } else {
       await handleNonStreamingSend(userMessage, currentQuoted);
     }
-  }, [input, selectedCollection, quotedMessage, settings.streamMode, handleStreamingSend, handleNonStreamingSend]);
+  }, [input, quotedMessage, settings.streamMode, handleStreamingSend, handleNonStreamingSend]);
 
   const handleClearChat = useCallback(() => {
-    setMessages([
-      {
-        id: "1",
-        role: "assistant",
-        content: "대화가 초기화되었습니다. 무엇을 도와드릴까요?",
-        timestamp: new Date(),
-      },
-    ]);
+    setMessages([]);
     setCurrentSources([]);
+    // 아티팩트 패널도 닫기
+    setArtifactState({ isOpen: false, sources: [], activeSourceId: null });
     toast.success("대화가 초기화되었습니다");
   }, []);
 
@@ -888,11 +887,18 @@ export function ChatContainer() {
       // 인용 메시지 초기화
       setQuotedMessage(null);
 
+      // 아티팩트 패널도 닫기
+      setArtifactState({ isOpen: false, sources: [], activeSourceId: null, messageId: null });
+
       // 컬렉션 변경
       setSelectedCollection(newCollection);
 
-      // 사용자에게 알림
-      toast.info(`"${newCollection}" 컬렉션으로 변경되었습니다. 대화가 초기화되었습니다.`);
+      // 사용자에게 알림 (일상대화 모드 전환 시 다른 메시지)
+      if (newCollection) {
+        toast.info(`"${newCollection}" 컬렉션으로 변경되었습니다. 대화가 초기화되었습니다.`);
+      } else {
+        toast.info("일상대화 모드로 전환되었습니다. RAG 검색 없이 자유롭게 대화할 수 있습니다.");
+      }
     }
   }, [selectedCollection]);
 
@@ -927,8 +933,8 @@ export function ChatContainer() {
 
           {/* 수직 텍스트 레이아웃 */}
           <div className="hidden sm:flex flex-col">
-            <span className="font-bold text-base text-foreground leading-tight">KCA-i</span>
-            <span className="text-[11px] text-muted-foreground leading-tight">지능형 챗봇</span>
+            <span className="font-bold text-base text-foreground leading-tight">KCA-i 지능형 챗봇</span>
+            <span className="text-[11px] text-muted-foreground leading-tight">RAG기반 어시스턴트</span>
           </div>
         </div>
 
@@ -1010,7 +1016,7 @@ export function ChatContainer() {
             setInput={setInput}
             onSend={handleSend}
             isLoading={isLoading}
-            disabled={!selectedCollection}
+            disabled={false}  // 일상대화 모드에서는 컬렉션 없이도 전송 가능
             quotedMessage={quotedMessage && quotedMessage.role !== "system" ? { role: quotedMessage.role, content: quotedMessage.content } : null}
             onClearQuote={handleClearQuote}
             selectedModel={settings.model}

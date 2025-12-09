@@ -220,7 +220,7 @@ class RAGService:
 
     async def chat(
         self,
-        collection_name: str,
+        collection_name: Optional[str],
         query: str,
         model: str = "gpt-oss-20b",
         reasoning_level: str = "medium",
@@ -261,26 +261,34 @@ class RAGService:
             Exception: 처리 실패 시
         """
         try:
-            # 1. Retrieve: 관련 문서 검색
-            # Reranking 사용 시 top_k를 배수만큼 증가
-            initial_top_k = top_k
-            if use_reranking and self.reranker_service:
-                initial_top_k = top_k * settings.RERANK_TOP_K_MULTIPLIER
-                print(f"[INFO] Reranking enabled: expanding top_k from {top_k} to {initial_top_k}")
+            # 일상대화 모드 체크 (collection_name이 None인 경우)
+            is_casual_mode = not collection_name
 
-            retrieved_docs = await self.retrieve(
-                collection_name=collection_name,
-                query=query,
-                top_k=initial_top_k,
-                score_threshold=score_threshold
-            )
+            if is_casual_mode:
+                # 일상대화 모드: 검색 없이 바로 LLM 생성
+                logger.info(f"[RAG] Casual mode - skipping retrieval")
+                retrieved_docs = []
+            else:
+                # 1. Retrieve: 관련 문서 검색
+                # Reranking 사용 시 top_k를 배수만큼 증가
+                initial_top_k = top_k
+                if use_reranking and self.reranker_service:
+                    initial_top_k = top_k * settings.RERANK_TOP_K_MULTIPLIER
+                    print(f"[INFO] Reranking enabled: expanding top_k from {top_k} to {initial_top_k}")
 
-            if not retrieved_docs:
-                return {
-                    "answer": "관련된 문서를 찾을 수 없습니다. 다른 질문을 시도해보세요.",
-                    "retrieved_docs": [],
-                    "usage": None
-                }
+                retrieved_docs = await self.retrieve(
+                    collection_name=collection_name,
+                    query=query,
+                    top_k=initial_top_k,
+                    score_threshold=score_threshold
+                )
+
+                if not retrieved_docs:
+                    return {
+                        "answer": "관련된 문서를 찾을 수 없습니다. 다른 질문을 시도해보세요.",
+                        "retrieved_docs": [],
+                        "usage": None
+                    }
 
             # 1.5. Reranking (선택)
             if use_reranking and self.reranker_service and retrieved_docs:
@@ -356,7 +364,7 @@ class RAGService:
 
     async def chat_stream(
         self,
-        collection_name: str,
+        collection_name: Optional[str],
         query: str,
         model: str = "gpt-oss-20b",
         reasoning_level: str = "medium",
@@ -394,27 +402,35 @@ class RAGService:
             Exception: 처리 실패 시
         """
         try:
-            # 1. Retrieve: 관련 문서 검색
-            # Reranking 사용 시 top_k를 배수만큼 증가
-            initial_top_k = top_k
-            if use_reranking and self.reranker_service:
-                initial_top_k = top_k * settings.RERANK_TOP_K_MULTIPLIER
-                print(f"[INFO] Reranking enabled: expanding top_k from {top_k} to {initial_top_k}")
+            # 일상대화 모드 체크 (collection_name이 None인 경우)
+            is_casual_mode = not collection_name
 
-            retrieved_docs = await self.retrieve(
-                collection_name=collection_name,
-                query=query,
-                top_k=initial_top_k,
-                score_threshold=score_threshold
-            )
+            if is_casual_mode:
+                # 일상대화 모드: 검색 없이 바로 LLM 생성
+                logger.info(f"[RAG] Casual mode stream - skipping retrieval")
+                retrieved_docs = []
+            else:
+                # 1. Retrieve: 관련 문서 검색
+                # Reranking 사용 시 top_k를 배수만큼 증가
+                initial_top_k = top_k
+                if use_reranking and self.reranker_service:
+                    initial_top_k = top_k * settings.RERANK_TOP_K_MULTIPLIER
+                    print(f"[INFO] Reranking enabled: expanding top_k from {top_k} to {initial_top_k}")
 
-            if not retrieved_docs:
-                # 문서가 없을 경우 단일 메시지 전송
-                yield 'data: {"error": "관련된 문서를 찾을 수 없습니다."}\n\n'
-                return
+                retrieved_docs = await self.retrieve(
+                    collection_name=collection_name,
+                    query=query,
+                    top_k=initial_top_k,
+                    score_threshold=score_threshold
+                )
 
-            # 1.5. Reranking (선택)
-            if use_reranking and self.reranker_service and retrieved_docs:
+                if not retrieved_docs:
+                    # 문서가 없을 경우 단일 메시지 전송
+                    yield 'data: {"error": "관련된 문서를 찾을 수 없습니다."}\n\n'
+                    return
+
+            # 1.5. Reranking (선택) - RAG 모드에서만 적용
+            if not is_casual_mode and use_reranking and self.reranker_service and retrieved_docs:
                 try:
                     print(f"[INFO] Reranking {len(retrieved_docs)} documents")
 

@@ -169,15 +169,17 @@ export const InputArea = memo(function InputArea({
     if (isComposing) return;
 
     // Enter로 전송, Shift+Enter로 줄바꿈
+    // 일상대화 모드에서는 disabled 무시
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (!disabled && !isLoading && input.trim()) {
+      if (!isLoading && input.trim()) {
         onSend();
       }
     }
   };
 
-  const canSend = !disabled && !isLoading && input.trim().length > 0;
+  // 일상대화 모드에서는 disabled 무시하고 메시지만 있으면 전송 가능
+  const canSend = !isLoading && input.trim().length > 0;
   const selectedModelOption = modelOptions.find(m => m.value === selectedModel);
 
   return (
@@ -222,11 +224,13 @@ export const InputArea = memo(function InputArea({
               onCompositionStart={() => setIsComposing(true)}
               onCompositionEnd={() => setIsComposing(false)}
               placeholder={
-                disabled
-                  ? "먼저 컬렉션을 선택해주세요..."
-                  : "메시지를 입력하세요... (Enter로 전송, Shift+Enter로 줄바꿈)"
+                isLoading
+                  ? "응답 생성 중..."
+                  : selectedCollection
+                    ? "메시지를 입력하세요... (Enter로 전송, Shift+Enter로 줄바꿈)"
+                    : "일상대화 모드 - 자유롭게 질문하세요... (Enter로 전송)"
               }
-              disabled={disabled || isLoading}
+              disabled={isLoading}
               className={cn(
                 "min-h-[60px] max-h-[300px] resize-none border-0 focus-visible:ring-0 shadow-none pr-14 px-3 py-2",
                 "placeholder:text-muted-foreground/60",
@@ -279,33 +283,43 @@ export const InputArea = memo(function InputArea({
             {/* 왼쪽: 컬렉션 선택 및 기능 버튼들 */}
             <div className="flex items-center gap-2 flex-wrap">
               {/* 컬렉션 선택 */}
-              <Select value={selectedCollection} onValueChange={onCollectionChange}>
+              <Select
+                value={selectedCollection || "__casual__"}
+                onValueChange={(value) => onCollectionChange(value === "__casual__" ? "" : value)}
+              >
                 <SelectTrigger className="h-8 w-auto min-w-[140px] border-muted hover:bg-muted/50 transition-colors gap-2 rounded-full">
                   <div className="flex items-center gap-1.5">
                     <Database className="h-3.5 w-3.5" style={{ color: "var(--chart-2)" }} />
-                    <span className="text-xs font-medium">{selectedCollection || "컬렉션 선택"}</span>
+                    <span className="text-xs font-medium">{selectedCollection || "일상대화"}</span>
                   </div>
                 </SelectTrigger>
                 <SelectContent>
-                  {collections.length === 0 ? (
-                    <div className="p-2 text-center text-sm text-muted-foreground">
-                      접근 가능한 컬렉션이 없습니다
+                  {/* 일상대화 옵션 - 항상 표시 */}
+                  <SelectItem value="__casual__">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-3 w-3 text-muted-foreground" />
+                      <span>일상대화</span>
+                      <Badge variant="outline" className="text-xs ml-auto">
+                        RAG 없음
+                      </Badge>
                     </div>
-                  ) : (
-                    collections.map((collection) => (
-                      <SelectItem key={collection.name} value={collection.name}>
-                        <div className="flex items-center justify-between gap-3 w-full">
-                          <div className="flex items-center gap-2">
-                            <VisibilityIcon visibility={collection.visibility} className="text-muted-foreground" />
-                            <span>{collection.name}</span>
-                          </div>
-                          <Badge variant="secondary" className="text-xs">
-                            {collection.points_count.toLocaleString()}
-                          </Badge>
-                        </div>
-                      </SelectItem>
-                    ))
+                  </SelectItem>
+                  {collections.length > 0 && (
+                    <div className="h-px bg-border my-1" />
                   )}
+                  {collections.map((collection) => (
+                    <SelectItem key={collection.name} value={collection.name}>
+                      <div className="flex items-center justify-between gap-3 w-full">
+                        <div className="flex items-center gap-2">
+                          <VisibilityIcon visibility={collection.visibility} className="text-muted-foreground" />
+                          <span>{collection.name}</span>
+                        </div>
+                        <Badge variant="secondary" className="text-xs">
+                          {collection.points_count.toLocaleString()}
+                        </Badge>
+                      </div>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
 

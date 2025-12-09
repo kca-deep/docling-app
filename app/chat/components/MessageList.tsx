@@ -156,8 +156,8 @@ export const MessageList = memo(function MessageList({
             />
           ))}
 
-          {/* 초기 화면 추천 질문 */}
-          {messages.length === 0 && !isLoading && collectionName && onPromptSelect && (
+          {/* 초기 화면 추천 질문 (일상대화 모드에서도 표시) */}
+          {messages.length === 0 && !isLoading && onPromptSelect && (
             <SuggestedPrompts
               collectionName={collectionName}
               onSelect={onPromptSelect}

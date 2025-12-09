@@ -436,8 +436,9 @@ function UploadPageContent() {
     <PageContainer maxWidth="wide" className="py-4">
       {/* Page Header */}
       <div className="space-y-2 mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          벡터 업로드
+        <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
+          <Database className="h-6 w-6" />
+          문서업로드
         </h1>
         <p className="text-sm text-muted-foreground">파싱된 문서를 Qdrant 또는 Dify에 업로드</p>
       </div>

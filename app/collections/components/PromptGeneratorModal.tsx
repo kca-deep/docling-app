@@ -25,6 +25,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Loader2,
   FileText,
@@ -84,10 +85,22 @@ const TEMPLATES: PromptTemplate[] = [
     icon: <FileCode className="h-5 w-5" />,
   },
   {
+    id: "casual",
+    name: "일상대화",
+    description: "친근하고 자연스러운 대화형 응답에 최적화된 프롬프트",
+    icon: <MessageSquare className="h-5 w-5" />,
+  },
+  {
+    id: "technical",
+    name: "기술문서",
+    description: "API 문서, 시스템 설계서, 매뉴얼 등 기술 문서에 최적화된 프롬프트",
+    icon: <FileCode className="h-5 w-5" />,
+  },
+  {
     id: "default",
     name: "일반 문서",
     description: "기본 RAG 프롬프트 (범용적으로 사용 가능)",
-    icon: <MessageSquare className="h-5 w-5" />,
+    icon: <FileText className="h-5 w-5" />,
   },
 ]
 
@@ -148,11 +161,10 @@ export function PromptGeneratorModal({
   const fetchDocuments = async () => {
     setLoadingDocs(true)
     try {
-      // TODO: Replace with actual API endpoint
-      // GET /api/prompts/documents/{collection_name}
-      const response = await fetch(`${API_BASE_URL}/api/documents`, {
-        credentials: "include",
-      })
+      const response = await fetch(
+        `${API_BASE_URL}/api/prompts/documents/${encodeURIComponent(collectionName)}`,
+        { credentials: "include" }
+      )
       if (response.ok) {
         const data = await response.json()
         setDocuments(data.documents || [])
@@ -183,47 +195,68 @@ export function PromptGeneratorModal({
     }
   }
 
-  // Generate prompt (mock implementation for now)
+  // Generate prompt using real API
   const generatePrompt = async () => {
     setGenerating(true)
     setGenerationProgress(0)
 
     try {
-      // Simulate progress
-      const progressInterval = setInterval(() => {
-        setGenerationProgress((prev) => {
-          if (prev >= 90) {
-            clearInterval(progressInterval)
-            return prev
-          }
-          return prev + 10
-        })
-      }, 300)
+      // 1. Start generation task
+      const startResponse = await fetch(`${API_BASE_URL}/api/prompts/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          collection_name: collectionName,
+          document_ids: selectedDocIds,
+          template_type: selectedTemplate,
+          prompt_filename: promptFilename,
+        }),
+      })
 
-      // TODO: Replace with actual API call
-      // POST /api/prompts/generate
-      // {
-      //   collection_name: collectionName,
-      //   document_ids: selectedDocIds,
-      //   template_id: selectedTemplate
-      // }
+      if (!startResponse.ok) {
+        const error = await startResponse.json()
+        throw new Error(error.detail || "프롬프트 생성 시작 실패")
+      }
 
-      // Mock delay for demo
-      await new Promise((resolve) => setTimeout(resolve, 3000))
+      const { task_id } = await startResponse.json()
 
-      clearInterval(progressInterval)
-      setGenerationProgress(100)
+      // 2. Poll for status
+      let completed = false
+      while (!completed) {
+        await new Promise((resolve) => setTimeout(resolve, 1000))
 
-      // Mock generated content
-      const mockPrompt = generateMockPrompt()
-      setGeneratedPrompt(mockPrompt)
-      setEditedPrompt(mockPrompt.content)
-      setEditedQuestions([...mockPrompt.suggestedQuestions])
+        const statusResponse = await fetch(
+          `${API_BASE_URL}/api/prompts/generate/${task_id}`,
+          { credentials: "include" }
+        )
 
-      toast.success("프롬프트가 생성되었습니다")
+        if (!statusResponse.ok) {
+          throw new Error("상태 조회 실패")
+        }
+
+        const status = await statusResponse.json()
+        setGenerationProgress(status.progress)
+
+        if (status.status === "completed") {
+          completed = true
+          const result = status.result
+
+          setGeneratedPrompt({
+            content: result.prompt_content,
+            suggestedQuestions: result.suggested_questions,
+          })
+          setEditedPrompt(result.prompt_content)
+          setEditedQuestions([...result.suggested_questions])
+
+          toast.success("프롬프트가 생성되었습니다")
+        } else if (status.status === "failed") {
+          throw new Error(status.error || "프롬프트 생성 실패")
+        }
+      }
     } catch (error) {
       console.error("Failed to generate prompt:", error)
-      toast.error("프롬프트 생성에 실패했습니다")
+      toast.error(error instanceof Error ? error.message : "프롬프트 생성에 실패했습니다")
     } finally {
       setGenerating(false)
     }
@@ -290,6 +323,65 @@ export function PromptGeneratorModal({
           "사업별 예산 배분 현황을 알려주세요.",
         ],
       },
+      casual: {
+        content: `# ${collectionName} 일상대화 시스템 프롬프트
+
+## 역할
+당신은 친근하고 도움이 되는 대화 AI입니다. 자연스럽고 편안한 대화를 나눕니다.
+
+## 대화 스타일
+1. **친근한 어투**: 자연스럽고 편안한 대화체를 사용하세요.
+2. **공감과 경청**: 사용자의 이야기에 공감하고 적극적으로 경청하세요.
+3. **실용적 조언**: 필요시 실용적이고 건설적인 조언을 제공하세요.
+4. **명확한 표현**: 이해하기 쉬운 언어로 소통하세요.
+
+## 답변 형식
+- 자연스러운 대화체로 응답
+- 필요시 추가 질문으로 맥락 파악
+- 관련 팁이나 추천 정보 제공
+
+## 주의사항
+- 의료, 법률, 금융 등 전문 분야는 전문가 상담 권장
+- 불확실한 정보는 추측임을 명시
+- 부적절한 요청은 정중히 거절`,
+        suggestedQuestions: [
+          "오늘 어떤 도움이 필요하신가요?",
+          "추천해줄 만한 것이 있을까요?",
+          "이것에 대해 어떻게 생각하세요?",
+          "조언이 필요한 부분이 있나요?",
+          "더 알고 싶은 것이 있으신가요?",
+        ],
+      },
+      technical: {
+        content: `# ${collectionName} 기술문서 RAG 시스템 프롬프트
+
+## 역할
+당신은 ${collectionName} 컬렉션에 포함된 기술 문서(API 문서, 시스템 설계서, 매뉴얼 등)를 기반으로 질문에 답변하는 AI 어시스턴트입니다.
+
+## 지침
+1. **코드 정확성**: 코드, 명령어, 설정값은 원문 그대로 정확히 인용하세요.
+2. **버전 명시**: 해당 정보가 적용되는 버전을 함께 안내하세요.
+3. **단계별 안내**: 설치, 설정, 사용 절차는 순서대로 명확하게 안내하세요.
+4. **예제 포함**: 가능한 경우 실제 사용 예제를 함께 제공하세요.
+
+## 답변 형식
+- 핵심 답변 먼저 제시
+- 코드/명령어는 코드 블록으로 표시
+- 파라미터/설정은 표 형식으로 정리
+- 주의사항 및 호환성 정보 안내
+
+## 주의사항
+- 버전별 차이가 있을 경우 명시
+- 보안 관련 설정은 주의사항 강조
+- 문서에 없는 내용은 공식 문서 확인 권장`,
+        suggestedQuestions: [
+          "이 API의 사용 방법은 어떻게 되나요?",
+          "설치 및 설정 절차를 알려주세요.",
+          "필수 파라미터와 옵션을 설명해주세요.",
+          "이 오류의 해결 방법은 무엇인가요?",
+          "시스템 요구사항은 무엇인가요?",
+        ],
+      },
       default: {
         content: `# ${collectionName} RAG 시스템 프롬프트
 
@@ -324,28 +416,40 @@ export function PromptGeneratorModal({
     return templateContents[selectedTemplate] || templateContents.default
   }
 
-  // Save prompt
+  // Save prompt using real API
   const savePrompt = async () => {
     setSaving(true)
     try {
-      // TODO: Replace with actual API call
-      // POST /api/prompts/save
-      // {
-      //   collection_name: collectionName,
-      //   filename: promptFilename,
-      //   content: editedPrompt,
-      //   suggested_questions: editedQuestions
-      // }
+      const response = await fetch(`${API_BASE_URL}/api/prompts/save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          collection_name: collectionName,
+          prompt_filename: promptFilename,
+          prompt_content: editedPrompt,
+          suggested_questions: editedQuestions,
+          description: `${collectionName} 컬렉션 프롬프트`,
+          recommended_params: {
+            top_k: 10,
+            temperature: 0.3,
+            reasoning_level: "medium",
+          },
+        }),
+      })
 
-      // Mock delay
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.detail || "저장 실패")
+      }
 
-      toast.success(`'${promptFilename}.txt' 프롬프트가 저장되었습니다`)
+      const result = await response.json()
+      toast.success(result.message || `'${promptFilename}.md' 프롬프트가 저장되었습니다`)
       onOpenChange(false)
       onSuccess?.()
     } catch (error) {
       console.error("Failed to save prompt:", error)
-      toast.error("프롬프트 저장에 실패했습니다")
+      toast.error(error instanceof Error ? error.message : "프롬프트 저장에 실패했습니다")
     } finally {
       setSaving(false)
     }
@@ -583,7 +687,7 @@ export function PromptGeneratorModal({
                   placeholder="예: 인사규정_prompt"
                   className="flex-1"
                 />
-                <span className="text-sm text-muted-foreground">.txt</span>
+                <span className="text-sm text-muted-foreground">.md</span>
               </div>
 
               <div className="p-4 rounded-lg bg-muted/50">
@@ -601,7 +705,7 @@ export function PromptGeneratorModal({
                   <p>
                     저장 경로:{" "}
                     <code className="text-xs bg-muted px-1 py-0.5 rounded">
-                      backend/prompts/{promptFilename}.txt
+                      backend/prompts/{promptFilename}.md
                     </code>
                   </p>
                 </div>
@@ -622,26 +726,31 @@ export function PromptGeneratorModal({
                   </p>
                 </div>
               ) : generatedPrompt ? (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="text-base font-medium">시스템 프롬프트</Label>
+                <Tabs defaultValue="prompt" className="w-full h-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="prompt" className="flex items-center gap-2">
+                      <FileCode className="h-4 w-4" />
+                      시스템 프롬프트
+                    </TabsTrigger>
+                    <TabsTrigger value="questions" className="flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4" />
+                      추천 질문
+                    </TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="prompt" className="mt-4">
                     <PromptEditor
                       value={editedPrompt}
                       onChange={setEditedPrompt}
-                      className="h-[200px]"
+                      className="h-[280px]"
                     />
-                  </div>
-
-                  <Separator />
-
-                  <div className="space-y-2">
-                    <Label className="text-base font-medium">추천 질문</Label>
+                  </TabsContent>
+                  <TabsContent value="questions" className="mt-4">
                     <SuggestedQuestionsEditor
                       questions={editedQuestions}
                       onChange={setEditedQuestions}
                     />
-                  </div>
-                </div>
+                  </TabsContent>
+                </Tabs>
               ) : (
                 <div className="flex items-center justify-center py-12">
                   <AlertCircle className="h-8 w-8 text-muted-foreground" />

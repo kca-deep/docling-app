@@ -26,12 +26,12 @@ export function NavHeader() {
 
   const navItems: NavItem[] = [
     { href: "/", label: "홈", icon: Home, requiresAuth: false },
-    { href: "/parse", label: "문서 파싱", icon: FileText, requiresAuth: true },
-    { href: "/collections", label: "컬렉션 관리", icon: FolderCog, requiresAuth: true },
-    { href: "/upload", label: "벡터 업로드", icon: Database, requiresAuth: true },
-    { href: "/excel-embedding", label: "엑셀 임베딩", icon: Sheet, requiresAuth: true },
-    { href: "/chat?fullscreen=true", label: "AI 챗봇", icon: MessageSquare, requiresAuth: false },
-    { href: "/analytics", label: "사용 통계", icon: BarChart3, requiresAuth: true },
+    { href: "/collections", label: "컬렉션", icon: FolderCog, requiresAuth: true },
+    { href: "/parse", label: "문서변환", icon: FileText, requiresAuth: true },
+    { href: "/upload", label: "문서업로드", icon: Database, requiresAuth: true },
+    { href: "/excel-embedding", label: "엑셀업로드", icon: Sheet, requiresAuth: true },
+    { href: "/chat?fullscreen=true", label: "AI챗봇", icon: MessageSquare, requiresAuth: false },
+    { href: "/analytics", label: "통계", icon: BarChart3, requiresAuth: true },
   ]
 
   // 인증 상태에 따라 표시할 메뉴 필터링

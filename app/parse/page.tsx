@@ -420,8 +420,9 @@ export default function ParsePage() {
     <PageContainer maxWidth="wide" className="py-4">
       {/* Page Header */}
       <div className="space-y-2 mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          문서 파싱
+        <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
+          <FileText className="h-6 w-6" />
+          문서변환
         </h1>
         <p className="text-sm text-muted-foreground">문서를 업로드하여 마크다운으로 변환</p>
       </div>

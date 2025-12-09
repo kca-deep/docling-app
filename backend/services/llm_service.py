@@ -202,17 +202,17 @@ class LLMService:
         collection_name: Optional[str] = None
     ) -> List[Dict[str, str]]:
         """
-        RAG 프롬프트 구성
+        RAG 프롬프트 구성 (일상대화 모드 지원)
 
         Args:
             query: 사용자 질문
-            retrieved_docs: 검색된 문서 리스트
+            retrieved_docs: 검색된 문서 리스트 (일상대화 모드에서는 빈 리스트)
                 - text: 문서 텍스트
                 - score: 유사도 점수
                 - payload: 메타데이터
             reasoning_level: 추론 수준 (low/medium/high)
             chat_history: 이전 대화 기록 (선택사항)
-            collection_name: Qdrant 컬렉션 이름 (선택사항, 프롬프트 선택에 사용)
+            collection_name: Qdrant 컬렉션 이름 (None이면 일상대화 모드)
 
         Returns:
             List[Dict[str, str]]: 메시지 리스트
@@ -223,32 +223,6 @@ class LLMService:
             reasoning_level=reasoning_level
         )
 
-        # 검색된 문서를 컨텍스트로 구성
-        context_parts = []
-        for idx, doc in enumerate(retrieved_docs, 1):
-            text = doc.get("payload", {}).get("text", "")
-            score = doc.get("score", 0)
-
-            # 메타데이터에서 추가 정보 추출
-            payload = doc.get("payload", {})
-            headings = payload.get("headings") or []  # None 안전 처리
-
-            # headings에서 파일명과 페이지 정보 추출
-            if len(headings) >= 2:
-                filename = headings[0]
-                page_info = headings[1]  # "페이지 4" 형식
-                reference = f"[{filename}, {page_info}]"
-            elif len(headings) == 1:
-                reference = f"[{headings[0]}]"
-            else:
-                reference = f"[문서 {idx}]"
-
-            context_parts.append(
-                f"{reference} (유사도: {score:.3f})\n{text}"
-            )
-
-        context = "\n\n".join(context_parts)
-
         # 메시지 구성
         messages = [
             {"role": "system", "content": system_content}
@@ -258,14 +232,47 @@ class LLMService:
         if chat_history:
             messages.extend(chat_history)
 
-        # 사용자 질문과 컨텍스트
-        user_message = f"""다음 문서들을 참고하여 질문에 답변해주세요.
+        # 일상대화 모드 체크 (collection_name이 None이거나 retrieved_docs가 비어있는 경우)
+        is_casual_mode = not collection_name or not retrieved_docs
+
+        if is_casual_mode:
+            # 일상대화 모드: 문서 컨텍스트 없이 사용자 질문만 전달
+            messages.append({"role": "user", "content": query})
+        else:
+            # RAG 모드: 검색된 문서를 컨텍스트로 구성
+            context_parts = []
+            for idx, doc in enumerate(retrieved_docs, 1):
+                text = doc.get("payload", {}).get("text", "")
+                score = doc.get("score", 0)
+
+                # 메타데이터에서 추가 정보 추출
+                payload = doc.get("payload", {})
+                headings = payload.get("headings") or []  # None 안전 처리
+
+                # headings에서 파일명과 페이지 정보 추출
+                if len(headings) >= 2:
+                    filename = headings[0]
+                    page_info = headings[1]  # "페이지 4" 형식
+                    reference = f"[{filename}, {page_info}]"
+                elif len(headings) == 1:
+                    reference = f"[{headings[0]}]"
+                else:
+                    reference = f"[문서 {idx}]"
+
+                context_parts.append(
+                    f"{reference} (유사도: {score:.3f})\n{text}"
+                )
+
+            context = "\n\n".join(context_parts)
+
+            # 사용자 질문과 컨텍스트
+            user_message = f"""다음 문서들을 참고하여 질문에 답변해주세요.
 
 {context}
 
 질문: {query}"""
 
-        messages.append({"role": "user", "content": user_message})
+            messages.append({"role": "user", "content": user_message})
 
         return messages
 

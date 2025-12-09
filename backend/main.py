@@ -10,7 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from backend.config.settings import settings
-from backend.api.routes import document, dify, qdrant, chat, analytics, auth
+from backend.api.routes import document, dify, qdrant, chat, analytics, auth, prompts
 from backend.database import init_db, get_db, SessionLocal
 from backend.models import document as document_model  # Import to register models
 from backend.models import dify_upload_history, dify_config  # Import Dify models
@@ -145,13 +145,19 @@ async def startup_event():
 async def shutdown_event():
     """앱 종료 시 실행되는 이벤트 핸들러"""
     # 로깅 서비스 중지 및 큐 플러시
-    await hybrid_logging_service.flush()
-    await hybrid_logging_service.stop()
-    print("[OK] Hybrid logging service stopped successfully")
+    try:
+        await hybrid_logging_service.flush()
+        await hybrid_logging_service.stop()
+        print("[OK] Hybrid logging service stopped successfully")
+    except Exception as e:
+        print(f"[WARN] Hybrid logging service shutdown error: {e}")
 
     # HTTP 클라이언트 연결 정리
-    await http_manager.close_all()
-    print("[OK] HTTP client connections closed successfully")
+    try:
+        await http_manager.close_all()
+        print("[OK] HTTP client connections closed successfully")
+    except Exception as e:
+        print(f"[WARN] HTTP client shutdown error: {e}")
 
 # 요청 추적 미들웨어 추가 (CORS보다 먼저 등록)
 app.add_middleware(RequestTrackingMiddleware)
@@ -187,6 +193,7 @@ app.include_router(dify.router)
 app.include_router(qdrant.router)
 app.include_router(chat.router)
 app.include_router(analytics.router)
+app.include_router(prompts.router)  # 프롬프트 자동 생성
 
 
 @app.get("/")

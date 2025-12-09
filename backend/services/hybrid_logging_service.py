@@ -53,7 +53,13 @@ class HybridLoggingService:
         """백그라운드 처리 중지"""
         self._running = False
         if self._processor_task:
-            await self._processor_task
+            # 태스크 취소
+            self._processor_task.cancel()
+            try:
+                await self._processor_task
+            except asyncio.CancelledError:
+                # 정상적인 취소 - 무시
+                pass
         logger.info("HybridLoggingService 중지됨")
 
     async def log_async(self, log_data: Dict[str, Any]):
@@ -81,6 +87,10 @@ class HybridLoggingService:
             try:
                 await self._process_batch()
                 await asyncio.sleep(0.1)  # 짧은 대기
+            except asyncio.CancelledError:
+                # 정상적인 취소 - 루프 종료
+                logger.debug("처리 루프 취소됨")
+                break
             except Exception as e:
                 logger.error(f"배치 처리 중 오류: {e}")
 
@@ -99,6 +109,11 @@ class HybridLoggingService:
             except asyncio.TimeoutError:
                 # 타임아웃 발생 시 현재 배치 처리
                 break
+            except asyncio.CancelledError:
+                # 취소 시 현재까지 수집된 배치 저장 후 예외 재발생
+                if batch:
+                    await self._save_to_jsonl(batch)
+                raise
             except Exception as e:
                 logger.error(f"큐에서 아이템 가져오기 실패: {e}")
                 break

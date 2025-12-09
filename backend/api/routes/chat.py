@@ -280,11 +280,16 @@ async def chat(
     tracking_ids = get_tracking_ids(request)
     client_info = extract_client_info(request)
 
+    # 일상대화 모드 체크
+    is_casual_mode = not chat_request.collection_name
+    collection_display = chat_request.collection_name or "(일상대화)"
+
     logger.info("="*80)
     logger.info("[CHAT API] Non-streaming endpoint called")
     logger.info(f"[CHAT API] Request ID: {tracking_ids.get('request_id')}")
     logger.info(f"[CHAT API] Requested model: {chat_request.model}")
-    logger.info(f"[CHAT API] Collection: {chat_request.collection_name}")
+    logger.info(f"[CHAT API] Collection: {collection_display}")
+    logger.info(f"[CHAT API] Mode: {'Casual' if is_casual_mode else 'RAG'}")
     logger.info(f"[CHAT API] Message: {chat_request.message[:50]}...")
     logger.info(f"[CHAT API] Client Type: {client_info.get('user_agent', 'unknown')[:50]}")
     logger.info("="*80)
@@ -296,10 +301,10 @@ async def chat(
     # session_id 생성 (conversation과 별도)
     session_id = str(uuid.uuid4())
 
-    # 대화 시작
+    # 대화 시작 (일상대화 모드에서는 collection_name을 "casual"로 표시)
     conversation_id = conversation_service.start_conversation(
         conversation_id=chat_request.conversation_id,
-        collection_name=chat_request.collection_name
+        collection_name=chat_request.collection_name or "casual"
     )
 
     # 시작 시간 기록
@@ -314,7 +319,7 @@ async def chat(
                 for msg in chat_request.chat_history
             ]
 
-        # RAG 채팅 수행
+        # RAG 채팅 수행 (collection_name이 None이면 일상대화 모드)
         result = await rag_service.chat(
             collection_name=chat_request.collection_name,
             query=chat_request.message,
@@ -364,7 +369,7 @@ async def chat(
             log_chat_interaction_task,
             session_id=session_id,
             conversation_id=conversation_id,
-            collection_name=chat_request.collection_name,
+            collection_name=chat_request.collection_name or "casual",
             message=chat_request.message,
             response_data={
                 "answer": result.get("answer", ""),
@@ -405,7 +410,7 @@ async def chat(
             log_chat_interaction_task,
             session_id=session_id,
             conversation_id=conversation_id,
-            collection_name=chat_request.collection_name,
+            collection_name=chat_request.collection_name or "casual",
             message=chat_request.message,
             response_data={},
             reasoning_level=chat_request.reasoning_level,
@@ -454,12 +459,17 @@ async def chat_stream(
     tracking_ids = get_tracking_ids(request)
     client_info = extract_client_info(request)
 
+    # 일상대화 모드 체크
+    is_casual_mode = not chat_request.collection_name
+    collection_display = chat_request.collection_name or "(일상대화)"
+
     # 강제 출력 - 반드시 보여야 함
     sys.stderr.write("\n" + "="*80 + "\n")
     sys.stderr.write(f"[CHAT API] Stream endpoint called\n")
     sys.stderr.write(f"[CHAT API] Request ID: {tracking_ids.get('request_id')}\n")
     sys.stderr.write(f"[CHAT API] Requested model: {chat_request.model}\n")
-    sys.stderr.write(f"[CHAT API] Collection: {chat_request.collection_name}\n")
+    sys.stderr.write(f"[CHAT API] Collection: {collection_display}\n")
+    sys.stderr.write(f"[CHAT API] Mode: {'Casual' if is_casual_mode else 'RAG'}\n")
     sys.stderr.write(f"[CHAT API] Message: {chat_request.message[:50]}...\n")
     sys.stderr.write("="*80 + "\n\n")
     sys.stderr.flush()
@@ -468,7 +478,8 @@ async def chat_stream(
     logger.info("[CHAT API] Stream endpoint called")
     logger.info(f"[CHAT API] Request ID: {tracking_ids.get('request_id')}")
     logger.info(f"[CHAT API] Requested model: {chat_request.model}")
-    logger.info(f"[CHAT API] Collection: {chat_request.collection_name}")
+    logger.info(f"[CHAT API] Collection: {collection_display}")
+    logger.info(f"[CHAT API] Mode: {'Casual' if is_casual_mode else 'RAG'}")
     logger.info(f"[CHAT API] Message: {chat_request.message[:50]}...")
     logger.info("="*80)
 
@@ -479,10 +490,10 @@ async def chat_stream(
     # session_id 생성 (conversation과 별도)
     session_id = str(uuid.uuid4())
 
-    # 대화 시작
+    # 대화 시작 (일상대화 모드에서는 collection_name을 "casual"로 표시)
     conversation_id = conversation_service.start_conversation(
         conversation_id=chat_request.conversation_id,
-        collection_name=chat_request.collection_name
+        collection_name=chat_request.collection_name or "casual"
     )
 
     # 시작 시간 기록
@@ -497,7 +508,7 @@ async def chat_stream(
                 for msg in chat_request.chat_history
             ]
 
-        # 스트리밍 제너레이터
+        # 스트리밍 제너레이터 (collection_name이 None이면 일상대화 모드)
         collected_response = {"answer": "", "retrieved_docs": [], "usage": {}}
         stream_error_info = None
 
@@ -587,7 +598,7 @@ async def chat_stream(
                     await log_chat_interaction_task(
                         session_id=session_id,
                         conversation_id=conversation_id,
-                        collection_name=chat_request.collection_name,
+                        collection_name=chat_request.collection_name or "casual",
                         message=chat_request.message,
                         response_data=collected_response,
                         reasoning_level=chat_request.reasoning_level,
@@ -630,7 +641,7 @@ async def chat_stream(
             log_chat_interaction_task,
             session_id=session_id,
             conversation_id=conversation_id,
-            collection_name=chat_request.collection_name,
+            collection_name=chat_request.collection_name or "casual",
             message=chat_request.message,
             response_data={},
             reasoning_level=chat_request.reasoning_level,

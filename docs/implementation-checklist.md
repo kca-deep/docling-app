@@ -125,20 +125,21 @@
 ### Day 10-11: 서비스 레이어
 
 **백엔드 파일 생성**:
-- [ ] `backend/prompts/meta/meta_prompt.md` - 메타 프롬프트
-- [ ] `backend/services/document_selector_service.py`
+- [x] `backend/prompts/meta/meta_prompt.md` - 메타 프롬프트
+- [x] `backend/prompts/meta/questions_prompt.md` - 추천 질문 생성 메타 프롬프트
+- [x] `backend/services/document_selector_service.py`
   - SQLite에서 document_id로 문서 조회
-  - md_content 샘플링 (첫20% + 중간20% + 끝20%, 4000토큰)
-- [ ] `backend/services/prompt_generator_service.py`
-  - LLM API 호출 (타임아웃 60초, 재시도 2회)
+  - md_content 샘플링 (첫20% + 중간40% + 끝20%, 4000토큰)
+- [x] `backend/services/prompt_generator_service.py`
+  - LLM API 호출
   - 프롬프트 생성, 추천 질문 생성
 
 ### Day 12-13: API 및 유틸리티
 
 **백엔드 파일 생성**:
-- [ ] `backend/services/prompt_validator.py` - 검증
-- [ ] `backend/services/file_manager_service.py` - 백업/저장/롤백
-- [ ] `backend/api/routes/prompts.py` - API 라우터
+- [x] `backend/services/prompt_validator.py` - 검증
+- [x] `backend/services/file_manager_service.py` - 백업/저장/롤백
+- [x] `backend/api/routes/prompts.py` - API 라우터
   ```
   POST /api/prompts/generate - 생성 시작 (task_id 반환)
   GET  /api/prompts/generate/{task_id} - 상태 조회
@@ -146,10 +147,12 @@
   GET  /api/prompts/templates - 템플릿 목록
   GET  /api/prompts/documents/{collection_name} - 문서 목록
   POST /api/prompts/rollback - 롤백
+  POST /api/prompts/validate - 프롬프트 검증
+  GET  /api/prompts/backups - 백업 목록 조회
   ```
 
 **백엔드 수정**:
-- [ ] `backend/main.py` - prompts 라우터 등록
+- [x] `backend/main.py` - prompts 라우터 등록
 
 ---
 
@@ -198,12 +201,13 @@
 | `app/collections/components/CreateCollectionModal.tsx` | 1 |
 | `app/collections/components/CollectionSettingsModal.tsx` | 1 |
 | `app/collections/components/DeleteConfirmModal.tsx` | 1 |
-| `backend/prompts/meta/meta_prompt.md` | 5 |
-| `backend/services/document_selector_service.py` | 5 |
-| `backend/services/prompt_generator_service.py` | 5 |
-| `backend/services/prompt_validator.py` | 5 |
-| `backend/services/file_manager_service.py` | 5 |
-| `backend/api/routes/prompts.py` | 5 |
+| `backend/prompts/meta/meta_prompt.md` | 5 (done) |
+| `backend/prompts/meta/questions_prompt.md` | 5 (done) |
+| `backend/services/document_selector_service.py` | 5 (done) |
+| `backend/services/prompt_generator_service.py` | 5 (done) |
+| `backend/services/prompt_validator.py` | 5 (done) |
+| `backend/services/file_manager_service.py` | 5 (done) |
+| `backend/api/routes/prompts.py` | 5 (done) |
 | `app/collections/components/PromptGeneratorModal.tsx` | 6 |
 | `app/collections/components/PromptEditor.tsx` | 6 |
 | `app/collections/components/SuggestedQuestionsEditor.tsx` | 6 |

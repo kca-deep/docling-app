@@ -16,17 +16,17 @@ export const SuggestedPrompts = memo(function SuggestedPrompts({ collectionName,
   const [prompts, setPrompts] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // 일상대화 모드 체크
+  const isCasualMode = !collectionName;
+
   useEffect(() => {
     const fetchPrompts = async () => {
-      if (!collectionName) {
-        setLoading(false);
-        return;
-      }
-
       try {
         setLoading(true);
+        // 컬렉션이 없으면 "casual" 프롬프트 요청
+        const targetCollection = collectionName || "casual";
         const response = await fetch(
-          `${API_BASE_URL}/api/chat/suggested-prompts/${collectionName}`,
+          `${API_BASE_URL}/api/chat/suggested-prompts/${targetCollection}`,
           { credentials: 'include' }
         );
 
@@ -65,19 +65,32 @@ export const SuggestedPrompts = memo(function SuggestedPrompts({ collectionName,
       <div className="flex flex-col items-center text-center py-6">
         <div
           className="h-14 w-14 rounded-2xl flex items-center justify-center mb-4"
-          style={{ background: "linear-gradient(135deg, var(--chart-3), var(--chart-1))" }}
+          style={{ background: isCasualMode
+            ? "linear-gradient(135deg, var(--chart-5), var(--chart-2))"
+            : "linear-gradient(135deg, var(--chart-3), var(--chart-1))"
+          }}
         >
-          <span className="text-2xl font-bold text-white">K</span>
+          {isCasualMode ? (
+            <Sparkles className="h-7 w-7 text-white" />
+          ) : (
+            <span className="text-2xl font-bold text-white">K</span>
+          )}
         </div>
         <h2
           className="text-xl font-semibold mb-2 bg-clip-text text-transparent"
-          style={{ backgroundImage: "linear-gradient(90deg, var(--chart-3), var(--chart-1))" }}
+          style={{ backgroundImage: isCasualMode
+            ? "linear-gradient(90deg, var(--chart-5), var(--chart-2))"
+            : "linear-gradient(90deg, var(--chart-3), var(--chart-1))"
+          }}
         >
-          KCA-i에 오신 것을 환영합니다
+          {isCasualMode ? "일상대화 모드" : "KCA-i에 오신 것을 환영합니다"}
         </h2>
         <p className="text-sm text-muted-foreground max-w-md">
-          문서 기반 AI 어시스턴트입니다.<br />
-          업로드된 문서에서 정확한 답변을 찾아드립니다.
+          {isCasualMode ? (
+            <>자유롭게 대화해보세요.<br />RAG 검색 없이 일반 AI 대화가 가능합니다.</>
+          ) : (
+            <>문서 기반 AI 어시스턴트입니다.<br />업로드된 문서에서 정확한 답변을 찾아드립니다.</>
+          )}
         </p>
       </div>
 
@@ -85,14 +98,14 @@ export const SuggestedPrompts = memo(function SuggestedPrompts({ collectionName,
       <div className="flex items-center gap-2 px-0.5">
         <div className="flex items-center gap-2">
           <div className="relative">
-            <Sparkles className="h-4 w-4 animate-pulse" style={{ color: "var(--chart-3)" }} />
-            <Sparkles className="h-4 w-4 absolute inset-0 animate-ping opacity-50" style={{ color: "var(--chart-3)" }} />
+            <Sparkles className="h-4 w-4 animate-pulse" style={{ color: isCasualMode ? "var(--chart-5)" : "var(--chart-3)" }} />
+            <Sparkles className="h-4 w-4 absolute inset-0 animate-ping opacity-50" style={{ color: isCasualMode ? "var(--chart-5)" : "var(--chart-3)" }} />
           </div>
-          <h3 className="text-sm font-semibold">추천 질문</h3>
+          <h3 className="text-sm font-semibold">{isCasualMode ? "대화 시작하기" : "추천 질문"}</h3>
         </div>
         <div
           className="flex-1 h-px"
-          style={{ background: "linear-gradient(to right, var(--chart-3), transparent)" }}
+          style={{ background: `linear-gradient(to right, ${isCasualMode ? "var(--chart-5)" : "var(--chart-3)"}, transparent)` }}
         />
       </div>
 
@@ -111,7 +124,7 @@ export const SuggestedPrompts = memo(function SuggestedPrompts({ collectionName,
               animationDelay: `${index * 50}ms`,
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = "color-mix(in oklch, var(--chart-3) 50%, transparent)";
+              e.currentTarget.style.borderColor = `color-mix(in oklch, ${isCasualMode ? "var(--chart-5)" : "var(--chart-3)"} 50%, transparent)`;
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.borderColor = "";
@@ -123,9 +136,9 @@ export const SuggestedPrompts = memo(function SuggestedPrompts({ collectionName,
                 <div className="flex-shrink-0 mt-0.5">
                   <div
                     className="h-6 w-6 rounded-full flex items-center justify-center transition-colors"
-                    style={{ backgroundColor: "color-mix(in oklch, var(--chart-3) 15%, transparent)" }}
+                    style={{ backgroundColor: `color-mix(in oklch, ${isCasualMode ? "var(--chart-5)" : "var(--chart-3)"} 15%, transparent)` }}
                   >
-                    <Lightbulb className="h-3.5 w-3.5" style={{ color: "var(--chart-3)" }} />
+                    <Lightbulb className="h-3.5 w-3.5" style={{ color: isCasualMode ? "var(--chart-5)" : "var(--chart-3)" }} />
                   </div>
                 </div>
                 <div className="flex-1 min-w-0">
