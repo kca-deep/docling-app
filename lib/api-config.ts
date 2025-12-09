@@ -16,15 +16,18 @@
  * 브라우저/서버 환경에 따라 적절한 URL 반환
  */
 const getApiBaseUrl = (): string => {
-  // NEXT_PUBLIC_ 환경변수는 브라우저와 서버 모두에서 사용 가능
-  const envUrl = process.env.NEXT_PUBLIC_API_BASE_URL
+  // Production 환경에서는 상대 경로 사용 (nginx 프록시)
+  if (process.env.NODE_ENV === 'production') {
+    return ''
+  }
 
-  // 환경변수가 설정되어 있으면 사용
+  // 개발 환경에서는 환경변수 또는 기본값 사용
+  const envUrl = process.env.NEXT_PUBLIC_API_BASE_URL
   if (envUrl !== undefined) {
     return envUrl
   }
 
-  // 기본값: 빈 문자열 (상대 경로 사용 -> 프록시 통해 라우팅)
+  // 기본값: 빈 문자열 (상대 경로 사용)
   return ''
 }
 
