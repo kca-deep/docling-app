@@ -18,6 +18,45 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useState } from "react";
+import { MarkdownMessage } from "@/components/markdown-message";
+
+/**
+ * 코드 블록으로 감싸진 콘텐츠에서 코드 블록 구분자를 제거
+ * Docling 청킹 결과가 ``` 코드 블록으로 감싸져 있을 때 마크다운 렌더링을 위해 제거
+ */
+function stripCodeBlockWrapper(content: string): string {
+  const lines = content.split('\n');
+  const result: string[] = [];
+  let inCodeBlock = false;
+  let codeBlockLang = '';
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // 코드 블록 시작/종료 감지
+    if (trimmed.startsWith('```')) {
+      if (!inCodeBlock) {
+        // 코드 블록 시작
+        inCodeBlock = true;
+        codeBlockLang = trimmed.slice(3).trim();
+        // 언어 지정이 없거나 markdown인 경우 코드 블록 구분자 제거
+        if (!codeBlockLang || codeBlockLang === 'markdown' || codeBlockLang === 'md') {
+          continue; // 구분자 제거
+        }
+      } else {
+        // 코드 블록 종료
+        inCodeBlock = false;
+        if (!codeBlockLang || codeBlockLang === 'markdown' || codeBlockLang === 'md') {
+          continue; // 구분자 제거
+        }
+      }
+    }
+
+    result.push(line);
+  }
+
+  return result.join('\n').trim();
+}
 
 interface Source {
   id: string;
@@ -284,13 +323,11 @@ export function SourceArtifactPanel({
       )}
 
       {/* 문서 내용 */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="p-4">
           {activeSource ? (
             <div className="prose prose-sm dark:prose-invert max-w-none">
-              <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                {activeSource.content}
-              </div>
+              <MarkdownMessage content={stripCodeBlockWrapper(activeSource.content)} compact />
             </div>
           ) : (
             <div className="text-center text-muted-foreground py-8">

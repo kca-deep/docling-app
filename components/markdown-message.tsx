@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button";
 
 interface MarkdownMessageProps {
   content: string;
+  /** compact 모드: 테이블 Collapsible 비활성화, 참조문서 패널용 */
+  compact?: boolean;
 }
 
 // 테이블 컴포넌트 분리 (Collapsible 상태 관리)
@@ -58,7 +60,18 @@ function MarkdownTable({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function MarkdownMessage({ content }: MarkdownMessageProps) {
+// Compact 테이블 (Collapsible 없이 단순 렌더링)
+function CompactTable({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="my-3 w-full rounded-md border overflow-x-auto">
+      <table className="w-full min-w-fit divide-y divide-border border-collapse text-sm">
+        {children}
+      </table>
+    </div>
+  );
+}
+
+export function MarkdownMessage({ content, compact = false }: MarkdownMessageProps) {
   // rehypeSanitize 스키마 커스터마이즈 - <br> 태그 허용
   const sanitizeSchema = {
     ...defaultSchema,
@@ -69,9 +82,12 @@ export function MarkdownMessage({ content }: MarkdownMessageProps) {
     },
   };
 
+  // 테이블 컴포넌트 선택 (compact 모드면 Collapsible 없는 버전 사용)
+  const TableComponent = compact ? CompactTable : MarkdownTable;
+
   const components: Components = {
     // 테이블 스타일링
-    table: ({ children }) => <MarkdownTable>{children}</MarkdownTable>,
+    table: ({ children }) => <TableComponent>{children}</TableComponent>,
     thead: ({ children }) => (
       <thead className="bg-muted">{children}</thead>
     ),
@@ -195,7 +211,7 @@ export function MarkdownMessage({ content }: MarkdownMessageProps) {
   };
 
   return (
-    <div className="markdown-content w-full max-w-full overflow-hidden">
+    <div className={compact ? "markdown-content w-full max-w-full" : "markdown-content w-full max-w-full overflow-hidden"}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[
