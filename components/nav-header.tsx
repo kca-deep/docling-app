@@ -7,6 +7,7 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import { useAuth } from "@/components/auth/auth-provider"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { motion } from "framer-motion"
 
 interface NavItem {
   href: string
@@ -40,16 +41,21 @@ export function NavHeader() {
   )
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/60 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60">
       <div className="flex h-14 items-center justify-between px-4 md:px-6 max-w-7xl mx-auto">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2.5 group">
-          <div className="p-2 rounded-lg bg-[color:var(--chart-1)]/10 border border-[color:var(--chart-1)]/20 group-hover:bg-[color:var(--chart-1)]/15 transition-all duration-300">
+          <div className="relative overflow-hidden p-2 rounded-lg bg-[color:var(--chart-1)]/10 border border-[color:var(--chart-1)]/20 group-hover:bg-[color:var(--chart-1)]/20 transition-all duration-300">
+            <motion.div
+              className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/20 to-transparent"
+              animate={{ x: ["-100%", "200%"] }}
+              transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+            />
             <Sparkles className="h-5 w-5 text-[color:var(--chart-1)]" />
           </div>
           <div className="hidden sm:flex flex-col leading-none">
-            <span className="font-bold text-base text-foreground">KCA-RAG</span>
-            <span className="text-xs text-muted-foreground">Document AI Pipeline</span>
+            <span className="font-bold text-base text-foreground tracking-tight">KCA-RAG</span>
+            <span className="text-[10px] text-muted-foreground font-medium tracking-widest uppercase">Document AI</span>
           </div>
         </Link>
 
@@ -65,12 +71,17 @@ export function NavHeader() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-muted text-foreground"
-                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                  "relative inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium transition-colors hover:text-foreground",
+                  isActive ? "text-foreground" : "text-muted-foreground"
                 )}
               >
+                {isActive && (
+                  <motion.div
+                    layoutId="navbar-active"
+                    className="absolute inset-0 bg-muted rounded-full -z-10"
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                  />
+                )}
                 <Icon className="h-4 w-4" />
                 <span>{item.label}</span>
               </Link>
@@ -79,7 +90,7 @@ export function NavHeader() {
         </nav>
 
         {/* Right: Mobile Nav + Theme Toggle + Auth */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
           {/* Mobile Navigation */}
           <nav className="md:hidden flex items-center gap-0.5">
             {visibleNavItems.map((item) => {
@@ -116,7 +127,7 @@ export function NavHeader() {
                 variant="ghost"
                 size="sm"
                 onClick={() => logout()}
-                className="text-muted-foreground hover:text-foreground gap-1.5"
+                className="text-muted-foreground hover:text-foreground gap-1.5 rounded-full"
                 title={`${user?.username} 로그아웃`}
               >
                 <LogOut className="h-4 w-4" />
@@ -127,7 +138,7 @@ export function NavHeader() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-muted-foreground hover:text-foreground"
+                  className="text-muted-foreground hover:text-foreground rounded-full"
                 >
                   로그인
                 </Button>

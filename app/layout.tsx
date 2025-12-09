@@ -23,7 +23,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans antialiased`}>
+      <body className={`${inter.variable} font-sans antialiased tracking-tight bg-noise selection:bg-purple-500/30`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
