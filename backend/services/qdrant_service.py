@@ -270,19 +270,18 @@ class QdrantService:
             Exception: 검색 실패 시
         """
         try:
-            # Qdrant 검색 수행
-            search_results = await self.client.search(
+            # Qdrant 검색 수행 (qdrant-client 1.16+에서는 query_points 사용)
+            search_response = await self.client.query_points(
                 collection_name=collection_name,
-                query_vector=query_vector,
+                query=query_vector,
                 limit=limit,
                 score_threshold=score_threshold,
                 with_payload=True,
-                with_vectors=False
             )
 
             # 결과 포맷팅
             results = []
-            for result in search_results:
+            for result in search_response.points:
                 results.append({
                     "id": result.id,
                     "score": result.score,
