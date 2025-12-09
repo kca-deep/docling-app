@@ -25,9 +25,18 @@ import {
   UploadTarget,
 } from "./types"
 
+// 허용된 탭 값 검증
+const VALID_TABS: UploadTarget[] = ["qdrant", "dify"]
+const getSafeTab = (tab: string | null): UploadTarget => {
+  if (tab && VALID_TABS.includes(tab as UploadTarget)) {
+    return tab as UploadTarget
+  }
+  return "qdrant"
+}
+
 function UploadPageContent() {
   const searchParams = useSearchParams()
-  const initialTab = (searchParams.get("tab") as UploadTarget) || "qdrant"
+  const initialTab = getSafeTab(searchParams.get("tab"))
 
   // 탭 상태
   const [activeTab, setActiveTab] = useState<UploadTarget>(initialTab)
