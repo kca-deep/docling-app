@@ -71,3 +71,17 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# Server-specific security files (do not commit)
+*.service
+*.service.*
+fail2ban-*.conf
+fail2ban-*.local
+nginx-*.conf
+block-*.sh
+security-*.sh
+*-monitor.sh
+
+# Temporary/streaming files
+*_streamts
+*_stream.ts
