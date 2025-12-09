@@ -690,7 +690,7 @@ export function ChatContainer() {
     setMessages([]);
     setCurrentSources([]);
     // 아티팩트 패널도 닫기
-    setArtifactState({ isOpen: false, sources: [], activeSourceId: null });
+    setArtifactState({ isOpen: false, sources: [], activeSourceId: null, messageId: null });
     toast.success("대화가 초기화되었습니다");
   }, []);
 
