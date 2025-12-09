@@ -6,11 +6,6 @@ const isProduction = process.env.NODE_ENV === 'production';
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
 
 const nextConfig: NextConfig = {
-  // 운영환경에서만 basePath 적용
-  ...(isProduction && {
-    basePath: '/domain',
-    assetPrefix: '/domain',
-  }),
 
   // 개발환경: /api와 /health를 백엔드로 프록시
   ...(!isProduction && {

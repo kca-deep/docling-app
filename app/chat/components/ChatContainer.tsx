@@ -142,9 +142,10 @@ export function ChatContainer() {
   // 우측 패널 상태
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
 
-  // 전체화면 상태 - URL 파라미터에서 초기값 읽기
+  // 전체화면 상태 - URL 파라미터에서 초기값 읽기 (보안: 'true' 값만 허용)
   const [isFullscreen, setIsFullscreen] = useState(() => {
-    return searchParams?.get('fullscreen') === 'true';
+    const param = searchParams?.get('fullscreen');
+    return param === 'true';
   });
 
   // AI 설정 (기본값은 fallback용)

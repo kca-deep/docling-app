@@ -36,6 +36,33 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 // === 보호된 경로 목록 ===
 const PROTECTED_ROUTES = ["/parse", "/upload", "/excel-embedding", "/analytics"]
 
+// === 보안: pathname 검증 함수 ===
+const sanitizePathname = (path: string): string => {
+  // 위험한 패턴 차단
+  const dangerousPatterns = [
+    /^https?:\/\//i,           // 외부 URL
+    /^\/\//,                   // protocol-relative URL
+    /[<>'"`;|&$(){}[\]]/,      // 특수문자
+    /%[0-9a-f]{2}/i,           // URL 인코딩된 문자
+    /\\/,                      // 백슬래시
+    /\n|\r/,                   // 줄바꿈
+  ]
+
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(path)) {
+      console.warn(`[SECURITY] Blocked malicious pathname: ${path}`)
+      return "/"
+    }
+  }
+
+  // 슬래시로 시작하는 상대 경로만 허용
+  if (!path.startsWith("/")) {
+    return "/"
+  }
+
+  return path
+}
+
 // === Provider 컴포넌트 ===
 
 interface AuthProviderProps {
@@ -109,7 +136,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     )
 
     if (isProtectedRoute && !isAuthenticated) {
-      router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
+      const safePath = sanitizePathname(pathname)
+      router.push(`/login?redirect=${encodeURIComponent(safePath)}`)
     }
   }, [pathname, isAuthenticated, isLoading, router])
 
