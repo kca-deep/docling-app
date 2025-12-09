@@ -287,7 +287,8 @@ export default function AnalyticsPage() {
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `conversations_${selectedCollection}_${dateFromStr}_${dateToStr}.xlsx`
+      const displayCollection = selectedCollection === "casual" ? "일상대화" : selectedCollection
+      a.download = `conversations_${displayCollection}_${dateFromStr}_${dateToStr}.xlsx`
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
@@ -398,6 +399,7 @@ export default function AnalyticsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="ALL">전체</SelectItem>
+            <SelectItem value="casual">일상대화</SelectItem>
             {collections.map((collection) => (
               <SelectItem key={collection} value={collection}>{collection}</SelectItem>
             ))}
