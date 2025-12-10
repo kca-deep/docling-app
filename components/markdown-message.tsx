@@ -154,24 +154,37 @@ export function MarkdownMessage({ content, compact = false }: MarkdownMessagePro
       </p>
     ),
 
-    // 코드 블록 스타일링
-    code: (props) => {
-      const { inline, children } = props as React.HTMLAttributes<HTMLElement> & { inline?: boolean };
-      if (inline) {
+    // 코드 블록 스타일링 (react-markdown v10+)
+    // pre 태그 안의 code는 코드 블록, 그 외는 인라인 코드
+    // node.properties를 통해 부모가 pre인지 확인하거나 className으로 판단
+    code: ({ className, children, node, ...props }) => {
+      // language-* 클래스가 있으면 코드 블록
+      const hasLanguage = /language-(\w+)/.test(className || '');
+
+      // 코드 블록 내부의 code 태그 (pre > code 구조)
+      // react-markdown v10에서는 pre 안의 code에만 className이 전달됨
+      // 언어 지정 없는 코드 블록도 처리하기 위해 node 정보 활용
+      const isInPre = node?.position && String(children).includes('\n');
+      const isCodeBlock = hasLanguage || isInPre;
+
+      if (isCodeBlock) {
+        // 코드 블록 (pre 태그 안) - pre에서 스타일링하므로 여기서는 최소한만
         return (
-          <code className="bg-muted px-1 py-0.5 rounded text-sm font-mono text-foreground break-all">
+          <code className={`${className || ''} text-sm font-mono block`} {...props}>
             {children}
           </code>
         );
       }
+
+      // 인라인 코드
       return (
-        <code className="block bg-muted p-2 rounded-md text-sm font-mono overflow-x-auto my-2 max-w-full">
+        <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono text-foreground break-all" {...props}>
           {children}
         </code>
       );
     },
     pre: ({ children }) => (
-      <pre className="bg-muted p-2 rounded-md overflow-x-auto my-2 max-w-full">
+      <pre className="bg-muted p-3 rounded-md overflow-x-auto my-3 max-w-full border">
         {children}
       </pre>
     ),
