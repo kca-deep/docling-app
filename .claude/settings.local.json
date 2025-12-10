@@ -2,6 +2,8 @@
   "enabledMcpjsonServers": [
     "shadcn",
     "sequential-thinking",
-    "context7"
-  ]
+    "context7",
+    "playwright"
+  ],
+  "enableAllProjectMcpServers": true
 }

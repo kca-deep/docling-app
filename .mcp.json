@@ -24,6 +24,14 @@
       "env": {
         "CONTEXT7_API_KEY": "ctx7sk-eae41383-7ec5-4cb2-ad8e-ba3e272be1f7"
       }
+    },
+    "playwright": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "@playwright/mcp@latest"
+      ]
     }
   }
 }

@@ -125,7 +125,7 @@ backend/
 - Dify configurations support multiple named profiles
 
 **Docling Serve Integration**:
-- Base URL: `http://kca-ai.kro.kr:8007`
+- Base URL: `http://ai.kca.kr:8007`
 - Three-phase async workflow:
   1. POST `/v1/convert/file/async` - Submit file
   2. GET `/v1/status/poll/{task_id}?wait=2` - Poll status
@@ -250,7 +250,7 @@ Core Settings:
 - `POLL_INTERVAL`: Docling status polling interval in seconds (default: 2)
 
 Document Processing:
-- `DOCLING_BASE_URL`: Docling Serve API base URL (`http://kca-ai.kro.kr:8007`)
+- `DOCLING_BASE_URL`: Docling Serve API base URL (`http://ai.kca.kr:8007`)
 - `DOCLING_CHUNKING_URL`: Chunking API URL (same as Docling by default)
 - `DEFAULT_CHUNK_SIZE`: Chunk size for splitting (default: 500)
 - `DEFAULT_CHUNK_OVERLAP`: Overlap between chunks (default: 50)
@@ -263,24 +263,24 @@ Qwen3-VL OCR (Fallback):
 - `QWEN3_VL_OCR_PROMPT`: System prompt for OCR extraction (long Korean/English prompt)
 
 Vector Database:
-- `QDRANT_URL`: Qdrant server URL (`http://kca-ai.kro.kr:6333`)
+- `QDRANT_URL`: Qdrant server URL (`http://ai.kca.kr:6333`)
 - `QDRANT_API_KEY`: Optional API key
 - `DEFAULT_COLLECTION_NAME`: Default collection name (default: `documents`)
 
 Embeddings:
-- `EMBEDDING_URL`: BGE-M3 embedding server URL (`http://kca-ai.kro.kr:8083`)
+- `EMBEDDING_URL`: BGE-M3 embedding server URL (`http://ai.kca.kr:8083`)
 - `EMBEDDING_MODEL`: Model name (`bge-m3-korean`)
 - `EMBEDDING_DIMENSION`: Vector dimension (1024 for BGE-M3)
 
 Reranking:
-- `RERANKER_URL`: BGE Reranker API URL (`http://kca-ai.kro.kr:8006`)
+- `RERANKER_URL`: BGE Reranker API URL (`http://ai.kca.kr:8006`)
 - `RERANKER_MODEL`: Model name (`BAAI/bge-reranker-v2-m3`)
 - `USE_RERANKING`: Enable/disable reranking (default: True)
 - `RERANK_TOP_K_MULTIPLIER`: Initial retrieval multiplier (default: 5)
 - `RERANK_SCORE_THRESHOLD`: Minimum relevance score (default: 0.5)
 
 LLM:
-- `LLM_BASE_URL`: LLM API base URL (`http://kca-ai.kro.kr:8080`)
+- `LLM_BASE_URL`: LLM API base URL (`http://ai.kca.kr:8080`)
 - `LLM_MODEL`: Model name (`gpt-oss-20b`)
 - `LLM_DEFAULT_TEMPERATURE`: Default temperature (default: 0.7)
 - `LLM_DEFAULT_MAX_TOKENS`: Default max tokens (default: 2000)
