@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./docling.db"
 
     # Docling Serve API 설정
-    DOCLING_BASE_URL: str = "http://kca-ai.kro.kr:8007"
+    DOCLING_BASE_URL: str = "http://ai.kca.kr:8007"
 
     # API 설정
     API_TITLE: str = "Docling Parse API"
@@ -46,26 +46,26 @@ class Settings(BaseSettings):
     POLL_INTERVAL: int = 2  # 초
 
     # Qdrant Vector DB 설정
-    QDRANT_URL: str = "http://kca-ai.kro.kr:6333"
+    QDRANT_URL: str = "http://ai.kca.kr:6333"
     QDRANT_API_KEY: Optional[str] = None
     DEFAULT_COLLECTION_NAME: str = "documents"
 
     # Docling Serve 청킹 서버 설정
-    DOCLING_CHUNKING_URL: str = "http://kca-ai.kro.kr:8007"
+    DOCLING_CHUNKING_URL: str = "http://ai.kca.kr:8007"
     DEFAULT_CHUNK_SIZE: int = 500
     DEFAULT_CHUNK_OVERLAP: int = 50
 
     # BGE-M3 임베딩 서버 설정
-    EMBEDDING_URL: str = "http://kca-ai.kro.kr:8083"
+    EMBEDDING_URL: str = "http://ai.kca.kr:8083"
     EMBEDDING_MODEL: str = "bge-m3-korean"
     EMBEDDING_DIMENSION: int = 1024
 
     # LLM API 설정 (다중 모델 지원)
-    LLM_BASE_URL: str = "http://kca-ai.kro.kr:8080"
+    LLM_BASE_URL: str = "http://ai.kca.kr:8080"
     LLM_MODEL: str = "gpt-oss-20b"
 
     # GPT-OSS 20B 설정
-    GPT_OSS_20B_URL: str = "http://kca-ai.kro.kr:8080"
+    GPT_OSS_20B_URL: str = "http://ai.kca.kr:8080"
     GPT_OSS_20B_MODEL: str = "gpt-oss-20b"
 
     # EXAONE Deep 7.8B 설정
@@ -90,7 +90,7 @@ class Settings(BaseSettings):
     PROMPT_GEN_SAMPLE_LIMIT: int = 3000  # 문서 샘플 최대 문자수 (입력 토큰 절약)
 
     # BGE Reranker v2-m3 설정
-    RERANKER_URL: str = "http://kca-ai.kro.kr:8006"
+    RERANKER_URL: str = "http://ai.kca.kr:8006"
     RERANKER_MODEL: str = "BAAI/bge-reranker-v2-m3"
     RERANKER_TIMEOUT: int = 30
     USE_RERANKING: bool = True

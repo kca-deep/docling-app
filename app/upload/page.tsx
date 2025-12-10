@@ -55,7 +55,7 @@ function UploadPageContent() {
 
   // Dify 관련 상태
   const [difyApiKey, setDifyApiKey] = useState("dataset-tTuWMwOLTw6Lhhmihan6uszE")
-  const [difyBaseUrl, setDifyBaseUrl] = useState("http://kca-ai.kro.kr:5001/v1")
+  const [difyBaseUrl, setDifyBaseUrl] = useState("http://ai.kca.kr:5001/v1")
   const [difyDatasets, setDifyDatasets] = useState<DifyDataset[]>([])
   const [selectedDifyDataset, setSelectedDifyDataset] = useState("")
   const [loadingDifyDatasets, setLoadingDifyDatasets] = useState(false)
