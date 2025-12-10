@@ -194,8 +194,8 @@ export const MessageBubble = memo(function MessageBubble({
             role === "user"
               ? { background: "linear-gradient(135deg, var(--chart-1), var(--chart-2))" }
               : role === "assistant"
-              ? { background: "color-mix(in oklch, var(--chart-3) 15%, var(--muted))" }
-              : undefined
+                ? { background: "linear-gradient(135deg, var(--chart-3), var(--chart-4))" }
+                : undefined
           }
         >
           {role === "assistant" ? (
@@ -218,18 +218,18 @@ export const MessageBubble = memo(function MessageBubble({
         {/* 메시지 버블 */}
         <div
           className={cn(
-            "rounded-2xl px-4 py-3 transition-colors inline-block max-w-full",
-            role === "user" && "text-white",
-            role === "system" && "bg-muted/50",
-            role === "assistant" && "bg-muted/80"
+            "rounded-2xl px-5 py-4 transition-all duration-300 inline-block max-w-full shadow-sm hover:shadow-md animate-in slide-in-from-bottom-2",
+            role === "user" && "text-white shadow-primary/20 backdrop-blur-md border border-white/20",
+            role === "system" && "bg-muted/50 border border-border/50 backdrop-blur-sm",
+            role === "assistant" && "bg-background/60 backdrop-blur-lg border border-border/40 text-card-foreground shadow-sm"
           )}
           style={
             role === "user"
-              ? { background: "linear-gradient(135deg, var(--chart-1), var(--chart-2))" }
+              ? { background: "linear-gradient(135deg, color-mix(in srgb, var(--primary) 90%, transparent), color-mix(in srgb, var(--chart-2) 90%, transparent))" }
               : undefined
           }
         >
-          <div className="min-w-0">
+          <div className={cn("min-w-0 link-primary", role === "assistant" && "text-foreground/90")}>
             {parsedContent && parsedContent.hasThought ? (
               // EXAONE 모델: 추론 과정과 답변 분리 표시
               <div className="space-y-3">

@@ -212,10 +212,13 @@ export const InputArea = memo(function InputArea({
           </div>
         )}
 
-        {/* ChatGPT 스타일 입력 카드 */}
-        <div className="bg-muted/30 rounded-2xl transition-all">
+        {/* ChatGPT 스타일 입력 카드 - Glassmorphism Floating Style */}
+        <div className="bg-background/40 backdrop-blur-xl border border-white/10 rounded-[2rem] shadow-2xl transition-all duration-300 hover:shadow-primary/10 group relative overflow-hidden ring-1 ring-white/20 hover:ring-white/30">
+          {/* Background Gradient Blend */}
+          <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-transparent opacity-50 pointer-events-none" />
+
           {/* 입력 영역 */}
-          <div className="relative pt-3 px-4">
+          <div className="relative pt-3 px-4 z-10">
             <Textarea
               ref={textareaRef}
               value={input}
@@ -232,14 +235,14 @@ export const InputArea = memo(function InputArea({
               }
               disabled={isLoading}
               className={cn(
-                "min-h-[60px] max-h-[300px] resize-none border-0 focus-visible:ring-0 shadow-none pr-14 px-3 py-2",
-                "placeholder:text-muted-foreground/60",
+                "min-h-[60px] max-h-[300px] resize-none border-0 focus-visible:ring-0 shadow-none pr-14 px-3 py-2 bg-transparent text-base",
+                "placeholder:text-muted-foreground/60 selection:bg-primary/20",
                 disabled && "opacity-50 cursor-not-allowed"
               )}
             />
 
             {/* 전송/중단 버튼 (입력창 내부) */}
-            <div className="absolute bottom-3 right-6">
+            <div className="absolute bottom-3 right-5">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -248,21 +251,18 @@ export const InputArea = memo(function InputArea({
                       disabled={isStreaming ? false : !canSend}
                       size="icon"
                       className={cn(
-                        "h-9 w-9 rounded-full transition-all",
+                        "h-10 w-10 rounded-full transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-110 active:scale-95",
                         isStreaming
-                          ? "bg-muted hover:bg-muted/80 text-foreground"
-                          : !canSend && "opacity-30 cursor-not-allowed bg-muted"
+                          ? "bg-destructive text-destructive-foreground hover:bg-destructive/90 animate-pulse"
+                          : !canSend
+                            ? "bg-muted text-muted-foreground opacity-50 cursor-not-allowed"
+                            : "bg-gradient-to-tr from-violet-600 to-fuchsia-600 text-white animate-pulse hover:animate-none"
                       )}
-                      style={
-                        !isStreaming && canSend
-                          ? { background: "linear-gradient(135deg, var(--chart-1), var(--chart-2))" }
-                          : undefined
-                      }
                     >
                       {isStreaming ? (
                         <StopCircle className="h-5 w-5" />
                       ) : isLoading ? (
-                        <div className="h-5 w-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        <div className="h-5 w-5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
                       ) : (
                         <ArrowUp className="h-5 w-5" />
                       )}

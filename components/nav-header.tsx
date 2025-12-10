@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useState, useEffect } from "react"
 import { usePathname } from "next/navigation"
 import { FileText, Home, MessageSquare, Database, Sheet, BarChart3, Sparkles, LogOut, LucideIcon, FolderCog } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -19,11 +20,23 @@ interface NavItem {
 export function NavHeader() {
   const pathname = usePathname()
   const { isAuthenticated, isLoading, logout, user } = useAuth()
+  const [isScrolled, setIsScrolled] = useState(false)
+
+  // Scroll detection for immersive header
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 10)
+    }
+    window.addEventListener("scroll", handleScroll)
+    return () => window.removeEventListener("scroll", handleScroll)
+  }, [])
 
   // 로그인 페이지에서는 네비게이션 숨김
   if (pathname === "/login") {
     return null
   }
+
+  const isChatPage = pathname.startsWith("/chat")
 
   const navItems: NavItem[] = [
     { href: "/", label: "홈", icon: Home, requiresAuth: false },
@@ -41,7 +54,17 @@ export function NavHeader() {
   )
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/60 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60">
+    <header
+      className={cn(
+        "z-50 w-full transition-all duration-300",
+        isChatPage
+          ? "fixed top-0"
+          : "sticky top-0 border-b border-border/40",
+        isChatPage && !isScrolled
+          ? "bg-transparent border-transparent"
+          : "bg-background/60 backdrop-blur-xl border-border/40 supports-[backdrop-filter]:bg-background/60"
+      )}
+    >
       <div className="flex h-14 items-center justify-between px-4 md:px-6 max-w-7xl mx-auto">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2.5 group">
@@ -58,6 +81,8 @@ export function NavHeader() {
             <span className="text-[10px] text-muted-foreground font-medium tracking-widest uppercase">Document AI</span>
           </div>
         </Link>
+
+
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center gap-1">

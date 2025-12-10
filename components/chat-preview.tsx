@@ -267,12 +267,12 @@ export function ChatPreview() {
                       message.role === 'user' && "order-2"
                     )}>
                       <div className={cn(
-                        "rounded-2xl px-4 py-3",
+                        "rounded-2xl px-5 py-4 shadow-sm animate-in slide-in-from-bottom-2",
                         message.role === 'user'
-                          ? "bg-primary text-primary-foreground ml-auto"
-                          : "bg-muted"
+                          ? "bg-gradient-to-tr from-violet-600 to-fuchsia-600 text-white shadow-primary/20 backdrop-blur-md border border-white/20 ml-auto"
+                          : "bg-background/60 backdrop-blur-lg border border-border/40 text-card-foreground shadow-sm"
                       )}>
-                        <p className="text-sm">
+                        <p className="text-sm leading-relaxed">
                           {message.role === 'assistant' && index > 0 ? (
                             <TypingText
                               text={message.content}
@@ -317,20 +317,20 @@ export function ChatPreview() {
                   <div className="p-2 rounded-full bg-primary/10 h-fit">
                     <Bot className="w-4 h-4 text-primary" />
                   </div>
-                  <div className="bg-muted rounded-2xl px-4 py-3">
-                    <div className="flex gap-1">
+                  <div className="bg-background/60 backdrop-blur-lg border border-border/40 rounded-2xl px-5 py-4 shadow-sm">
+                    <div className="flex gap-1.5">
                       <motion.span
-                        animate={{ opacity: [0.4, 1, 0.4] }}
+                        animate={{ opacity: [0.4, 1, 0.4], scale: [1, 1.2, 1] }}
                         transition={{ duration: 1.5, repeat: Infinity, delay: 0 }}
                         className="w-2 h-2 bg-primary rounded-full"
                       />
                       <motion.span
-                        animate={{ opacity: [0.4, 1, 0.4] }}
+                        animate={{ opacity: [0.4, 1, 0.4], scale: [1, 1.2, 1] }}
                         transition={{ duration: 1.5, repeat: Infinity, delay: 0.2 }}
                         className="w-2 h-2 bg-primary rounded-full"
                       />
                       <motion.span
-                        animate={{ opacity: [0.4, 1, 0.4] }}
+                        animate={{ opacity: [0.4, 1, 0.4], scale: [1, 1.2, 1] }}
                         transition={{ duration: 1.5, repeat: Infinity, delay: 0.4 }}
                         className="w-2 h-2 bg-primary rounded-full"
                       />
