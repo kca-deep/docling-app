@@ -52,15 +52,18 @@ export function QdrantSettingsPanel({
   return (
     <div className="space-y-4">
       {/* Collection 선택 */}
-      <div className="space-y-2">
+      <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <Label htmlFor="qdrant-collection" className="text-sm font-semibold">Collection</Label>
+          <Label htmlFor="qdrant-collection" className="text-sm font-semibold flex items-center gap-2">
+            <Layers className="h-4 w-4 text-[color:var(--chart-1)]" />
+            Collection
+          </Label>
           {selectedCollectionInfo && (
             <div className="flex items-center gap-1.5">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Badge variant="outline" className="text-xs gap-1">
+                    <Badge variant="outline" className="text-xs gap-1 border-[color:var(--chart-1)]/30">
                       <VisibilityIcon visibility={selectedCollectionInfo.visibility} />
                       {selectedCollectionInfo.visibility || "public"}
                     </Badge>
@@ -73,7 +76,7 @@ export function QdrantSettingsPanel({
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Badge variant="secondary" className="text-xs gap-1">
+                    <Badge variant="secondary" className="text-xs gap-1 bg-[color:var(--chart-1)]/10 text-[color:var(--chart-1)]">
                       <FileStack className="h-3 w-3" />
                       {selectedCollectionInfo.vectors_count.toLocaleString()}
                     </Badge>
@@ -87,7 +90,7 @@ export function QdrantSettingsPanel({
           )}
         </div>
         <Select value={selectedCollection} onValueChange={onSelectedCollectionChange}>
-          <SelectTrigger id="qdrant-collection" className="h-10">
+          <SelectTrigger id="qdrant-collection" className="h-11 bg-background/50 border-border/50 focus:border-[color:var(--chart-1)]/30 transition-colors">
             <SelectValue placeholder="Collection 선택" />
           </SelectTrigger>
           <SelectContent>
@@ -119,7 +122,7 @@ export function QdrantSettingsPanel({
       {/* Collection 관리 링크 및 새로고침 */}
       <div className="flex items-center gap-1.5 justify-between">
         <Link href="/collections">
-          <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground">
+          <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-[color:var(--chart-1)] transition-colors">
             <Settings className="h-3.5 w-3.5" />
             컬렉션 관리
           </Button>
@@ -133,10 +136,10 @@ export function QdrantSettingsPanel({
                 disabled={loadingCollections}
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8"
+                className="h-8 w-8 hover:bg-[color:var(--chart-1)]/10 hover:text-[color:var(--chart-1)] transition-colors"
               >
                 {loadingCollections ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin text-[color:var(--chart-1)]" />
                 ) : (
                   <RefreshCw className="h-4 w-4" />
                 )}
@@ -153,10 +156,10 @@ export function QdrantSettingsPanel({
 
       {/* 청킹 설정 - 개선된 레이아웃 */}
       <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <div className="h-1 w-1 rounded-full bg-foreground" />
-          <Label className="text-sm font-semibold">청킹 설정</Label>
-        </div>
+        <Label className="text-sm font-semibold flex items-center gap-2">
+          <FileStack className="h-4 w-4 text-[color:var(--chart-1)]" />
+          청킹 설정
+        </Label>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
@@ -178,7 +181,7 @@ export function QdrantSettingsPanel({
                 type="number"
                 value={chunkSize}
                 onChange={(e) => onChunkSizeChange(parseInt(e.target.value))}
-                className="pr-12"
+                className="pr-12 bg-background/50 border-border/50 focus:border-[color:var(--chart-1)]/30 transition-colors"
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
                 토큰
@@ -205,7 +208,7 @@ export function QdrantSettingsPanel({
                 type="number"
                 value={chunkOverlap}
                 onChange={(e) => onChunkOverlapChange(parseInt(e.target.value))}
-                className="pr-12"
+                className="pr-12 bg-background/50 border-border/50 focus:border-[color:var(--chart-1)]/30 transition-colors"
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
                 토큰

@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Upload, Database, Settings, Sparkles } from "lucide-react"
+import { Loader2, Upload, Database, Sparkles } from "lucide-react"
 import { toast } from "sonner"
+import { motion } from "framer-motion"
 import { MarkdownViewerModal } from "@/components/markdown-viewer-modal"
 import { API_BASE_URL } from "@/lib/api-config"
 import { DocumentSelector } from "./components/DocumentSelector"
@@ -442,19 +443,39 @@ function UploadPageContent() {
   const isQdrantUploadDisabled = uploadingQdrant || selectedDocs.size === 0 || !selectedQdrantCollection
 
   return (
-    <PageContainer maxWidth="wide" className="py-4">
-      {/* Page Header */}
-      <div className="space-y-2 mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-          <Database className="h-6 w-6" />
-          문서업로드
-        </h1>
-        <p className="text-sm text-muted-foreground">파싱된 문서를 Qdrant 또는 Dify에 업로드</p>
-      </div>
+    <PageContainer maxWidth="wide" className="py-8 space-y-8">
+      {/* Background Noise & Gradient */}
+      <div className="absolute inset-0 bg-noise opacity-30 pointer-events-none -z-10" />
+      <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-[color:var(--chart-1)]/5 to-transparent -z-10" />
 
-      <div className="grid grid-cols-1 lg:grid-cols-[7fr_3fr] gap-4">
+      {/* Page Header */}
+      <motion.div
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.5 }}
+        className="relative z-10"
+      >
+        <h1 className="text-4xl font-bold tracking-tight flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-gradient-to-br from-[color:var(--chart-1)] to-[color:var(--chart-2)] text-white shadow-lg shadow-[color:var(--chart-1)]/20">
+            <Upload className="h-7 w-7" />
+          </div>
+          <span className="bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
+            문서업로드
+          </span>
+        </h1>
+        <p className="text-muted-foreground mt-3 text-lg max-w-2xl">
+          파싱된 문서를 벡터 데이터베이스 또는 Dify 지식베이스에 업로드하세요.
+        </p>
+      </motion.div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[7fr_3fr] gap-6">
         {/* 좌측: 문서 목록 (70%) */}
-        <div className="space-y-4 min-w-0">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="space-y-4 min-w-0"
+        >
           <DocumentSelector
             documents={documents}
             selectedDocs={selectedDocs}
@@ -474,31 +495,38 @@ function UploadPageContent() {
             onPageChange={handlePageChange}
             onOpenDocumentViewer={openDocumentViewer}
           />
-        </div>
+        </motion.div>
 
         {/* 우측: Qdrant/Dify 설정 (30%) - Sticky */}
-        <div className="lg:sticky lg:top-4 lg:self-start min-w-0 overflow-hidden">
-          <Card className="min-w-0 overflow-hidden">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="lg:sticky lg:top-4 lg:self-start min-w-0 overflow-hidden"
+        >
+          <Card className="min-w-0 overflow-hidden border-border/50 bg-background/60 backdrop-blur-sm shadow-xl shadow-[color:var(--chart-1)]/5">
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as UploadTarget)}>
               <CardHeader className="pb-3">
-                <div className="flex items-center gap-2 mb-3">
-                  <Upload className="h-5 w-5 text-muted-foreground" />
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-[color:var(--chart-1)]/10 to-[color:var(--chart-2)]/10">
+                    <Upload className="h-5 w-5 text-[color:var(--chart-1)]" />
+                  </div>
                   <div>
-                    <CardTitle className="text-lg">임베딩 업로드 설정</CardTitle>
-                    <CardDescription className="mt-0.5">
-                      벡터 DB 또는 지식베이스에 문서 업로드
+                    <CardTitle className="text-lg font-semibold">임베딩 업로드</CardTitle>
+                    <CardDescription className="mt-0.5 text-sm">
+                      벡터 DB 또는 지식베이스 선택
                     </CardDescription>
                   </div>
                 </div>
 
-                {/* Simple Tabs with Underline */}
-                <TabsList className="w-full">
-                  <TabsTrigger value="qdrant" className="flex-1 gap-1.5">
-                    <Database className="h-3.5 w-3.5" />
+                {/* Enhanced Tabs */}
+                <TabsList className="w-full h-11 p-1 bg-muted/50">
+                  <TabsTrigger value="qdrant" className="flex-1 gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                    <Database className="h-4 w-4" />
                     Vector DB
                   </TabsTrigger>
-                  <TabsTrigger value="dify" className="flex-1 gap-1.5">
-                    <Sparkles className="h-3.5 w-3.5" />
+                  <TabsTrigger value="dify" className="flex-1 gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                    <Sparkles className="h-4 w-4" />
                     Dify
                   </TabsTrigger>
                 </TabsList>
@@ -521,7 +549,7 @@ function UploadPageContent() {
               />
 
               {!selectedQdrantCollection && selectedDocs.size > 0 && (
-                <Alert variant="default" className="border-muted-foreground/20">
+                <Alert variant="default" className="border-[color:var(--chart-1)]/20 bg-[color:var(--chart-1)]/5">
                   <AlertDescription className="text-sm">
                     업로드하려면 상단에서 Collection을 먼저 선택해주세요.
                   </AlertDescription>
@@ -529,12 +557,12 @@ function UploadPageContent() {
               )}
 
               {/* 업로드 버튼 */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3 pt-2">
                 <Button
                   onClick={uploadToQdrant}
                   disabled={isQdrantUploadDisabled}
                   size="lg"
-                  className="flex-1 gap-2"
+                  className="flex-1 gap-2 shadow-lg shadow-[color:var(--chart-1)]/20 hover:shadow-[color:var(--chart-1)]/40 hover:scale-[1.02] active:scale-[0.98] transition-all bg-[color:var(--chart-1)] hover:bg-[color:var(--chart-1)]/90"
                 >
                   {uploadingQdrant ? (
                     <>
@@ -544,12 +572,12 @@ function UploadPageContent() {
                   ) : (
                     <>
                       <Upload className="h-4 w-4" />
-                      Qdrant에 업로드
+                      Vector DB 업로드
                     </>
                   )}
                 </Button>
                 {selectedDocs.size > 0 && (
-                  <Badge variant="secondary" className="text-sm px-3 py-1.5">
+                  <Badge variant="secondary" className="text-sm px-3 py-2 bg-[color:var(--chart-1)]/10 text-[color:var(--chart-1)] border-[color:var(--chart-1)]/20">
                     {selectedDocs.size}
                   </Badge>
                 )}
@@ -582,7 +610,7 @@ function UploadPageContent() {
               />
 
               {(!difyApiKey || !selectedDifyDataset) && selectedDocs.size > 0 && (
-                <Alert variant="default" className="border-muted-foreground/20">
+                <Alert variant="default" className="border-[color:var(--chart-2)]/20 bg-[color:var(--chart-2)]/5">
                   <AlertDescription className="text-sm">
                     업로드하려면 상단에서 API Key와 데이터셋을 먼저 설정해주세요.
                   </AlertDescription>
@@ -590,12 +618,12 @@ function UploadPageContent() {
               )}
 
               {/* 업로드 버튼 */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3 pt-2">
                 <Button
                   onClick={uploadToDify}
                   disabled={isDifyUploadDisabled}
                   size="lg"
-                  className="flex-1 gap-2"
+                  className="flex-1 gap-2 shadow-lg shadow-[color:var(--chart-2)]/20 hover:shadow-[color:var(--chart-2)]/40 hover:scale-[1.02] active:scale-[0.98] transition-all bg-[color:var(--chart-2)] hover:bg-[color:var(--chart-2)]/90"
                 >
                   {uploadingDify ? (
                     <>
@@ -604,13 +632,13 @@ function UploadPageContent() {
                     </>
                   ) : (
                     <>
-                      <Upload className="h-4 w-4" />
-                      Dify에 업로드
+                      <Sparkles className="h-4 w-4" />
+                      Dify 업로드
                     </>
                   )}
                 </Button>
                 {selectedDocs.size > 0 && (
-                  <Badge variant="secondary" className="text-sm px-3 py-1.5">
+                  <Badge variant="secondary" className="text-sm px-3 py-2 bg-[color:var(--chart-2)]/10 text-[color:var(--chart-2)] border-[color:var(--chart-2)]/20">
                     {selectedDocs.size}
                   </Badge>
                 )}
@@ -625,7 +653,7 @@ function UploadPageContent() {
               </CardContent>
             </Tabs>
           </Card>
-        </div>
+        </motion.div>
       </div>
 
       {/* Markdown Viewer 모달 */}
