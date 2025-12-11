@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Send, Bot, User, Sparkles, FileText, Database, Play, Pause } from "lucide-react"
+import { Send, User, Sparkles, FileText, Database, Play, Pause } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ChatbotLogo } from "@/components/ui/chatbot-logo"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -182,9 +183,7 @@ export function ChatPreview() {
         <CardHeader className="bg-gradient-to-r from-background to-muted/30 border-b">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Bot className="w-5 h-5 text-primary" />
-              </div>
+              <ChatbotLogo className="w-10 h-10" />
               <div>
                 <CardTitle className="text-lg">RAG 챗봇 미리보기</CardTitle>
                 <p className="text-sm text-muted-foreground mt-1">
@@ -258,9 +257,7 @@ export function ChatPreview() {
                     )}
                   >
                     {message.role === 'assistant' && (
-                      <div className="p-2 rounded-full bg-primary/10 h-fit">
-                        <Bot className="w-4 h-4 text-primary" />
-                      </div>
+                      <ChatbotLogo className="w-8 h-8" />
                     )}
                     <div className={cn(
                       "max-w-[80%]",
@@ -314,9 +311,7 @@ export function ChatPreview() {
                   animate={{ opacity: 1 }}
                   className="flex gap-3"
                 >
-                  <div className="p-2 rounded-full bg-primary/10 h-fit">
-                    <Bot className="w-4 h-4 text-primary" />
-                  </div>
+                  <ChatbotLogo className="w-8 h-8" />
                   <div className="bg-background/60 backdrop-blur-lg border border-border/40 rounded-2xl px-5 py-4 shadow-sm">
                     <div className="flex gap-1.5">
                       <motion.span

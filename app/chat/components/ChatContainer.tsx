@@ -9,7 +9,7 @@ import { SourceArtifactPanel } from "./SourceArtifactPanel";
 import { Card } from "@/components/ui/card";
 import { API_BASE_URL } from "@/lib/api-config";
 import { Button } from "@/components/ui/button";
-import { Maximize, Minimize, Wand2, Sun, Moon } from "lucide-react";
+import { Maximize, Minimize, Brain, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import {
@@ -916,7 +916,10 @@ export function ChatContainer() {
         "flex items-center justify-between px-4 py-3 border-b flex-shrink-0 transition-colors",
         isFullscreen ? "bg-background/95 backdrop-blur-xl" : "bg-background"
       )}>
-        {/* 왼쪽: 로고 + 수직 텍스트 */}
+        {/* 왼쪽: 빈 영역 (우측 버튼들과 균형) */}
+        <div className="w-20" />
+
+        {/* 가운데: 로고 + 텍스트 */}
         <div className="flex items-center gap-3">
           {/* 그라데이션 아이콘 */}
           <div className="relative">
@@ -926,16 +929,25 @@ export function ChatContainer() {
                 background: "linear-gradient(135deg, var(--chart-1) 0%, var(--chart-2) 100%)"
               }}
             >
-              <Wand2 className="h-5 w-5 text-white" strokeWidth={2} />
+              <Brain className="h-5 w-5 text-white" strokeWidth={2} />
             </div>
             {/* 온라인 상태 표시 */}
             <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-background" />
           </div>
 
-          {/* 수직 텍스트 레이아웃 */}
-          <div className="hidden sm:flex flex-col">
-            <span className="font-bold text-base text-foreground leading-tight">KCA-i 지능형 챗봇</span>
-            <span className="text-[11px] text-muted-foreground leading-tight">RAG기반 어시스턴트</span>
+          {/* 텍스트 레이아웃 */}
+          <div className="hidden sm:flex items-center gap-2">
+            <span
+              className="font-bold text-lg bg-clip-text text-transparent"
+              style={{
+                backgroundImage: "linear-gradient(135deg, var(--chart-1), var(--chart-2))"
+              }}
+            >
+              KCA-i
+            </span>
+            <Badge variant="secondary" className="text-[11px] px-2 py-0.5 font-medium">
+              AI 어시스턴트
+            </Badge>
           </div>
         </div>
 

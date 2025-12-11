@@ -1,6 +1,7 @@
 "use client";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ChatbotLogo } from "@/components/ui/chatbot-logo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Wand2, User, FileText, Copy, Check, RefreshCw, Reply, StopCircle } from "lucide-react";
@@ -184,29 +185,29 @@ export const MessageBubble = memo(function MessageBubble({
       )}
     >
       {/* 아바타 */}
-      <Avatar className="h-8 w-8 flex-shrink-0">
-        <AvatarFallback
-          className={cn(
-            role === "user" && "text-white",
-            role !== "user" && role !== "assistant" && "bg-muted text-muted-foreground"
-          )}
-          style={
-            role === "user"
-              ? { background: "linear-gradient(135deg, var(--chart-1), var(--chart-2))" }
-              : role === "assistant"
-                ? { background: "linear-gradient(135deg, var(--chart-3), var(--chart-4))" }
+      {role === "assistant" ? (
+        <ChatbotLogo className="h-8 w-8 flex-shrink-0" />
+      ) : (
+        <Avatar className="h-8 w-8 flex-shrink-0">
+          <AvatarFallback
+            className={cn(
+              role === "user" && "text-white",
+              role !== "user" && role !== "assistant" && "bg-muted text-muted-foreground"
+            )}
+            style={
+              role === "user"
+                ? { background: "linear-gradient(135deg, var(--chart-1), var(--chart-2))" }
                 : undefined
-          }
-        >
-          {role === "assistant" ? (
-            <Wand2 className="h-4 w-4" style={{ color: "var(--chart-3)" }} />
-          ) : role === "system" ? (
-            <RefreshCw className="h-4 w-4" />
-          ) : (
-            <User className="h-4 w-4" />
-          )}
-        </AvatarFallback>
-      </Avatar>
+            }
+          >
+            {role === "system" ? (
+              <RefreshCw className="h-4 w-4" />
+            ) : (
+              <User className="h-4 w-4" />
+            )}
+          </AvatarFallback>
+        </Avatar>
+      )}
 
       {/* 메시지 콘텐츠 */}
       <div
@@ -226,9 +227,9 @@ export const MessageBubble = memo(function MessageBubble({
           style={
             role === "user"
               ? {
-                  background: "linear-gradient(135deg, var(--chart-1), var(--chart-2))",
-                  boxShadow: "0 4px 20px -4px color-mix(in oklch, var(--chart-1) 40%, transparent), 0 2px 8px -2px color-mix(in oklch, var(--chart-2) 30%, transparent)",
-                }
+                background: "linear-gradient(135deg, var(--chart-1), var(--chart-2))",
+                boxShadow: "0 4px 20px -4px color-mix(in oklch, var(--chart-1) 40%, transparent), 0 2px 8px -2px color-mix(in oklch, var(--chart-2) 30%, transparent)",
+              }
               : undefined
           }
         >
