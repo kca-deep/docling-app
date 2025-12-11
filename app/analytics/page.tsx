@@ -24,8 +24,9 @@ import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
 import {
   RefreshCw, TrendingUp, Users, MessageSquare,
-  Clock, Zap, Download
+  Clock, Zap, Download, BarChart3
 } from "lucide-react"
+import { motion } from "framer-motion"
 import {
   XAxis, YAxis, CartesianGrid,
   ComposedChart, Area, Line
@@ -381,118 +382,170 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <PageContainer maxWidth="wide">
+    <PageContainer maxWidth="wide" className="py-8 space-y-8">
+      {/* Background Noise & Gradient */}
+      <div className="absolute inset-0 bg-noise opacity-30 pointer-events-none -z-10" />
+      <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-[color:var(--chart-1)]/5 to-transparent -z-10" />
+
       {/* 페이지 헤더 */}
-      <div className="space-y-2 mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-          <TrendingUp className="h-6 w-6" />
-          통계
-        </h1>
-        <p className="text-sm text-muted-foreground">RAG 시스템 사용량 및 성능 분석</p>
-      </div>
-
-      {/* 필터 컨트롤 - 단일 행으로 통합 */}
-      <div className="flex flex-wrap items-center gap-3 mb-6 p-4 bg-muted/30 rounded-lg border">
-        <Select value={selectedCollection} onValueChange={setSelectedCollection}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="컬렉션 선택" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">전체</SelectItem>
-            <SelectItem value="casual">일상대화</SelectItem>
-            {collections.map((collection) => (
-              <SelectItem key={collection} value={collection}>{collection}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <div className="flex gap-2 items-center">
-          <Input
-            type="date"
-            value={dateRange.from instanceof Date && !isNaN(dateRange.from.getTime()) ? format(dateRange.from, "yyyy-MM-dd") : ""}
-            onChange={(e) => {
-              const date = new Date(e.target.value)
-              if (!isNaN(date.getTime())) {
-                setDateRange(prev => ({ ...prev, from: date }))
-              }
-            }}
-            className="w-[140px]"
-          />
-          <span className="text-sm text-muted-foreground">~</span>
-          <Input
-            type="date"
-            value={dateRange.to instanceof Date && !isNaN(dateRange.to.getTime()) ? format(dateRange.to, "yyyy-MM-dd") : ""}
-            onChange={(e) => {
-              const date = new Date(e.target.value)
-              if (!isNaN(date.getTime())) {
-                setDateRange(prev => ({ ...prev, to: date }))
-              }
-            }}
-            className="w-[140px]"
-          />
-        </div>
-
-        <Button onClick={refreshAllData} disabled={loading} size="default" variant="outline">
-          <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
-          새로고침
-        </Button>
-
-        <Button onClick={handleExcelDownload} disabled={downloading || loading} size="default" variant="outline">
-          <Download className={cn("h-4 w-4 mr-2", downloading && "animate-bounce")} />
-          다운로드
-        </Button>
-
-        {/* 실시간 활성 세션 */}
-        {activeSessions && (
-          <div className="flex items-center gap-2 ml-auto px-3 py-2 rounded-md bg-background border">
-            <div
-              className="h-2 w-2 rounded-full animate-pulse"
-              style={{ backgroundColor: metricColors.active }}
-            />
-            <span className="text-sm font-medium">{activeSessions.active_count}</span>
-            <span className="text-sm text-muted-foreground">활성 세션</span>
+      <motion.div
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.5 }}
+        className="space-y-3"
+      >
+        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-gradient-to-br from-[color:var(--chart-1)] to-[color:var(--chart-2)] text-white shadow-lg shadow-[color:var(--chart-1)]/20">
+            <BarChart3 className="h-5 w-5" />
           </div>
-        )}
-      </div>
+          <span className="bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
+            통계
+          </span>
+        </h1>
+        <p className="text-muted-foreground max-w-2xl">RAG 시스템 사용량 및 성능 분석</p>
+      </motion.div>
 
-      {/* KPI 카드 - 미니멀 스타일 */}
-      <div className="flex flex-wrap items-center gap-3 mb-6">
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card">
-          <MessageSquare className="h-4 w-4 text-muted-foreground" style={{ color: metricColors.queries }} />
-          <span className="text-lg font-semibold tabular-nums">{(summary?.total_queries ?? 0).toLocaleString()}</span>
-          <span className="text-xs text-muted-foreground">쿼리</span>
+      {/* 필터 컨트롤 - 글래스모피즘 스타일 */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+        className="sticky top-20 z-30"
+      >
+        <div className="p-1.5 rounded-2xl bg-background/60 backdrop-blur-xl border border-border/50 shadow-lg supports-[backdrop-filter]:bg-background/40">
+          <div className="flex flex-wrap items-center gap-2 p-2">
+            <Select value={selectedCollection} onValueChange={setSelectedCollection}>
+              <SelectTrigger className="w-[160px] h-10 rounded-xl border-border/50 bg-background/50 focus:bg-background">
+                <SelectValue placeholder="컬렉션 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">전체</SelectItem>
+                <SelectItem value="casual">일상대화</SelectItem>
+                {collections.map((collection) => (
+                  <SelectItem key={collection} value={collection}>{collection}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <div className="flex gap-2 items-center">
+              <Input
+                type="date"
+                value={dateRange.from instanceof Date && !isNaN(dateRange.from.getTime()) ? format(dateRange.from, "yyyy-MM-dd") : ""}
+                onChange={(e) => {
+                  const date = new Date(e.target.value)
+                  if (!isNaN(date.getTime())) {
+                    setDateRange(prev => ({ ...prev, from: date }))
+                  }
+                }}
+                className="w-[140px] h-10 rounded-xl border-border/50 bg-background/50 focus:bg-background"
+              />
+              <span className="text-sm text-muted-foreground">~</span>
+              <Input
+                type="date"
+                value={dateRange.to instanceof Date && !isNaN(dateRange.to.getTime()) ? format(dateRange.to, "yyyy-MM-dd") : ""}
+                onChange={(e) => {
+                  const date = new Date(e.target.value)
+                  if (!isNaN(date.getTime())) {
+                    setDateRange(prev => ({ ...prev, to: date }))
+                  }
+                }}
+                className="w-[140px] h-10 rounded-xl border-border/50 bg-background/50 focus:bg-background"
+              />
+            </div>
+
+            <Button onClick={refreshAllData} disabled={loading} size="default" variant="ghost" className="h-10 rounded-xl hover:bg-background/80">
+              <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin text-[color:var(--chart-1)]")} />
+              새로고침
+            </Button>
+
+            <Button onClick={handleExcelDownload} disabled={downloading || loading} size="default" variant="ghost" className="h-10 rounded-xl hover:bg-background/80">
+              <Download className={cn("h-4 w-4 mr-2", downloading && "animate-bounce text-[color:var(--chart-1)]")} />
+              다운로드
+            </Button>
+
+            {/* 실시간 활성 세션 */}
+            {activeSessions && (
+              <div className="flex items-center gap-2 ml-auto px-3 py-2 rounded-xl bg-background/80 border border-border/50">
+                <div
+                  className="h-2 w-2 rounded-full animate-pulse"
+                  style={{ backgroundColor: metricColors.active }}
+                />
+                <span className="text-sm font-medium">{activeSessions.active_count}</span>
+                <span className="text-sm text-muted-foreground">활성 세션</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </motion.div>
+
+      {/* KPI 카드 - 모던 스타일 */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.3 }}
+        className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3"
+      >
+        <div className="group flex items-center gap-3 px-4 py-3 rounded-xl border border-border/50 bg-background/60 backdrop-blur-sm hover:border-[color:var(--chart-1)]/30 hover:shadow-lg hover:shadow-[color:var(--chart-1)]/5 transition-all duration-300">
+          <div className="p-2 rounded-lg bg-[color:var(--chart-1)]/10 group-hover:bg-[color:var(--chart-1)]/20 transition-colors">
+            <MessageSquare className="h-4 w-4" style={{ color: metricColors.queries }} />
+          </div>
+          <div>
+            <span className="text-lg font-bold tabular-nums block">{(summary?.total_queries ?? 0).toLocaleString()}</span>
+            <span className="text-xs text-muted-foreground">쿼리</span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card">
-          <Users className="h-4 w-4 text-muted-foreground" style={{ color: metricColors.sessions }} />
-          <span className="text-lg font-semibold tabular-nums">{(summary?.unique_sessions ?? 0).toLocaleString()}</span>
-          <span className="text-xs text-muted-foreground">세션</span>
+        <div className="group flex items-center gap-3 px-4 py-3 rounded-xl border border-border/50 bg-background/60 backdrop-blur-sm hover:border-[color:var(--chart-5)]/30 hover:shadow-lg hover:shadow-[color:var(--chart-5)]/5 transition-all duration-300">
+          <div className="p-2 rounded-lg bg-[color:var(--chart-5)]/10 group-hover:bg-[color:var(--chart-5)]/20 transition-colors">
+            <Users className="h-4 w-4" style={{ color: metricColors.sessions }} />
+          </div>
+          <div>
+            <span className="text-lg font-bold tabular-nums block">{(summary?.unique_sessions ?? 0).toLocaleString()}</span>
+            <span className="text-xs text-muted-foreground">세션</span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card">
-          <TrendingUp className="h-4 w-4 text-muted-foreground" style={{ color: metricColors.turns }} />
-          <span className="text-lg font-semibold tabular-nums">{conversationStats?.avg_turns?.toFixed(1) || "0"}</span>
-          <span className="text-xs text-muted-foreground">평균 턴</span>
+        <div className="group flex items-center gap-3 px-4 py-3 rounded-xl border border-border/50 bg-background/60 backdrop-blur-sm hover:border-[color:var(--chart-2)]/30 hover:shadow-lg hover:shadow-[color:var(--chart-2)]/5 transition-all duration-300">
+          <div className="p-2 rounded-lg bg-[color:var(--chart-2)]/10 group-hover:bg-[color:var(--chart-2)]/20 transition-colors">
+            <TrendingUp className="h-4 w-4" style={{ color: metricColors.turns }} />
+          </div>
+          <div>
+            <span className="text-lg font-bold tabular-nums block">{conversationStats?.avg_turns?.toFixed(1) || "0"}</span>
+            <span className="text-xs text-muted-foreground">평균 턴</span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card">
-          <Clock className="h-4 w-4 text-muted-foreground" style={{ color: metricColors.responseTime }} />
-          <span className="text-lg font-semibold tabular-nums">{(summary?.avg_response_time_ms ?? 0).toFixed(0)}</span>
-          <span className="text-xs text-muted-foreground">ms</span>
+        <div className="group flex items-center gap-3 px-4 py-3 rounded-xl border border-border/50 bg-background/60 backdrop-blur-sm hover:border-[color:var(--chart-3)]/30 hover:shadow-lg hover:shadow-[color:var(--chart-3)]/5 transition-all duration-300">
+          <div className="p-2 rounded-lg bg-[color:var(--chart-3)]/10 group-hover:bg-[color:var(--chart-3)]/20 transition-colors">
+            <Clock className="h-4 w-4" style={{ color: metricColors.responseTime }} />
+          </div>
+          <div>
+            <span className="text-lg font-bold tabular-nums block">{(summary?.avg_response_time_ms ?? 0).toFixed(0)}<span className="text-xs font-normal text-muted-foreground ml-0.5">ms</span></span>
+            <span className="text-xs text-muted-foreground">응답시간</span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card">
-          <Zap className="h-4 w-4 text-muted-foreground" style={{ color: metricColors.tokens }} />
-          <span className="text-lg font-semibold tabular-nums">{((summary?.total_tokens ?? 0) / 1000).toFixed(1)}K</span>
-          <span className="text-xs text-muted-foreground">토큰</span>
+        <div className="group flex items-center gap-3 px-4 py-3 rounded-xl border border-border/50 bg-background/60 backdrop-blur-sm hover:border-[color:var(--chart-3)]/30 hover:shadow-lg hover:shadow-[color:var(--chart-3)]/5 transition-all duration-300">
+          <div className="p-2 rounded-lg bg-[color:var(--chart-3)]/10 group-hover:bg-[color:var(--chart-3)]/20 transition-colors">
+            <Zap className="h-4 w-4" style={{ color: metricColors.tokens }} />
+          </div>
+          <div>
+            <span className="text-lg font-bold tabular-nums block">{((summary?.total_tokens ?? 0) / 1000).toFixed(1)}K</span>
+            <span className="text-xs text-muted-foreground">토큰</span>
+          </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* 대시보드 */}
-      <div className="space-y-4">
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.4 }}
+        className="space-y-4"
+      >
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* 일별 추이 - 인터랙티브 차트 */}
-            <Card className="col-span-1 lg:col-span-2">
+            <Card className="col-span-1 lg:col-span-2 border-border/50 bg-background/60 backdrop-blur-sm hover:border-[color:var(--chart-1)]/30 hover:shadow-xl hover:shadow-[color:var(--chart-1)]/5 transition-all duration-300">
               <CardHeader className="px-6 py-4">
                 <div className="flex items-center justify-between mb-4">
                   <CardTitle className="text-base font-semibold">일별 사용 추이</CardTitle>
@@ -649,7 +702,7 @@ export default function AnalyticsPage() {
             </Card>
 
             {/* 최근 질문 피드 */}
-            <Card>
+            <Card className="border-border/50 bg-background/60 backdrop-blur-sm hover:border-[color:var(--chart-2)]/30 hover:shadow-xl hover:shadow-[color:var(--chart-2)]/5 transition-all duration-300">
               <CardHeader className="px-6 py-4">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base font-semibold">최근 질문</CardTitle>
@@ -713,7 +766,7 @@ export default function AnalyticsPage() {
             </Card>
 
             {/* 시간대별 히트맵 */}
-            <Card className="col-span-1 lg:col-span-2">
+            <Card className="col-span-1 lg:col-span-2 border-border/50 bg-background/60 backdrop-blur-sm hover:border-[color:var(--chart-2)]/30 hover:shadow-xl hover:shadow-[color:var(--chart-2)]/5 transition-all duration-300">
               <CardHeader className="px-6 py-4">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base font-semibold">시간대별 히트맵</CardTitle>
@@ -895,7 +948,7 @@ export default function AnalyticsPage() {
             </Card>
 
             {/* 인기 검색어 */}
-            <Card>
+            <Card className="border-border/50 bg-background/60 backdrop-blur-sm hover:border-[color:var(--chart-5)]/30 hover:shadow-xl hover:shadow-[color:var(--chart-5)]/5 transition-all duration-300">
               <CardHeader className="px-6 py-4">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base font-semibold">인기 검색어</CardTitle>
@@ -907,7 +960,7 @@ export default function AnalyticsPage() {
               <CardContent className="px-6 pb-6">
                 <div className="space-y-2">
                   {summary?.top_queries?.slice(0, 10).map((query, idx) => (
-                    <div key={idx} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors border border-transparent hover:border-border">
+                    <div key={idx} className="flex items-center gap-3 p-2 rounded-xl hover:bg-muted/50 transition-colors border border-transparent hover:border-border/50">
                       <Badge variant="outline" className="text-xs w-6 h-6 p-0 flex items-center justify-center shrink-0 font-medium">{idx + 1}</Badge>
                       <span className="text-sm truncate flex-1">{query}</span>
                     </div>
@@ -916,7 +969,7 @@ export default function AnalyticsPage() {
               </CardContent>
             </Card>
           </div>
-        </div>
+      </motion.div>
     </PageContainer>
   )
 }

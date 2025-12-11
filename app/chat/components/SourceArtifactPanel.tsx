@@ -4,7 +4,12 @@ import { useEffect, useCallback, useRef } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   X,
   FileText,
@@ -160,17 +165,42 @@ export function SourceArtifactPanel({
     }
   };
 
-  // 점수에 따른 색상
-  const getScoreColor = (score: number) => {
-    if (score >= 0.8) return "bg-green-500/10 text-green-600 dark:text-green-400";
-    if (score >= 0.6) return "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400";
-    return "bg-red-500/10 text-red-600 dark:text-red-400";
+  // 점수에 따른 프로그레스 바 색상
+  const getScoreBarColor = (score: number) => {
+    if (score >= 0.8) return "bg-emerald-500";
+    if (score >= 0.6) return "bg-amber-500";
+    return "bg-red-500";
   };
 
+  // 점수에 따른 배지 색상
+  const getScoreBadgeColor = (score: number) => {
+    if (score >= 0.8) return "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30";
+    if (score >= 0.6) return "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30";
+    return "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30";
+  };
+
+  // 점수에 따른 라벨
   const getScoreLabel = (score: number) => {
     if (score >= 0.8) return "높은 관련도";
     if (score >= 0.6) return "중간 관련도";
     return "낮은 관련도";
+  };
+
+  // 탭 카드 배경색 (선택됨) - 중립적인 색상
+  const getTabActiveBgColor = () => {
+    return "bg-primary/15 dark:bg-primary/20";
+  };
+
+  // 탭 카드 배경색 (미선택) - 중립적인 색상
+  const getTabInactiveBgColor = () => {
+    return "bg-muted/60 hover:bg-muted dark:bg-muted/40 dark:hover:bg-muted/60";
+  };
+
+  // 점수에 따른 텍스트 색상 (관련도 표시용)
+  const getScoreTextColor = (score: number) => {
+    if (score >= 0.8) return "text-emerald-600 dark:text-emerald-400 font-semibold";
+    if (score >= 0.6) return "text-amber-600 dark:text-amber-400 font-medium";
+    return "text-red-500 dark:text-red-400";
   };
 
   if (sources.length === 0) {
@@ -214,52 +244,80 @@ export function SourceArtifactPanel({
         </div>
       </div>
 
-      {/* 탭 네비게이션 - 번호만 표시 (파일명 중복 제거) */}
-      <div className="flex items-center gap-1 px-2 py-2 border-b flex-shrink-0 bg-muted/30">
+      {/* 탭 네비게이션 - 미니 카드 형태 */}
+      <div className="flex items-center gap-1.5 px-2 py-3 border-b flex-shrink-0 bg-muted/20">
         {/* 이전 버튼 */}
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 flex-shrink-0"
+          className="h-8 w-8 flex-shrink-0 rounded-full"
           onClick={goToPrevious}
           disabled={activeIndex <= 0}
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
 
-        {/* 탭들 - 번호와 점수만 표시 */}
+        {/* 탭 카드들 - 1줄 표시, 배경색 + 텍스트색으로 점수 표현 */}
         <div
           ref={tabsContainerRef}
           className="flex-1 overflow-x-auto scrollbar-hide"
         >
-          <Tabs
-            value={activeSourceId || ""}
-            onValueChange={onSourceSelect}
-            className="w-auto"
-          >
-            <TabsList className="h-auto p-1 bg-muted/50">
-              {sources.map((source, index) => (
-                <TabsTrigger
-                  key={source.id}
-                  value={source.id}
-                  data-source-id={source.id}
-                  className="flex-none h-7 px-2.5 text-xs gap-1 overflow-hidden"
-                >
-                  <span className="font-medium">#{index + 1}</span>
-                  <span className="text-muted-foreground text-[10px]">
-                    {(source.score * 100).toFixed(0)}%
-                  </span>
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
+          <div className="flex gap-1.5 px-1">
+            <TooltipProvider delayDuration={300}>
+              {sources.map((source, index) => {
+                const isActive = source.id === activeSourceId;
+                const scorePercent = source.score * 100;
+
+                return (
+                  <Tooltip key={source.id}>
+                    <TooltipTrigger asChild>
+                      <button
+                        data-source-id={source.id}
+                        onClick={() => onSourceSelect(source.id)}
+                        className={cn(
+                          "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap",
+                          isActive
+                            ? cn("shadow-sm", getTabActiveBgColor())
+                            : getTabInactiveBgColor()
+                        )}
+                      >
+                        {/* 문서 번호 */}
+                        <span className={cn(
+                          "font-semibold text-sm",
+                          isActive ? "text-foreground" : "text-muted-foreground"
+                        )}>
+                          #{index + 1}
+                        </span>
+
+                        {/* 점수 텍스트 - 색상으로 관련도 표현 */}
+                        <span className={cn(
+                          "text-xs",
+                          getScoreTextColor(source.score)
+                        )}>
+                          {scorePercent.toFixed(0)}%
+                        </span>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-[200px]">
+                      <div className="text-xs">
+                        <p className="font-medium truncate">{source.title}</p>
+                        <p className="text-muted-foreground mt-0.5">
+                          {getScoreLabel(source.score)} ({source.score.toFixed(3)})
+                        </p>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })}
+            </TooltipProvider>
+          </div>
         </div>
 
         {/* 다음 버튼 */}
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 flex-shrink-0"
+          className="h-8 w-8 flex-shrink-0 rounded-full"
           onClick={goToNext}
           disabled={activeIndex >= sources.length - 1}
         >
@@ -267,15 +325,43 @@ export function SourceArtifactPanel({
         </Button>
       </div>
 
-      {/* 메타데이터 바 - 중복 제거 */}
+      {/* 메타데이터 바 - 관련도 점수 시각화 포함 */}
       {activeSource && (
         <div className="px-4 py-3 border-b flex-shrink-0 bg-muted/20">
-          {/* 제목 (파일명 또는 headings) */}
-          <div className="flex items-center gap-2 mb-2">
-            <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-            <span className="font-medium text-sm truncate">
-              {activeSource.title}
-            </span>
+          {/* 상단: 제목 + 관련도 점수 */}
+          <div className="flex items-start justify-between gap-3 mb-3">
+            {/* 제목 (파일명 또는 headings) */}
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              <span className="font-medium text-sm truncate">
+                {activeSource.title}
+              </span>
+            </div>
+
+            {/* 관련도 점수 배지 */}
+            <Badge
+              variant="outline"
+              className={cn("flex-shrink-0 font-semibold", getScoreBadgeColor(activeSource.score))}
+            >
+              {(activeSource.score * 100).toFixed(0)}%
+            </Badge>
+          </div>
+
+          {/* 관련도 프로그레스 바 */}
+          <div className="mb-3">
+            <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+              <span>{getScoreLabel(activeSource.score)}</span>
+              <span className="font-mono">{activeSource.score.toFixed(4)}</span>
+            </div>
+            <div className="h-2 bg-muted rounded-full overflow-hidden">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all duration-500 ease-out",
+                  getScoreBarColor(activeSource.score)
+                )}
+                style={{ width: `${activeSource.score * 100}%` }}
+              />
+            </div>
           </div>
 
           {/* 메타 정보 배지들 */}

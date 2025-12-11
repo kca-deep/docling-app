@@ -253,7 +253,8 @@
 
   .markdown-content table {
     display: table;
-    width: auto;
+    width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
     font-size: 0.875rem;
   }
@@ -270,7 +271,7 @@
 
   .markdown-content th {
     font-weight: 600;
-    white-space: nowrap;
+    word-break: keep-all;
   }
 
   /* 테이블 래퍼 스크롤 */
@@ -318,5 +319,16 @@
     width: 1em;
     margin: 0 0.05em 0 0.1em;
     vertical-align: -0.1em;
+  }
+
+  /* 리스트 아이템 내부 p 태그 margin 제거 - bullet과 텍스트 분리 방지 */
+  .markdown-content li > p:first-child {
+    margin-top: 0;
+  }
+  .markdown-content li > p:last-child {
+    margin-bottom: 0;
+  }
+  .markdown-content li > p:only-child {
+    margin: 0;
   }
 }

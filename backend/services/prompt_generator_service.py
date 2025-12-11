@@ -285,7 +285,7 @@ class PromptGeneratorService:
         # 앞뒤 공백 제거
         content = content.strip()
 
-        # 코드 블록 제거 (```markdown ... ```)
+        # 1. 전체를 감싸는 코드 블록 제거 (```markdown ... ```)
         if content.startswith("```"):
             lines = content.split("\n")
             if len(lines) > 2:
@@ -294,6 +294,23 @@ class PromptGeneratorService:
                     content = "\n".join(lines[1:-1])
                 elif lines[0].startswith("```"):
                     content = "\n".join(lines[1:])
+
+        # 2. 내부 코드블록을 마크다운 볼드 헤더로 변환
+        # LLM이 답변 형식을 ```markdown ... ``` 으로 감쌌을 경우 처리
+        def convert_codeblock_to_markdown(match):
+            inner = match.group(1).strip()
+            # [섹션명] 패턴을 **[섹션명]** 볼드로 변환
+            inner = re.sub(r'^\[([^\]]+)\]', r'**[\1]**', inner, flags=re.MULTILINE)
+            return inner
+
+        content = re.sub(
+            r'```(?:markdown)?\s*\n([\s\S]*?)\n```',
+            convert_codeblock_to_markdown,
+            content
+        )
+
+        # 3. 남은 단독 ``` 라인 제거
+        content = re.sub(r'^```\s*$', '', content, flags=re.MULTILINE)
 
         return content.strip()
 

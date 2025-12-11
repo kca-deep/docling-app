@@ -51,7 +51,7 @@ function MarkdownTable({ children }: { children: React.ReactNode }) {
       </div>
       <CollapsibleContent>
         <div className="w-full rounded-md border overflow-x-auto max-w-full">
-          <table className="w-full min-w-fit divide-y divide-border border-collapse text-sm">
+          <table className="w-full divide-y divide-border border-collapse text-sm table-fixed">
             {children}
           </table>
         </div>
@@ -64,7 +64,7 @@ function MarkdownTable({ children }: { children: React.ReactNode }) {
 function CompactTable({ children }: { children: React.ReactNode }) {
   return (
     <div className="my-3 w-full rounded-md border overflow-x-auto">
-      <table className="w-full min-w-fit divide-y divide-border border-collapse text-sm">
+      <table className="w-full divide-y divide-border border-collapse text-sm table-fixed">
         {children}
       </table>
     </div>
@@ -98,15 +98,13 @@ export function MarkdownMessage({ content, compact = false }: MarkdownMessagePro
       <tr className="hover:bg-muted/50 transition-colors">{children}</tr>
     ),
     th: ({ children }) => (
-      <th className="px-3 py-2 text-left text-sm font-semibold text-foreground whitespace-nowrap bg-muted/50">
+      <th className="px-3 py-2 text-left text-sm font-semibold text-foreground bg-muted/50 break-keep">
         {children}
       </th>
     ),
     td: ({ children }) => (
-      <td className="px-3 py-2 text-sm text-foreground align-top">
-        <div className="max-w-[400px] break-words whitespace-normal">
-          {children}
-        </div>
+      <td className="px-3 py-2 text-sm text-foreground align-top break-words [overflow-wrap:anywhere]">
+        {children}
       </td>
     ),
 
@@ -132,19 +130,19 @@ export function MarkdownMessage({ content, compact = false }: MarkdownMessagePro
       </h4>
     ),
 
-    // 리스트 스타일링
+    // 리스트 스타일링 (list-outside로 bullet과 텍스트 분리 방지)
     ul: ({ children }) => (
-      <ul className="list-disc list-inside my-2 space-y-1 text-foreground ml-3">
+      <ul className="list-disc list-outside my-2 space-y-1 text-foreground ml-5 pl-0">
         {children}
       </ul>
     ),
     ol: ({ children }) => (
-      <ol className="list-decimal list-inside my-2 space-y-1 text-foreground ml-3">
+      <ol className="list-decimal list-outside my-2 space-y-1 text-foreground ml-5 pl-0">
         {children}
       </ol>
     ),
     li: ({ children }) => (
-      <li className="text-sm leading-relaxed break-words">{children}</li>
+      <li className="text-sm leading-relaxed break-words pl-1">{children}</li>
     ),
 
     // 단락 스타일링

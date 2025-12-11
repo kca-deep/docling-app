@@ -259,9 +259,9 @@ export default function CollectionsPage() {
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <h1 className="text-4xl font-bold tracking-tight flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-gradient-to-br from-[color:var(--chart-1)] to-[color:var(--chart-2)] text-white shadow-lg shadow-[color:var(--chart-1)]/20">
-              <FolderCog className="h-7 w-7" />
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-[color:var(--chart-1)] to-[color:var(--chart-2)] text-white shadow-lg shadow-[color:var(--chart-1)]/20">
+              <FolderCog className="h-5 w-5" />
             </div>
             <span className="bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
               컬렉션

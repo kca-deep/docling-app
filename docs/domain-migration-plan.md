@@ -1,6 +1,6 @@
 # 도메인 마이그레이션 플랜
 
-> **kca-ai.kro.kr** → **ai.kca.kr** 도메인 변경 및 SSL 인증서 교체
+> **ai.kca.kr** → **ai.kca.kr** 도메인 변경 및 SSL 인증서 교체
 
 ## 목차
 
@@ -16,12 +16,12 @@
 
 ### 1.1 변경 항목
 
-| 항목 | 현재 (kca-ai.kro.kr) | 변경 후 (ai.kca.kr) |
+| 항목 | 현재 (ai.kca.kr) | 변경 후 (ai.kca.kr) |
 |------|---------------------|---------------------|
-| **도메인** | kca-ai.kro.kr | ai.kca.kr |
+| **도메인** | ai.kca.kr | ai.kca.kr |
 | **SSL 발급기관** | Let's Encrypt | KICA (한국정보인증) |
 | **인증서 유형** | 단일 도메인 | 와일드카드 (*.kca.kr) |
-| **인증서 경로** | /etc/letsencrypt/live/kca-ai.kro.kr/ | /etc/ssl/kca/ |
+| **인증서 경로** | /etc/letsencrypt/live/ai.kca.kr/ | /etc/ssl/kca/ |
 | **인증서 파일** | fullchain.pem, privkey.pem | star_kca_kr_NginX_cert.pem, star_kca_kr_NginX_nopass_key.pem |
 
 ### 1.2 영향받는 파일
@@ -80,8 +80,8 @@ cp /data/docling-app/CLAUDE.md ${BACKUP_DIR}/CLAUDE.md.backup
 ```bash
 # 기존 인증서 경로 기록 (삭제하지 않음)
 echo "Let's Encrypt 인증서 경로:" > ${BACKUP_DIR}/letsencrypt-paths.txt
-echo "/etc/letsencrypt/live/kca-ai.kro.kr/fullchain.pem" >> ${BACKUP_DIR}/letsencrypt-paths.txt
-echo "/etc/letsencrypt/live/kca-ai.kro.kr/privkey.pem" >> ${BACKUP_DIR}/letsencrypt-paths.txt
+echo "/etc/letsencrypt/live/ai.kca.kr/fullchain.pem" >> ${BACKUP_DIR}/letsencrypt-paths.txt
+echo "/etc/letsencrypt/live/ai.kca.kr/privkey.pem" >> ${BACKUP_DIR}/letsencrypt-paths.txt
 ```
 
 ### 2.6 백업 완료 확인
@@ -166,7 +166,7 @@ upstream docling_backend {
 # HTTP 서버 (80) - HTTPS로 리다이렉트
 server {
     listen 80;
-    server_name ai.kca.kr kca-ai.kro.kr;
+    server_name ai.kca.kr ai.kca.kr;
     client_max_body_size 100M;
 
     # Let's Encrypt ACME 챌린지용 (인증서 갱신시 필요)
@@ -181,15 +181,15 @@ server {
     }
 }
 
-# 기존 도메인 리다이렉트 (kca-ai.kro.kr -> ai.kca.kr)
+# 기존 도메인 리다이렉트 (ai.kca.kr -> ai.kca.kr)
 server {
     listen 443 ssl http2;
-    server_name kca-ai.kro.kr;
+    server_name ai.kca.kr;
     client_max_body_size 100M;
 
     # 기존 Let's Encrypt 인증서 유지
-    ssl_certificate /etc/letsencrypt/live/kca-ai.kro.kr/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/kca-ai.kro.kr/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/ai.kca.kr/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/ai.kca.kr/privkey.pem;
 
     ssl_protocols TLSv1.2 TLSv1.3;
 
@@ -341,7 +341,7 @@ sudo systemctl status nginx
 
 ```bash
 # ALLOWED_ORIGINS 변경
-sed -i 's|http://kca-ai.kro.kr:3000|https://ai.kca.kr|g' /data/docling-app/backend/.env
+sed -i 's|http://ai.kca.kr:3000|https://ai.kca.kr|g' /data/docling-app/backend/.env
 
 # 확인
 grep ALLOWED_ORIGINS /data/docling-app/backend/.env
@@ -361,7 +361,7 @@ sudo systemctl status docling-app-backend.service
 파일의 58번째 줄 수정:
 ```typescript
 // 변경 전
-const [difyBaseUrl, setDifyBaseUrl] = useState("http://kca-ai.kro.kr:5001/v1")
+const [difyBaseUrl, setDifyBaseUrl] = useState("http://ai.kca.kr:5001/v1")
 
 // 변경 후
 const [difyBaseUrl, setDifyBaseUrl] = useState("https://ai.kca.kr:5001/v1")
@@ -444,7 +444,7 @@ sudo systemctl status docling-app-backend.service
 sudo systemctl status docling-app-frontend.service
 
 # 웹사이트 접속 테스트
-curl -I https://kca-ai.kro.kr
+curl -I https://ai.kca.kr
 ```
 
 ---
@@ -460,7 +460,7 @@ curl -I https://kca-ai.kro.kr
 openssl s_client -connect ai.kca.kr:443 -servername ai.kca.kr 2>/dev/null | openssl x509 -noout -subject -dates
 
 # 기존 도메인 리다이렉트 확인
-curl -I https://kca-ai.kro.kr 2>/dev/null | grep -E "(HTTP|Location)"
+curl -I https://ai.kca.kr 2>/dev/null | grep -E "(HTTP|Location)"
 ```
 
 #### 서비스 동작 검증
@@ -469,7 +469,7 @@ curl -I https://kca-ai.kro.kr 2>/dev/null | grep -E "(HTTP|Location)"
 |------------|-----------|----------|
 | 메인 페이지 | https://ai.kca.kr | 200 OK |
 | API 상태 | https://ai.kca.kr/api/health | 200 OK, JSON 응답 |
-| 기존 도메인 리다이렉트 | https://kca-ai.kro.kr | 301 -> https://ai.kca.kr |
+| 기존 도메인 리다이렉트 | https://ai.kca.kr | 301 -> https://ai.kca.kr |
 | Dify | https://ai.kca.kr/dify/ | Dify 페이지 로드 |
 
 #### 브라우저 검증
@@ -503,7 +503,7 @@ curl -I https://kca-ai.kro.kr 2>/dev/null | grep -E "(HTTP|Location)"
 | Nginx 설정 | /etc/nginx/sites-available/ai-platform |
 | 새 SSL 인증서 | /etc/ssl/kca/star_kca_kr_NginX_cert.pem |
 | 새 SSL 개인키 | /etc/ssl/kca/star_kca_kr_NginX_nopass_key.pem |
-| 기존 SSL 인증서 | /etc/letsencrypt/live/kca-ai.kro.kr/ |
+| 기존 SSL 인증서 | /etc/letsencrypt/live/ai.kca.kr/ |
 | 백엔드 환경변수 | /data/docling-app/backend/.env |
 
 ### 서비스 명령어
