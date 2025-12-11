@@ -192,7 +192,7 @@ export const MessageBubble = memo(function MessageBubble({
           <AvatarFallback
             className={cn(
               role === "user" && "text-white",
-              role !== "user" && role !== "assistant" && "bg-muted text-muted-foreground"
+              role === "system" && "bg-muted text-muted-foreground"
             )}
             style={
               role === "user"
