@@ -400,93 +400,92 @@ export default function CollectionsPage() {
           variants={container}
           initial="hidden"
           animate="show"
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
         >
           {filteredCollections.map((collection) => (
             <motion.div key={collection.name} variants={item}>
-              <Card className="group relative overflow-hidden border-border/50 bg-background/60 backdrop-blur-sm hover:border-[color:var(--chart-1)]/30 hover:shadow-xl hover:shadow-[color:var(--chart-1)]/5 transition-all duration-300">
-                <div className="absolute inset-0 bg-gradient-to-br from-[color:var(--chart-1)]/0 via-[color:var(--chart-1)]/0 to-[color:var(--chart-1)]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+              <Card className="group relative overflow-hidden border-border/40 bg-background/80 backdrop-blur-sm hover:border-[color:var(--chart-1)]/40 hover:shadow-lg transition-all duration-300 cursor-pointer">
+                {/* 호버 시 배경 그라데이션 */}
+                <div className="absolute inset-0 bg-gradient-to-br from-[color:var(--chart-1)]/5 to-[color:var(--chart-2)]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
-                <CardContent className="p-5">
-                  {/* Card Header Area */}
-                  <div className="flex items-start justify-between mb-4 relative z-10">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 group-hover:from-[color:var(--chart-1)]/10 group-hover:to-[color:var(--chart-2)]/10 text-muted-foreground group-hover:text-[color:var(--chart-1)] transition-all duration-300 shadow-inner">
-                        <Database className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-base line-clamp-1 group-hover:text-[color:var(--chart-1)] transition-colors" title={collection.name}>
-                          {collection.name}
-                        </h3>
-                        <p className="text-xs text-muted-foreground">
-                          {collection.distance} • {collection.vector_size}d
-                        </p>
-                      </div>
+                <CardContent className="p-4 relative z-10">
+                  {/* 컴팩트 기본 뷰 */}
+                  <div className="flex items-center gap-3">
+                    {/* 아이콘 */}
+                    <div className="p-2 rounded-lg bg-muted/50 group-hover:bg-[color:var(--chart-1)]/10 transition-colors">
+                      <Database className="h-4 w-4 text-muted-foreground group-hover:text-[color:var(--chart-1)] transition-colors" />
                     </div>
 
-                    {/* Actions Menu */}
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity translate-x-2 group-hover:translate-x-0">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 hover:bg-background/80 hover:text-[color:var(--chart-1)] rounded-lg"
-                              onClick={() => openPromptGenerator(collection)}
-                              disabled={collection.points_count === 0}
-                            >
-                              <Sparkles className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="top">프롬프트 생성</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 hover:bg-background/80 rounded-lg"
-                              onClick={() => openSettingsModal(collection)}
-                            >
-                              <Settings className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="top">설정</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                    {/* 메인 정보 */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-sm truncate group-hover:text-[color:var(--chart-1)] transition-colors" title={collection.name}>
+                        {collection.name}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        {collection.points_count > 0 ? (
+                          <>{collection.documents_count}문서 • {collection.points_count.toLocaleString()}청크</>
+                        ) : (
+                          <span className="text-muted-foreground/60">비어있음</span>
+                        )}
+                      </p>
                     </div>
-                  </div>
 
-                  {/* Description */}
-                  <div className="min-h-[2.5rem] mb-4 relative z-10">
-                    <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
-                      {collection.description || "설명이 없습니다."}
-                    </p>
-                  </div>
-
-                  {/* Footer Info */}
-                  <div className="flex items-center justify-between pt-4 border-t border-border/50 relative z-10">
-                    <div className="flex items-center gap-2">
-                      {collection.points_count > 0 ? (
-                        <>
-                          <Badge variant="secondary" className="bg-secondary/50 font-mono">
-                            {collection.documents_count.toLocaleString()} docs
-                          </Badge>
-                          <Badge variant="outline" className="font-mono text-xs">
-                            {collection.points_count.toLocaleString()} chunks
-                          </Badge>
-                        </>
-                      ) : (
-                        <Badge variant="outline" className="text-muted-foreground text-xs border-dashed">
-                          비어있음
-                        </Badge>
-                      )}
-                    </div>
+                    {/* 공개상태 아이콘 */}
                     {getVisibilityBadge(collection.visibility, true)}
+                  </div>
+
+                  {/* 호버 시 확장 영역 */}
+                  <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-all duration-300 ease-out">
+                    <div className="overflow-hidden">
+                      <div className="pt-4 space-y-3">
+                        {/* 구분선 */}
+                        <div className="h-px bg-border/50" />
+
+                        {/* 설명 */}
+                        <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                          {collection.description || "설명이 없습니다."}
+                        </p>
+
+                        {/* 메타 정보 태그 */}
+                        <div className="flex flex-wrap gap-1.5">
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 font-normal">
+                            {collection.distance}
+                          </Badge>
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 font-normal">
+                            {collection.vector_size}d
+                          </Badge>
+                        </div>
+
+                        {/* 액션 버튼 */}
+                        <div className="flex gap-2 pt-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 h-8 text-xs gap-1.5 hover:bg-[color:var(--chart-1)]/10 hover:text-[color:var(--chart-1)] hover:border-[color:var(--chart-1)]/30"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              openPromptGenerator(collection)
+                            }}
+                            disabled={collection.points_count === 0}
+                          >
+                            <Sparkles className="h-3 w-3" />
+                            프롬프트
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 h-8 text-xs gap-1.5"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              openSettingsModal(collection)
+                            }}
+                          >
+                            <Settings className="h-3 w-3" />
+                            설정
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
