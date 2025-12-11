@@ -28,7 +28,7 @@ export interface DifyUploadResult {
 
 export interface QdrantCollection {
   name: string
-  vectors_count: number
+  documents_count: number
   points_count: number
   vector_size: number
   distance: string

@@ -32,7 +32,7 @@ import { cn } from "@/lib/utils"
 
 interface Collection {
   name: string
-  vectors_count: number
+  documents_count: number
   points_count: number
   vector_size: number
   distance: string
@@ -40,7 +40,6 @@ interface Collection {
   description?: string
   owner_id?: number
   is_owner?: boolean
-  documents_count?: number
   created_at?: string
 }
 
@@ -139,11 +138,15 @@ export function CollectionSettingsModal({
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <Label className="text-muted-foreground text-xs">벡터 수</Label>
+                  <Label className="text-muted-foreground text-xs">문서 수</Label>
                   <div className="flex items-center gap-2">
                     <Database className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">{collection.vectors_count.toLocaleString()}</span>
+                    <span className="font-medium">{collection.documents_count.toLocaleString()}</span>
                   </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-muted-foreground text-xs">청크 수</Label>
+                  <span className="font-medium">{collection.points_count.toLocaleString()}</span>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-muted-foreground text-xs">벡터 크기</Label>
@@ -152,10 +155,6 @@ export function CollectionSettingsModal({
                 <div className="space-y-1">
                   <Label className="text-muted-foreground text-xs">거리 메트릭</Label>
                   <span className="font-medium">{collection.distance}</span>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-muted-foreground text-xs">문서 수</Label>
-                  <span className="font-medium">{collection.documents_count ?? "-"}</span>
                 </div>
               </div>
 

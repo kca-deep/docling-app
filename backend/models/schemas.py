@@ -282,8 +282,8 @@ class URLConvertRequest(BaseModel):
 class QdrantCollectionInfo(BaseModel):
     """Qdrant Collection 정보"""
     name: str
-    vectors_count: int
-    points_count: int
+    documents_count: int  # 고유 문서 수
+    points_count: int  # 청크(chunks) 수
     vector_size: int
     distance: str
     # 메타데이터 필드 (SQLite에서 조회)

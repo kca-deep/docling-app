@@ -50,16 +50,14 @@ import { PromptGeneratorModal } from "./components/PromptGeneratorModal"
 // 컬렉션 타입 정의
 interface Collection {
   name: string
-  vectors_count: number
+  documents_count: number
   points_count: number
   vector_size: number
   distance: string
-  // 추후 백엔드에서 추가될 필드
   visibility?: "public" | "private" | "shared"
   description?: string
   owner_id?: number
   is_owner?: boolean
-  documents_count?: number
   created_at?: string
 }
 
@@ -127,7 +125,7 @@ export default function CollectionsPage() {
         case "name_desc":
           return b.name.localeCompare(a.name, 'ko-KR')
         case "vectors_desc":
-          return b.vectors_count - a.vectors_count
+          return b.points_count - a.points_count
         case "newest":
           // created_at이 없으면 이름 순으로 fallback
           if (a.created_at && b.created_at) {
@@ -436,7 +434,7 @@ export default function CollectionsPage() {
                               size="icon"
                               className="h-8 w-8 hover:bg-background/80 hover:text-[color:var(--chart-1)] rounded-lg"
                               onClick={() => openPromptGenerator(collection)}
-                              disabled={collection.vectors_count === 0}
+                              disabled={collection.points_count === 0}
                             >
                               <Sparkles className="h-4 w-4" />
                             </Button>
@@ -473,10 +471,15 @@ export default function CollectionsPage() {
                   {/* Footer Info */}
                   <div className="flex items-center justify-between pt-4 border-t border-border/50 relative z-10">
                     <div className="flex items-center gap-2">
-                      {collection.vectors_count > 0 ? (
-                        <Badge variant="secondary" className="bg-secondary/50 font-mono">
-                          {collection.vectors_count.toLocaleString()} vectors
-                        </Badge>
+                      {collection.points_count > 0 ? (
+                        <>
+                          <Badge variant="secondary" className="bg-secondary/50 font-mono">
+                            {collection.documents_count.toLocaleString()} docs
+                          </Badge>
+                          <Badge variant="outline" className="font-mono text-xs">
+                            {collection.points_count.toLocaleString()} chunks
+                          </Badge>
+                        </>
                       ) : (
                         <Badge variant="outline" className="text-muted-foreground text-xs border-dashed">
                           비어있음

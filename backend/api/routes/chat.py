@@ -785,7 +785,7 @@ async def get_collections(
                 meta = metadata_map[qdrant_col.name]
                 result_collections.append({
                     "name": qdrant_col.name,
-                    "vectors_count": qdrant_col.vectors_count,
+                    "documents_count": qdrant_col.documents_count,
                     "points_count": qdrant_col.points_count,
                     "vector_size": qdrant_col.vector_size,
                     "distance": qdrant_col.distance,

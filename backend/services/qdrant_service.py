@@ -67,12 +67,15 @@ class QdrantService:
                     vector_size = first_vector.size
                     distance = distance_map.get(first_vector.distance, "Unknown")
 
-                # points_count를 vectors_count에도 사용 (단일 벡터 구성에서는 동일)
                 points = collection_info.points_count or 0
+
+                # 고유 문서 수 집계 (document_id 메타데이터 기반)
+                documents_count = await self._count_unique_documents(collection.name)
+
                 result.append(
                     QdrantCollectionInfo(
                         name=collection.name,
-                        vectors_count=points,
+                        documents_count=documents_count,
                         points_count=points,
                         vector_size=vector_size,
                         distance=distance
@@ -84,6 +87,44 @@ class QdrantService:
         except Exception as e:
             print(f"[ERROR] Failed to get collections from Qdrant: {e}")
             raise Exception(f"Qdrant collection 조회 실패: {str(e)}")
+
+    async def _count_unique_documents(self, collection_name: str) -> int:
+        """
+        컬렉션 내 고유 문서 수 집계
+
+        Args:
+            collection_name: Collection 이름
+
+        Returns:
+            int: 고유 문서 수
+        """
+        try:
+            unique_doc_ids = set()
+            offset = None
+
+            # scroll API로 모든 포인트의 document_id를 수집
+            while True:
+                results, next_offset = await self.client.scroll(
+                    collection_name=collection_name,
+                    limit=1000,
+                    offset=offset,
+                    with_payload=["document_id"],  # document_id만 가져오기
+                    with_vectors=False
+                )
+
+                for point in results:
+                    if point.payload and "document_id" in point.payload:
+                        unique_doc_ids.add(point.payload["document_id"])
+
+                if next_offset is None:
+                    break
+                offset = next_offset
+
+            return len(unique_doc_ids)
+
+        except Exception as e:
+            print(f"[WARN] Failed to count unique documents in '{collection_name}': {e}")
+            return 0  # 실패 시 0 반환
 
     async def create_collection(
         self,

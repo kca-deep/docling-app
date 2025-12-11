@@ -81,7 +81,7 @@ async def migrate_existing_collections(db: Session) -> dict:
                     collection_name=col.name,
                     owner_id=admin_user_id,
                     visibility="public",  # 기존 컬렉션은 public으로 (하위 호환)
-                    description=f"Migrated from Qdrant ({col.vectors_count} vectors)"
+                    description=f"Migrated from Qdrant ({col.documents_count} documents, {col.points_count} chunks)"
                 )
 
                 result["migrated"] += 1

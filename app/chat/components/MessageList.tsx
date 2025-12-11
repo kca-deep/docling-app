@@ -157,9 +157,9 @@ export const MessageList = memo(function MessageList({
           ))}
 
           {/* 초기 화면 추천 질문 (일상대화 모드에서도 표시) */}
-          {messages.length === 0 && !isLoading && onPromptSelect && collectionName && (
+          {messages.length === 0 && !isLoading && onPromptSelect && (
             <SuggestedPrompts
-              collectionName={collectionName}
+              collectionName={collectionName || ""}
               onSelect={onPromptSelect}
             />
           )}
@@ -169,7 +169,7 @@ export const MessageList = memo(function MessageList({
             !isStreaming ||
             (isStreaming && (messages.length === 0 || messages[messages.length - 1].role !== 'assistant'))
           ) && (
-            <ThinkingIndicator />
+            <ThinkingIndicator collectionName={collectionName} />
           )}
 
           {/* 새 메시지 알림 (사용자가 스크롤했을 때만) */}

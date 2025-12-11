@@ -67,7 +67,7 @@ interface ExcelPreviewResponse {
 
 interface QdrantCollection {
   name: string
-  vectors_count: number
+  documents_count: number
   points_count: number
   vector_size: number
   distance: string
@@ -655,7 +655,7 @@ export default function ExcelEmbeddingPage() {
                     </TooltipProvider>
                     <Badge variant="secondary" className="text-xs gap-1 bg-[color:var(--chart-2)]/10 text-[color:var(--chart-2)]">
                       <Layers className="h-3 w-3" />
-                      {selectedCollectionInfo.vectors_count.toLocaleString()}
+                      {selectedCollectionInfo.points_count.toLocaleString()} chunks
                     </Badge>
                   </div>
                 )}
@@ -680,7 +680,7 @@ export default function ExcelEmbeddingPage() {
                             <span className="font-medium">{col.name}</span>
                           </div>
                           <Badge variant="secondary" className="text-xs">
-                            {col.vectors_count.toLocaleString()}v
+                            {col.points_count.toLocaleString()}c
                           </Badge>
                         </div>
                       </SelectItem>

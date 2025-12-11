@@ -78,11 +78,11 @@ export function QdrantSettingsPanel({
                   <TooltipTrigger asChild>
                     <Badge variant="secondary" className="text-xs gap-1 bg-[color:var(--chart-1)]/10 text-[color:var(--chart-1)]">
                       <FileStack className="h-3 w-3" />
-                      {selectedCollectionInfo.vectors_count.toLocaleString()}
+                      {selectedCollectionInfo.points_count.toLocaleString()} chunks
                     </Badge>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p className="text-xs">벡터 수</p>
+                    <p className="text-xs">청크 수</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -108,7 +108,7 @@ export function QdrantSettingsPanel({
                         <VisibilityIcon visibility={col.visibility} />
                       </Badge>
                       <Badge variant="secondary" className="text-xs">
-                        {col.vectors_count.toLocaleString()}v
+                        {col.points_count.toLocaleString()}c
                       </Badge>
                     </div>
                   </div>

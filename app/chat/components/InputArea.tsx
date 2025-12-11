@@ -54,7 +54,7 @@ interface ModelOption {
 
 interface Collection {
   name: string;
-  vectors_count: number;
+  documents_count: number;
   points_count: number;
   vector_size: number;
   distance: string;

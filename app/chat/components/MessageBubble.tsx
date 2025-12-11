@@ -218,17 +218,29 @@ export const MessageBubble = memo(function MessageBubble({
         {/* 메시지 버블 */}
         <div
           className={cn(
-            "rounded-2xl px-5 py-4 transition-all duration-300 inline-block max-w-full shadow-sm hover:shadow-md animate-in slide-in-from-bottom-2",
-            role === "user" && "text-white shadow-primary/20 backdrop-blur-md border border-white/20",
-            role === "system" && "bg-muted/50 border border-border/50 backdrop-blur-sm",
-            role === "assistant" && "bg-background/60 backdrop-blur-lg border border-border/40 text-card-foreground shadow-sm"
+            "rounded-2xl px-5 py-4 transition-all duration-300 inline-block max-w-full animate-in slide-in-from-bottom-2",
+            role === "user" && "text-white relative overflow-hidden",
+            role === "system" && "bg-muted/50 border border-border/50 backdrop-blur-sm shadow-sm hover:shadow-md",
+            role === "assistant" && "bg-background/60 backdrop-blur-lg border border-border/40 text-card-foreground shadow-sm hover:shadow-md"
           )}
           style={
             role === "user"
-              ? { background: "linear-gradient(135deg, color-mix(in srgb, var(--primary) 90%, transparent), color-mix(in srgb, var(--chart-2) 90%, transparent))" }
+              ? {
+                  background: "linear-gradient(135deg, var(--chart-1), var(--chart-2))",
+                  boxShadow: "0 4px 20px -4px color-mix(in oklch, var(--chart-1) 40%, transparent), 0 2px 8px -2px color-mix(in oklch, var(--chart-2) 30%, transparent)",
+                }
               : undefined
           }
         >
+          {/* 사용자 메시지 좌측 액센트 */}
+          {role === "user" && (
+            <div
+              className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl"
+              style={{
+                background: "linear-gradient(180deg, rgba(255,255,255,0.4), rgba(255,255,255,0.1))",
+              }}
+            />
+          )}
           <div className={cn("min-w-0 link-primary", role === "assistant" && "text-foreground/90")}>
             {parsedContent && parsedContent.hasThought ? (
               // EXAONE 모델: 추론 과정과 답변 분리 표시
