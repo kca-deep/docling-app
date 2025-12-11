@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, isValidElement, ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
@@ -76,15 +76,21 @@ function CodeBlock({ children, language }: { children: React.ReactNode; language
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
-    // children에서 텍스트 추출
-    const codeElement = children as React.ReactElement;
-    let codeText = '';
-
-    if (codeElement?.props?.children) {
-      codeText = String(codeElement.props.children).replace(/\n$/, '');
-    }
-
     try {
+      // children에서 텍스트 추출
+      const extractText = (node: ReactNode): string => {
+        if (typeof node === 'string') return node;
+        if (typeof node === 'number') return String(node);
+        if (!node) return '';
+        if (Array.isArray(node)) return node.map(extractText).join('');
+        if (isValidElement(node)) {
+          const props = node.props as { children?: ReactNode };
+          return extractText(props.children);
+        }
+        return '';
+      };
+
+      const codeText = extractText(children).replace(/\n$/, '');
       await navigator.clipboard.writeText(codeText);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -240,7 +246,7 @@ export function MarkdownMessage({ content, compact = false }: MarkdownMessagePro
     pre: ({ children }) => {
       // children에서 언어 정보 추출 (React element의 props에서)
       let language = '';
-      const child = children as React.ReactElement;
+      const child = children as React.ReactElement<{ className?: string }>;
       if (child?.props?.className) {
         const match = child.props.className.match(/language-(\w+)/);
         if (match) {
