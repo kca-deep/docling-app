@@ -564,16 +564,6 @@ export default function CollectionsPage() {
                     {/* 구분선 */}
                     <div className="h-px bg-border/50 my-3" />
 
-                    {/* 기술 정보 태그 */}
-                    <div className="flex flex-wrap gap-1.5 mb-3">
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 font-normal">
-                        {collection.distance}
-                      </Badge>
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 font-normal">
-                        {collection.vector_size}d
-                      </Badge>
-                    </div>
-
                     {/* 액션 버튼 - 항상 표시 */}
                     <div className="flex gap-2">
                       <Button

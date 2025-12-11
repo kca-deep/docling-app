@@ -12,12 +12,25 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
+from backend.config.settings import settings
 from backend.services.document_selector_service import document_selector_service
 from backend.services.prompt_generator_service import prompt_generator_service
 from backend.services.prompt_validator import prompt_validator
 from backend.services.file_manager_service import file_manager_service
+from backend.services.embedding_service import EmbeddingService
+from backend.services.qdrant_service import QdrantService
 
 logger = logging.getLogger(__name__)
+
+# 청크 기반 샘플링용 서비스 인스턴스
+embedding_service = EmbeddingService(
+    base_url=settings.EMBEDDING_URL,
+    model=settings.EMBEDDING_MODEL
+)
+qdrant_service = QdrantService(
+    url=settings.QDRANT_URL,
+    api_key=settings.QDRANT_API_KEY
+)
 router = APIRouter(prefix="/api/prompts", tags=["prompts"])
 
 # 진행 중인 작업 저장소 (메모리)
@@ -101,13 +114,35 @@ async def generate_prompt_task(
         db = db_session_maker()
 
         try:
-            # 1. 문서 샘플링 (20%)
+            # 1. 문서 샘플링 (20%) - 청크 기반 샘플링 우선 시도
             task_storage[task_id]["progress"] = 20
-            document_sample = document_selector_service.sample_multiple_documents(
-                db=db,
-                document_ids=document_ids,
-                max_tokens_total=4000
-            )
+            document_sample = ""
+
+            # 청크 기반 샘플링 시도 (Qdrant에서 의미론적 검색)
+            try:
+                logger.info(f"청크 기반 샘플링 시작: collection={collection_name}, docs={document_ids}")
+                document_sample = await document_selector_service.sample_documents_from_chunks(
+                    collection_name=collection_name,
+                    document_ids=document_ids,
+                    embedding_service=embedding_service,
+                    qdrant_service=qdrant_service,
+                    max_tokens_total=4000,
+                    top_k=15
+                )
+                if document_sample:
+                    logger.info(f"청크 기반 샘플링 성공: {len(document_sample)}자")
+            except Exception as e:
+                logger.warning(f"청크 기반 샘플링 실패, 기존 방식으로 폴백: {e}")
+                document_sample = ""
+
+            # 청크 기반 실패 시 기존 위치 기반 샘플링으로 폴백
+            if not document_sample:
+                logger.info("기존 위치 기반 샘플링 사용")
+                document_sample = document_selector_service.sample_multiple_documents(
+                    db=db,
+                    document_ids=document_ids,
+                    max_tokens_total=4000
+                )
 
             if not document_sample:
                 raise ValueError("문서 샘플을 생성할 수 없습니다.")
@@ -272,9 +307,11 @@ async def get_documents(
     컬렉션 문서 목록 조회
 
     프롬프트 생성에 사용할 문서 목록을 조회합니다.
+    해당 컬렉션에 업로드된 문서만 반환합니다.
     """
     documents = document_selector_service.get_documents_for_collection(
         db=db,
+        collection_name=collection_name,
         search=search,
         limit=limit
     )

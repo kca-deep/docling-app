@@ -45,15 +45,6 @@
         "temperature": 0.3,
         "reasoning_level": "medium"
       }
-    },
-    "kca-fund-regulation": {
-      "prompt_file": "kca-fund-regulation_prompt.md",
-      "description": "kca-fund-regulation 컬렉션 프롬프트",
-      "recommended_params": {
-        "top_k": 10,
-        "temperature": 0.3,
-        "reasoning_level": "medium"
-      }
     }
   },
   "default_prompt": "default.md",

@@ -71,11 +71,11 @@ export function DocumentSelector({
 
         {/* 선택된 문서 표시 */}
         {selectedDocs.size > 0 && (
-          <div className="mt-4 p-3 border border-[color:var(--chart-1)]/20 rounded-xl bg-[color:var(--chart-1)]/5">
+          <div className="mt-4 p-3 border border-[color:var(--chart-1)]/20 rounded-xl bg-[color:var(--chart-1)]/5 overflow-hidden">
             <Label className="text-sm font-medium mb-2 block text-[color:var(--chart-1)]">
               선택된 문서 ({selectedDocs.size}개)
             </Label>
-            <ScrollArea className="max-h-20">
+            <div className="max-h-24 overflow-y-auto">
               <div className="flex flex-wrap gap-2">
                 {Array.from(selectedDocsInfo.entries()).map(([id, filename]) => (
                   <Badge
@@ -93,7 +93,7 @@ export function DocumentSelector({
                   </Badge>
                 ))}
               </div>
-            </ScrollArea>
+            </div>
           </div>
         )}
 

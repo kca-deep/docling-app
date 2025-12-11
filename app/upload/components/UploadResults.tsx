@@ -2,7 +2,6 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { CheckCircle2, XCircle, Upload } from "lucide-react"
 import { DifyUploadResult, QdrantUploadResult, UploadTarget } from "../types"
 
@@ -41,8 +40,8 @@ export function UploadResults({ uploadTarget, difyResults, qdrantResults }: Uplo
           {uploadTarget === "qdrant" && ` | 총 청크: ${totalChunks}개`}
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <ScrollArea className="max-h-[300px]">
+      <CardContent className="overflow-hidden">
+        <div className="max-h-[300px] overflow-y-auto">
           <div className="space-y-2">
             {results.map((result, idx) => (
               <div
@@ -82,7 +81,7 @@ export function UploadResults({ uploadTarget, difyResults, qdrantResults }: Uplo
               </div>
             ))}
           </div>
-        </ScrollArea>
+        </div>
       </CardContent>
     </Card>
   )

@@ -85,7 +85,7 @@ class Settings(BaseSettings):
     PROMPTS_DIR: Optional[str] = None  # None이면 backend/prompts/ 사용
 
     # 프롬프트 자동 생성 설정
-    PROMPT_GEN_MAX_TOKENS: int = 2000  # 시스템 프롬프트 생성 시 최대 출력 토큰
+    PROMPT_GEN_MAX_TOKENS: int = 4096  # 시스템 프롬프트 생성 시 최대 출력 토큰
     PROMPT_GEN_QUESTIONS_MAX_TOKENS: int = 2000  # 추천 질문 생성 시 최대 출력 토큰 (reasoning 모드 고려)
     PROMPT_GEN_SAMPLE_LIMIT: int = 3000  # 문서 샘플 최대 문자수 (입력 토큰 절약)
 

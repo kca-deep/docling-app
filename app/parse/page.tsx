@@ -533,7 +533,7 @@ export default function ParsePage() {
                       {files.map((fileStatus, index) => (
                         <div
                           key={index}
-                          className={`flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors ${
+                          className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
                             fileStatus.status === "success"
                               ? "bg-[color:var(--chart-2)]/5 hover:bg-[color:var(--chart-2)]/10"
                               : fileStatus.status === "error"
@@ -541,7 +541,7 @@ export default function ParsePage() {
                               : "bg-muted/50 hover:bg-muted"
                           }`}
                         >
-                        <div className="flex items-center space-x-3 flex-1 min-w-0">
+                          {/* Status Icon */}
                           <div className="flex-shrink-0">
                             {fileStatus.status === "pending" && (
                               <FileText className="w-4 h-4" style={{ color: "var(--chart-1)" }} />
@@ -556,9 +556,11 @@ export default function ParsePage() {
                               <XCircle className="w-4 h-4 text-destructive" />
                             )}
                           </div>
-                          <div className="flex-1 min-w-0">
+
+                          {/* File Info - Flexible Width */}
+                          <div className="flex-1 min-w-0 overflow-hidden">
                             <p className="text-sm font-medium truncate">{fileStatus.file.name}</p>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <p className="text-xs text-muted-foreground">
                                 {(fileStatus.file.size / 1024 / 1024).toFixed(2)} MB
                               </p>
@@ -570,7 +572,9 @@ export default function ParsePage() {
                               )}
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 flex-shrink-0">
+
+                          {/* Action Buttons - Fixed Width */}
+                          <div className="flex items-center gap-1 flex-shrink-0">
                             {(fileStatus.status === "success" || fileStatus.status === "error") && (
                               <Button
                                 type="button"
@@ -583,20 +587,19 @@ export default function ParsePage() {
                                 결과
                               </Button>
                             )}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => removeFile(index)}
+                              disabled={processing}
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                            </Button>
                           </div>
                         </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 ml-2 flex-shrink-0"
-                          onClick={() => removeFile(index)}
-                          disabled={processing}
-                        >
-                          <XCircle className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 </ScrollArea>
 
