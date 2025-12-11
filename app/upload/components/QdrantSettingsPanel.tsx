@@ -23,6 +23,40 @@ interface QdrantSettingsPanelProps {
   onFetchCollections: () => void
 }
 
+// 메타데이터 파싱 함수
+interface CollectionMetadata {
+  koreanName?: string
+  icon?: string
+  keywords?: string[]
+  priority?: number
+  plainDescription?: string
+}
+
+function parseMetadata(description?: string): CollectionMetadata {
+  if (!description) return {}
+  try {
+    const parsed = JSON.parse(description)
+    if (typeof parsed === 'object' && parsed !== null) {
+      return {
+        koreanName: parsed.koreanName,
+        icon: parsed.icon,
+        keywords: Array.isArray(parsed.keywords) ? parsed.keywords : undefined,
+        priority: typeof parsed.priority === 'number' ? parsed.priority : undefined,
+        plainDescription: parsed.plainDescription,
+      }
+    }
+  } catch {
+    return { plainDescription: description }
+  }
+  return {}
+}
+
+// 컬렉션 표시명 가져오기
+function getDisplayName(collection: QdrantCollection): string {
+  const metadata = parseMetadata(collection.description)
+  return metadata.koreanName || collection.name
+}
+
 // Visibility icon helper
 function VisibilityIcon({ visibility }: { visibility?: string }) {
   switch (visibility) {
@@ -91,7 +125,9 @@ export function QdrantSettingsPanel({
         </div>
         <Select value={selectedCollection} onValueChange={onSelectedCollectionChange}>
           <SelectTrigger id="qdrant-collection" className="h-11 bg-background/50 border-border/50 focus:border-[color:var(--chart-1)]/30 transition-colors">
-            <SelectValue placeholder="Collection 선택" />
+            <SelectValue placeholder="Collection 선택">
+              {selectedCollection && getDisplayName(collections.find(c => c.name === selectedCollection) || { name: selectedCollection, documents_count: 0, points_count: 0, vector_size: 0, distance: '' })}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {collections.length === 0 ? (
@@ -102,7 +138,7 @@ export function QdrantSettingsPanel({
               collections.map((col) => (
                 <SelectItem key={col.name} value={col.name}>
                   <div className="flex items-center justify-between w-full gap-3">
-                    <span className="font-medium">{col.name}</span>
+                    <span className="font-medium">{getDisplayName(col)}</span>
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="text-xs gap-1">
                         <VisibilityIcon visibility={col.visibility} />
