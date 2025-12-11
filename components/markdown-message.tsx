@@ -11,7 +11,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface MarkdownMessageProps {
@@ -67,6 +67,62 @@ function CompactTable({ children }: { children: React.ReactNode }) {
       <table className="w-full divide-y divide-border border-collapse text-sm table-fixed">
         {children}
       </table>
+    </div>
+  );
+}
+
+// 코드 블록 컴포넌트 (복사 버튼 포함)
+function CodeBlock({ children, language }: { children: React.ReactNode; language?: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    // children에서 텍스트 추출
+    const codeElement = children as React.ReactElement;
+    let codeText = '';
+
+    if (codeElement?.props?.children) {
+      codeText = String(codeElement.props.children).replace(/\n$/, '');
+    }
+
+    try {
+      await navigator.clipboard.writeText(codeText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  return (
+    <div className="relative group my-3">
+      {/* 상단 헤더 (언어 표시 + 복사 버튼) */}
+      <div className="flex items-center justify-between bg-muted/80 border border-b-0 rounded-t-md px-3 py-1.5">
+        <span className="text-xs text-muted-foreground font-mono">
+          {language || 'code'}
+        </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+          onClick={handleCopy}
+        >
+          {copied ? (
+            <>
+              <Check className="h-3 w-3 mr-1" />
+              복사됨
+            </>
+          ) : (
+            <>
+              <Copy className="h-3 w-3 mr-1" />
+              복사
+            </>
+          )}
+        </Button>
+      </div>
+      {/* 코드 영역 */}
+      <pre className="bg-muted p-3 rounded-t-none rounded-b-md overflow-x-auto max-w-full border border-t-0">
+        {children}
+      </pre>
     </div>
   );
 }
@@ -181,11 +237,19 @@ export function MarkdownMessage({ content, compact = false }: MarkdownMessagePro
         </code>
       );
     },
-    pre: ({ children }) => (
-      <pre className="bg-muted p-3 rounded-md overflow-x-auto my-3 max-w-full border">
-        {children}
-      </pre>
-    ),
+    pre: ({ children }) => {
+      // children에서 언어 정보 추출 (React element의 props에서)
+      let language = '';
+      const child = children as React.ReactElement;
+      if (child?.props?.className) {
+        const match = child.props.className.match(/language-(\w+)/);
+        if (match) {
+          language = match[1];
+        }
+      }
+
+      return <CodeBlock language={language}>{children}</CodeBlock>;
+    },
 
     // 인용구 스타일링
     blockquote: ({ children }) => (

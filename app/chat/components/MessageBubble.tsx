@@ -220,7 +220,7 @@ export const MessageBubble = memo(function MessageBubble({
         <div
           className={cn(
             "transition-all duration-200 animate-in fade-in-0 slide-in-from-bottom-1",
-            role === "user" && "text-foreground text-right bg-muted/50 rounded-2xl px-4 py-3",
+            role === "user" && "text-foreground text-left bg-muted/50 rounded-2xl px-4 py-3",
             role === "system" && "text-muted-foreground italic w-full",
             role === "assistant" && "text-foreground w-full"
           )}
