@@ -42,18 +42,23 @@ export function ChatHeader({
 
       {/* 메인 콘텐츠 영역 */}
       <div className="w-full px-4 py-3 flex items-center justify-center">
-        {/* 중앙 텍스트 */}
+        {/* 중앙 텍스트 - 선명한 타이포그래피 */}
         <div className="flex items-center gap-2">
-          <span
-            className="font-semibold text-sm tracking-widest uppercase bg-clip-text text-transparent"
-            style={{
-              backgroundImage: "linear-gradient(90deg, var(--chart-1), var(--chart-2))",
-            }}
-          >
-            KCA-i
+          {/* KCA-i 로고 */}
+          <span className="font-extrabold text-lg tracking-tight text-foreground">
+            KCA
+            <span className="text-primary">-</span>
+            <span
+              className="italic"
+              style={{ color: "var(--chart-2)" }}
+            >
+              i
+            </span>
           </span>
-          <span className="text-muted-foreground/50 font-light">|</span>
-          <span className="text-xs text-muted-foreground/70 tracking-wide">
+          {/* 구분선 */}
+          <span className="w-px h-4 bg-border" />
+          {/* Assistant */}
+          <span className="font-medium text-sm text-muted-foreground tracking-wide">
             Assistant
           </span>
         </div>

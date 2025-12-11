@@ -280,8 +280,8 @@ export const SuggestedPrompts = memo(function SuggestedPrompts({
       {/* 추천 질문 */}
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-3.5 w-3.5" style={{ color: themeColors.primary }} />
-          <span className="text-xs font-medium text-muted-foreground">
+          <Sparkles className="h-4 w-4" style={{ color: themeColors.primary }} />
+          <span className="text-sm font-medium text-muted-foreground">
             {isCasualMode ? "대화 시작하기" : "추천 질문"}
           </span>
         </div>
