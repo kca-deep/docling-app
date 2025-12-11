@@ -64,7 +64,9 @@ class ChunkingService:
                 ],
                 "convert_options": {
                     "from_formats": ["md"],
-                    "to_formats": ["md"]
+                    "to_formats": ["md"],
+                    "do_ocr": False,  # Markdown 청킹에는 OCR 불필요
+                    "do_table_structure": False  # 이미 파싱된 Markdown이므로 불필요
                 },
                 "chunking_options": {
                     "chunker": "hybrid",

@@ -1,0 +1,149 @@
+upstream dify {
+    server 127.0.0.1:3001;
+}
+upstream llama {
+    server 127.0.0.1:8080;
+}
+upstream docling {
+    server 127.0.0.1:3000;
+}
+upstream docling_backend {
+    server 127.0.0.1:8000;
+}
+
+# HTTP 서버 (80) - HTTPS로 리다이렉트
+server {
+    listen 80;
+    server_name _;
+    client_max_body_size 100M;
+
+    # Let's Encrypt ACME 챌린지용 (인증서 갱신시 필요)
+    location ^~ /.well-known/acme-challenge/ {
+        default_type "text/plain";
+        root /var/www/html;
+    }
+
+    # 나머지는 HTTPS로 리다이렉트
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+# HTTPS 서버 (443)
+server {
+    listen 443 ssl http2;
+    server_name _;
+    client_max_body_size 100M;
+
+    # SSL 인증서 설정 (Let's Encrypt)
+    ssl_certificate /etc/letsencrypt/live/kca-ai.kro.kr/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/kca-ai.kro.kr/privkey.pem;
+
+    # SSL 보안 설정
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384';
+    ssl_prefer_server_ciphers off;
+
+    # SSL 세션 캐시
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+    ssl_session_tickets off;
+
+    # 보안 헤더
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+
+    # ===== 악성 요청 차단 규칙 =====
+
+    # ThinkPHP RCE 공격 차단
+    location ~* /index\.php {
+        if ($args ~* "(invokefunction|call_user_func|shell_exec|eval|base64_decode)") {
+            return 444;
+        }
+        return 404;
+    }
+
+    # 악성 redirect 파라미터 차단
+    set $block_redirect 0;
+    if ($arg_redirect ~* "(https?://|wget|curl|sh|bash|exec|eval|spawn)") {
+        set $block_redirect 1;
+    }
+    if ($args ~* "(wget|curl|chmod|/bin/|/dev/|\.sh)") {
+        set $block_redirect 1;
+    }
+
+    # 악성 User-Agent 차단
+    if ($http_user_agent ~* "(zgrab|masscan|nuclei|nikto|sqlmap)") {
+        return 444;
+    }
+
+    # 일반적인 취약점 스캔 경로 차단
+    location ~* \.(asp|aspx|jsp|cgi|php)$ {
+        return 444;
+    }
+
+    # Backend API (FastAPI)
+    location /api {
+        proxy_pass http://docling_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 600s;
+    }
+
+    # Next.js 정적 파일
+    location ~ ^/(_next|favicon\.ico) {
+        proxy_pass http://docling;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # Dify
+    location /dify/ {
+        proxy_pass http://dify/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # LLM API
+    location /llm/ {
+        proxy_pass http://llama/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 600s;
+    }
+
+    # Frontend (Next.js) - docling-app (루트로 변경)
+    location / {
+        # 악성 redirect 파라미터 차단
+        if ($block_redirect = 1) {
+            return 444;
+        }
+
+        proxy_pass http://docling;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 600s;
+    }
+}
