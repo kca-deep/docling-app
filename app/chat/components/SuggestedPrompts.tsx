@@ -1,11 +1,9 @@
 "use client";
 
 import { useEffect, useState, memo } from "react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Lightbulb,
   Sparkles,
   Database,
   FileText,
@@ -17,6 +15,10 @@ import {
   Heart,
   Cpu,
   Globe,
+  Lightbulb,
+  HelpCircle,
+  Search,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { API_BASE_URL } from "@/lib/api-config";
@@ -66,46 +68,28 @@ const getCollectionIcon = (name: string) => {
 // 스켈레톤 로딩 UI
 function WelcomeSkeleton() {
   return (
-    <div className="relative py-1 space-y-6 animate-in fade-in duration-300">
-      {/* 배경 효과 */}
-      <div className="absolute inset-0 -z-10">
-        <div className="absolute inset-0 bg-gradient-to-b from-muted/30 to-transparent rounded-3xl" />
-      </div>
-
-      {/* 웰컴 섹션 스켈레톤 */}
-      <div className="flex flex-col items-center text-center py-8">
-        <Skeleton className="h-20 w-20 rounded-2xl mb-5" />
-        <Skeleton className="h-8 w-64 mb-3" />
-        <Skeleton className="h-4 w-48 mb-2" />
-        <div className="flex gap-2 mt-4">
-          <Skeleton className="h-6 w-24 rounded-full" />
-          <Skeleton className="h-6 w-24 rounded-full" />
+    <div className="py-4 space-y-4 animate-in fade-in duration-300">
+      {/* 헤더 스켈레톤 - 가운데 정렬 */}
+      <div className="flex flex-col items-center gap-2">
+        <Skeleton className="h-12 w-12 rounded-xl" />
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-5 w-14 rounded-full" />
+          <Skeleton className="h-5 w-14 rounded-full" />
         </div>
+        <Skeleton className="h-4 w-56" />
       </div>
 
-      {/* 섹션 헤더 스켈레톤 */}
-      <div className="flex items-center gap-2 px-0.5">
-        <Skeleton className="h-4 w-4 rounded-full" />
-        <Skeleton className="h-4 w-24" />
-        <div className="flex-1 h-px bg-border/50" />
-        <Skeleton className="h-5 w-8 rounded-full" />
-      </div>
-
-      {/* 카드 그리드 스켈레톤 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {[1, 2, 3, 4].map((i) => (
-          <Card key={i} className="border-border/30 bg-background/40">
-            <CardContent className="px-4 py-3">
-              <div className="flex items-start gap-3">
-                <Skeleton className="h-8 w-8 rounded-full flex-shrink-0" />
-                <div className="flex-1 space-y-2">
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-3/4" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+      {/* 추천 질문 스켈레톤 */}
+      <div className="space-y-2">
+        <div className="flex justify-center">
+          <Skeleton className="h-4 w-20" />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-10 rounded-lg" />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -186,223 +170,117 @@ export const SuggestedPrompts = memo(function SuggestedPrompts({
   }
 
   return (
-    <div className="relative py-1 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {/* 배경 효과 - 노이즈 + 그라데이션 */}
-      <div className="absolute inset-0 -z-10 overflow-hidden rounded-3xl">
-        <div className="absolute inset-0 bg-noise opacity-20 pointer-events-none" />
+    <div className="py-4 space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+      {/* 헤더 섹션 */}
+      <div
+        className="flex items-center gap-4 p-4 rounded-2xl"
+        style={{
+          background: `linear-gradient(135deg, color-mix(in oklch, ${themeColors.primary} 8%, transparent) 0%, transparent 50%, color-mix(in oklch, ${themeColors.secondary} 5%, transparent) 100%)`,
+        }}
+      >
+        {/* 아이콘 */}
         <div
-          className="absolute inset-0 opacity-40"
+          className="h-12 w-12 rounded-xl flex items-center justify-center shadow-md flex-shrink-0"
           style={{
-            background: `linear-gradient(135deg, ${themeColors.primary}10 0%, transparent 50%, ${themeColors.secondary}08 100%)`,
-          }}
-        />
-        <div
-          className="absolute top-0 left-1/4 w-96 h-96 rounded-full blur-3xl opacity-20"
-          style={{ backgroundColor: themeColors.primary }}
-        />
-        <div
-          className="absolute bottom-0 right-1/4 w-64 h-64 rounded-full blur-3xl opacity-15"
-          style={{ backgroundColor: themeColors.secondary }}
-        />
-      </div>
-
-      {/* 웰컴 섹션 */}
-      <div className="flex flex-col items-center text-center py-8 relative">
-        {/* 메인 아이콘 - 글로우 효과 */}
-        <div className="relative mb-5">
-          {/* 글로우 배경 */}
-          <div
-            className="absolute inset-0 rounded-2xl blur-xl opacity-40 animate-pulse"
-            style={{
-              background: `linear-gradient(135deg, ${themeColors.primary}, ${themeColors.secondary})`,
-              transform: "scale(1.2)",
-            }}
-          />
-          {/* 아이콘 박스 */}
-          <div
-            className="relative h-20 w-20 rounded-2xl flex items-center justify-center shadow-2xl"
-            style={{
-              background: `linear-gradient(135deg, ${themeColors.primary}, ${themeColors.secondary})`,
-            }}
-          >
-            <CollectionIcon className="h-10 w-10 text-white" strokeWidth={1.5} />
-            {/* 온라인 상태 표시 */}
-            <span className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-green-500 ring-3 ring-background shadow-lg" />
-          </div>
-        </div>
-
-        {/* 타이틀 */}
-        <h2
-          className="text-2xl md:text-3xl font-bold mb-2 bg-clip-text text-transparent"
-          style={{
-            backgroundImage: `linear-gradient(135deg, ${themeColors.primary}, ${themeColors.secondary})`,
+            background: `linear-gradient(135deg, ${themeColors.primary}, ${themeColors.secondary})`,
           }}
         >
-          {isCasualMode ? "일상대화 모드" : `${collectionName}`}
-        </h2>
-
-        {/* 서브타이틀 */}
-        <p className="text-base text-muted-foreground max-w-lg leading-relaxed">
-          {isCasualMode ? (
-            <>
-              자유롭게 대화해보세요.
-              <br />
-              RAG 검색 없이 일반 AI 대화가 가능합니다.
-            </>
-          ) : (
-            <>
-              문서 기반 AI 어시스턴트입니다.
-              <br />
-              업로드된 문서에서 정확한 답변을 찾아드립니다.
-            </>
-          )}
-        </p>
-
-        {/* 컬렉션 메타데이터 배지 */}
-        {!isCasualMode && collectionMeta && (
-          <div className="flex items-center gap-2 mt-5">
-            <Badge
-              variant="secondary"
-              className="gap-1.5 px-3 py-1.5 text-sm font-medium bg-background/60 backdrop-blur-sm border border-border/50 shadow-sm"
-            >
-              <FileText className="h-3.5 w-3.5" style={{ color: themeColors.primary }} />
-              <span className="font-mono">{collectionMeta.documents_count.toLocaleString()}</span>
-              <span className="text-muted-foreground">documents</span>
-            </Badge>
-            <Badge
-              variant="secondary"
-              className="gap-1.5 px-3 py-1.5 text-sm font-medium bg-background/60 backdrop-blur-sm border border-border/50 shadow-sm"
-            >
-              <Database className="h-3.5 w-3.5" style={{ color: themeColors.secondary }} />
-              <span className="font-mono">{collectionMeta.points_count.toLocaleString()}</span>
-              <span className="text-muted-foreground">chunks</span>
-            </Badge>
-          </div>
-        )}
-
-        {/* 일상대화 모드 배지 */}
-        {isCasualMode && (
-          <div className="flex items-center gap-2 mt-5">
-            <Badge
-              variant="secondary"
-              className="gap-1.5 px-3 py-1.5 text-sm font-medium bg-background/60 backdrop-blur-sm border border-border/50 shadow-sm"
-            >
-              <MessageSquare className="h-3.5 w-3.5" style={{ color: themeColors.primary }} />
-              <span>자유 대화</span>
-            </Badge>
-          </div>
-        )}
-      </div>
-
-      {/* 추천 질문 헤더 */}
-      <div className="flex items-center gap-3 px-1">
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <Sparkles
-              className="h-4 w-4 animate-pulse"
-              style={{ color: themeColors.primary }}
-            />
-            <Sparkles
-              className="h-4 w-4 absolute inset-0 animate-ping opacity-30"
-              style={{ color: themeColors.primary }}
-            />
-          </div>
-          <h3 className="text-sm font-semibold text-foreground">
-            {isCasualMode ? "대화 시작하기" : "추천 질문"}
-          </h3>
+          <CollectionIcon className="h-6 w-6 text-white" strokeWidth={1.5} />
         </div>
-        <div
-          className="flex-1 h-px"
-          style={{
-            background: `linear-gradient(to right, ${themeColors.primary}40, transparent)`,
-          }}
-        />
-        <Badge
-          variant="outline"
-          className="text-xs px-2 py-0.5 font-mono border-border/50"
-          style={{ color: themeColors.primary }}
-        >
-          {prompts.length}
-        </Badge>
-      </div>
 
-      {/* 질문 카드 그리드 - 글래스모피즘 스타일 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {prompts.slice(0, 6).map((prompt, index) => (
-          <Card
-            key={index}
-            className={cn(
-              "group cursor-pointer transition-all duration-300",
-              "border-border/30 bg-background/40 backdrop-blur-sm",
-              "hover:bg-background/70 hover:border-border/50",
-              "hover:shadow-xl hover:scale-[1.02]",
-              "active:scale-[0.98]",
-              "animate-in fade-in slide-in-from-bottom-2"
-            )}
-            style={{
-              animationDelay: `${index * 80}ms`,
-            }}
-            onClick={() => onSelect(prompt)}
-          >
-            {/* 호버 시 그라데이션 오버레이 */}
-            <div
-              className="absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+        {/* 타이틀 + 배지 + 설명 */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2
+              className="text-lg font-bold bg-clip-text text-transparent"
               style={{
-                background: `linear-gradient(135deg, ${themeColors.primary}08 0%, transparent 50%, ${themeColors.secondary}05 100%)`,
+                backgroundImage: `linear-gradient(135deg, ${themeColors.primary}, ${themeColors.secondary})`,
               }}
-            />
+            >
+              {isCasualMode ? "일상대화 모드" : collectionName}
+            </h2>
+            {/* 메타데이터 배지 */}
+            {!isCasualMode && collectionMeta && (
+              <div className="flex items-center gap-1.5">
+                <Badge variant="secondary" className="text-xs px-2 py-0.5 gap-1">
+                  <FileText className="h-3 w-3" style={{ color: themeColors.primary }} />
+                  <span className="font-mono">{collectionMeta.documents_count}</span>
+                </Badge>
+                <Badge variant="secondary" className="text-xs px-2 py-0.5 gap-1">
+                  <Database className="h-3 w-3" style={{ color: themeColors.secondary }} />
+                  <span className="font-mono">{collectionMeta.points_count}</span>
+                </Badge>
+              </div>
+            )}
+            {isCasualMode && (
+              <Badge variant="secondary" className="text-xs px-2 py-0.5 gap-1">
+                <MessageSquare className="h-3 w-3" style={{ color: themeColors.primary }} />
+                <span>자유 대화</span>
+              </Badge>
+            )}
+          </div>
+          {/* 설명 */}
+          <p className="text-sm text-muted-foreground mt-1">
+            {isCasualMode
+              ? "RAG 검색 없이 자유롭게 대화해보세요"
+              : "문서 기반으로 정확한 답변을 찾아드립니다"}
+          </p>
+        </div>
+      </div>
 
-            <CardContent className="relative px-4 py-3.5">
-              <div className="flex items-start gap-3">
-                {/* 아이콘 */}
-                <div className="flex-shrink-0 mt-0.5">
-                  <div
-                    className="h-8 w-8 rounded-full flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:shadow-md"
-                    style={{
-                      backgroundColor: `color-mix(in oklch, ${themeColors.primary} 12%, transparent)`,
-                    }}
-                  >
-                    <Lightbulb
-                      className="h-4 w-4 transition-colors duration-300"
-                      style={{ color: themeColors.primary }}
-                    />
-                  </div>
-                </div>
+      {/* 추천 질문 */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-3.5 w-3.5" style={{ color: themeColors.primary }} />
+          <span className="text-xs font-medium text-muted-foreground">
+            {isCasualMode ? "대화 시작하기" : "추천 질문"}
+          </span>
+        </div>
 
-                {/* 텍스트 */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium leading-relaxed text-foreground/90 group-hover:text-foreground transition-colors line-clamp-2">
+        {/* 질문 그리드 2x2 */}
+        <div className="grid grid-cols-2 gap-2">
+          {prompts.slice(0, 4).map((prompt, index) => {
+            const icons = [Lightbulb, HelpCircle, Search, Zap];
+            const Icon = icons[index % icons.length];
+
+            return (
+              <button
+                key={index}
+                onClick={() => onSelect(prompt)}
+                className={cn(
+                  "group relative overflow-hidden rounded-lg text-sm text-left",
+                  "border border-border/50 bg-background/50",
+                  "hover:bg-background hover:border-border hover:shadow-md",
+                  "active:scale-[0.98] transition-all duration-200"
+                )}
+              >
+                {/* 좌측 컬러바 */}
+                <div
+                  className="absolute left-0 top-0 bottom-0 w-1 group-hover:w-1.5 transition-all duration-200"
+                  style={{ backgroundColor: themeColors.primary }}
+                />
+                {/* 콘텐츠 */}
+                <div className="flex items-start gap-2.5 pl-4 pr-3 py-2.5">
+                  {/* 아이콘 */}
+                  <Icon
+                    className="h-4 w-4 flex-shrink-0 mt-0.5 transition-colors duration-200"
+                    style={{ color: themeColors.primary }}
+                  />
+                  <span className="flex-1 line-clamp-2 text-sm font-medium leading-relaxed text-foreground/80 group-hover:text-foreground transition-colors">
                     {prompt}
-                  </p>
-                </div>
-
-                {/* 화살표 인디케이터 */}
-                <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-1 group-hover:translate-x-0">
+                  </span>
+                  {/* 화살표 */}
                   <span
-                    className="text-sm"
+                    className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-sm mt-0.5"
                     style={{ color: themeColors.primary }}
                   >
                     →
                   </span>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* 하단 힌트 */}
-      <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground pt-2">
-        <div className="flex items-center gap-1.5">
-          <kbd className="px-1.5 py-0.5 rounded bg-muted/50 border border-border/50 font-mono text-[10px]">
-            Enter
-          </kbd>
-          <span>전송</span>
+              </button>
+            );
+          })}
         </div>
-        <span className="text-border">•</span>
-        <span>클릭하여 질문 선택</span>
-        <span className="text-border">•</span>
-        <span>직접 입력 가능</span>
       </div>
     </div>
   );
