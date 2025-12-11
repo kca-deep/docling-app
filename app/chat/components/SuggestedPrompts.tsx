@@ -35,6 +35,18 @@ interface SuggestedPromptsProps {
   onSelect: (prompt: string) => void;
 }
 
+// description에서 한글명 추출 (JSON 형식인 경우 koreanName 파싱)
+const getKoreanName = (description?: string, fallback?: string): string => {
+  if (!description) return fallback || "";
+  try {
+    const parsed = JSON.parse(description);
+    return parsed.koreanName || fallback || "";
+  } catch {
+    // JSON이 아니면 description 자체를 반환
+    return description || fallback || "";
+  }
+};
+
 // 컬렉션 이름에 따른 아이콘 매핑
 const getCollectionIcon = (name: string) => {
   const lowerName = name.toLowerCase();
@@ -246,7 +258,7 @@ export const SuggestedPrompts = memo(function SuggestedPrompts({
           >
             {isCasualMode
               ? "AI 어시스턴트에 오신걸 환영합니다."
-              : `${collectionName} AI 챗봇에 오신걸 환영합니다.`}
+              : `${getKoreanName(collectionMeta?.description, collectionName)} AI 챗봇에 오신걸 환영합니다.`}
           </h2>
           <p className="text-sm text-muted-foreground max-w-md mx-auto">
             {isCasualMode
