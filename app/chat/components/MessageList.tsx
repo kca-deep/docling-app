@@ -135,8 +135,9 @@ export const MessageList = memo(function MessageList({
       className="h-full w-full"
       type="always"
     >
-      <div className="p-4 md:p-6 pb-20">
-        <div className="space-y-4 max-w-[var(--chat-content-max-width)] mx-auto">
+      <div className="py-4 md:py-6 px-4 md:px-8 lg:px-12 pb-20">
+        {/* Claude 스타일: 메시지 사이 구분선 */}
+        <div className="divide-y divide-border/20 max-w-4xl mx-auto">
           {messages.map((message, index) => (
             <MessageBubble
               key={message.id}

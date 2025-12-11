@@ -1003,14 +1003,14 @@ export function ChatContainer() {
       </div>
 
       {/* 메인 콘텐츠 영역 (6:4 분할) */}
-      <div className="flex-1 flex overflow-hidden bg-muted/20">
-        {/* 좌측: 채팅 영역 */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* 좌측: 채팅 영역 - Claude 스타일 단일 채팅창 */}
         <div className={cn(
           "flex flex-col overflow-hidden transition-all duration-200 ease-out bg-background",
           artifactState.isOpen ? "w-[60%]" : "w-full"
         )}>
-          {/* 메시지 목록 - 더 넓은 여백 */}
-          <div className="flex-1 overflow-hidden px-2 sm:px-4">
+          {/* 메시지 목록 - 전체 너비 활용 */}
+          <div className="flex-1 overflow-hidden">
             <MessageList
               messages={messages}
               isLoading={isLoading}
@@ -1052,7 +1052,7 @@ export function ChatContainer() {
 
         {/* 우측: 참조문서 아티팩트 패널 - 부드러운 전환 */}
         <div className={cn(
-          "overflow-hidden transition-all duration-200 ease-out border-l bg-muted/30",
+          "overflow-hidden transition-all duration-200 ease-out border-l border-border/50 bg-muted/10",
           artifactState.isOpen ? "w-[40%] opacity-100" : "w-0 opacity-0 border-0"
         )}>
           {artifactState.isOpen && (

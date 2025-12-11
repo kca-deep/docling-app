@@ -180,15 +180,15 @@ export const MessageBubble = memo(function MessageBubble({
   return (
     <div
       className={cn(
-        "group relative flex gap-3 w-full",
+        "group relative flex gap-4 w-full py-4",
         role === "user" && "flex-row-reverse"
       )}
     >
       {/* 아바타 */}
       {role === "assistant" ? (
-        <ChatbotLogo className="h-8 w-8 flex-shrink-0" />
+        <ChatbotLogo className="h-7 w-7 flex-shrink-0 mt-1" />
       ) : (
-        <Avatar className="h-8 w-8 flex-shrink-0">
+        <Avatar className="h-7 w-7 flex-shrink-0 mt-1">
           <AvatarFallback
             className={cn(
               role === "user" && "text-white",
@@ -201,9 +201,9 @@ export const MessageBubble = memo(function MessageBubble({
             }
           >
             {role === "system" ? (
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className="h-3.5 w-3.5" />
             ) : (
-              <User className="h-4 w-4" />
+              <User className="h-3.5 w-3.5" />
             )}
           </AvatarFallback>
         </Avatar>
@@ -212,37 +212,20 @@ export const MessageBubble = memo(function MessageBubble({
       {/* 메시지 콘텐츠 */}
       <div
         className={cn(
-          "flex flex-col gap-1 max-w-[calc(100%-3rem)] min-w-0",
-          role === "user" && "items-end"
+          "flex flex-col gap-1.5 min-w-0",
+          role === "user" ? "items-end max-w-[80%]" : "flex-1"
         )}
       >
-        {/* 메시지 버블 */}
+        {/* 메시지 영역 */}
         <div
           className={cn(
-            "rounded-2xl px-5 py-4 transition-all duration-300 inline-block max-w-full animate-in slide-in-from-bottom-2",
-            role === "user" && "text-white relative overflow-hidden",
-            role === "system" && "bg-muted/50 border border-border/50 backdrop-blur-sm shadow-sm hover:shadow-md",
-            role === "assistant" && "bg-background/60 backdrop-blur-lg border border-border/40 text-card-foreground shadow-sm hover:shadow-md"
+            "transition-all duration-200 animate-in fade-in-0 slide-in-from-bottom-1",
+            role === "user" && "text-foreground text-right bg-muted/50 rounded-2xl px-4 py-3",
+            role === "system" && "text-muted-foreground italic w-full",
+            role === "assistant" && "text-foreground w-full"
           )}
-          style={
-            role === "user"
-              ? {
-                background: "linear-gradient(135deg, var(--chart-1), var(--chart-2))",
-                boxShadow: "0 4px 20px -4px color-mix(in oklch, var(--chart-1) 40%, transparent), 0 2px 8px -2px color-mix(in oklch, var(--chart-2) 30%, transparent)",
-              }
-              : undefined
-          }
         >
-          {/* 사용자 메시지 좌측 액센트 */}
-          {role === "user" && (
-            <div
-              className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl"
-              style={{
-                background: "linear-gradient(180deg, rgba(255,255,255,0.4), rgba(255,255,255,0.1))",
-              }}
-            />
-          )}
-          <div className={cn("min-w-0 link-primary", role === "assistant" && "text-foreground/90")}>
+          <div className={cn("min-w-0 link-primary prose-sm", role === "assistant" && "text-foreground/90")}>
             {parsedContent && parsedContent.hasThought ? (
               // EXAONE 모델: 추론 과정과 답변 분리 표시
               <div className="space-y-3">
@@ -303,7 +286,7 @@ export const MessageBubble = memo(function MessageBubble({
 
           {/* 참조 문서 표시 (스트리밍 중에는 숨김) */}
           {!isStreaming && sources && sources.length > 0 && (
-            <div className="mt-3 pt-3 border-t space-y-2">
+            <div className="mt-4 pt-3 border-t border-border/30 space-y-2">
               {/* 참조 문서 요약 */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
