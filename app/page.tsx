@@ -7,7 +7,6 @@ import {
   FileCode,
   Bot,
   Database,
-  CheckCircle,
   Sparkles,
   Zap,
   Shield,
@@ -17,21 +16,15 @@ import {
   Server,
   Cpu,
   Network,
-  Globe,
-  MonitorPlay,
 } from "lucide-react"
 import { motion } from "framer-motion"
-import { PageContainer } from "@/components/page-container"
 import { Button } from "@/components/ui/button"
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { FloatingChatButton } from "@/components/floating-chat-button"
 
 export default function HomePage() {
@@ -256,7 +249,7 @@ export default function HomePage() {
         <div className="hidden md:block max-w-6xl mx-auto px-6 relative z-10">
           <div className="relative">
             {/* Timeline connector line */}
-            <div className="absolute top-8 left-0 right-0 h-1 rounded-full bg-border/30 overflow-hidden">
+            <div className="absolute top-8 left-0 right-0 h-1 rounded-full bg-muted dark:bg-muted/50 overflow-hidden">
               <motion.div
                 className="h-full bg-gradient-to-r from-[color:var(--chart-1)] via-[color:var(--chart-2)] to-[color:var(--chart-3)]"
                 initial={{ width: "0%" }}
@@ -297,15 +290,15 @@ export default function HomePage() {
                         <Link href={step.link} className="group flex flex-col items-center cursor-pointer">
                           {/* Step circle */}
                           <div
-                            className="relative z-10 w-16 h-16 rounded-2xl rotate-45 group-hover:rotate-0 transition-all duration-500 shadow-lg flex items-center justify-center bg-background border border-border/50 group-hover:border-[color:var(--chart-1)]/50 group-hover:shadow-[color:var(--chart-1)]/30"
+                            className="relative z-10 w-16 h-16 rounded-2xl rotate-45 group-hover:rotate-0 transition-all duration-500 shadow-lg flex items-center justify-center bg-background dark:bg-card border border-border dark:border-border/80 group-hover:border-[color:var(--chart-1)]/50 group-hover:shadow-[color:var(--chart-1)]/30"
                           >
-                            <div className="absolute inset-1 rounded-xl bg-muted/20 group-hover:bg-[color:var(--chart-1)]/10 transition-colors -rotate-45 group-hover:rotate-0 duration-500" />
+                            <div className="absolute inset-1 rounded-xl bg-muted/30 dark:bg-muted/40 group-hover:bg-[color:var(--chart-1)]/10 transition-colors -rotate-45 group-hover:rotate-0 duration-500" />
                             <Icon className="w-6 h-6 -rotate-45 group-hover:rotate-0 transition-all duration-500" style={{ color: chartColor }} />
                           </div>
                           {/* Step title */}
                           <div className="mt-8 text-center space-y-1">
                             <span className="block text-lg font-bold group-hover:text-[color:var(--chart-1)] transition-colors">{step.title}</span>
-                            <span className="block text-xs font-mono text-muted-foreground/60 uppercase tracking-widest">Step 0{index + 1}</span>
+                            <span className="block text-xs font-mono text-muted-foreground dark:text-muted-foreground/80 uppercase tracking-widest">Step 0{index + 1}</span>
                           </div>
                         </Link>
                       </motion.div>
@@ -345,7 +338,7 @@ export default function HomePage() {
         <div className="md:hidden max-w-sm mx-auto px-4 relative z-10">
           <div className="relative">
             {/* Vertical line */}
-            <div className="absolute left-6 top-6 bottom-6 w-0.5 bg-gradient-to-b from-[color:var(--chart-1)] to-[color:var(--chart-3)] opacity-30" />
+            <div className="absolute left-6 top-6 bottom-6 w-0.5 bg-gradient-to-b from-[color:var(--chart-1)] to-[color:var(--chart-3)] opacity-50 dark:opacity-70" />
 
             {/* Steps */}
             <div className="space-y-8">
@@ -360,7 +353,7 @@ export default function HomePage() {
                   >
                     {/* Step circle */}
                     <div
-                      className="relative z-10 w-12 h-12 rounded-xl flex items-center justify-center bg-background border border-border shrink-0 shadow-sm group-hover:scale-110 transition-transform"
+                      className="relative z-10 w-12 h-12 rounded-xl flex items-center justify-center bg-background dark:bg-card border border-border dark:border-border/80 shrink-0 shadow-sm group-hover:scale-110 transition-transform"
                     >
                       <Icon className="w-5 h-5" style={{ color: chartColor }} />
                     </div>
@@ -368,7 +361,7 @@ export default function HomePage() {
                     <div className="flex-1 pt-1">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-bold text-lg">{step.title}</span>
-                        <span className="text-xs font-mono text-muted-foreground/60">0{index + 1}</span>
+                        <span className="text-xs font-mono text-muted-foreground dark:text-muted-foreground/80">0{index + 1}</span>
                       </div>
                       <p className="text-sm text-muted-foreground leading-relaxed">{step.description}</p>
                     </div>
@@ -381,161 +374,157 @@ export default function HomePage() {
       </div>
 
       {/* 시스템 아키텍처 섹션 */}
-      <PageContainer maxWidth="wide">
-        <div className="mb-24">
+      <div className="w-full py-24 bg-gradient-to-b from-background via-muted/5 to-background relative overflow-hidden">
+        <div className="absolute inset-0 bg-noise opacity-30 pointer-events-none" />
+        <div className="max-w-6xl mx-auto px-6 relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.8 }}
-            className="text-center mb-12"
+            className="text-center mb-16"
           >
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">시스템 인프라</h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto text-lg text-balance">
+            <h2 className="text-4xl md:text-5xl font-bold mb-4 tracking-tight">
+              시스템 <span className="text-[color:var(--chart-5)]">인프라</span>
+            </h2>
+            <p className="text-lg text-muted-foreground/80 max-w-2xl mx-auto">
               RTX 5090 GPU 서버 기반 AI 서비스 아키텍처
             </p>
           </motion.div>
 
-          <Card className="border-0 shadow-2xl overflow-hidden glass">
-            <CardHeader className="bg-muted/10 border-b border-border/40 pb-6">
-              <CardTitle className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-[color:var(--chart-5)]/10 text-[color:var(--chart-5)]">
-                  <Server className="h-6 w-6" />
-                </div>
-                <div>
-                  <span className="block text-xl">System Architecture</span>
-                  <span className="block text-sm font-normal text-muted-foreground mt-1">H/W & S/W Composition</span>
-                </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-8 bg-gradient-to-b from-background/50 to-muted/20">
-              {/* RTX 5090 전체 컨테이너 */}
-              <div className="border border-red-500/20 rounded-3xl p-8 bg-gradient-to-br from-red-500/5 to-transparent relative shadow-sm">
-                {/* RTX 5090 라벨 */}
-                <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-background/80 backdrop-blur-md px-6 py-2 border border-red-500/30 rounded-full shadow-lg flex items-center gap-3">
-                  <Cpu className="h-5 w-5 text-red-500" />
-                  <span className="font-bold text-base bg-clip-text text-transparent bg-gradient-to-r from-red-500 to-orange-500">NVIDIA RTX 5090</span>
-                  <div className="h-4 w-px bg-border/50" />
-                  <span className="text-xs font-mono text-muted-foreground">32GB VRAM</span>
-                </div>
+          {/* GPU 서버 뱃지 */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+            className="flex justify-center mb-12"
+          >
+            <div className="inline-flex items-center gap-4 px-6 py-3 rounded-full bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-red-500/20 shadow-lg">
+              <Cpu className="h-6 w-6 text-red-500" />
+              <span className="font-bold text-lg bg-clip-text text-transparent bg-gradient-to-r from-red-500 to-orange-500">
+                NVIDIA RTX 5090
+              </span>
+              <div className="h-5 w-px bg-border" />
+              <span className="text-sm font-medium text-muted-foreground">32GB VRAM</span>
+            </div>
+          </motion.div>
 
-                <Accordion type="multiple" defaultValue={["entry", "application"]} className="space-y-6 mt-6">
-                  {/* Entry Points */}
-                  <AccordionItem value="entry" className="border-0 bg-background/50 backdrop-blur-sm rounded-2xl overflow-hidden shadow-sm">
-                    <AccordionTrigger className="hover:no-underline px-6 py-5 bg-purple-500/5 hover:bg-purple-500/10 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <Globe className="h-5 w-5 text-purple-600" />
-                        <span className="font-bold text-lg text-purple-700 dark:text-purple-400">Entry Points</span>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="px-6 py-6">
-                      <div className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                          <motion.div whileHover={{ y: -4 }} className="bg-background border border-purple-200 dark:border-purple-800 rounded-xl p-6 text-center shadow-sm hover:shadow-md transition-all">
-                            <Server className="h-8 w-8 mx-auto mb-3 text-purple-600" />
-                            <p className="font-bold mb-2">KCA-RAG Pipeline</p>
-                            <Badge variant="secondary" className="font-mono">:3000</Badge>
-                          </motion.div>
-                          <motion.div whileHover={{ y: -4 }} className="bg-background border border-purple-200 dark:border-purple-800 rounded-xl p-6 text-center shadow-sm hover:shadow-md transition-all">
-                            <Globe className="h-8 w-8 mx-auto mb-3 text-purple-600" />
-                            <p className="font-bold mb-2">Dify Platform</p>
-                            <Badge variant="secondary" className="font-mono">:3002</Badge>
-                          </motion.div>
-                          <div className="bg-muted/40 border border-border/50 rounded-xl p-6 text-center opacity-70">
-                            <MonitorPlay className="h-8 w-8 mx-auto mb-3 text-muted-foreground" />
-                            <p className="font-semibold mb-2">Open WebUI</p>
-                            <Badge variant="outline" className="text-[10px]">Inactive</Badge>
-                          </div>
-                        </div>
-
-                        {/* Direct LLM API */}
-                        <Collapsible defaultOpen className="w-full">
-                          <div className="bg-background border border-purple-200 dark:border-purple-800 rounded-xl overflow-hidden shadow-sm">
-                            <div className="flex items-center justify-between p-4 bg-muted/5">
-                              <div className="flex items-center gap-4 flex-1">
-                                <Network className="h-6 w-6 text-purple-600" />
-                                <div className="text-left">
-                                  <p className="font-bold">Direct LLM API</p>
-                                </div>
-                                <Badge variant="secondary" className="font-mono text-xs">:808X</Badge>
-                              </div>
-                              <CollapsibleTrigger asChild>
-                                <button className="p-2 hover:bg-muted/50 rounded-full transition-colors">
-                                  <ChevronDown className="h-5 w-5 transition-transform duration-200 data-[state=open]:rotate-180" />
-                                </button>
-                              </CollapsibleTrigger>
-                            </div>
-
-                            <CollapsibleContent>
-                              <div className="border-t border-purple-100 dark:border-purple-900 p-5 bg-purple-50/30 dark:bg-purple-900/10">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                  {/* Model Cards */}
-                                  {[
-                                    { name: "GPT-OSS 20B", status: "Running", badge: "US", type: "Chat", port: "8080", vram: "16GB", active: true },
-                                    { name: "Qwen3-VL 8B", status: "Running", badge: "CN", type: "OCR", port: "8084", vram: "Vision", active: true },
-                                    { name: "EXAONE 32B", status: "Inactive", badge: "KR", type: "Long", port: "8081", vram: "131K", active: false },
-                                    { name: "HyperCLOVA X", status: "Inactive", badge: "KR", type: "Chat", port: "8082", vram: "29GB", active: false },
-                                  ].map((model, i) => (
-                                    <div key={i} className={`border rounded-lg p-3 ${model.active ? 'bg-background border-green-200 dark:border-green-900' : 'bg-muted/30 border-border/50'}`}>
-                                      <div className="flex items-center justify-between mb-2">
-                                        <p className="font-bold text-sm truncate pr-2">{model.name}</p>
-                                        <div className={`w-2 h-2 rounded-full ${model.active ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground'}`} />
-                                      </div>
-                                      <div className="flex flex-wrap gap-1 mb-2">
-                                        <Badge variant="outline" className="text-[10px] h-5 px-1">{model.badge}</Badge>
-                                        <Badge variant="secondary" className="text-[10px] h-5 px-1">{model.type}</Badge>
-                                      </div>
-                                      <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
-                                        <span>:{model.port}</span>
-                                        <span>{model.vram}</span>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            </CollapsibleContent>
-                          </div>
-                        </Collapsible>
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-
-                  {/* Application Layer */}
-                  <AccordionItem value="application" className="border-0 bg-background/50 backdrop-blur-sm rounded-2xl overflow-hidden shadow-sm">
-                    <AccordionTrigger className="hover:no-underline px-6 py-5 bg-blue-500/5 hover:bg-blue-500/10 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <Server className="h-5 w-5 text-blue-600" />
-                        <span className="font-bold text-lg text-blue-700 dark:text-blue-400">Application Layer</span>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="px-6 py-6">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {[
-                          { name: "BGE-M3 Embedding", port: "8083", type: "Vector", color: "orange" },
-                          { name: "BGE Reranker", port: "8006", type: "Rerank", color: "orange" },
-                          { name: "Docling API", port: "8007", type: "Python", color: "blue" },
-                          { name: "Qdrant Vector DB", port: "6333", type: "DB", color: "green" },
-                        ].map((svc, i) => (
-                          <motion.div whileHover={{ scale: 1.02 }} key={i} className="bg-background border border-border/60 rounded-xl p-4 shadow-sm hover:shadow-md transition-all">
-                            <div className="flex items-center justify-between mb-3">
-                              <p className="font-bold text-sm truncate">{svc.name}</p>
-                              <Badge className="bg-green-500 hover:bg-green-600 text-[10px] h-5">ON</Badge>
-                            </div>
-                            <div className="space-y-1 text-xs text-muted-foreground font-mono">
-                              <p>Port: {svc.port}</p>
-                              <p>Type: {svc.type}</p>
-                            </div>
-                          </motion.div>
-                        ))}
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
+          {/* LLM 모델 섹션 */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="mb-12"
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 rounded-xl bg-[color:var(--chart-1)]/10">
+                <Network className="h-5 w-5 text-[color:var(--chart-1)]" />
               </div>
-            </CardContent>
-          </Card>
+              <h3 className="text-xl font-bold">LLM Models</h3>
+              <span className="text-sm text-muted-foreground ml-auto">Port 8080-8084</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { name: "GPT-OSS 20B", badge: "US", type: "General", port: "8080", vram: "16GB", active: true, colorVar: 1 },
+                { name: "Qwen3-VL 8B", badge: "CN", type: "Vision OCR", port: "8084", vram: "8GB", active: true, colorVar: 2 },
+                { name: "EXAONE 32B", badge: "KR", type: "Long Context", port: "8081", vram: "20GB", active: false, colorVar: 3 },
+                { name: "HyperCLOVA X", badge: "KR", type: "Korean", port: "8082", vram: "29GB", active: false, colorVar: 4 },
+              ].map((model, i) => (
+                <motion.div
+                  key={i}
+                  whileHover={{ y: -4, scale: 1.02 }}
+                  className={`relative rounded-2xl p-5 transition-all duration-300 ${
+                    model.active
+                      ? 'bg-background dark:bg-card border border-border shadow-lg hover:shadow-xl'
+                      : 'bg-muted/30 dark:bg-muted/20 border border-border/50 opacity-60'
+                  }`}
+                >
+                  {/* Status Indicator */}
+                  <div className="absolute top-4 right-4">
+                    <div className={`w-3 h-3 rounded-full ${model.active ? 'bg-green-500 animate-pulse shadow-lg shadow-green-500/50' : 'bg-muted-foreground/50'}`} />
+                  </div>
+
+                  {/* Model Info */}
+                  <div className="mb-4">
+                    <h4 className="font-bold text-base mb-1">{model.name}</h4>
+                    <p className="text-sm text-muted-foreground">{model.type}</p>
+                  </div>
+
+                  {/* Tags */}
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    <Badge variant="outline" className="text-xs font-medium">{model.badge}</Badge>
+                    <Badge variant="secondary" className="text-xs font-mono">{model.vram}</Badge>
+                  </div>
+
+                  {/* Port */}
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Port</span>
+                    <span className="font-mono font-medium" style={{ color: `var(--chart-${model.colorVar})` }}>:{model.port}</span>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* 서비스 섹션 */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="mb-12"
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 rounded-xl bg-[color:var(--chart-2)]/10">
+                <Server className="h-5 w-5 text-[color:var(--chart-2)]" />
+              </div>
+              <h3 className="text-xl font-bold">Core Services</h3>
+              <span className="text-sm text-muted-foreground ml-auto">Always Running</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { name: "BGE-M3 Embedding", desc: "1024-dim Vector", port: "8083", icon: Database, colorVar: 1 },
+                { name: "BGE Reranker", desc: "v2-m3 Model", port: "8006", icon: TrendingUp, colorVar: 2 },
+                { name: "Docling API", desc: "Doc Parser", port: "8007", icon: FileCode, colorVar: 3 },
+                { name: "Qdrant DB", desc: "Vector Store", port: "6333", icon: Database, colorVar: 4 },
+              ].map((svc, i) => {
+                const Icon = svc.icon
+                const chartColor = `var(--chart-${svc.colorVar})`
+                return (
+                  <motion.div
+                    key={i}
+                    whileHover={{ y: -4 }}
+                    className="group relative bg-background dark:bg-card border border-border rounded-2xl p-5 shadow-sm hover:shadow-lg transition-all duration-300"
+                  >
+                    {/* Icon */}
+                    <div
+                      className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-colors"
+                      style={{ backgroundColor: `color-mix(in srgb, ${chartColor} 10%, transparent)` }}
+                    >
+                      <Icon className="h-6 w-6" style={{ color: chartColor }} />
+                    </div>
+
+                    {/* Info */}
+                    <h4 className="font-bold text-base mb-1">{svc.name}</h4>
+                    <p className="text-sm text-muted-foreground mb-4">{svc.desc}</p>
+
+                    {/* Port & Status */}
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-sm" style={{ color: chartColor }}>:{svc.port}</span>
+                      <Badge className="bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20 text-xs">
+                        Running
+                      </Badge>
+                    </div>
+                  </motion.div>
+                )
+              })}
+            </div>
+          </motion.div>
+
         </div>
-      </PageContainer>
+      </div>
 
       {/* 플로팅 챗봇 버튼 */}
       <FloatingChatButton />

@@ -2,7 +2,9 @@
 
 import { Suspense, useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Sparkles, Loader2, AlertCircle } from "lucide-react"
+import Link from "next/link"
+import { Sparkles, Loader2, AlertCircle, ArrowLeft, Lock, User } from "lucide-react"
+import { motion } from "framer-motion"
 import { useAuth } from "@/components/auth/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -104,87 +106,214 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-[color:var(--chart-1)]/5 via-background to-[color:var(--chart-3)]/5 p-6">
-      <div className="w-full max-w-sm">
-        <Card className="shadow-lg border-2">
-          <CardHeader className="text-center pb-2">
-            {/* Logo */}
-            <div className="flex justify-center mb-4">
-              <div className="p-4 rounded-xl bg-[color:var(--chart-1)]/10 border-2 border-[color:var(--chart-1)]/20">
-                <Sparkles className="h-8 w-8 text-[color:var(--chart-1)]" />
-              </div>
-            </div>
-            <CardTitle className="text-2xl font-bold text-foreground">
-              KCA-RAG
-            </CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Document AI Pipeline
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Error Alert */}
-              {error && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
+    <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden">
+      {/* Animated Background */}
+      <div className="absolute inset-0 z-0">
+        <div className="absolute inset-0 bg-background" />
 
-              {/* Username */}
-              <div className="space-y-2">
-                <Label htmlFor="username">사용자명</Label>
-                <Input
-                  id="username"
-                  type="text"
-                  placeholder="admin"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required
-                  disabled={isSubmitting}
-                  autoComplete="username"
-                  autoFocus
-                />
-              </div>
+        {/* Dynamic Mesh Gradient */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1.5 }}
+          className="absolute inset-0 overflow-hidden"
+        >
+          <motion.div
+            animate={{
+              scale: [1, 1.2, 1],
+              rotate: [0, 90, 0],
+              x: [0, -100, 0],
+              y: [0, -50, 0],
+            }}
+            transition={{
+              duration: 20,
+              repeat: Infinity,
+              repeatType: "reverse",
+              ease: "easeInOut"
+            }}
+            className="absolute -top-[50%] -left-[50%] w-[200%] h-[200%] bg-[radial-gradient(circle_farthest-corner_at_center,var(--chart-1)_0%,transparent_50%)] opacity-20 dark:opacity-30 blur-[100px]"
+          />
+          <motion.div
+            animate={{
+              scale: [1, 1.2, 1],
+              rotate: [0, -90, 0],
+              x: [0, 100, 0],
+              y: [0, 50, 0],
+            }}
+            transition={{
+              duration: 25,
+              repeat: Infinity,
+              repeatType: "reverse",
+              ease: "easeInOut",
+              delay: 2
+            }}
+            className="absolute -bottom-[50%] -right-[50%] w-[200%] h-[200%] bg-[radial-gradient(circle_farthest-corner_at_center,var(--chart-3)_0%,transparent_50%)] opacity-20 dark:opacity-30 blur-[100px]"
+          />
+        </motion.div>
 
-              {/* Password */}
-              <div className="space-y-2">
-                <Label htmlFor="password">비밀번호</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="********"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  disabled={isSubmitting}
-                  autoComplete="current-password"
-                />
-              </div>
+        {/* Dot pattern overlay */}
+        <div
+          className="absolute inset-0 opacity-20 dark:opacity-10"
+          style={{
+            backgroundImage: 'radial-gradient(circle, hsl(var(--foreground) / 0.3) 1px, transparent 1px)',
+            backgroundSize: '32px 32px',
+            maskImage: 'radial-gradient(circle at center, black, transparent 80%)'
+          }}
+        />
+      </div>
 
-              {/* Submit Button */}
-              <Button
-                type="submit"
-                className="w-full bg-[color:var(--chart-1)] hover:bg-[color:var(--chart-1)]/90 text-white"
-                disabled={isSubmitting || !username || !password}
+      {/* Content */}
+      <div className="relative z-10 w-full max-w-md px-6">
+        {/* Back to Home */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="mb-8"
+        >
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors group"
+          >
+            <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" />
+            <span>홈으로 돌아가기</span>
+          </Link>
+        </motion.div>
+
+        {/* Login Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.6, delay: 0.1 }}
+        >
+          <Card className="border-0 shadow-2xl bg-background/60 backdrop-blur-xl overflow-hidden">
+            {/* Gradient Border Effect */}
+            <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-[color:var(--chart-1)]/20 via-transparent to-[color:var(--chart-3)]/20 pointer-events-none" />
+
+            <CardHeader className="text-center pb-2 pt-8 relative">
+              {/* Animated Logo */}
+              <motion.div
+                className="flex justify-center mb-6"
+                whileHover={{ scale: 1.05 }}
+                transition={{ type: "spring", stiffness: 300 }}
               >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    로그인 중...
-                  </>
-                ) : (
-                  "로그인"
+                <div className="relative group">
+                  <div className="absolute inset-0 bg-gradient-to-r from-[color:var(--chart-1)] to-[color:var(--chart-3)] rounded-2xl blur-xl opacity-30 group-hover:opacity-50 transition-opacity" />
+                  <div className="relative p-4 rounded-2xl bg-gradient-to-br from-[color:var(--chart-1)]/10 to-[color:var(--chart-3)]/10 border border-[color:var(--chart-1)]/20">
+                    {/* Shine Effect */}
+                    <motion.div
+                      className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-transparent via-white/20 to-transparent"
+                      animate={{ x: ["-100%", "200%"] }}
+                      transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                    />
+                    <Sparkles className="h-10 w-10 text-[color:var(--chart-1)] relative z-10" />
+                  </div>
+                </div>
+              </motion.div>
+
+              <CardTitle className="text-3xl font-bold">
+                <span className="bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
+                  KCA-RAG
+                </span>
+              </CardTitle>
+              <CardDescription className="text-muted-foreground mt-2">
+                Document AI Pipeline
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="pt-6 pb-8 px-8 relative">
+              <form onSubmit={handleSubmit} className="space-y-5">
+                {/* Error Alert */}
+                {error && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                  >
+                    <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  </motion.div>
                 )}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+
+                {/* Username */}
+                <div className="space-y-2">
+                  <Label htmlFor="username" className="text-sm font-medium">
+                    사용자명
+                  </Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="username"
+                      type="text"
+                      placeholder="admin"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      required
+                      disabled={isSubmitting}
+                      autoComplete="username"
+                      autoFocus
+                      className="pl-10 h-11 bg-background/50 border-border/50 focus:border-[color:var(--chart-1)] focus:ring-[color:var(--chart-1)]/20 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                {/* Password */}
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-sm font-medium">
+                    비밀번호
+                  </Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="********"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      disabled={isSubmitting}
+                      autoComplete="current-password"
+                      className="pl-10 h-11 bg-background/50 border-border/50 focus:border-[color:var(--chart-1)] focus:ring-[color:var(--chart-1)]/20 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                {/* Submit Button */}
+                <motion.div
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
+                  className="pt-2"
+                >
+                  <Button
+                    type="submit"
+                    className="w-full h-11 bg-gradient-to-r from-[color:var(--chart-1)] to-[color:var(--chart-2)] hover:opacity-90 text-white font-semibold shadow-lg shadow-[color:var(--chart-1)]/20 hover:shadow-[color:var(--chart-1)]/40 transition-all border-0"
+                    disabled={isSubmitting || !username || !password}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        로그인 중...
+                      </>
+                    ) : (
+                      "로그인"
+                    )}
+                  </Button>
+                </motion.div>
+              </form>
+            </CardContent>
+          </Card>
+        </motion.div>
 
         {/* Footer */}
-        <p className="mt-4 text-center text-sm text-muted-foreground">
-          관리자 로그인
-        </p>
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+          className="mt-8 text-center text-sm text-muted-foreground"
+        >
+          관리자 전용 로그인
+        </motion.p>
       </div>
     </div>
   )
