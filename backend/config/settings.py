@@ -73,7 +73,7 @@ class Settings(BaseSettings):
     EXAONE_DEEP_MODEL: str = "exaone-deep-7.8b"
 
     LLM_DEFAULT_TEMPERATURE: float = 0.7
-    LLM_DEFAULT_MAX_TOKENS: int = 2000
+    LLM_DEFAULT_MAX_TOKENS: int = 4096
     LLM_DEFAULT_TOP_P: float = 0.9
 
     # RAG 설정

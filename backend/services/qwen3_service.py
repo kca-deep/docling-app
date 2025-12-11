@@ -60,54 +60,68 @@ class Qwen3Service:
         self,
         client: httpx.AsyncClient,
         image_base64: str,
-        page_num: int
-    ) -> str:
-        """Qwen3 VL 모델로 OCR 수행"""
-        headers = {
-            "Content-Type": "application/json"
-        }
+        page_num: int,
+        semaphore: asyncio.Semaphore = None
+    ) -> dict:
+        """
+        Qwen3 VL 모델로 OCR 수행
 
-        payload = {
-            "model": self.model,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/png;base64,{image_base64}"
+        Returns:
+            dict: {'page': int, 'content': str}
+        """
+        async def _do_ocr():
+            headers = {
+                "Content-Type": "application/json"
+            }
+
+            payload = {
+                "model": self.model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/png;base64,{image_base64}"
+                                }
+                            },
+                            {
+                                "type": "text",
+                                "text": self.ocr_prompt
                             }
-                        },
-                        {
-                            "type": "text",
-                            "text": self.ocr_prompt
-                        }
-                    ]
-                }
-            ],
-            "max_tokens": self.max_tokens,
-            "temperature": self.temperature
-        }
+                        ]
+                    }
+                ],
+                "max_tokens": self.max_tokens,
+                "temperature": self.temperature
+            }
 
-        try:
-            response = await client.post(
-                self.api_url,
-                headers=headers,
-                json=payload,
-                timeout=self.timeout
-            )
-            response.raise_for_status()
-            result = response.json()
+            try:
+                response = await client.post(
+                    self.api_url,
+                    headers=headers,
+                    json=payload,
+                    timeout=self.timeout
+                )
+                response.raise_for_status()
+                result = response.json()
 
-            if 'choices' in result and len(result['choices']) > 0:
-                ocr_text = result['choices'][0]['message']['content']
-                return ocr_text
-            else:
-                return f"오류: 응답에서 텍스트를 찾을 수 없습니다. 응답: {result}"
+                if 'choices' in result and len(result['choices']) > 0:
+                    ocr_text = result['choices'][0]['message']['content']
+                    return {'page': page_num, 'content': ocr_text}
+                else:
+                    return {'page': page_num, 'content': f"오류: 응답에서 텍스트를 찾을 수 없습니다. 응답: {result}"}
 
-        except Exception as e:
-            return f"오류 발생: {str(e)}"
+            except Exception as e:
+                return {'page': page_num, 'content': f"오류 발생: {str(e)}"}
+
+        # Semaphore로 동시 요청 수 제한
+        if semaphore:
+            async with semaphore:
+                return await _do_ocr()
+        else:
+            return await _do_ocr()
 
     async def convert_document(
         self,
@@ -150,27 +164,32 @@ class Qwen3Service:
                 filename=filename
             )
 
-            # 각 페이지 OCR 처리
-            page_results = []
+            # 병렬 처리를 위한 Semaphore (최대 2개 동시 요청)
+            semaphore = asyncio.Semaphore(2)
 
+            # 이미지를 base64로 미리 변환
+            images_base64 = [self._image_to_base64(img) for img in images]
+
+            # 진행률 업데이트를 위한 카운터
+            completed_count = 0
+            completed_lock = asyncio.Lock()
+
+            async def ocr_with_progress(client, image_base64, page_num):
+                nonlocal completed_count
+                result = await self._perform_ocr(client, image_base64, page_num, semaphore)
+                # 진행률 업데이트 (스레드 안전)
+                async with completed_lock:
+                    completed_count += 1
+                    progress_tracker.update_progress(task_id, completed_count)
+                return result
+
+            # 병렬 OCR 처리 (최대 2개 동시, 순서 보장)
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                for i, image in enumerate(images, 1):
-                    # 이미지를 base64로 변환
-                    image_base64 = self._image_to_base64(image)
-
-                    # OCR 수행
-                    ocr_result = await self._perform_ocr(client, image_base64, i)
-                    page_results.append({
-                        'page': i,
-                        'content': ocr_result
-                    })
-
-                    # 진행률 업데이트
-                    progress_tracker.update_progress(task_id, i)
-
-                    # API 부하 방지를 위한 짧은 대기
-                    if i < len(images):
-                        await asyncio.sleep(1)
+                tasks = [
+                    ocr_with_progress(client, img_b64, i)
+                    for i, img_b64 in enumerate(images_base64, 1)
+                ]
+                page_results = await asyncio.gather(*tasks)
 
             # 전체 마크다운 통합
             md_content = self._combine_results(filename, page_results)

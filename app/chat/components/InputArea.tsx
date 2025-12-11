@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SettingsPanel } from "./SettingsPanel";
+import { CollectionSelector } from "./CollectionSelector";
 import {
   Select,
   SelectContent,
@@ -12,7 +13,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Database } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -34,9 +34,6 @@ import {
   Trash2,
   Settings,
   Brain,
-  Globe,
-  Lock,
-  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -62,18 +59,6 @@ interface Collection {
   description?: string;
   owner_id?: number;
   is_owner?: boolean;
-}
-
-// Visibility icon helper
-function VisibilityIcon({ visibility, className }: { visibility?: string; className?: string }) {
-  switch (visibility) {
-    case "private":
-      return <Lock className={cn("h-3 w-3", className)} />;
-    case "shared":
-      return <Users className={cn("h-3 w-3", className)} />;
-    default:
-      return <Globe className={cn("h-3 w-3", className)} />;
-  }
 }
 
 interface ChatSettings {
@@ -282,46 +267,13 @@ export const InputArea = memo(function InputArea({
           <div className="px-4 py-3 flex items-center justify-between gap-2">
             {/* 왼쪽: 컬렉션 선택 및 기능 버튼들 */}
             <div className="flex items-center gap-2 flex-wrap">
-              {/* 컬렉션 선택 */}
-              <Select
-                value={selectedCollection || "__casual__"}
-                onValueChange={(value) => onCollectionChange(value === "__casual__" ? "" : value)}
-              >
-                <SelectTrigger className="h-8 w-auto min-w-[140px] border-muted hover:bg-muted/50 transition-colors gap-2 rounded-full">
-                  <div className="flex items-center gap-1.5">
-                    <Database className="h-3.5 w-3.5" style={{ color: "var(--chart-2)" }} />
-                    <span className="text-xs font-medium">{selectedCollection || "일상대화"}</span>
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  {/* 일상대화 옵션 - 항상 표시 */}
-                  <SelectItem value="__casual__">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="h-3 w-3 text-muted-foreground" />
-                      <span>일상대화</span>
-                      <Badge variant="outline" className="text-xs ml-auto">
-                        RAG 없음
-                      </Badge>
-                    </div>
-                  </SelectItem>
-                  {collections.length > 0 && (
-                    <div className="h-px bg-border my-1" />
-                  )}
-                  {collections.map((collection) => (
-                    <SelectItem key={collection.name} value={collection.name}>
-                      <div className="flex items-center justify-between gap-3 w-full">
-                        <div className="flex items-center gap-2">
-                          <VisibilityIcon visibility={collection.visibility} className="text-muted-foreground" />
-                          <span>{collection.name}</span>
-                        </div>
-                        <Badge variant="secondary" className="text-xs">
-                          {collection.points_count.toLocaleString()}
-                        </Badge>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* 컬렉션 선택 - 새로운 CollectionSelector 컴포넌트 */}
+              <CollectionSelector
+                selectedCollection={selectedCollection}
+                onCollectionChange={onCollectionChange}
+                collections={collections}
+                disabled={isLoading}
+              />
 
               {/* 심층사고 토글 */}
               <TooltipProvider>

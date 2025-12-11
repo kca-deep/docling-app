@@ -19,11 +19,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Database,
@@ -37,6 +32,20 @@ import {
   ArrowUpDown,
   Sparkles,
   FolderCog,
+  Star,
+  Landmark,
+  Briefcase,
+  Calendar,
+  Wallet,
+  Gift,
+  Scale,
+  Shield,
+  CreditCard,
+  FileText,
+  Award,
+  FlaskConical,
+  Building,
+  LucideIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 import { API_BASE_URL } from "@/lib/api-config"
@@ -63,6 +72,60 @@ interface Collection {
 
 type VisibilityFilter = "all" | "public" | "private" | "shared"
 type SortOption = "name_asc" | "name_desc" | "vectors_desc" | "newest"
+
+// 메타데이터 타입
+interface CollectionMetadata {
+  koreanName?: string
+  icon?: string
+  keywords?: string[]
+  priority?: number
+  plainDescription?: string
+}
+
+// 아이콘 매핑
+const ICON_MAP: Record<string, LucideIcon> = {
+  Landmark,
+  Briefcase,
+  Users,
+  Calendar,
+  Wallet,
+  Gift,
+  Scale,
+  Shield,
+  CreditCard,
+  Search,
+  FileText,
+  Award,
+  FlaskConical,
+  Building,
+  Database,
+}
+
+// description JSON 파싱 함수
+function parseMetadata(description?: string): CollectionMetadata {
+  if (!description) return {}
+  try {
+    const parsed = JSON.parse(description)
+    if (typeof parsed === 'object' && parsed !== null) {
+      return {
+        koreanName: parsed.koreanName,
+        icon: parsed.icon,
+        keywords: Array.isArray(parsed.keywords) ? parsed.keywords : undefined,
+        priority: typeof parsed.priority === 'number' ? parsed.priority : undefined,
+        plainDescription: parsed.plainDescription,
+      }
+    }
+  } catch {
+    return { plainDescription: description }
+  }
+  return {}
+}
+
+// 아이콘 컴포넌트 가져오기
+function getIcon(iconName?: string): LucideIcon {
+  if (!iconName) return Database
+  return ICON_MAP[iconName] || Database
+}
 
 export default function CollectionsPage() {
   // 컬렉션 목록 상태
@@ -108,9 +171,19 @@ export default function CollectionsPage() {
   // 필터링 및 정렬된 컬렉션
   const filteredCollections = collections
     .filter((col) => {
-      // 검색 필터
-      if (searchQuery && !col.name.toLowerCase().includes(searchQuery.toLowerCase())) {
-        return false
+      // 검색 필터 - 이름, 한글명, 키워드로 검색
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase()
+        const metadata = parseMetadata(col.description)
+
+        const matchName = col.name.toLowerCase().includes(query)
+        const matchKoreanName = metadata.koreanName?.toLowerCase().includes(query)
+        const matchKeywords = metadata.keywords?.some(k => k.toLowerCase().includes(query))
+        const matchDescription = metadata.plainDescription?.toLowerCase().includes(query)
+
+        if (!matchName && !matchKoreanName && !matchKeywords && !matchDescription) {
+          return false
+        }
       }
       // visibility 필터 (추후 백엔드 지원 시 활성화)
       if (visibilityFilter !== "all" && col.visibility && col.visibility !== visibilityFilter) {
@@ -119,11 +192,17 @@ export default function CollectionsPage() {
       return true
     })
     .sort((a, b) => {
+      // 한글명 우선, 없으면 영문명 사용
+      const metaA = parseMetadata(a.description)
+      const metaB = parseMetadata(b.description)
+      const nameA = metaA.koreanName || a.name
+      const nameB = metaB.koreanName || b.name
+
       switch (sortOption) {
         case "name_asc":
-          return a.name.localeCompare(b.name, 'ko-KR')
+          return nameA.localeCompare(nameB, 'ko-KR')
         case "name_desc":
-          return b.name.localeCompare(a.name, 'ko-KR')
+          return nameB.localeCompare(nameA, 'ko-KR')
         case "vectors_desc":
           return b.points_count - a.points_count
         case "newest":
@@ -131,7 +210,7 @@ export default function CollectionsPage() {
           if (a.created_at && b.created_at) {
             return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
           }
-          return a.name.localeCompare(b.name, 'ko-KR')
+          return nameA.localeCompare(nameB, 'ko-KR')
         default:
           return 0
       }
@@ -402,95 +481,132 @@ export default function CollectionsPage() {
           animate="show"
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
         >
-          {filteredCollections.map((collection) => (
-            <motion.div key={collection.name} variants={item}>
-              <Card className="group relative overflow-hidden border-border/40 bg-background/80 backdrop-blur-sm hover:border-[color:var(--chart-1)]/40 hover:shadow-lg transition-all duration-300 cursor-pointer">
-                {/* 호버 시 배경 그라데이션 */}
-                <div className="absolute inset-0 bg-gradient-to-br from-[color:var(--chart-1)]/5 to-[color:var(--chart-2)]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          {filteredCollections.map((collection) => {
+            const metadata = parseMetadata(collection.description)
+            const IconComponent = getIcon(metadata.icon)
+            const displayName = metadata.koreanName || collection.name
+            const hasMetadata = !!metadata.koreanName
 
-                <CardContent className="p-4 relative z-10">
-                  {/* 컴팩트 기본 뷰 */}
-                  <div className="flex items-center gap-3">
-                    {/* 아이콘 */}
-                    <div className="p-2 rounded-lg bg-muted/50 group-hover:bg-[color:var(--chart-1)]/10 transition-colors">
-                      <Database className="h-4 w-4 text-muted-foreground group-hover:text-[color:var(--chart-1)] transition-colors" />
+            return (
+              <motion.div key={collection.name} variants={item}>
+                <Card className="relative overflow-hidden border-border/40 bg-background/80 backdrop-blur-sm hover:border-[color:var(--chart-1)]/40 hover:shadow-lg transition-all duration-300">
+                  {/* Priority 배지 */}
+                  {metadata.priority === 1 && (
+                    <div className="absolute top-2 right-2 z-20">
+                      <Badge className="bg-amber-500/90 text-white text-[10px] px-1.5 py-0 h-5 gap-1">
+                        <Star className="h-3 w-3 fill-current" />
+                        추천
+                      </Badge>
                     </div>
+                  )}
 
-                    {/* 메인 정보 */}
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-sm truncate group-hover:text-[color:var(--chart-1)] transition-colors" title={collection.name}>
-                        {collection.name}
-                      </h3>
-                      <p className="text-xs text-muted-foreground">
-                        {collection.points_count > 0 ? (
-                          <>{collection.documents_count}문서 • {collection.points_count.toLocaleString()}청크</>
-                        ) : (
-                          <span className="text-muted-foreground/60">비어있음</span>
+                  <CardContent className="p-4 relative z-10">
+                    {/* 헤더 - 아이콘, 타이틀, 공개상태 */}
+                    <div className="flex items-start gap-3">
+                      {/* 아이콘 */}
+                      <div className="p-2.5 rounded-xl bg-[color:var(--chart-1)]/10 text-[color:var(--chart-1)] flex-shrink-0">
+                        <IconComponent className="h-5 w-5" />
+                      </div>
+
+                      {/* 메인 정보 */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-base truncate" title={displayName}>
+                            {displayName}
+                          </h3>
+                          {getVisibilityBadge(collection.visibility, true)}
+                        </div>
+                        {hasMetadata && (
+                          <p className="text-xs text-muted-foreground truncate" title={collection.name}>
+                            {collection.name}
+                          </p>
                         )}
-                      </p>
-                    </div>
-
-                    {/* 공개상태 아이콘 */}
-                    {getVisibilityBadge(collection.visibility, true)}
-                  </div>
-
-                  {/* 호버 시 확장 영역 */}
-                  <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-all duration-300 ease-out">
-                    <div className="overflow-hidden">
-                      <div className="pt-4 space-y-3">
-                        {/* 구분선 */}
-                        <div className="h-px bg-border/50" />
-
-                        {/* 설명 */}
-                        <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-                          {collection.description || "설명이 없습니다."}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {collection.points_count > 0 ? (
+                            <>{collection.documents_count}문서 · {collection.points_count.toLocaleString()}청크</>
+                          ) : (
+                            <span className="text-muted-foreground/60">비어있음</span>
+                          )}
                         </p>
-
-                        {/* 메타 정보 태그 */}
-                        <div className="flex flex-wrap gap-1.5">
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 font-normal">
-                            {collection.distance}
-                          </Badge>
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 font-normal">
-                            {collection.vector_size}d
-                          </Badge>
-                        </div>
-
-                        {/* 액션 버튼 */}
-                        <div className="flex gap-2 pt-1">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="flex-1 h-8 text-xs gap-1.5 hover:bg-[color:var(--chart-1)]/10 hover:text-[color:var(--chart-1)] hover:border-[color:var(--chart-1)]/30"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              openPromptGenerator(collection)
-                            }}
-                            disabled={collection.points_count === 0}
-                          >
-                            <Sparkles className="h-3 w-3" />
-                            프롬프트
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="flex-1 h-8 text-xs gap-1.5"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              openSettingsModal(collection)
-                            }}
-                          >
-                            <Settings className="h-3 w-3" />
-                            설정
-                          </Button>
-                        </div>
                       </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))}
+
+                    {/* 키워드 태그 */}
+                    {metadata.keywords && metadata.keywords.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-3">
+                        {metadata.keywords.slice(0, 4).map((keyword, idx) => (
+                          <Badge
+                            key={idx}
+                            variant="secondary"
+                            className="text-[10px] px-1.5 py-0 h-5 font-normal bg-muted/50"
+                          >
+                            {keyword}
+                          </Badge>
+                        ))}
+                        {metadata.keywords.length > 4 && (
+                          <Badge
+                            variant="secondary"
+                            className="text-[10px] px-1.5 py-0 h-5 font-normal bg-muted/50"
+                          >
+                            +{metadata.keywords.length - 4}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 설명 */}
+                    {metadata.plainDescription && (
+                      <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
+                        {metadata.plainDescription}
+                      </p>
+                    )}
+
+                    {/* 구분선 */}
+                    <div className="h-px bg-border/50 my-3" />
+
+                    {/* 기술 정보 태그 */}
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 font-normal">
+                        {collection.distance}
+                      </Badge>
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 font-normal">
+                        {collection.vector_size}d
+                      </Badge>
+                    </div>
+
+                    {/* 액션 버튼 - 항상 표시 */}
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 h-8 text-xs gap-1.5 hover:bg-[color:var(--chart-1)]/10 hover:text-[color:var(--chart-1)] hover:border-[color:var(--chart-1)]/30"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openPromptGenerator(collection)
+                        }}
+                        disabled={collection.points_count === 0}
+                      >
+                        <Sparkles className="h-3 w-3" />
+                        프롬프트
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 h-8 text-xs gap-1.5"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openSettingsModal(collection)
+                        }}
+                      >
+                        <Settings className="h-3 w-3" />
+                        설정
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )
+          })}
         </motion.div>
       )}
 

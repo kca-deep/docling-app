@@ -29,6 +29,15 @@ backend/venv/
 !.env.development
 !.env.production
 
+# MCP (Model Context Protocol)
+.mcp.json
+
+# Claude Code
+.claude/settings.local.json
+
+# Playwright MCP screenshots
+.playwright-mcp/
+
 # Database
 *.db
 *.db-shm
@@ -46,16 +55,13 @@ backend/venv/
 # Test scripts (root level)
 /test_*.py
 
-# Docs folder - ignore test data, keep design docs (.md)
+# Docs folder - ignore test data and binaries, keep markdown docs
 docs/*/
 docs/*.pdf
 docs/*.xlsx
 docs/*.txt
 docs/*.jpg
 docs/*.png
-# Keep system documentation images
-!docs/system*.png
-!docs/fixed_chat.png
 
 # IDE
 .vscode/
