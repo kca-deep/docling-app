@@ -6,10 +6,8 @@ import { MessageList } from "./MessageList";
 import { InputArea } from "./InputArea";
 import { SuggestedPrompts } from "./SuggestedPrompts";
 import { SourceArtifactPanel } from "./SourceArtifactPanel";
-import { Card } from "@/components/ui/card";
+import { ChatHeader } from "./ChatHeader";
 import { API_BASE_URL } from "@/lib/api-config";
-import { Button } from "@/components/ui/button";
-import { Maximize, Minimize, Brain, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import {
@@ -19,13 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 interface Message {
@@ -911,96 +902,17 @@ export function ChatContainer() {
           : "flex flex-col h-full overflow-hidden"
       }
     >
-      {/* 상단 헤더 - 미니멀 디자인 */}
-      <div className={cn(
-        "flex items-center justify-between px-4 py-3 border-b flex-shrink-0 transition-colors",
-        isFullscreen ? "bg-background/95 backdrop-blur-xl" : "bg-background"
-      )}>
-        {/* 왼쪽: 빈 영역 (우측 버튼들과 균형) */}
-        <div className="w-20" />
-
-        {/* 가운데: 로고 + 텍스트 */}
-        <div className="flex items-center gap-3">
-          {/* 그라데이션 아이콘 */}
-          <div className="relative">
-            <div
-              className="p-2 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-lg"
-              style={{
-                background: "linear-gradient(135deg, var(--chart-1) 0%, var(--chart-2) 100%)"
-              }}
-            >
-              <Brain className="h-5 w-5 text-white" strokeWidth={2} />
-            </div>
-            {/* 온라인 상태 표시 */}
-            <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-background" />
-          </div>
-
-          {/* 텍스트 레이아웃 */}
-          <div className="hidden sm:flex items-center gap-2">
-            <span
-              className="font-bold text-lg bg-clip-text text-transparent"
-              style={{
-                backgroundImage: "linear-gradient(135deg, var(--chart-1), var(--chart-2))"
-              }}
-            >
-              KCA-i
-            </span>
-            <Badge variant="secondary" className="text-[11px] px-2 py-0.5 font-medium">
-              AI 어시스턴트
-            </Badge>
-          </div>
-        </div>
-
-        {/* 오른쪽: 컨트롤 버튼들 (드롭다운 메뉴로 통합) */}
-        <div className="flex items-center gap-1">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                >
-                  {mounted && theme === "dark" ? (
-                    <Sun className="h-3.5 w-3.5" />
-                  ) : (
-                    <Moon className="h-3.5 w-3.5" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className="text-xs">{mounted && theme === "dark" ? "라이트 모드" : "다크 모드"}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => {
-                    console.log('[Fullscreen Button] Clicked, current state:', isFullscreen);
-                    setIsFullscreen(!isFullscreen);
-                  }}
-                >
-                  {isFullscreen ? (
-                    <Minimize className="h-3.5 w-3.5" />
-                  ) : (
-                    <Maximize className="h-3.5 w-3.5" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className="text-xs">{isFullscreen ? "전체화면 종료" : "전체화면"}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-      </div>
+      {/* 상단 헤더 - 웨이브 애니메이션 */}
+      <ChatHeader
+        isFullscreen={isFullscreen}
+        onFullscreenToggle={() => {
+          console.log('[Fullscreen Button] Clicked, current state:', isFullscreen);
+          setIsFullscreen(!isFullscreen);
+        }}
+        theme={theme}
+        onThemeToggle={() => setTheme(theme === "dark" ? "light" : "dark")}
+        mounted={mounted}
+      />
 
       {/* 메인 콘텐츠 영역 (6:4 분할) */}
       <div className="flex-1 flex overflow-hidden">
