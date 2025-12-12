@@ -12,6 +12,7 @@ from backend.services.qwen3_service import qwen3_service
 from backend.services import document_crud
 from backend.services.progress_tracker import progress_tracker
 from backend.database import get_db
+from backend.config.settings import settings
 from backend.dependencies.auth import get_current_active_user
 from backend.models.user import User
 from backend.models.schemas import (
@@ -105,6 +106,13 @@ async def convert_document(
 
         if len(file_content) == 0:
             raise HTTPException(status_code=400, detail="파일이 비어있습니다")
+
+        # 파일 크기 검증
+        if len(file_content) > settings.MAX_UPLOAD_SIZE:
+            raise HTTPException(
+                status_code=413,
+                detail=f"파일 크기가 너무 큽니다. 최대 {settings.MAX_UPLOAD_SIZE_MB}MB까지 허용됩니다."
+            )
 
         # 파라미터 변환
         do_ocr_bool = do_ocr.lower() == "true"

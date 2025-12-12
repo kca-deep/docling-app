@@ -5,6 +5,7 @@ import logging
 from typing import List, Union
 
 from backend.services.http_client import http_manager
+from backend.utils.retry import async_retry
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ class EmbeddingService:
         # 싱글톤 HTTP 클라이언트 매니저 사용
         self.client = http_manager.get_client("embedding")
 
+    @async_retry(max_attempts=3, base_delay=1.0, max_delay=10.0)
     async def get_embeddings(
         self,
         texts: Union[str, List[str]]
@@ -39,7 +41,7 @@ class EmbeddingService:
             List[List[float]]: 임베딩 벡터 리스트
 
         Raises:
-            Exception: 임베딩 실패 시
+            Exception: 임베딩 실패 시 (재시도 후에도 실패한 경우)
         """
         try:
             # 단일 텍스트를 리스트로 변환

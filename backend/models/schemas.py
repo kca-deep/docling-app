@@ -369,10 +369,46 @@ class QdrantUploadResponse(BaseModel):
     results: List[QdrantUploadResult]
 
 
+class QdrantUploadProgressEvent(BaseModel):
+    """Qdrant 업로드 진행률 이벤트 (SSE용)"""
+    event_type: str  # "progress" | "document_complete" | "error" | "done"
+    document_id: Optional[int] = None
+    filename: Optional[str] = None
+    phase: Optional[str] = None  # "chunking" | "embedding" | "uploading"
+    progress: int = 0  # 0-100
+    current_doc_index: int = 0
+    total_docs: int = 0
+    chunk_count: Optional[int] = None
+    vector_ids: Optional[List[str]] = None
+    error: Optional[str] = None
+    success_count: int = 0
+    failure_count: int = 0
+
+
 class QdrantConfigResponse(BaseModel):
     """Qdrant 청킹 설정 응답"""
     default_chunk_size: int
     default_chunk_overlap: int
+
+
+class DuplicateCheckRequest(BaseModel):
+    """중복 확인 요청"""
+    collection_name: str
+    document_ids: List[int]
+
+
+class DuplicateInfo(BaseModel):
+    """중복 문서 정보"""
+    document_id: int
+    filename: str
+    uploaded_at: str
+
+
+class DuplicateCheckResponse(BaseModel):
+    """중복 확인 응답"""
+    has_duplicates: bool
+    duplicates: List[DuplicateInfo]
+    new_documents: List[int]
 
 
 # ==================== Chat API Schemas ====================

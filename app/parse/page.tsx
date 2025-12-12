@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Upload, FileText, Loader2, CheckCircle2, XCircle, Download, Trash2, FolderOpen, Save, Settings, Zap, Sparkles, Eye, ChevronDown, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -24,6 +24,10 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { CollectionSelector } from "@/components/ui/collection-selector";
 import { QdrantCollection } from "@/app/upload/types";
+
+// 파일 크기 제한 (50MB - 백엔드 설정과 동일)
+const MAX_FILE_SIZE_MB = 50;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 interface ConvertResult {
   task_id: string;
@@ -99,6 +103,9 @@ export default function ParsePage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("__uncategorized__");
   const [collectionsLoading, setCollectionsLoading] = useState(false);
 
+  // 폴링 인터벌 추적 (메모리 누수 방지)
+  const pollingIntervalsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+
   // 컬렉션 목록 로드
   const fetchCollections = async () => {
     setCollectionsLoading(true);
@@ -126,10 +133,32 @@ export default function ParsePage() {
     fetchCollections();
   }, []);
 
+  // 컴포넌트 언마운트 시 모든 폴링 인터벌 정리
+  useEffect(() => {
+    return () => {
+      pollingIntervalsRef.current.forEach((interval) => {
+        clearInterval(interval);
+      });
+      pollingIntervalsRef.current.clear();
+    };
+  }, []);
+
+  // 파일 크기 검증 함수
+  const validateFileSize = (file: File): boolean => {
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      toast.error(`"${file.name}" 파일이 너무 큽니다. 최대 ${MAX_FILE_SIZE_MB}MB까지 허용됩니다.`);
+      return false;
+    }
+    return true;
+  };
+
   // 일괄 파일 핸들러
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const newFiles = Array.from(e.target.files).map(file => ({
+      const validFiles = Array.from(e.target.files).filter(validateFileSize);
+      if (validFiles.length === 0) return;
+
+      const newFiles = validFiles.map(file => ({
         file,
         status: "pending" as const,
         progress: 0,
@@ -159,7 +188,10 @@ export default function ParsePage() {
 
     const droppedFiles = e.dataTransfer.files;
     if (droppedFiles && droppedFiles.length > 0) {
-      const newFiles = Array.from(droppedFiles).map(file => ({
+      const validFiles = Array.from(droppedFiles).filter(validateFileSize);
+      if (validFiles.length === 0) return;
+
+      const newFiles = validFiles.map(file => ({
         file,
         status: "pending" as const,
         progress: 0,
@@ -259,6 +291,12 @@ export default function ParsePage() {
     }
   };
 
+  // 폴링 정리 헬퍼 함수
+  const clearPollingInterval = (taskId: string, pollInterval: NodeJS.Timeout) => {
+    clearInterval(pollInterval);
+    pollingIntervalsRef.current.delete(taskId);
+  };
+
   // 일괄 파싱용 진행률 polling
   const pollBatchProgress = async (taskId: string, index: number): Promise<void> => {
     return new Promise((resolve) => {
@@ -283,7 +321,7 @@ export default function ParsePage() {
 
             // 완료 시
             if (progressData.status === "completed") {
-              clearInterval(pollInterval);
+              clearPollingInterval(taskId, pollInterval);
               setFiles(prev => prev.map((f, i) =>
                 i === index ? {
                   ...f,
@@ -303,7 +341,7 @@ export default function ParsePage() {
               ));
               resolve();
             } else if (progressData.status === "failed") {
-              clearInterval(pollInterval);
+              clearPollingInterval(taskId, pollInterval);
               setFiles(prev => prev.map((f, i) =>
                 i === index ? {
                   ...f,
@@ -320,13 +358,16 @@ export default function ParsePage() {
             }
           } else if (response.status === 404) {
             console.warn(`[Batch] Progress not found for task ${taskId}, stopping polling`);
-            clearInterval(pollInterval);
+            clearPollingInterval(taskId, pollInterval);
             resolve();
           }
         } catch (err) {
           console.error(`[Batch] Error polling progress for file ${index}:`, err);
         }
       }, 2000);  // 2초마다 polling
+
+      // 폴링 인터벌을 ref에 저장 (언마운트 시 정리용)
+      pollingIntervalsRef.current.set(taskId, pollInterval);
     });
   };
 

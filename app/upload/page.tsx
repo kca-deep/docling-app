@@ -6,9 +6,11 @@ import { PageContainer } from "@/components/page-container"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Progress } from "@/components/ui/progress"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Upload, Database, Sparkles } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Loader2, Upload, Database, Sparkles, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 import { motion } from "framer-motion"
 import { MarkdownViewerModal } from "@/components/markdown-viewer-modal"
@@ -23,6 +25,9 @@ import {
   DifyUploadResult,
   QdrantCollection,
   QdrantUploadResult,
+  QdrantUploadProgressEvent,
+  DuplicateCheckResponse,
+  DuplicateInfo,
   UploadTarget,
 } from "./types"
 
@@ -73,6 +78,12 @@ function UploadPageContent() {
   const [loadingQdrantCollections, setLoadingQdrantCollections] = useState(false)
   const [qdrantResults, setQdrantResults] = useState<QdrantUploadResult[]>([])
   const [uploadingQdrant, setUploadingQdrant] = useState(false)
+  // Qdrant 업로드 진행률 상태
+  const [qdrantProgress, setQdrantProgress] = useState<QdrantUploadProgressEvent | null>(null)
+  // 중복 확인 다이얼로그 상태
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false)
+  const [duplicateInfo, setDuplicateInfo] = useState<DuplicateInfo[]>([])
+  const [newDocumentIds, setNewDocumentIds] = useState<number[]>([])
 
   // Markdown Viewer 모달 상태
   const [viewerOpen, setViewerOpen] = useState(false)
@@ -380,7 +391,7 @@ function UploadPageContent() {
     }
   }
 
-  // Qdrant 업로드
+  // 중복 확인 후 업로드 시작
   const uploadToQdrant = async () => {
     if (!selectedQdrantCollection) {
       toast.error("대상 Collection을 선택해주세요")
@@ -392,45 +403,144 @@ function UploadPageContent() {
       return
     }
 
-    setUploadingQdrant(true)
-    setQdrantResults([])
-
+    // 중복 확인
     try {
-      const response = await fetch(`${API_BASE_URL}/api/qdrant/upload`, {
+      const checkResponse = await fetch(`${API_BASE_URL}/api/qdrant/check-duplicates`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: 'include',
         body: JSON.stringify({
           collection_name: selectedQdrantCollection,
-          document_ids: Array.from(selectedDocs),
+          document_ids: Array.from(selectedDocs)
+        })
+      })
+
+      if (checkResponse.ok) {
+        const checkData: DuplicateCheckResponse = await checkResponse.json()
+
+        if (checkData.has_duplicates) {
+          // 중복 있음 - 다이얼로그 표시
+          setDuplicateInfo(checkData.duplicates)
+          setNewDocumentIds(checkData.new_documents)
+          setDuplicateDialogOpen(true)
+          return
+        }
+      }
+    } catch (error) {
+      console.error("Failed to check duplicates:", error)
+      // 중복 확인 실패해도 업로드 진행
+    }
+
+    // 중복 없으면 바로 업로드
+    await executeQdrantUpload(Array.from(selectedDocs))
+  }
+
+  // 실제 Qdrant 업로드 실행 (SSE 스트리밍)
+  const executeQdrantUpload = async (documentIds: number[]) => {
+    if (documentIds.length === 0) {
+      toast.info("업로드할 문서가 없습니다")
+      return
+    }
+
+    setUploadingQdrant(true)
+    setQdrantResults([])
+    setQdrantProgress(null)
+    setDuplicateDialogOpen(false)
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/qdrant/upload/stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: 'include',
+        body: JSON.stringify({
+          collection_name: selectedQdrantCollection,
+          document_ids: documentIds,
           chunk_size: chunkSize,
           chunk_overlap: chunkOverlap
         })
       })
 
-      if (response.ok) {
-        const data = await response.json()
-        setQdrantResults(data.results)
-
-        if (data.success_count > 0 && data.failure_count === 0) {
-          toast.success(`${data.success_count}개 문서가 성공적으로 업로드되었습니다`)
-          setSelectedDocs(new Set())
-          setSelectedDocsInfo(new Map())
-        } else if (data.success_count > 0) {
-          toast.warning(`${data.success_count}개 성공, ${data.failure_count}개 실패`)
-          setSelectedDocs(new Set())
-          setSelectedDocsInfo(new Map())
-        } else {
-          toast.error("모든 문서 업로드에 실패했습니다")
-        }
-      } else {
+      if (!response.ok) {
         toast.error("업로드에 실패했습니다")
+        setUploadingQdrant(false)
+        return
+      }
+
+      const reader = response.body?.getReader()
+      if (!reader) {
+        toast.error("스트리밍을 시작할 수 없습니다")
+        setUploadingQdrant(false)
+        return
+      }
+
+      const decoder = new TextDecoder()
+      const results: QdrantUploadResult[] = []
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = decoder.decode(value, { stream: true })
+        const lines = chunk.split('\n')
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const eventData = JSON.parse(line.slice(6)) as QdrantUploadProgressEvent
+              setQdrantProgress(eventData)
+
+              // 문서 완료 시 결과 추가
+              if (eventData.event_type === "document_complete" && eventData.document_id) {
+                results.push({
+                  document_id: eventData.document_id,
+                  filename: eventData.filename || "Unknown",
+                  success: true,
+                  chunk_count: eventData.chunk_count || 0,
+                  vector_ids: eventData.vector_ids || [],
+                  error: null
+                })
+                setQdrantResults([...results])
+              }
+
+              // 에러 시 결과 추가
+              if (eventData.event_type === "error" && eventData.document_id) {
+                results.push({
+                  document_id: eventData.document_id,
+                  filename: eventData.filename || "Unknown",
+                  success: false,
+                  chunk_count: 0,
+                  vector_ids: [],
+                  error: eventData.error || "업로드 실패"
+                })
+                setQdrantResults([...results])
+              }
+
+              // 완료 시
+              if (eventData.event_type === "done") {
+                if (eventData.success_count > 0 && eventData.failure_count === 0) {
+                  toast.success(`${eventData.success_count}개 문서가 성공적으로 업로드되었습니다`)
+                  setSelectedDocs(new Set())
+                  setSelectedDocsInfo(new Map())
+                } else if (eventData.success_count > 0) {
+                  toast.warning(`${eventData.success_count}개 성공, ${eventData.failure_count}개 실패`)
+                  setSelectedDocs(new Set())
+                  setSelectedDocsInfo(new Map())
+                } else {
+                  toast.error("모든 문서 업로드에 실패했습니다")
+                }
+              }
+            } catch (parseError) {
+              console.error("Failed to parse SSE event:", parseError)
+            }
+          }
+        }
       }
     } catch (error) {
       console.error("Failed to upload to Qdrant:", error)
       toast.error("업로드에 실패했습니다")
     } finally {
       setUploadingQdrant(false)
+      setQdrantProgress(null)
     }
   }
 
@@ -668,6 +778,36 @@ function UploadPageContent() {
                 )}
               </div>
 
+              {/* 진행률 표시 */}
+              {qdrantProgress && uploadingQdrant && (
+                <div className="space-y-3 p-4 rounded-lg border border-[color:var(--chart-1)]/20 bg-[color:var(--chart-1)]/5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">
+                      {qdrantProgress.filename && (
+                        <span className="font-medium text-foreground">{qdrantProgress.filename}</span>
+                      )}
+                      {qdrantProgress.phase && (
+                        <span className="ml-2 text-[color:var(--chart-1)]">
+                          ({qdrantProgress.phase === "chunking" && "청킹 중"}
+                          {qdrantProgress.phase === "embedding" && "임베딩 생성 중"}
+                          {qdrantProgress.phase === "uploading" && "업로드 중"}
+                          {qdrantProgress.phase === "completed" && "완료"})
+                        </span>
+                      )}
+                    </span>
+                    <span className="font-medium">
+                      {qdrantProgress.current_doc_index} / {qdrantProgress.total_docs}
+                    </span>
+                  </div>
+                  <Progress value={(qdrantProgress.current_doc_index / qdrantProgress.total_docs) * 100} className="h-2" />
+                  {qdrantProgress.chunk_count && (
+                    <div className="text-xs text-muted-foreground">
+                      청크 수: {qdrantProgress.chunk_count}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <UploadResults
                 uploadTarget="qdrant"
                 difyResults={[]}
@@ -747,6 +887,67 @@ function UploadPageContent() {
         open={viewerOpen}
         onOpenChange={setViewerOpen}
       />
+
+      {/* 중복 확인 다이얼로그 */}
+      <Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              중복 문서 발견
+            </DialogTitle>
+            <DialogDescription>
+              다음 문서는 이미 "{selectedQdrantCollection}" 컬렉션에 업로드되어 있습니다.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-48 overflow-y-auto space-y-2">
+            {duplicateInfo.map((dup) => (
+              <div
+                key={dup.document_id}
+                className="flex items-center justify-between p-2 rounded bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800"
+              >
+                <span className="text-sm font-medium truncate">{dup.filename}</span>
+                <span className="text-xs text-muted-foreground">
+                  {new Date(dup.uploaded_at).toLocaleDateString("ko-KR")}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {newDocumentIds.length > 0 && (
+            <p className="text-sm text-muted-foreground">
+              신규 문서 {newDocumentIds.length}개는 업로드됩니다.
+            </p>
+          )}
+
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setDuplicateDialogOpen(false)}
+            >
+              취소
+            </Button>
+            {newDocumentIds.length > 0 && (
+              <Button
+                variant="secondary"
+                onClick={() => executeQdrantUpload(newDocumentIds)}
+              >
+                신규만 업로드 ({newDocumentIds.length}개)
+              </Button>
+            )}
+            <Button
+              variant="default"
+              onClick={() => executeQdrantUpload([
+                ...newDocumentIds,
+                ...duplicateInfo.map(d => d.document_id)
+              ])}
+            >
+              모두 업로드
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageContainer>
   )
 }

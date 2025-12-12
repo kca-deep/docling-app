@@ -63,3 +63,32 @@ export interface QdrantSettings {
   chunkSize: number
   chunkOverlap: number
 }
+
+// SSE 진행률 이벤트 타입
+export interface QdrantUploadProgressEvent {
+  event_type: "progress" | "document_complete" | "error" | "done"
+  document_id?: number
+  filename?: string
+  phase?: "chunking" | "embedding" | "uploading" | "completed"
+  progress: number
+  current_doc_index: number
+  total_docs: number
+  chunk_count?: number
+  vector_ids?: string[]
+  error?: string
+  success_count: number
+  failure_count: number
+}
+
+// 중복 확인 타입
+export interface DuplicateInfo {
+  document_id: number
+  filename: string
+  uploaded_at: string
+}
+
+export interface DuplicateCheckResponse {
+  has_duplicates: boolean
+  duplicates: DuplicateInfo[]
+  new_documents: number[]
+}

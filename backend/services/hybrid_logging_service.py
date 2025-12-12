@@ -14,6 +14,7 @@ import uuid
 import logging
 
 from backend.utils.timezone import now, now_iso, format_date, format_datetime
+from backend.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ class HybridLoggingService:
     def __init__(self):
         """서비스 초기화"""
         self.queue = asyncio.Queue(maxsize=100)
-        self.batch_size = 20
+        self.batch_size = settings.LOGGING_BATCH_SIZE
         self.flush_interval = 5  # seconds
         self.log_dir = Path("./logs/data")
         self.conversation_dir = Path("./logs/conversations")

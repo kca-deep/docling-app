@@ -128,7 +128,14 @@ class Settings(BaseSettings):
     QWEN3_VL_MAX_PAGES: int = 50
     QWEN3_VL_MAX_TOKENS: int = 4096
     QWEN3_VL_TEMPERATURE: float = 0.1
+    QWEN3_VL_CONCURRENCY: int = 2  # Qwen3-VL 페이지별 병렬 처리 수
     QWEN3_VL_OCR_PROMPT: str = "이미지에 있는 모든 텍스트를 정확하게 추출해주세요. 표, 날짜, 숫자 등 모든 내용을 원본 형식 그대로 보존하여 추출해주세요. Extract all text from this image accurately, preserving tables, dates, numbers, and formatting."
+
+    # ===========================================
+    # 배치 처리 설정
+    # ===========================================
+    UPLOAD_BATCH_SIZE: int = 10  # Qdrant 업로드 배치 크기
+    LOGGING_BATCH_SIZE: int = 20  # 로깅 배치 크기
 
     # === Computed Properties ===
 

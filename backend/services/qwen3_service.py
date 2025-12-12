@@ -164,8 +164,8 @@ class Qwen3Service:
                 filename=filename
             )
 
-            # 병렬 처리를 위한 Semaphore (최대 2개 동시 요청)
-            semaphore = asyncio.Semaphore(2)
+            # 병렬 처리를 위한 Semaphore (설정에서 동시 요청 수 읽기)
+            semaphore = asyncio.Semaphore(settings.QWEN3_VL_CONCURRENCY)
 
             # 이미지를 base64로 미리 변환
             images_base64 = [self._image_to_base64(img) for img in images]

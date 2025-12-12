@@ -10,8 +10,9 @@ import io
 import json
 import logging
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, AsyncGenerator
 
 from backend.services.qdrant_service import QdrantService
 from backend.services.chunking_service import ChunkingService
@@ -32,7 +33,11 @@ from backend.models.schemas import (
     QdrantUploadRequest,
     QdrantUploadResponse,
     QdrantUploadResult,
+    QdrantUploadProgressEvent,
     QdrantConfigResponse,
+    DuplicateCheckRequest,
+    DuplicateCheckResponse,
+    DuplicateInfo,
     QAPreviewResponse,
     QAPreviewRow,
     QAEmbeddingRequest,
@@ -547,6 +552,54 @@ async def delete_collection_documents(
         )
 
 
+@router.post("/check-duplicates", response_model=DuplicateCheckResponse)
+async def check_duplicates(
+    request: DuplicateCheckRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    문서 중복 업로드 확인 API
+
+    지정한 문서들이 이미 해당 Collection에 업로드되었는지 확인합니다.
+
+    Args:
+        request: 중복 확인 요청
+        db: DB 세션
+
+    Returns:
+        DuplicateCheckResponse: 중복 문서 목록
+    """
+    duplicates = []
+    new_documents = []
+
+    for document_id in request.document_ids:
+        # 이미 업로드된 이력 확인
+        existing = qdrant_history_crud.check_document_uploaded_to_collection(
+            db=db,
+            document_id=document_id,
+            collection_name=request.collection_name
+        )
+
+        if existing:
+            # 중복 문서
+            document = document_crud.get_document_by_id(db, document_id)
+            duplicates.append(DuplicateInfo(
+                document_id=document_id,
+                filename=document.original_filename if document else "Unknown",
+                uploaded_at=existing.uploaded_at.isoformat()
+            ))
+        else:
+            # 신규 문서
+            new_documents.append(document_id)
+
+    return DuplicateCheckResponse(
+        has_duplicates=len(duplicates) > 0,
+        duplicates=duplicates,
+        new_documents=new_documents
+    )
+
+
 @router.post("/upload", response_model=QdrantUploadResponse)
 async def upload_documents(
     request: QdrantUploadRequest,
@@ -715,6 +768,288 @@ async def upload_documents(
         )
 
 
+@router.post("/upload/stream")
+async def upload_documents_stream(
+    request: QdrantUploadRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    문서를 Qdrant에 임베딩 및 업로드 (SSE 스트리밍)
+
+    실시간 진행률을 SSE(Server-Sent Events)로 전송합니다.
+
+    Args:
+        request: 업로드 요청
+        db: DB 세션
+
+    Returns:
+        StreamingResponse: SSE 이벤트 스트림
+    """
+
+    async def generate_events() -> AsyncGenerator[str, None]:
+        """SSE 이벤트 생성기"""
+        results = []
+        success_count = 0
+        failure_count = 0
+        total_docs = len(request.document_ids)
+
+        def send_event(event: QdrantUploadProgressEvent) -> str:
+            """SSE 포맷으로 이벤트 전송"""
+            return f"data: {event.model_dump_json()}\n\n"
+
+        try:
+            # Collection 존재 확인
+            collection_exists = await qdrant_service.collection_exists(request.collection_name)
+            if not collection_exists:
+                yield send_event(QdrantUploadProgressEvent(
+                    event_type="error",
+                    error=f"Collection '{request.collection_name}'이 존재하지 않습니다",
+                    total_docs=total_docs
+                ))
+                return
+
+            # 각 문서 처리
+            for doc_index, document_id in enumerate(request.document_ids):
+                try:
+                    # 1. DB에서 문서 조회
+                    document = document_crud.get_document_by_id(db, document_id)
+                    if not document or not document.md_content:
+                        yield send_event(QdrantUploadProgressEvent(
+                            event_type="error",
+                            document_id=document_id,
+                            filename=document.original_filename if document else "Unknown",
+                            error="문서를 찾을 수 없거나 markdown 내용이 없습니다",
+                            current_doc_index=doc_index + 1,
+                            total_docs=total_docs,
+                            success_count=success_count,
+                            failure_count=failure_count + 1
+                        ))
+                        failure_count += 1
+                        results.append(QdrantUploadResult(
+                            document_id=document_id,
+                            filename=document.original_filename if document else "Unknown",
+                            success=False,
+                            error="문서를 찾을 수 없거나 markdown 내용이 없습니다"
+                        ))
+                        continue
+
+                    filename = document.original_filename
+
+                    # 2. 청킹 시작
+                    yield send_event(QdrantUploadProgressEvent(
+                        event_type="progress",
+                        document_id=document_id,
+                        filename=filename,
+                        phase="chunking",
+                        progress=10,
+                        current_doc_index=doc_index + 1,
+                        total_docs=total_docs,
+                        success_count=success_count,
+                        failure_count=failure_count
+                    ))
+
+                    chunks = await chunking_service.chunk_markdown(
+                        markdown_content=document.md_content,
+                        max_tokens=request.chunk_size,
+                        filename=filename
+                    )
+
+                    if not chunks:
+                        yield send_event(QdrantUploadProgressEvent(
+                            event_type="error",
+                            document_id=document_id,
+                            filename=filename,
+                            error="청킹 결과가 없습니다",
+                            current_doc_index=doc_index + 1,
+                            total_docs=total_docs,
+                            success_count=success_count,
+                            failure_count=failure_count + 1
+                        ))
+                        failure_count += 1
+                        results.append(QdrantUploadResult(
+                            document_id=document_id,
+                            filename=filename,
+                            success=False,
+                            error="청킹 결과가 없습니다"
+                        ))
+                        continue
+
+                    chunk_texts = [chunk.get('text', '') for chunk in chunks]
+
+                    # 3. 임베딩 시작
+                    yield send_event(QdrantUploadProgressEvent(
+                        event_type="progress",
+                        document_id=document_id,
+                        filename=filename,
+                        phase="embedding",
+                        progress=40,
+                        current_doc_index=doc_index + 1,
+                        total_docs=total_docs,
+                        chunk_count=len(chunks),
+                        success_count=success_count,
+                        failure_count=failure_count
+                    ))
+
+                    embeddings = await embedding_service.get_embeddings(chunk_texts)
+
+                    if len(embeddings) != len(chunk_texts):
+                        yield send_event(QdrantUploadProgressEvent(
+                            event_type="error",
+                            document_id=document_id,
+                            filename=filename,
+                            error="임베딩 개수와 청크 개수가 일치하지 않습니다",
+                            current_doc_index=doc_index + 1,
+                            total_docs=total_docs,
+                            success_count=success_count,
+                            failure_count=failure_count + 1
+                        ))
+                        failure_count += 1
+                        results.append(QdrantUploadResult(
+                            document_id=document_id,
+                            filename=filename,
+                            success=False,
+                            error="임베딩 개수와 청크 개수가 일치하지 않습니다"
+                        ))
+                        continue
+
+                    # 4. Qdrant 업로드 시작
+                    yield send_event(QdrantUploadProgressEvent(
+                        event_type="progress",
+                        document_id=document_id,
+                        filename=filename,
+                        phase="uploading",
+                        progress=70,
+                        current_doc_index=doc_index + 1,
+                        total_docs=total_docs,
+                        chunk_count=len(chunks),
+                        success_count=success_count,
+                        failure_count=failure_count
+                    ))
+
+                    # 메타데이터 생성
+                    metadata_list = []
+                    for i, chunk in enumerate(chunks):
+                        metadata_list.append({
+                            "document_id": document_id,
+                            "filename": filename,
+                            "chunk_index": i,
+                            "num_tokens": chunk.get('num_tokens', 0),
+                            "headings": chunk.get('headings') or []
+                        })
+
+                    # Qdrant에 벡터 업로드
+                    vector_ids = await qdrant_service.upsert_vectors(
+                        collection_name=request.collection_name,
+                        vectors=embeddings,
+                        texts=chunk_texts,
+                        metadata_list=metadata_list
+                    )
+
+                    # 업로드 이력 저장
+                    qdrant_history_crud.create_upload_history(
+                        db=db,
+                        document_id=document_id,
+                        collection_name=request.collection_name,
+                        chunk_count=len(chunks),
+                        vector_ids=vector_ids,
+                        qdrant_url=settings.QDRANT_URL,
+                        upload_status="success"
+                    )
+
+                    success_count += 1
+                    results.append(QdrantUploadResult(
+                        document_id=document_id,
+                        filename=filename,
+                        success=True,
+                        chunk_count=len(chunks),
+                        vector_ids=vector_ids
+                    ))
+
+                    # 문서 완료 이벤트
+                    yield send_event(QdrantUploadProgressEvent(
+                        event_type="document_complete",
+                        document_id=document_id,
+                        filename=filename,
+                        phase="completed",
+                        progress=100,
+                        current_doc_index=doc_index + 1,
+                        total_docs=total_docs,
+                        chunk_count=len(chunks),
+                        vector_ids=vector_ids,
+                        success_count=success_count,
+                        failure_count=failure_count
+                    ))
+
+                except Exception as e:
+                    logger.error(f"Failed to upload document {document_id}: {e}")
+
+                    # 실패 이력 저장
+                    try:
+                        document = document_crud.get_document_by_id(db, document_id)
+                        qdrant_history_crud.create_upload_history(
+                            db=db,
+                            document_id=document_id,
+                            collection_name=request.collection_name,
+                            chunk_count=0,
+                            vector_ids=[],
+                            qdrant_url=settings.QDRANT_URL,
+                            upload_status="failure",
+                            error_message=str(e)
+                        )
+                    except:
+                        pass
+
+                    failure_count += 1
+                    results.append(QdrantUploadResult(
+                        document_id=document_id,
+                        filename=document.original_filename if document else "Unknown",
+                        success=False,
+                        error=str(e)
+                    ))
+
+                    yield send_event(QdrantUploadProgressEvent(
+                        event_type="error",
+                        document_id=document_id,
+                        filename=document.original_filename if document else "Unknown",
+                        error=str(e),
+                        current_doc_index=doc_index + 1,
+                        total_docs=total_docs,
+                        success_count=success_count,
+                        failure_count=failure_count
+                    ))
+
+            # 완료 이벤트
+            yield send_event(QdrantUploadProgressEvent(
+                event_type="done",
+                progress=100,
+                current_doc_index=total_docs,
+                total_docs=total_docs,
+                success_count=success_count,
+                failure_count=failure_count
+            ))
+
+        except Exception as e:
+            logger.error(f"Upload stream failed: {e}")
+            yield send_event(QdrantUploadProgressEvent(
+                event_type="error",
+                error=f"업로드 프로세스 실패: {str(e)}",
+                total_docs=total_docs,
+                success_count=success_count,
+                failure_count=failure_count
+            ))
+
+    return StreamingResponse(
+        generate_events(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
 # ==================== Q&A Excel Embedding Endpoints ====================
 
 @router.post("/qa/preview", response_model=QAPreviewResponse)
@@ -832,7 +1167,7 @@ async def embed_qa_rows(
                 detail=f"Collection '{request.collection_name}'이 존재하지 않습니다"
             )
 
-        batch_size = 10
+        batch_size = settings.UPLOAD_BATCH_SIZE
         rows = request.rows
 
         for batch_start in range(0, len(rows), batch_size):
@@ -1111,7 +1446,7 @@ async def embed_excel_dynamic(
             )
 
         mapping = request.mapping
-        batch_size = 10
+        batch_size = settings.UPLOAD_BATCH_SIZE
         rows = request.rows
 
         for batch_start in range(0, len(rows), batch_size):
