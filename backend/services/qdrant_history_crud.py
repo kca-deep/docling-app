@@ -145,3 +145,47 @@ def get_upload_stats(db: Session) -> dict:
         "success": success,
         "failure": failure
     }
+
+
+def delete_by_document_and_collection(
+    db: Session,
+    document_id: int,
+    collection_name: str
+) -> int:
+    """
+    document_id와 collection_name으로 업로드 이력 삭제
+
+    Args:
+        db: DB 세션
+        document_id: 문서 ID
+        collection_name: Collection 이름
+
+    Returns:
+        int: 삭제된 이력 수
+    """
+    deleted_count = db.query(QdrantUploadHistory).filter(
+        QdrantUploadHistory.document_id == document_id,
+        QdrantUploadHistory.collection_name == collection_name
+    ).delete()
+
+    db.commit()
+    return deleted_count
+
+
+def delete_by_collection(db: Session, collection_name: str) -> int:
+    """
+    collection_name으로 모든 업로드 이력 삭제
+
+    Args:
+        db: DB 세션
+        collection_name: Collection 이름
+
+    Returns:
+        int: 삭제된 이력 수
+    """
+    deleted_count = db.query(QdrantUploadHistory).filter(
+        QdrantUploadHistory.collection_name == collection_name
+    ).delete()
+
+    db.commit()
+    return deleted_count

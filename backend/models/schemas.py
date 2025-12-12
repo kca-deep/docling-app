@@ -565,3 +565,34 @@ class DynamicEmbeddingResponse(BaseModel):
     success_count: int
     failure_count: int
     results: List[DynamicEmbeddingResult]
+
+
+# ==================== Collection Document Management Schemas ====================
+
+class CollectionDocumentInfo(BaseModel):
+    """컬렉션 내 문서 정보"""
+    document_id: Optional[int] = None  # 일반 문서의 경우 ID, Excel의 경우 None
+    filename: str
+    chunk_count: int
+    source_type: str  # "document" or "excel"
+    source_file: Optional[str] = None  # Excel의 경우 파일명
+
+
+class CollectionDocumentsResponse(BaseModel):
+    """컬렉션 문서 목록 응답"""
+    collection_name: str
+    total_documents: int
+    documents: List[CollectionDocumentInfo]
+
+
+class DeleteDocumentRequest(BaseModel):
+    """문서 삭제 요청"""
+    document_ids: Optional[List[int]] = None  # 일반 문서 ID 목록
+    source_files: Optional[List[str]] = None  # Excel 파일명 목록
+
+
+class DeleteDocumentResponse(BaseModel):
+    """문서 삭제 응답"""
+    success: bool
+    deleted_count: int
+    message: str

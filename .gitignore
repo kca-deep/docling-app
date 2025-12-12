@@ -55,13 +55,14 @@ backend/venv/
 # Test scripts (root level)
 /test_*.py
 
-# Docs folder - ignore test data and binaries, keep markdown docs
+# Docs folder - ignore test data, binaries, and plan documents
 docs/*/
 docs/*.pdf
 docs/*.xlsx
 docs/*.txt
 docs/*.jpg
 docs/*.png
+docs/*.md
 
 # IDE
 .vscode/
@@ -91,3 +92,6 @@ security-*.sh
 # Temporary/streaming files
 *_streamts
 *_stream.ts
+
+# Backup folders
+**/backups/

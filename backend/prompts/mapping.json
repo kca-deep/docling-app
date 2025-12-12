@@ -72,6 +72,15 @@
         "temperature": 0.3,
         "reasoning_level": "medium"
       }
+    },
+    "gov-ai-security": {
+      "prompt_file": "gov-ai-security_prompt.md",
+      "description": "gov-ai-security 컬렉션 프롬프트",
+      "recommended_params": {
+        "top_k": 10,
+        "temperature": 0.3,
+        "reasoning_level": "medium"
+      }
     }
   },
   "default_prompt": "default.md",

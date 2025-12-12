@@ -336,6 +336,224 @@ class QdrantService:
             print(f"[ERROR] Failed to search vectors: {e}")
             raise Exception(f"벡터 검색 실패: {str(e)}")
 
+    async def get_documents_in_collection(
+        self,
+        collection_name: str
+    ) -> List[Dict[str, Any]]:
+        """
+        컬렉션 내 문서 목록 조회 (document_id 기준 그룹핑)
+
+        Args:
+            collection_name: Collection 이름
+
+        Returns:
+            List[Dict]: 문서 정보 리스트
+            - document_id: int (일반 문서) 또는 None (Excel)
+            - filename: str
+            - chunk_count: int
+            - source_type: str ("document" or "excel")
+            - source_file: str (Excel의 경우)
+        """
+        try:
+            documents = {}
+            offset = None
+
+            while True:
+                results, next_offset = await self.client.scroll(
+                    collection_name=collection_name,
+                    limit=1000,
+                    offset=offset,
+                    with_payload=["document_id", "filename", "source_file"],
+                    with_vectors=False
+                )
+
+                for point in results:
+                    payload = point.payload or {}
+                    doc_id = payload.get("document_id")
+
+                    # document_id가 없는 경우 source_file로 그룹핑 (Excel 데이터)
+                    if doc_id is None:
+                        source = payload.get("source_file", "unknown")
+                        key = f"excel:{source}"
+                        source_type = "excel"
+                    else:
+                        key = f"doc:{doc_id}"
+                        source_type = "document"
+
+                    if key not in documents:
+                        documents[key] = {
+                            "document_id": doc_id,
+                            "filename": payload.get("filename") or payload.get("source_file", "Unknown"),
+                            "chunk_count": 0,
+                            "source_type": source_type,
+                            "source_file": payload.get("source_file")
+                        }
+                    documents[key]["chunk_count"] += 1
+
+                if next_offset is None:
+                    break
+                offset = next_offset
+
+            return list(documents.values())
+
+        except Exception as e:
+            print(f"[ERROR] Failed to get documents in collection '{collection_name}': {e}")
+            raise Exception(f"문서 목록 조회 실패: {str(e)}")
+
+    async def _count_points_by_document_id(
+        self,
+        collection_name: str,
+        document_id: int
+    ) -> int:
+        """
+        document_id 기준 포인트 수 조회
+
+        Args:
+            collection_name: Collection 이름
+            document_id: 문서 ID
+
+        Returns:
+            int: 포인트 수
+        """
+        try:
+            count_result = await self.client.count(
+                collection_name=collection_name,
+                count_filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="document_id",
+                            match=models.MatchValue(value=document_id)
+                        )
+                    ]
+                )
+            )
+            return count_result.count
+        except Exception as e:
+            print(f"[WARN] Failed to count points for document_id {document_id}: {e}")
+            return 0
+
+    async def _count_points_by_source_file(
+        self,
+        collection_name: str,
+        source_file: str
+    ) -> int:
+        """
+        source_file 기준 포인트 수 조회
+
+        Args:
+            collection_name: Collection 이름
+            source_file: 소스 파일명
+
+        Returns:
+            int: 포인트 수
+        """
+        try:
+            count_result = await self.client.count(
+                collection_name=collection_name,
+                count_filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="source_file",
+                            match=models.MatchValue(value=source_file)
+                        )
+                    ]
+                )
+            )
+            return count_result.count
+        except Exception as e:
+            print(f"[WARN] Failed to count points for source_file {source_file}: {e}")
+            return 0
+
+    async def delete_document_points(
+        self,
+        collection_name: str,
+        document_id: int
+    ) -> int:
+        """
+        document_id로 해당 문서의 모든 포인트 삭제
+
+        Args:
+            collection_name: Collection 이름
+            document_id: 삭제할 문서 ID
+
+        Returns:
+            int: 삭제된 포인트 수
+        """
+        try:
+            # 삭제 전 포인트 수 확인
+            count_before = await self._count_points_by_document_id(collection_name, document_id)
+
+            if count_before == 0:
+                print(f"[INFO] No points found for document_id {document_id}")
+                return 0
+
+            # 필터 기반 삭제
+            await self.client.delete(
+                collection_name=collection_name,
+                points_selector=models.FilterSelector(
+                    filter=models.Filter(
+                        must=[
+                            models.FieldCondition(
+                                key="document_id",
+                                match=models.MatchValue(value=document_id)
+                            )
+                        ]
+                    )
+                )
+            )
+
+            print(f"[INFO] Deleted {count_before} points for document_id {document_id} from '{collection_name}'")
+            return count_before
+
+        except Exception as e:
+            print(f"[ERROR] Failed to delete points for document_id {document_id}: {e}")
+            raise Exception(f"문서 포인트 삭제 실패: {str(e)}")
+
+    async def delete_excel_points(
+        self,
+        collection_name: str,
+        source_file: str
+    ) -> int:
+        """
+        source_file로 해당 Excel 데이터의 모든 포인트 삭제
+
+        Args:
+            collection_name: Collection 이름
+            source_file: 삭제할 Excel 파일명
+
+        Returns:
+            int: 삭제된 포인트 수
+        """
+        try:
+            # 삭제 전 포인트 수 확인
+            count_before = await self._count_points_by_source_file(collection_name, source_file)
+
+            if count_before == 0:
+                print(f"[INFO] No points found for source_file {source_file}")
+                return 0
+
+            # 필터 기반 삭제
+            await self.client.delete(
+                collection_name=collection_name,
+                points_selector=models.FilterSelector(
+                    filter=models.Filter(
+                        must=[
+                            models.FieldCondition(
+                                key="source_file",
+                                match=models.MatchValue(value=source_file)
+                            )
+                        ]
+                    )
+                )
+            )
+
+            print(f"[INFO] Deleted {count_before} points for source_file '{source_file}' from '{collection_name}'")
+            return count_before
+
+        except Exception as e:
+            print(f"[ERROR] Failed to delete points for source_file {source_file}: {e}")
+            raise Exception(f"Excel 포인트 삭제 실패: {str(e)}")
+
     async def close(self):
         """클라이언트 연결 종료"""
         await self.client.close()

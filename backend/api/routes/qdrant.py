@@ -43,7 +43,11 @@ from backend.models.schemas import (
     ColumnMapping,
     DynamicEmbeddingRequest,
     DynamicEmbeddingResponse,
-    DynamicEmbeddingResult
+    DynamicEmbeddingResult,
+    CollectionDocumentInfo,
+    CollectionDocumentsResponse,
+    DeleteDocumentRequest,
+    DeleteDocumentResponse
 )
 
 logger = logging.getLogger(__name__)
@@ -396,6 +400,150 @@ async def update_collection_settings(
         raise HTTPException(
             status_code=500,
             detail=f"설정 변경 실패: {str(e)}"
+        )
+
+
+@router.get("/collections/{collection_name}/documents", response_model=CollectionDocumentsResponse)
+async def get_collection_documents(
+    collection_name: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    컬렉션 내 문서 목록 조회 API
+
+    소유자 또는 관리자만 조회 가능
+
+    Args:
+        collection_name: Collection 이름
+        db: DB 세션
+        current_user: 현재 로그인 사용자
+
+    Returns:
+        CollectionDocumentsResponse: 문서 목록
+    """
+    try:
+        # 컬렉션 존재 확인
+        exists = await qdrant_service.collection_exists(collection_name)
+        if not exists:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Collection '{collection_name}'이 존재하지 않습니다"
+            )
+
+        # 권한 확인 (소유자 또는 관리자)
+        collection_meta = collection_crud.get_by_name(db, collection_name)
+        if collection_meta:
+            is_owner = collection_meta.owner_id == current_user.id
+            is_admin = current_user.role == "admin"
+            if not is_owner and not is_admin:
+                raise HTTPException(
+                    status_code=403,
+                    detail="문서 목록 조회 권한이 없습니다"
+                )
+
+        # Qdrant에서 문서 목록 조회
+        documents = await qdrant_service.get_documents_in_collection(collection_name)
+
+        return CollectionDocumentsResponse(
+            collection_name=collection_name,
+            total_documents=len(documents),
+            documents=[CollectionDocumentInfo(**doc) for doc in documents]
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get collection documents: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"문서 목록 조회 실패: {str(e)}"
+        )
+
+
+@router.delete("/collections/{collection_name}/documents", response_model=DeleteDocumentResponse)
+async def delete_collection_documents(
+    collection_name: str,
+    request: DeleteDocumentRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    컬렉션에서 문서 삭제 API
+
+    document_ids 또는 source_files 중 하나 이상 필수
+    소유자 또는 관리자만 삭제 가능
+
+    Args:
+        collection_name: Collection 이름
+        request: 삭제 요청 (document_ids 또는 source_files)
+        db: DB 세션
+        current_user: 현재 로그인 사용자
+
+    Returns:
+        DeleteDocumentResponse: 삭제 결과
+    """
+    try:
+        # 요청 유효성 검사
+        if not request.document_ids and not request.source_files:
+            raise HTTPException(
+                status_code=400,
+                detail="document_ids 또는 source_files 중 하나 이상 필요합니다"
+            )
+
+        # 컬렉션 존재 확인
+        exists = await qdrant_service.collection_exists(collection_name)
+        if not exists:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Collection '{collection_name}'이 존재하지 않습니다"
+            )
+
+        # 권한 확인 (소유자 또는 관리자)
+        collection_meta = collection_crud.get_by_name(db, collection_name)
+        if collection_meta:
+            is_owner = collection_meta.owner_id == current_user.id
+            is_admin = current_user.role == "admin"
+            if not is_owner and not is_admin:
+                raise HTTPException(
+                    status_code=403,
+                    detail="문서 삭제 권한이 없습니다"
+                )
+
+        total_deleted = 0
+
+        # document_id로 삭제 (일반 문서)
+        if request.document_ids:
+            for doc_id in request.document_ids:
+                deleted = await qdrant_service.delete_document_points(collection_name, doc_id)
+                total_deleted += deleted
+
+                # SQLite 업로드 이력도 삭제
+                qdrant_history_crud.delete_by_document_and_collection(
+                    db, doc_id, collection_name
+                )
+
+        # source_file로 삭제 (Excel)
+        if request.source_files:
+            for source_file in request.source_files:
+                deleted = await qdrant_service.delete_excel_points(collection_name, source_file)
+                total_deleted += deleted
+
+        logger.info(f"Deleted {total_deleted} points from collection '{collection_name}'")
+
+        return DeleteDocumentResponse(
+            success=True,
+            deleted_count=total_deleted,
+            message=f"{total_deleted}개의 벡터가 삭제되었습니다"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete collection documents: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"문서 삭제 실패: {str(e)}"
         )
 
 

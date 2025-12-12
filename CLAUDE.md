@@ -10,7 +10,7 @@ This is a comprehensive RAG (Retrieval-Augmented Generation) pipeline applicatio
 - **RAG Chat System**: Multi-LLM support with streaming responses and source citation
 - **Reranking**: BGE Reranker v2-m3 for improved search accuracy
 - **Dify Integration**: Upload parsed documents to Dify AI knowledge bases
-- **Multi-source Input**: File upload and URL-based document parsing
+- **Multi-source Input**: File upload, Excel embedding, and batch document processing
 
 **Architecture:**
 - **Backend**: FastAPI application with SQLite database for persistence
@@ -84,6 +84,10 @@ backend/
 ├── models/
 │   ├── schemas.py                       # Pydantic request/response models
 │   ├── document.py                      # Document SQLAlchemy model
+│   ├── user.py                          # User authentication model
+│   ├── chat_session.py                  # Chat session model
+│   ├── chat_statistics.py               # Chat usage statistics model
+│   ├── qdrant_collection.py             # Qdrant collection metadata model
 │   ├── dify_config.py                   # Dify configuration model
 │   ├── dify_upload_history.py           # Dify upload history model
 │   └── qdrant_upload_history.py         # Qdrant upload history model
@@ -98,17 +102,40 @@ backend/
 │   ├── llm_service.py                   # LLM API client (multi-model)
 │   ├── rag_service.py                   # RAG pipeline orchestration
 │   ├── prompt_loader.py                 # System prompt management
+│   ├── prompt_generator_service.py      # AI-powered prompt generation
+│   ├── prompt_validator.py              # Prompt validation
 │   ├── document_crud.py                 # Document database operations
+│   ├── document_selector_service.py     # Document selection logic
+│   ├── excel_document_service.py        # Excel file processing
 │   ├── dify_service.py                  # Dify API client
 │   ├── dify_config_crud.py              # Dify config CRUD
 │   ├── dify_history_crud.py             # Dify upload history CRUD
 │   ├── qdrant_history_crud.py           # Qdrant upload history CRUD
+│   ├── collection_crud.py               # Collection metadata CRUD
+│   ├── auth_service.py                  # User authentication service
+│   ├── conversation_service.py          # Chat conversation management
+│   ├── statistics_service.py            # Usage statistics aggregation
+│   ├── hybrid_logging_service.py        # Logging service
+│   ├── health_service.py                # Health check service
+│   ├── http_client.py                   # Shared HTTP client
+│   ├── file_manager_service.py          # File management
 │   └── progress_tracker.py              # Upload progress tracking
+├── middleware/
+│   ├── request_tracking.py              # Request tracking middleware
+│   └── rate_limit.py                    # Rate limiting middleware
+├── dependencies/
+│   └── auth.py                          # Authentication dependencies
+├── utils/
+│   ├── client_info.py                   # Client information utilities
+│   └── timezone.py                      # Timezone utilities
 └── api/routes/
     ├── document.py                      # /api/documents/* endpoints
     ├── dify.py                          # /api/dify/* endpoints
     ├── qdrant.py                        # /api/qdrant/* endpoints
-    └── chat.py                          # /api/chat/* endpoints (RAG)
+    ├── chat.py                          # /api/chat/* endpoints (RAG)
+    ├── auth.py                          # /api/auth/* endpoints (authentication)
+    ├── analytics.py                     # /api/analytics/* endpoints (usage stats)
+    └── prompts.py                       # /api/prompts/* endpoints (prompt management)
 ```
 
 **Key Design Patterns**:
@@ -165,23 +192,53 @@ The frontend is a Next.js 16 App Router application with multi-page structure:
 ```
 app/
 ├── page.tsx                     # Landing page with hero, process flow, chat preview
+├── login/page.tsx               # User authentication page
 ├── parse/page.tsx               # Document upload and parsing UI
-├── url-parse/page.tsx           # URL-based document parsing
+├── upload/page.tsx              # Unified document upload to Qdrant/Dify
+│   └── components/
+│       ├── DocumentSelector.tsx # Document selection for upload
+│       ├── QdrantSettingsPanel.tsx  # Qdrant upload settings
+│       ├── DifySettingsPanel.tsx    # Dify upload settings
+│       └── UploadResults.tsx    # Upload progress and results
+├── collections/page.tsx         # Collection management
+│   └── components/
+│       ├── CollectionSettingsModal.tsx  # Collection settings
+│       ├── CreateCollectionModal.tsx    # New collection creation
+│       ├── DeleteConfirmModal.tsx       # Deletion confirmation
+│       ├── PromptEditor.tsx             # System prompt editing
+│       ├── PromptGeneratorModal.tsx     # AI prompt generation
+│       └── SuggestedQuestionsEditor.tsx # Suggested questions management
 ├── dify/page.tsx                # Dify integration management
-├── qdrant/page.tsx              # Qdrant vector DB management (upload, collections)
+├── qdrant/page.tsx              # Qdrant vector DB management
 ├── chat/page.tsx                # RAG chat interface
 │   └── components/
 │       ├── ChatContainer.tsx    # Main chat layout
+│       ├── ChatHeader.tsx       # Chat header with collection info
 │       ├── MessageList.tsx      # Message history display
 │       ├── MessageBubble.tsx    # Individual message component
 │       ├── InputArea.tsx        # User input with settings
 │       ├── SourcePanel.tsx      # Retrieved documents display
-│       └── SettingsPanel.tsx    # LLM parameters configuration
-├── system-architecture/page.tsx # System overview and architecture
+│       ├── SourceArtifactPanel.tsx  # Source artifact viewer
+│       ├── SourceArtifactModal.tsx  # Source artifact modal
+│       ├── SettingsPanel.tsx    # LLM parameters configuration
+│       ├── SuggestedPrompts.tsx # Suggested question prompts
+│       ├── ThinkingIndicator.tsx # Loading/thinking indicator
+│       └── CollectionSelector/  # Collection selection components
+│           ├── index.tsx
+│           ├── CollectionCard.tsx
+│           ├── CollectionItem.tsx
+│           ├── CollectionSearchInput.tsx
+│           ├── CasualModeItem.tsx
+│           ├── FullListSection.tsx
+│           └── RecommendedSection.tsx
+├── excel-embedding/page.tsx     # Excel file processing and embedding
+├── analytics/page.tsx           # Usage analytics and statistics dashboard
 └── layout.tsx                   # Root layout with theme provider
 
 components/
 ├── ui/                          # shadcn/ui components (radix-ui primitives)
+├── auth/                        # Authentication components
+│   └── auth-provider.tsx        # Auth context provider
 ├── nav-header.tsx               # Navigation bar with theme toggle
 ├── page-container.tsx           # Consistent page layout wrapper
 ├── theme-provider.tsx           # next-themes dark mode support
@@ -190,7 +247,7 @@ components/
 ```
 
 **Tech Stack**:
-- **React 19.2.0** with Next.js 16.0.1 App Router
+- **React 19.2.3** with Next.js 16.0.10 App Router
 - **Styling**: Tailwind CSS 4 with class-variance-authority
 - **UI Components**: shadcn/ui (Radix UI primitives)
 - **Icons**: lucide-react
@@ -199,12 +256,15 @@ components/
 
 **Key Pages**:
 1. **`/`** - Hero landing page with 5-step process visualization and chat preview
-2. **`/parse`** - Multi-file upload with batch processing and markdown preview
-3. **`/url-parse`** - URL input for remote document parsing
-4. **`/qdrant`** - Vector DB collection management, document upload with progress tracking
-5. **`/dify`** - Configuration management, dataset selection, document upload to Dify
-6. **`/chat`** - RAG chat interface with streaming responses, source citations, and settings panel
-7. **`/system-architecture`** - System infrastructure visualization
+2. **`/login`** - User authentication page
+3. **`/parse`** - Multi-file upload with batch processing and markdown preview
+4. **`/upload`** - Unified document upload to Qdrant/Dify with settings panels
+5. **`/collections`** - Collection management with prompt editing and suggested questions
+6. **`/qdrant`** - Vector DB collection management, document upload with progress tracking
+7. **`/dify`** - Configuration management, dataset selection, document upload to Dify
+8. **`/chat`** - RAG chat interface with streaming responses, source citations, and settings panel
+9. **`/excel-embedding`** - Excel file processing and embedding
+10. **`/analytics`** - Usage analytics and statistics dashboard
 
 **Data Flow**:
 - All API calls go to `http://localhost:8000` (hardcoded)
@@ -349,27 +409,31 @@ Copy `backend/.env.example` to `backend/.env` before first run.
   - Response: New answer with original sources
 - `GET /collections` - List available Qdrant collections for chat
 
+**Authentication** (`/api/auth/`):
+- `POST /login` - User login
+- `POST /logout` - User logout
+- `GET /me` - Get current user info
+
+**Analytics** (`/api/analytics/`):
+- `GET /stats` - Get usage statistics
+- `GET /daily` - Get daily statistics
+
+**Prompts** (`/api/prompts/`):
+- `GET /{collection_name}` - Get collection prompt
+- `PUT /{collection_name}` - Update collection prompt
+- `POST /generate` - Generate prompt with AI
+
 **System**:
 - `GET /` - API info (service name, version, status)
 - `GET /health` - Health check
+- `GET /health/services` - External services health status
 
-## Testing and Development Scripts
+## Utility Scripts
 
-**`test_docling_serve_api.py`**:
-- Direct integration test for Docling Serve API
-- Processes sample PDFs and saves results as markdown/JSON
-- Useful for testing Docling API without running full stack
-
-**`test_dify_api.py`**:
-- Direct integration test for Dify API
-- Tests dataset listing and API structure
-- Contains API key (should be moved to environment variable)
-
-Run independently:
-```bash
-python test_docling_serve_api.py
-python test_dify_api.py
-```
+**`scripts/aggregate_all_stats.py`**:
+- Aggregates chat statistics from log files into database
+- Run manually for batch processing of historical logs
+- Usage: `python scripts/aggregate_all_stats.py`
 
 ## Dependencies
 
@@ -388,8 +452,8 @@ python test_dify_api.py
 - `Pillow` ≥11.0.0 - Image processing
 
 **Node.js** (`package.json`):
-- `next` 16.0.1 - React framework with App Router
-- `react` 19.2.0 / `react-dom` 19.2.0 - UI library
+- `next` 16.0.10 - React framework with App Router
+- `react` 19.2.3 / `react-dom` 19.2.3 - UI library
 - `@radix-ui/*` - Headless UI primitives (accordion, dialog, select, etc.)
 - `lucide-react` - Icon library
 - `tailwindcss` 4 - Utility-first CSS

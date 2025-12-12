@@ -1,35 +1,29 @@
 {
   "mcpServers": {
     "shadcn": {
-      "command": "cmd",
+      "command": "npx",
       "args": [
-        "/c",
-        "npx",
         "shadcn@latest",
         "mcp"
       ]
     },
     "sequential-thinking": {
-      "command": "cmd",
+      "command": "npx",
       "args": [
-        "/c",
-        "npx",
         "-y",
         "@modelcontextprotocol/server-sequential-thinking"
       ]
     },
     "context7": {
-      "command": "cmd",
-      "args": ["/c", "npx", "-y", "@upstash/context7-mcp"],
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"],
       "env": {
         "CONTEXT7_API_KEY": "ctx7sk-eae41383-7ec5-4cb2-ad8e-ba3e272be1f7"
       }
     },
     "playwright": {
-      "command": "cmd",
+      "command": "npx",
       "args": [
-        "/c",
-        "npx",
         "@playwright/mcp@latest"
       ]
     }

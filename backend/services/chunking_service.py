@@ -71,9 +71,9 @@ class ChunkingService:
                 "chunking_options": {
                     "chunker": "hybrid",
                     "max_tokens": max_tokens,
-                    "tokenizer": "sentence-transformers/all-MiniLM-L6-v2",
+                    "tokenizer": "BAAI/bge-m3",
                     "merge_peers": True,
-                    "use_markdown_tables": False,
+                    "use_markdown_tables": True,
                     "include_raw_text": False
                 },
                 "include_converted_doc": False,
