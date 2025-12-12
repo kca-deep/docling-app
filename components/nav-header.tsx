@@ -56,13 +56,10 @@ export function NavHeader() {
   return (
     <header
       className={cn(
-        "z-50 w-full transition-all duration-300",
-        isChatPage
-          ? "fixed top-0"
-          : "sticky top-0 border-b border-border/40",
-        isChatPage && !isScrolled
-          ? "bg-transparent border-transparent"
-          : "bg-background/60 backdrop-blur-xl border-border/40 supports-[backdrop-filter]:bg-background/60"
+        "z-50 w-full transition-all duration-300 sticky top-0 border-b border-border/40",
+        isScrolled
+          ? "bg-background/60 backdrop-blur-xl border-border/40 supports-[backdrop-filter]:bg-background/60"
+          : "bg-background/95 backdrop-blur-sm"
       )}
     >
       <div className="flex h-14 items-center justify-between px-4 md:px-6 max-w-7xl mx-auto">

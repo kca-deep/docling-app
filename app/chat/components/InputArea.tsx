@@ -142,12 +142,12 @@ export const InputArea = memo(function InputArea({
     },
   ];
 
-  // 로딩이 끝나고 활성화되면 포커스
-  useEffect(() => {
-    if (!isLoading && !disabled && textareaRef.current) {
-      textareaRef.current.focus();
-    }
-  }, [isLoading, disabled]);
+  // 자동 포커스 제거 - 모바일에서 키보드가 자동으로 올라오는 문제 방지
+  // useEffect(() => {
+  //   if (!isLoading && !disabled && textareaRef.current) {
+  //     textareaRef.current.focus();
+  //   }
+  // }, [isLoading, disabled]);
 
   const handleKeyPress = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     // 한글 입력 중에는 무시
@@ -214,13 +214,11 @@ export const InputArea = memo(function InputArea({
               placeholder={
                 isLoading
                   ? "응답 생성 중..."
-                  : selectedCollection
-                    ? "메시지를 입력하세요... (Enter로 전송, Shift+Enter로 줄바꿈)"
-                    : "일상대화 모드 - 자유롭게 질문하세요... (Enter로 전송)"
+                  : "메시지를 입력하세요..."
               }
               disabled={isLoading}
               className={cn(
-                "min-h-[60px] max-h-[300px] resize-none border-0 focus-visible:ring-0 shadow-none pr-14 px-3 py-2 bg-transparent text-base",
+                "min-h-[44px] sm:min-h-[60px] max-h-[150px] sm:max-h-[300px] resize-none border-0 focus-visible:ring-0 shadow-none pr-14 px-3 py-2 bg-transparent text-sm sm:text-base",
                 "placeholder:text-muted-foreground/60 selection:bg-primary/20",
                 disabled && "opacity-50 cursor-not-allowed"
               )}
@@ -264,9 +262,9 @@ export const InputArea = memo(function InputArea({
           </div>
 
           {/* 하단 기능 버튼들 - Claude 스타일 */}
-          <div className="px-4 py-3 flex items-center justify-between gap-2">
+          <div className="px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between gap-1 sm:gap-2">
             {/* 왼쪽: 컬렉션 선택 및 기능 버튼들 */}
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
               {/* 컬렉션 선택 - 새로운 CollectionSelector 컴포넌트 */}
               <CollectionSelector
                 selectedCollection={selectedCollection}
@@ -332,7 +330,7 @@ export const InputArea = memo(function InputArea({
                 </TooltipProvider>
               )}
 
-              {/* 고급설정 */}
+              {/* 고급설정 - 모바일 숨김 */}
               <Popover open={settingsPanelOpen} onOpenChange={onSettingsPanelChange}>
                 <TooltipProvider>
                   <Tooltip>
@@ -341,7 +339,7 @@ export const InputArea = memo(function InputArea({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8"
+                          className="h-8 w-8 hidden sm:inline-flex"
                         >
                           <Settings className="h-3.5 w-3.5" />
                         </Button>
@@ -365,8 +363,8 @@ export const InputArea = memo(function InputArea({
               </Popover>
             </div>
 
-            {/* 오른쪽: 모델 선택 */}
-            <div className="flex items-center gap-2">
+            {/* 오른쪽: 모델 선택 - 모바일 숨김 */}
+            <div className="hidden sm:flex items-center gap-2">
               <Select value={selectedModel} onValueChange={onModelChange}>
                 <SelectTrigger className="h-8 w-auto border-muted hover:bg-muted/50 transition-colors gap-2 rounded-full">
                   <div className="flex items-center gap-1.5">

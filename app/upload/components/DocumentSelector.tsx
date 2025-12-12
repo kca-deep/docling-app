@@ -10,7 +10,9 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from "@/components/ui/pagination"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Loader2, FileText, Search, X, FileQuestion } from "lucide-react"
+import { Loader2, FileText, Search, X, FileQuestion, Database, FolderInput } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { QdrantCollection } from "../types"
 import { cn } from "@/lib/utils"
 import { Document } from "../types"
 
@@ -32,6 +34,13 @@ interface DocumentSelectorProps {
   onSearchReset: () => void
   onPageChange: (page: number) => void
   onOpenDocumentViewer: (documentId: number) => void
+  // 카테고리 필터 관련
+  collections?: QdrantCollection[]
+  categoryFilter?: string
+  onCategoryFilterChange?: (category: string) => void
+  // 카테고리 이동 관련
+  onMoveCategory?: (documentIds: number[], category: string | null) => void
+  movingCategory?: boolean
 }
 
 export function DocumentSelector({
@@ -52,7 +61,28 @@ export function DocumentSelector({
   onSearchReset,
   onPageChange,
   onOpenDocumentViewer,
+  // 카테고리 관련
+  collections = [],
+  categoryFilter = "",
+  onCategoryFilterChange,
+  onMoveCategory,
+  movingCategory = false,
 }: DocumentSelectorProps) {
+  // 카테고리명을 한글명으로 변환하는 함수
+  const getCategoryDisplayName = (categoryName: string | null): string => {
+    if (!categoryName) return "미분류"
+    const collection = collections.find(col => col.name === categoryName)
+    if (collection?.description) {
+      try {
+        const parsed = JSON.parse(collection.description)
+        if (parsed.koreanName) return parsed.koreanName
+      } catch {
+        // JSON 파싱 실패 시 무시
+      }
+    }
+    return categoryName
+  }
+
   return (
     <Card className="min-w-0 overflow-hidden border-border/50 bg-background/60 backdrop-blur-sm">
       <CardHeader className="pb-3">
@@ -97,8 +127,9 @@ export function DocumentSelector({
           </div>
         )}
 
-        {/* 검색 입력 - sticky 스타일 */}
-        <div className="mt-4 p-1.5 rounded-xl bg-muted/50 border border-border/50">
+        {/* 검색 및 카테고리 필터 */}
+        <div className="mt-4 p-1.5 rounded-xl bg-muted/50 border border-border/50 space-y-2">
+          {/* 검색 입력 */}
           <div className="flex gap-2">
             <div className="relative flex-1 group">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-[color:var(--chart-1)] transition-colors" />
@@ -119,6 +150,63 @@ export function DocumentSelector({
               </Button>
             )}
           </div>
+
+          {/* 카테고리 필터 & 이동 - 1열 절반씩 */}
+          {collections.length > 0 && (
+            <div className="flex gap-2 items-center">
+              {/* 카테고리 필터 (50%) */}
+              {onCategoryFilterChange && (
+                <div className="flex gap-2 items-center flex-1">
+                  <Database className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <Select value={categoryFilter} onValueChange={onCategoryFilterChange}>
+                    <SelectTrigger className="h-9 bg-background/50 border-transparent focus:border-[color:var(--chart-4)]/20">
+                      <SelectValue placeholder="전체 카테고리" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">전체</SelectItem>
+                      <SelectItem value="uncategorized">미분류</SelectItem>
+                      {collections.map((col) => (
+                        <SelectItem key={col.name} value={col.name}>
+                          <div className="flex items-center gap-2">
+                            <span>{col.description ? (() => { try { const p = JSON.parse(col.description); return p.koreanName || col.name; } catch { return col.name; } })() : col.name}</span>
+                            <Badge variant="secondary" className="text-xs">
+                              {col.documents_count}
+                            </Badge>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* 카테고리 이동 (50%) */}
+              {onMoveCategory && (
+                <div className="flex gap-2 items-center flex-1">
+                  <FolderInput className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <Select
+                    onValueChange={(value) => {
+                      const category = value === "uncategorized" ? null : value
+                      onMoveCategory(Array.from(selectedDocs), category)
+                    }}
+                    disabled={movingCategory || selectedDocs.size === 0}
+                  >
+                    <SelectTrigger className="h-9 bg-background/50 border-transparent focus:border-[color:var(--chart-2)]/20">
+                      <SelectValue placeholder={movingCategory ? "이동 중..." : selectedDocs.size > 0 ? `${selectedDocs.size}개 이동` : "이동할 문서 선택"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="uncategorized">미분류로 이동</SelectItem>
+                      {collections.map((col) => (
+                        <SelectItem key={col.name} value={col.name}>
+                          {col.description ? (() => { try { const p = JSON.parse(col.description); return p.koreanName || col.name; } catch { return col.name; } })() : col.name}으로 이동
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </CardHeader>
       <CardContent>
@@ -143,15 +231,23 @@ export function DocumentSelector({
         ) : (
           <div className="border border-border/50 rounded-xl overflow-hidden">
             <Table>
+              <colgroup>
+                <col className="w-12" />
+                <col />
+                <col className="w-28" />
+                <col className="w-20" />
+                <col className="w-24" />
+              </colgroup>
               <TableHeader>
                 <TableRow className="bg-muted/30 hover:bg-muted/30">
-                  <TableHead className="w-12">
+                  <TableHead>
                     <Checkbox
                       checked={selectedDocs.size === documents.length && documents.length > 0}
                       onCheckedChange={onToggleAll}
                     />
                   </TableHead>
                   <TableHead className="font-semibold">파일명</TableHead>
+                  <TableHead className="font-semibold">카테고리</TableHead>
                   <TableHead className="text-right font-semibold">크기</TableHead>
                   <TableHead className="text-right font-semibold">생성일</TableHead>
                 </TableRow>
@@ -159,6 +255,13 @@ export function DocumentSelector({
             </Table>
             <ScrollArea className="max-h-[420px]">
               <Table>
+                <colgroup>
+                  <col className="w-12" />
+                  <col />
+                  <col className="w-28" />
+                  <col className="w-20" />
+                  <col className="w-24" />
+                </colgroup>
                 <TableBody>
                   {documents.map((doc) => (
                     <TableRow
@@ -171,26 +274,35 @@ export function DocumentSelector({
                       )}
                       onClick={() => onToggleDocument(doc.id)}
                     >
-                      <TableCell className="w-12" onClick={(e) => e.stopPropagation()}>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <Checkbox
                           checked={selectedDocs.has(doc.id)}
                           onCheckedChange={() => onToggleDocument(doc.id)}
                         />
                       </TableCell>
-                      <TableCell className="font-medium max-w-[200px]" onClick={(e) => e.stopPropagation()}>
+                      <TableCell className="font-medium max-w-[300px]" onClick={(e) => e.stopPropagation()}>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <button
                               onClick={() => onOpenDocumentViewer(doc.id)}
-                              className="text-left hover:text-[color:var(--chart-1)] transition-colors truncate block w-full"
+                              className="text-left hover:text-[color:var(--chart-1)] transition-colors truncate block w-full max-w-full"
                             >
                               {doc.original_filename}
                             </button>
                           </TooltipTrigger>
-                          <TooltipContent>
-                            <p>{doc.original_filename}</p>
+                          <TooltipContent side="bottom" className="max-w-md">
+                            <p className="break-all">{doc.original_filename}</p>
                           </TooltipContent>
                         </Tooltip>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {doc.category ? (
+                          <Badge variant="secondary" className="text-xs bg-[color:var(--chart-4)]/10 text-[color:var(--chart-4)]">
+                            {getCategoryDisplayName(doc.category)}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground/50">미분류</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground text-sm">
                         {doc.content_length ? `${Math.round(doc.content_length / 1000)}KB` : "-"}

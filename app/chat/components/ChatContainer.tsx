@@ -918,11 +918,59 @@ export function ChatContainer() {
       <div className="flex-1 flex overflow-hidden">
         {/* 좌측: 채팅 영역 - Claude 스타일 단일 채팅창 */}
         <div className={cn(
-          "flex flex-col overflow-hidden transition-all duration-200 ease-out bg-background",
+          "flex flex-col overflow-hidden transition-all duration-200 ease-out bg-background relative",
           artifactState.isOpen ? "w-[60%]" : "w-full"
         )}>
+          {/* 전체 배경 오로라 - 메시지 없을 때만 표시 (메시지 목록 + 입력창 전체에 적용) */}
+          {messages.length === 0 && !isLoading && (
+            <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none animate-in fade-in duration-500">
+              {/* Aurora Blob 1 - Blue/Cyan (top-left) */}
+              <div
+                className="absolute -top-[10%] -left-[10%] w-[60%] h-[60%] rounded-full blur-[80px] opacity-40 dark:opacity-50 animate-aurora-1"
+                style={{
+                  background: `radial-gradient(ellipse 70% 50% at center, oklch(0.65 0.22 230) 0%, oklch(0.55 0.18 210) 30%, transparent 60%)`,
+                }}
+              />
+              {/* Aurora Blob 2 - Green/Teal (top-right) */}
+              <div
+                className="absolute -top-[5%] -right-[15%] w-[55%] h-[55%] rounded-full blur-[70px] opacity-35 dark:opacity-45 animate-aurora-2"
+                style={{
+                  background: `radial-gradient(ellipse 60% 70% at center, oklch(0.72 0.2 160) 0%, oklch(0.6 0.15 140) 35%, transparent 60%)`,
+                }}
+              />
+              {/* Aurora Blob 3 - Purple/Magenta (center-left) */}
+              <div
+                className="absolute top-[20%] -left-[5%] w-[50%] h-[50%] rounded-full blur-[75px] opacity-30 dark:opacity-40 animate-aurora-3"
+                style={{
+                  background: `radial-gradient(ellipse 55% 65% at center, oklch(0.6 0.22 300) 0%, oklch(0.5 0.18 320) 30%, transparent 55%)`,
+                }}
+              />
+              {/* Aurora Blob 4 - Orange/Yellow (center-right) */}
+              <div
+                className="absolute top-[15%] -right-[10%] w-[45%] h-[45%] rounded-full blur-[65px] opacity-25 dark:opacity-35 animate-aurora-4"
+                style={{
+                  background: `radial-gradient(ellipse 50% 60% at center, oklch(0.75 0.18 80) 0%, oklch(0.65 0.15 60) 35%, transparent 55%)`,
+                }}
+              />
+              {/* Aurora Blob 5 - Indigo/Deep Blue (bottom-left) */}
+              <div
+                className="absolute bottom-[10%] -left-[15%] w-[50%] h-[50%] rounded-full blur-[70px] opacity-30 dark:opacity-40 animate-aurora-5"
+                style={{
+                  background: `radial-gradient(ellipse 65% 55% at center, oklch(0.55 0.2 260) 0%, oklch(0.45 0.18 280) 30%, transparent 55%)`,
+                }}
+              />
+              {/* Aurora Blob 6 - Pink/Rose (bottom-right) */}
+              <div
+                className="absolute bottom-[5%] -right-[10%] w-[45%] h-[45%] rounded-full blur-[60px] opacity-25 dark:opacity-35 animate-aurora-pulse"
+                style={{
+                  background: `radial-gradient(circle, oklch(0.7 0.15 350) 0%, oklch(0.6 0.12 330) 40%, transparent 60%)`,
+                }}
+              />
+            </div>
+          )}
+
           {/* 메시지 목록 - 전체 너비 활용 */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-hidden relative z-10">
             <MessageList
               messages={messages}
               isLoading={isLoading}
@@ -936,7 +984,8 @@ export function ChatContainer() {
           </div>
 
           {/* 입력 영역 */}
-          <InputArea
+          <div className="relative z-10">
+            <InputArea
             input={input}
             setInput={setInput}
             onSend={handleSend}
@@ -959,7 +1008,8 @@ export function ChatContainer() {
             onStopStreaming={handleStopStreaming}
             deepThinkingEnabled={deepThinkingEnabled}
             onDeepThinkingChange={setDeepThinkingEnabled}
-          />
+            />
+          </div>
         </div>
 
         {/* 우측: 참조문서 아티팩트 패널 - 부드러운 전환 */}

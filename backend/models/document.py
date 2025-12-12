@@ -30,6 +30,9 @@ class Document(Base):
     # 실제 마크다운 내용
     md_content = Column(Text, nullable=False)
 
+    # 카테고리 (Qdrant Collection 이름 참조)
+    category = Column(String(100), nullable=True, index=True)
+
     # 통계
     download_count = Column(Integer, default=0, nullable=False)
     last_accessed_at = Column(DateTime, nullable=True)

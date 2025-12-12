@@ -46,6 +46,10 @@ import {
   FlaskConical,
   Building,
   LucideIcon,
+  X,
+  FileCheck,
+  FolderOpen,
+  RotateCcw,
 } from "lucide-react"
 import { toast } from "sonner"
 import { API_BASE_URL } from "@/lib/api-config"
@@ -70,8 +74,8 @@ interface Collection {
   created_at?: string
 }
 
-type VisibilityFilter = "all" | "public" | "private" | "shared"
-type SortOption = "name_asc" | "name_desc" | "vectors_desc" | "newest"
+type SortOption = "name_asc" | "name_desc" | "vectors_desc" | "docs_desc" | "newest"
+type QuickFilter = "recommended" | "hasDocuments" | "empty" | "public" | "private"
 
 // 메타데이터 타입
 interface CollectionMetadata {
@@ -132,8 +136,9 @@ export default function CollectionsPage() {
   const [collections, setCollections] = useState<Collection[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
-  const [visibilityFilter, setVisibilityFilter] = useState<VisibilityFilter>("all")
   const [sortOption, setSortOption] = useState<SortOption>("name_asc")
+  const [quickFilters, setQuickFilters] = useState<QuickFilter[]>([])
+  const [searchInputRef, setSearchInputRef] = useState<HTMLInputElement | null>(null)
 
   // 모달 상태
   const [createModalOpen, setCreateModalOpen] = useState(false)
@@ -168,6 +173,36 @@ export default function CollectionsPage() {
     fetchCollections()
   }, [fetchCollections])
 
+  // 키보드 단축키 (Cmd/Ctrl + K)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault()
+        searchInputRef?.focus()
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [searchInputRef])
+
+  // 빠른 필터 토글
+  const toggleQuickFilter = (filter: QuickFilter) => {
+    setQuickFilters(prev =>
+      prev.includes(filter)
+        ? prev.filter(f => f !== filter)
+        : [...prev, filter]
+    )
+  }
+
+  // 모든 필터 초기화
+  const resetAllFilters = () => {
+    setSearchQuery("")
+    setQuickFilters([])
+  }
+
+  // 필터가 적용되어 있는지 확인
+  const hasActiveFilters = searchQuery || quickFilters.length > 0
+
   // 필터링 및 정렬된 컬렉션
   const filteredCollections = collections
     .filter((col) => {
@@ -185,10 +220,33 @@ export default function CollectionsPage() {
           return false
         }
       }
-      // visibility 필터 (추후 백엔드 지원 시 활성화)
-      if (visibilityFilter !== "all" && col.visibility && col.visibility !== visibilityFilter) {
-        return false
+
+      // 빠른 필터 적용
+      if (quickFilters.length > 0) {
+        const metadata = parseMetadata(col.description)
+
+        // 추천 필터
+        if (quickFilters.includes("recommended") && metadata.priority !== 1) {
+          return false
+        }
+        // 문서 있음 필터
+        if (quickFilters.includes("hasDocuments") && col.points_count === 0) {
+          return false
+        }
+        // 비어있음 필터
+        if (quickFilters.includes("empty") && col.points_count > 0) {
+          return false
+        }
+        // 공개 필터
+        if (quickFilters.includes("public") && col.visibility !== "public") {
+          return false
+        }
+        // 비공개 필터
+        if (quickFilters.includes("private") && col.visibility !== "private") {
+          return false
+        }
       }
+
       return true
     })
     .sort((a, b) => {
@@ -205,6 +263,8 @@ export default function CollectionsPage() {
           return nameB.localeCompare(nameA, 'ko-KR')
         case "vectors_desc":
           return b.points_count - a.points_count
+        case "docs_desc":
+          return b.documents_count - a.documents_count
         case "newest":
           // created_at이 없으면 이름 순으로 fallback
           if (a.created_at && b.created_at) {
@@ -372,36 +432,34 @@ export default function CollectionsPage() {
         transition={{ duration: 0.5, delay: 0.3 }}
         className="sticky top-20 z-30"
       >
-        <div className="p-1.5 rounded-2xl bg-background/60 backdrop-blur-xl border border-border/50 shadow-lg supports-[backdrop-filter]:bg-background/40">
+        <div className="p-3 rounded-2xl bg-background/60 backdrop-blur-xl border border-border/50 shadow-lg supports-[backdrop-filter]:bg-background/40 space-y-3">
+          {/* 첫 번째 줄: 검색 + 정렬 + 새로고침 */}
           <div className="flex flex-col sm:flex-row gap-2">
             {/* 검색 */}
             <div className="relative flex-1 group">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-[color:var(--chart-1)] transition-colors" />
               <Input
-                placeholder="컬렉션 검색..."
+                ref={(el) => setSearchInputRef(el)}
+                placeholder="컬렉션 검색... (Ctrl+K)"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 h-10 bg-background/50 border-transparent focus:bg-background focus:border-[color:var(--chart-1)]/20 rounded-xl transition-all"
+                className="pl-10 pr-10 h-10 bg-background/50 border-transparent focus:bg-background focus:border-[color:var(--chart-1)]/20 rounded-xl transition-all"
               />
+              {/* 검색어 클리어 버튼 */}
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
 
             <div className="flex gap-2">
-              {/* 공개 상태 필터 */}
-              <Select value={visibilityFilter} onValueChange={(v) => setVisibilityFilter(v as VisibilityFilter)}>
-                <SelectTrigger className="w-[130px] h-10 rounded-xl border-border/50 bg-background/50 focus:bg-background">
-                  <SelectValue placeholder="공개 상태" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체 상태</SelectItem>
-                  <SelectItem value="public">공개</SelectItem>
-                  <SelectItem value="private">비공개</SelectItem>
-                  <SelectItem value="shared">공유</SelectItem>
-                </SelectContent>
-              </Select>
-
               {/* 정렬 */}
               <Select value={sortOption} onValueChange={(v) => setSortOption(v as SortOption)}>
-                <SelectTrigger className="w-[130px] h-10 rounded-xl border-border/50 bg-background/50 focus:bg-background">
+                <SelectTrigger className="w-[150px] h-10 rounded-xl border-border/50 bg-background/50 focus:bg-background">
                   <ArrowUpDown className="h-4 w-4 mr-2 text-muted-foreground" />
                   <SelectValue placeholder="정렬" />
                 </SelectTrigger>
@@ -409,6 +467,7 @@ export default function CollectionsPage() {
                   <SelectItem value="name_asc">이름 (오름차순)</SelectItem>
                   <SelectItem value="name_desc">이름 (내림차순)</SelectItem>
                   <SelectItem value="vectors_desc">벡터 수 (많은순)</SelectItem>
+                  <SelectItem value="docs_desc">문서 수 (많은순)</SelectItem>
                   <SelectItem value="newest">최신순</SelectItem>
                 </SelectContent>
               </Select>
@@ -424,6 +483,97 @@ export default function CollectionsPage() {
                   <TooltipContent>목록 새로고침</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
+            </div>
+          </div>
+
+          {/* 두 번째 줄: 빠른 필터 칩 + 결과 요약 */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+            {/* 빠른 필터 칩 */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs text-muted-foreground mr-1">빠른 필터:</span>
+              <button
+                onClick={() => toggleQuickFilter("recommended")}
+                className={cn(
+                  "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all",
+                  quickFilters.includes("recommended")
+                    ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
+                )}
+              >
+                <Star className="h-3 w-3" />
+                추천
+              </button>
+              <button
+                onClick={() => toggleQuickFilter("hasDocuments")}
+                className={cn(
+                  "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all",
+                  quickFilters.includes("hasDocuments")
+                    ? "bg-green-500/20 text-green-600 dark:text-green-400 border border-green-500/30"
+                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
+                )}
+              >
+                <FileCheck className="h-3 w-3" />
+                문서 있음
+              </button>
+              <button
+                onClick={() => toggleQuickFilter("empty")}
+                className={cn(
+                  "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all",
+                  quickFilters.includes("empty")
+                    ? "bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30"
+                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
+                )}
+              >
+                <FolderOpen className="h-3 w-3" />
+                비어있음
+              </button>
+              <span className="text-muted-foreground/50 mx-0.5">|</span>
+              <button
+                onClick={() => toggleQuickFilter("public")}
+                className={cn(
+                  "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all",
+                  quickFilters.includes("public")
+                    ? "bg-green-500/20 text-green-600 dark:text-green-400 border border-green-500/30"
+                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
+                )}
+              >
+                <Globe className="h-3 w-3" />
+                공개
+              </button>
+              <button
+                onClick={() => toggleQuickFilter("private")}
+                className={cn(
+                  "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all",
+                  quickFilters.includes("private")
+                    ? "bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30"
+                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
+                )}
+              >
+                <Lock className="h-3 w-3" />
+                비공개
+              </button>
+            </div>
+
+            {/* 결과 요약 + 필터 초기화 */}
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-muted-foreground">
+                {hasActiveFilters ? (
+                  <>전체 <span className="font-medium text-foreground">{collections.length}</span>개 중 <span className="font-medium text-[color:var(--chart-1)]">{filteredCollections.length}</span>개 표시</>
+                ) : (
+                  <>총 <span className="font-medium text-foreground">{collections.length}</span>개 컬렉션</>
+                )}
+              </span>
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={resetAllFilters}
+                  className="h-6 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  초기화
+                </Button>
+              )}
             </div>
           </div>
         </div>

@@ -8,6 +8,7 @@ export interface Document {
   content_preview: string | null
   processing_time: number | null
   created_at: string
+  category: string | null  // 카테고리(컬렉션명) 추가
 }
 
 export interface DifyDataset {

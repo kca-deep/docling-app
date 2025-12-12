@@ -97,7 +97,7 @@ function WelcomeSkeleton() {
         <div className="flex justify-center">
           <Skeleton className="h-4 w-20" />
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {[1, 2, 3, 4].map((i) => (
             <Skeleton key={i} className="h-10 rounded-lg" />
           ))}
@@ -183,53 +183,8 @@ export const SuggestedPrompts = memo(function SuggestedPrompts({
 
   return (
     <div className="py-8 space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-      {/* 로고 + 환영 메시지 섹션 - 세로 중앙 정렬 + Aurora 배경 */}
-      <div className="flex flex-col items-center text-center space-y-6 relative overflow-hidden py-8 -my-4 rounded-2xl">
-        {/* Aurora Background - Enhanced with more blobs */}
-        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-          {/* Aurora Blob 1 - Blue/Cyan (top-left) */}
-          <div
-            className="absolute -top-1/3 -left-1/4 w-[80%] h-[80%] rounded-full blur-[50px] opacity-35 dark:opacity-55 animate-aurora-1"
-            style={{
-              background: `radial-gradient(ellipse 70% 50% at center, oklch(0.65 0.22 230) 0%, oklch(0.55 0.18 210) 30%, transparent 60%)`,
-            }}
-          />
-          {/* Aurora Blob 2 - Green/Teal (top-right) */}
-          <div
-            className="absolute -top-1/4 -right-1/3 w-[70%] h-[70%] rounded-full blur-[45px] opacity-30 dark:opacity-50 animate-aurora-2"
-            style={{
-              background: `radial-gradient(ellipse 60% 70% at center, oklch(0.72 0.2 160) 0%, oklch(0.6 0.15 140) 35%, transparent 60%)`,
-            }}
-          />
-          {/* Aurora Blob 3 - Purple/Magenta (bottom-center) */}
-          <div
-            className="absolute top-1/3 left-1/4 w-[65%] h-[65%] rounded-full blur-[55px] opacity-25 dark:opacity-45 animate-aurora-3"
-            style={{
-              background: `radial-gradient(ellipse 55% 65% at center, oklch(0.6 0.22 300) 0%, oklch(0.5 0.18 320) 30%, transparent 55%)`,
-            }}
-          />
-          {/* Aurora Blob 4 - Orange/Yellow (center-right) */}
-          <div
-            className="absolute top-0 right-0 w-[55%] h-[55%] rounded-full blur-[40px] opacity-20 dark:opacity-40 animate-aurora-4"
-            style={{
-              background: `radial-gradient(ellipse 50% 60% at center, oklch(0.75 0.18 80) 0%, oklch(0.65 0.15 60) 35%, transparent 55%)`,
-            }}
-          />
-          {/* Aurora Blob 5 - Indigo/Deep Blue (bottom-left) */}
-          <div
-            className="absolute bottom-0 -left-1/4 w-[60%] h-[60%] rounded-full blur-[50px] opacity-25 dark:opacity-45 animate-aurora-5"
-            style={{
-              background: `radial-gradient(ellipse 65% 55% at center, oklch(0.55 0.2 260) 0%, oklch(0.45 0.18 280) 30%, transparent 55%)`,
-            }}
-          />
-          {/* Aurora Blob 6 - Pink/Rose (center pulse) */}
-          <div
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[50%] h-[50%] rounded-full blur-[60px] opacity-15 dark:opacity-35 animate-aurora-pulse"
-            style={{
-              background: `radial-gradient(circle, oklch(0.7 0.15 350) 0%, oklch(0.6 0.12 330) 40%, transparent 60%)`,
-            }}
-          />
-        </div>
+      {/* 로고 + 환영 메시지 섹션 - 세로 중앙 정렬 (오로라는 MessageList에서 전체 배경으로 표시) */}
+      <div className="flex flex-col items-center text-center space-y-6 relative py-8 -my-4">
         {/* 로고 컨테이너 - 큰 원형으로 배경과 분리 */}
         <div className="relative z-10">
           {/* 외곽 글로우 효과 */}
@@ -298,8 +253,8 @@ export const SuggestedPrompts = memo(function SuggestedPrompts({
           </span>
         </div>
 
-        {/* 질문 그리드 2x2 */}
-        <div className="grid grid-cols-2 gap-2">
+        {/* 질문 그리드 - 모바일 1열, 데스크탑 2열 */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {prompts.slice(0, 4).map((prompt, index) => {
             const icons = [Lightbulb, HelpCircle, Search, Zap];
             const Icon = icons[index % icons.length];

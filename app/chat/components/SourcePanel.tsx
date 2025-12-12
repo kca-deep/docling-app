@@ -22,40 +22,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { cleanSourceContent } from "@/lib/content-sanitizer";
 import { MarkdownMessage } from "@/components/markdown-message";
-
-/**
- * 코드 블록으로 감싸진 콘텐츠에서 코드 블록 구분자를 제거
- */
-function stripCodeBlockWrapper(content: string): string {
-  const lines = content.split('\n');
-  const result: string[] = [];
-  let inCodeBlock = false;
-  let codeBlockLang = '';
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-
-    if (trimmed.startsWith('```')) {
-      if (!inCodeBlock) {
-        inCodeBlock = true;
-        codeBlockLang = trimmed.slice(3).trim();
-        if (!codeBlockLang || codeBlockLang === 'markdown' || codeBlockLang === 'md') {
-          continue;
-        }
-      } else {
-        inCodeBlock = false;
-        if (!codeBlockLang || codeBlockLang === 'markdown' || codeBlockLang === 'md') {
-          continue;
-        }
-      }
-    }
-
-    result.push(line);
-  }
-
-  return result.join('\n').trim();
-}
 
 interface Source {
   id: string;
@@ -225,10 +193,10 @@ export function SourcePanel({ sources }: SourcePanelProps) {
                       {/* 미리보기/전체 내용 */}
                       <div className="text-sm text-foreground bg-muted/30 p-3 rounded-md">
                         {isExpanded ? (
-                          <MarkdownMessage content={stripCodeBlockWrapper(source.content)} compact />
+                          <MarkdownMessage content={cleanSourceContent(source.content)} compact />
                         ) : (
                           <p className="line-clamp-3 whitespace-pre-wrap">
-                            {stripCodeBlockWrapper(source.content)}
+                            {cleanSourceContent(source.content)}
                           </p>
                         )}
                       </div>

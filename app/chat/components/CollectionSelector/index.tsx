@@ -8,7 +8,7 @@ import { CollectionSearchInput } from "./CollectionSearchInput";
 import { RecommendedSection } from "./RecommendedSection";
 import { FullListSection } from "./FullListSection";
 import { CasualModeItem } from "./CasualModeItem";
-import { CollectionItem } from "./CollectionItem";
+import { CollectionCard } from "./CollectionCard";
 import { useCollectionSearch } from "../../hooks/useCollectionSearch";
 import {
   parseCollectionMetadata,
@@ -121,7 +121,7 @@ export function CollectionSelector({
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent className="w-[360px] p-0" align="start">
+      <PopoverContent className="w-[calc(100vw-2rem)] sm:w-[720px] max-w-[720px] p-0" align="start">
         {/* 헤더 */}
         <div className="px-3 py-2 border-b">
           <h4 className="font-medium text-sm">지식 베이스 선택</h4>
@@ -137,21 +137,23 @@ export function CollectionSelector({
         <div className="max-h-[400px] overflow-y-auto">
           {/* 검색 중일 때 */}
           {searchQuery ? (
-            <div className="p-2">
+            <div className="p-3">
               {hasSearchResults ? (
                 <>
-                  <p className="text-xs text-muted-foreground px-2 py-1">
+                  <p className="text-xs text-muted-foreground px-1 py-1 mb-2">
                     검색 결과 ({filteredCollections.length}개)
                   </p>
-                  {filteredCollections.map((c) => (
-                    <CollectionItem
-                      key={c.name}
-                      collection={c}
-                      isSelected={selectedCollection === c.name}
-                      onSelect={() => handleSelect(c.name)}
-                      highlightText={searchQuery}
-                    />
-                  ))}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {filteredCollections.map((c) => (
+                      <CollectionCard
+                        key={c.name}
+                        collection={c}
+                        isSelected={selectedCollection === c.name}
+                        onSelect={() => handleSelect(c.name)}
+                        highlightText={searchQuery}
+                      />
+                    ))}
+                  </div>
                 </>
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-4">

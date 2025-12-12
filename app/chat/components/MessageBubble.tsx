@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ChatbotLogo } from "@/components/ui/chatbot-logo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Wand2, User, FileText, Copy, Check, RefreshCw, Reply, StopCircle } from "lucide-react";
+import { Wand2, User, FileText, Copy, Check, RefreshCw, Reply, StopCircle, ChevronRight } from "lucide-react";
 import { MarkdownMessage } from "@/components/markdown-message";
 import { cn } from "@/lib/utils";
 import { useState, memo } from "react";
@@ -20,6 +20,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ChevronDown, ChevronUp, ExternalLink, Link } from "lucide-react";
+import { SourceArtifactModal } from "./SourceArtifactModal";
 
 interface Source {
   id: string;
@@ -75,6 +76,7 @@ export const MessageBubble = memo(function MessageBubble({
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [thoughtExpanded, setThoughtExpanded] = useState(false);
   const [openTooltipId, setOpenTooltipId] = useState<string | null>(null);
+  const [mobileModalOpen, setMobileModalOpen] = useState(false);
 
   // 메시지 내용 파싱: <thought> 태그와 답변 부분 분리
   const parseMessageContent = (content: string, streaming: boolean = false) => {
@@ -286,105 +288,131 @@ export const MessageBubble = memo(function MessageBubble({
 
           {/* 참조 문서 표시 (스트리밍 중에는 숨김) */}
           {!isStreaming && sources && sources.length > 0 && (
-            <div className="mt-4 pt-3 border-t border-border/30 space-y-2">
-              {/* 참조 문서 요약 */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-3.5 w-3.5" style={{ color: "var(--chart-2)" }} />
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {sources.length}개 참조문서
-                  </span>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 text-xs cursor-pointer"
-                  onClick={() => onOpenArtifact?.(sources, messageId)}
-                  style={{ color: "var(--chart-1)" }}
+            <>
+              {/* 모바일: 간단한 버튼으로 모달 열기 */}
+              <div className="mt-4 pt-3 border-t border-border/30 sm:hidden">
+                <button
+                  onClick={() => setMobileModalOpen(true)}
+                  className="w-full flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
                 >
-                  전체보기
-                </Button>
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4" style={{ color: "var(--chart-2)" }} />
+                    <span className="text-sm font-medium">
+                      참조문서 {sources.length}개
+                    </span>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </button>
+
+                {/* 모바일 모달 */}
+                <SourceArtifactModal
+                  open={mobileModalOpen}
+                  onOpenChange={setMobileModalOpen}
+                  sources={sources}
+                />
               </div>
 
-              {/* 참조 문서 요약 리스트 */}
-              <div className="flex flex-wrap gap-1.5">
-                <TooltipProvider>
-                  {sources.map((source, index) => (
-                    <Tooltip
-                      key={source.id}
-                      open={openTooltipId === source.id}
-                      onOpenChange={(open) => {
-                        if (!open) setOpenTooltipId(null);
-                      }}
-                    >
-                      <TooltipTrigger asChild>
-                        <Badge
-                          variant="secondary"
-                          className={cn(
-                            "cursor-pointer hover:bg-secondary/80 transition-all text-xs px-2 py-1",
-                            openTooltipId === source.id && "bg-secondary/80 ring-1 ring-primary/50"
-                          )}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            setOpenTooltipId(openTooltipId === source.id ? null : source.id);
-                          }}
-                        >
-                          <span className="text-muted-foreground mr-1">#{index + 1}</span>
-                          <FileText className="h-3 w-3 mr-1" />
-                          <span className="max-w-[120px] truncate">
-                            {source.metadata?.file ? truncateFilename(source.metadata.file, 20) : source.title}
-                          </span>
-                          {source.metadata?.chunk_index !== undefined && (
-                            <span className="ml-1 text-muted-foreground">
-                              (청크 {source.metadata.chunk_index})
+              {/* 데스크탑: 기존 UI 유지 */}
+              <div className="mt-4 pt-3 border-t border-border/30 space-y-2 hidden sm:block">
+                {/* 참조 문서 요약 */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-3.5 w-3.5" style={{ color: "var(--chart-2)" }} />
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {sources.length}개 참조문서
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs cursor-pointer"
+                    onClick={() => onOpenArtifact?.(sources, messageId)}
+                    style={{ color: "var(--chart-1)" }}
+                  >
+                    전체보기
+                  </Button>
+                </div>
+
+                {/* 참조 문서 요약 리스트 */}
+                <div className="flex flex-wrap gap-1.5">
+                  <TooltipProvider>
+                    {sources.map((source, index) => (
+                      <Tooltip
+                        key={source.id}
+                        open={openTooltipId === source.id}
+                        onOpenChange={(open) => {
+                          if (!open) setOpenTooltipId(null);
+                        }}
+                      >
+                        <TooltipTrigger asChild>
+                          <Badge
+                            variant="secondary"
+                            className={cn(
+                              "cursor-pointer hover:bg-secondary/80 transition-all text-xs px-2 py-1",
+                              openTooltipId === source.id && "bg-secondary/80 ring-1 ring-primary/50"
+                            )}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setOpenTooltipId(openTooltipId === source.id ? null : source.id);
+                            }}
+                          >
+                            <span className="text-muted-foreground mr-1">#{index + 1}</span>
+                            <FileText className="h-3 w-3 mr-1" />
+                            <span className="max-w-[120px] truncate">
+                              {source.metadata?.file ? truncateFilename(source.metadata.file, 20) : source.title}
                             </span>
-                          )}
-                        </Badge>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-80 p-3">
-                        <div className="space-y-2">
-                          <div>
-                            <h4 className="text-sm font-semibold mb-1 line-clamp-2">
-                              {source.title}
-                            </h4>
-                            {source.metadata?.section && (
-                              <p className="text-xs text-muted-foreground line-clamp-2">
-                                {source.metadata.section}
-                              </p>
-                            )}
-                          </div>
-
-                          <div className="flex flex-wrap gap-1.5">
-                            <Badge variant="outline" className={cn("text-xs", getScoreColor())}>
-                              관련도 {(source.score * 100).toFixed(0)}%
-                            </Badge>
                             {source.metadata?.chunk_index !== undefined && (
-                              <Badge variant="secondary" className="text-xs">
-                                청크 #{source.metadata.chunk_index}
-                              </Badge>
+                              <span className="ml-1 text-muted-foreground">
+                                (청크 {source.metadata.chunk_index})
+                              </span>
                             )}
-                            {source.metadata?.num_tokens && (
-                              <Badge variant="secondary" className="text-xs">
-                                {source.metadata.num_tokens} 토큰
-                              </Badge>
-                            )}
-                            {source.metadata?.page && (
-                              <Badge variant="secondary" className="text-xs">
-                                페이지 {source.metadata.page}
-                              </Badge>
-                            )}
-                          </div>
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-80 p-3">
+                          <div className="space-y-2">
+                            <div>
+                              <h4 className="text-sm font-semibold mb-1 line-clamp-2">
+                                {source.title}
+                              </h4>
+                              {source.metadata?.section && (
+                                <p className="text-xs text-muted-foreground line-clamp-2">
+                                  {source.metadata.section}
+                                </p>
+                              )}
+                            </div>
 
-                          <div className="text-xs text-muted-foreground line-clamp-3 pt-1 border-t">
-                            {source.content}
+                            <div className="flex flex-wrap gap-1.5">
+                              <Badge variant="outline" className={cn("text-xs", getScoreColor())}>
+                                관련도 {(source.score * 100).toFixed(0)}%
+                              </Badge>
+                              {source.metadata?.chunk_index !== undefined && (
+                                <Badge variant="secondary" className="text-xs">
+                                  청크 #{source.metadata.chunk_index}
+                                </Badge>
+                              )}
+                              {source.metadata?.num_tokens && (
+                                <Badge variant="secondary" className="text-xs">
+                                  {source.metadata.num_tokens} 토큰
+                                </Badge>
+                              )}
+                              {source.metadata?.page && (
+                                <Badge variant="secondary" className="text-xs">
+                                  페이지 {source.metadata.page}
+                                </Badge>
+                              )}
+                            </div>
+
+                            <div className="text-xs text-muted-foreground line-clamp-3 pt-1 border-t">
+                              {source.content}
+                            </div>
                           </div>
-                        </div>
-                      </TooltipContent>
-                    </Tooltip>
-                  ))}
-                </TooltipProvider>
+                        </TooltipContent>
+                      </Tooltip>
+                    ))}
+                  </TooltipProvider>
+                </div>
               </div>
-            </div>
+            </>
           )}
 
           {/* 메타데이터 표시 */}

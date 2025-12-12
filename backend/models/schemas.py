@@ -72,6 +72,7 @@ class DocumentSaveRequest(BaseModel):
     md_content: str
     processing_time: Optional[float] = None
     parse_options: Optional[dict] = None
+    category: Optional[str] = None  # Qdrant Collection 이름 (카테고리)
 
 
 class DocumentListResponse(BaseModel):
@@ -83,6 +84,7 @@ class DocumentListResponse(BaseModel):
     content_preview: Optional[str]
     processing_time: Optional[float]
     created_at: str
+    category: Optional[str] = None  # 카테고리 (Qdrant Collection 이름)
 
     class Config:
         from_attributes = True
@@ -100,6 +102,7 @@ class DocumentDetailResponse(BaseModel):
     content_length: Optional[int]
     download_count: int
     created_at: str
+    category: Optional[str] = None  # 카테고리
 
     class Config:
         from_attributes = True
@@ -114,6 +117,25 @@ class DocumentSaveResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# Document 카테고리 관련 스키마
+class CategoryUpdateRequest(BaseModel):
+    """문서 카테고리 변경 요청"""
+    document_ids: List[int]
+    category: Optional[str] = None  # None이면 미분류로 변경
+
+
+class CategoryStat(BaseModel):
+    """카테고리 통계 항목"""
+    name: Optional[str]  # None = 미분류
+    count: int
+
+
+class CategoryStatsResponse(BaseModel):
+    """카테고리 통계 응답"""
+    categories: List[CategoryStat]
+    total: int
 
 
 # Dify 연동 관련 스키마

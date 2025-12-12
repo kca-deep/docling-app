@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Upload, FileText, Loader2, CheckCircle2, XCircle, Download, Trash2, FolderOpen, Save, Settings, Zap, Sparkles, Eye, ChevronDown, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -22,6 +22,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Skeleton } from "@/components/ui/skeleton";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { CollectionSelector } from "@/components/ui/collection-selector";
+import { QdrantCollection } from "@/app/upload/types";
 
 interface ConvertResult {
   task_id: string;
@@ -91,6 +93,38 @@ export default function ParsePage() {
 
   // Advanced options collapsible state
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+
+  // 카테고리(컬렉션) 관련 상태
+  const [collections, setCollections] = useState<QdrantCollection[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>("__uncategorized__");
+  const [collectionsLoading, setCollectionsLoading] = useState(false);
+
+  // 컬렉션 목록 로드
+  const fetchCollections = async () => {
+    setCollectionsLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/qdrant/collections`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        // 컬렉션명으로 오름차순 정렬
+        const sorted = [...(data.collections || [])].sort((a: QdrantCollection, b: QdrantCollection) =>
+          a.name.localeCompare(b.name, 'ko-KR')
+        );
+        setCollections(sorted);
+      }
+    } catch (err) {
+      console.error("컬렉션 목록 로드 실패:", err);
+    } finally {
+      setCollectionsLoading(false);
+    }
+  };
+
+  // 초기 로드
+  useEffect(() => {
+    fetchCollections();
+  }, []);
 
   // 일괄 파일 핸들러
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -339,6 +373,7 @@ export default function ParsePage() {
       md_content: fileStatus.result.document.md_content,
       processing_time: fileStatus.result.processing_time,
       parse_options: parseOptions,
+      category: selectedCategory === "__uncategorized__" ? null : selectedCategory,  // 카테고리 추가
     };
 
     toast.promise(
@@ -378,6 +413,7 @@ export default function ParsePage() {
         md_content: fileStatus.result!.document!.md_content!,
         processing_time: fileStatus.result!.processing_time,
         parse_options: parseOptions,
+        category: selectedCategory === "__uncategorized__" ? null : selectedCategory,  // 카테고리 추가
       };
 
       return fetch(`${API_BASE_URL}/api/documents/save`, {
@@ -773,6 +809,23 @@ export default function ParsePage() {
                   </Label>
                 </div>
               </div>
+
+              <Separator />
+
+              {/* 카테고리(컬렉션) 선택 - 모달 방식 */}
+              <CollectionSelector
+                value={selectedCategory}
+                onValueChange={setSelectedCategory}
+                collections={collections}
+                loading={collectionsLoading}
+                onRefresh={fetchCollections}
+                showUncategorized={true}
+                showManageLink={true}
+                variant="modal"
+                columns={2}
+                label="저장 카테고리"
+                modalTitle="저장할 카테고리 선택"
+              />
 
               <Separator />
 

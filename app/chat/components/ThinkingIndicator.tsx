@@ -98,7 +98,7 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
   const progressPercent = ((currentStageIndex + 1) / THINKING_STAGES.length) * 100;
 
   return (
-    <div className={cn("w-full max-w-2xl", className)}>
+    <div className={cn("w-full", className)}>
       {/* 인디케이터 카드 - 단계별 배경색 */}
       <div
         className="relative overflow-hidden rounded-xl border transition-all duration-500"
@@ -145,12 +145,12 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
                   KCA-i 응답 생성 중
                 </span>
                 {collectionName && (
-                  <>
+                  <span className="hidden sm:inline-flex items-center gap-2">
                     <span className="text-muted-foreground/40">•</span>
                     <span className="text-xs text-muted-foreground truncate max-w-[120px]">
                       {collectionName}
                     </span>
-                  </>
+                  </span>
                 )}
               </div>
               <p className="text-xs text-muted-foreground mt-0.5 truncate animate-in fade-in duration-300">
@@ -171,8 +171,8 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
                 />
               </div>
 
-              {/* 단계 인디케이터 (점 + 텍스트) */}
-              <div className="flex items-center gap-1">
+              {/* 단계 인디케이터 (점 + 텍스트) - 모바일 숨김 */}
+              <div className="hidden sm:flex items-center gap-1">
                 {THINKING_STAGES.map((stage, index) => {
                   const isCompleted = index < currentStageIndex;
                   const isCurrent = index === currentStageIndex;
@@ -234,7 +234,7 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
 
               {/* 경과 시간 */}
               <div
-                className="text-sm font-mono font-semibold tabular-nums min-w-[2.5rem] text-right"
+                className="text-xs sm:text-sm font-mono font-semibold tabular-nums min-w-[2rem] sm:min-w-[2.5rem] text-right"
                 style={{ color: currentStage.colorVar }}
               >
                 {elapsedTime}

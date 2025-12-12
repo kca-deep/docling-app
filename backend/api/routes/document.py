@@ -25,6 +25,9 @@ from backend.models.schemas import (
     DocumentDetailResponse,
     URLConvertRequest,
     ProgressResponse,
+    CategoryUpdateRequest,
+    CategoryStatsResponse,
+    CategoryStat,
 )
 
 router = APIRouter(
@@ -300,6 +303,8 @@ async def get_saved_documents(
     skip: int = 0,
     limit: int = 20,
     search: Optional[str] = None,
+    category: Optional[str] = None,
+    uncategorized: bool = False,
     db: Session = Depends(get_db)
 ):
     """
@@ -309,14 +314,24 @@ async def get_saved_documents(
         skip: 건너뛸 개수 (페이징)
         limit: 가져올 최대 개수
         search: 검색어 (파일명 검색)
+        category: 카테고리 필터 (컬렉션명)
+        uncategorized: True면 미분류 문서만 조회
         db: DB 세션
 
     Returns:
         dict: 문서 목록, 전체 개수, 페이지 정보
     """
     try:
+        # 카테고리 필터 모드 결정
+        category_filter_mode = "uncategorized" if uncategorized else "exact"
+
         documents, total = document_crud.get_documents(
-            db, skip=skip, limit=limit, search=search
+            db,
+            skip=skip,
+            limit=limit,
+            search=search,
+            category=category,
+            category_filter_mode=category_filter_mode
         )
 
         # Pydantic 모델로 변환
@@ -328,7 +343,8 @@ async def get_saved_documents(
                 content_length=doc.content_length,
                 content_preview=doc.content_preview,
                 processing_time=doc.processing_time,
-                created_at=doc.created_at.isoformat() if doc.created_at else ""
+                created_at=doc.created_at.isoformat() if doc.created_at else "",
+                category=doc.category
             ).model_dump()
             for doc in documents
         ]
@@ -382,7 +398,8 @@ async def get_saved_document(
             processing_time=document.processing_time,
             content_length=document.content_length,
             download_count=document.download_count,
-            created_at=document.created_at.isoformat() if document.created_at else ""
+            created_at=document.created_at.isoformat() if document.created_at else "",
+            category=document.category
         )
 
     except HTTPException:
@@ -459,4 +476,74 @@ async def get_progress(task_id: str):
         raise HTTPException(
             status_code=500,
             detail=f"진행률 조회 중 오류 발생: {str(e)}"
+        )
+
+
+# === 카테고리 관련 API ===
+
+@router.get("/categories", response_model=CategoryStatsResponse)
+async def get_category_stats(db: Session = Depends(get_db)):
+    """
+    카테고리별 문서 수 통계 조회 API
+
+    Returns:
+        CategoryStatsResponse: 카테고리별 문서 수 목록
+    """
+    try:
+        stats = document_crud.get_category_stats(db)
+        total = sum(s["count"] for s in stats)
+
+        return CategoryStatsResponse(
+            categories=[CategoryStat(name=s["name"], count=s["count"]) for s in stats],
+            total=total
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"카테고리 통계 조회 중 오류 발생: {str(e)}"
+        )
+
+
+@router.patch("/category")
+async def update_category(
+    request: CategoryUpdateRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    문서 카테고리 일괄 변경 API
+
+    Args:
+        request: 카테고리 변경 요청 (document_ids, category)
+        db: DB 세션
+
+    Returns:
+        변경된 문서 수
+    """
+    try:
+        if not request.document_ids:
+            raise HTTPException(
+                status_code=400,
+                detail="변경할 문서 ID가 없습니다"
+            )
+
+        updated_count = document_crud.update_document_categories(
+            db,
+            document_ids=request.document_ids,
+            category=request.category
+        )
+
+        category_name = request.category if request.category else "미분류"
+        return {
+            "success": True,
+            "updated_count": updated_count,
+            "message": f"{updated_count}개 문서가 '{category_name}' 카테고리로 이동되었습니다"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"카테고리 변경 중 오류 발생: {str(e)}"
         )

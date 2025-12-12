@@ -1,10 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { Wand2, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
+import { ChatbotLogo } from "@/components/ui/chatbot-logo"
 
 export function FloatingChatButton() {
   const [isHovered, setIsHovered] = useState(false)
@@ -16,53 +16,51 @@ export function FloatingChatButton() {
           size="lg"
           className={cn(
             "rounded-full shadow-2xl hover:shadow-3xl transition-all duration-300",
-            "w-14 h-14 p-0 relative overflow-hidden group",
-            "bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700"
+            "h-12 px-4 gap-2.5 relative overflow-hidden group",
+            "bg-background/80 backdrop-blur-xl border border-primary/20",
+            "hover:bg-background/90 hover:border-primary/40 hover:scale-105 active:scale-95"
           )}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
-          {/* 애니메이션 배경 */}
-          <div className="absolute inset-0 bg-gradient-to-tr from-violet-400/30 via-transparent to-purple-400/30 animate-pulse" />
+          {/* 배경 그라데이션 */}
+          <div className="absolute inset-0 opacity-[0.03] bg-[conic-gradient(at_center,_rgb(37,99,235),_rgb(16,185,129),_rgb(239,68,68),_rgb(37,99,235))]" />
 
-          {/* 아이콘 */}
-          <div className="relative">
-            <Wand2
-              className={cn(
-                "w-6 h-6 transition-all duration-300 text-white",
-                isHovered && "scale-110 -rotate-12"
-              )}
-            />
-            {/* 반짝이 효과 */}
-            <Sparkles className="w-3 h-3 absolute -top-1 -right-1 text-yellow-300 animate-pulse" />
-          </div>
+          {/* 호버 시 샤인 효과 */}
+          <div className="absolute inset-0 w-full h-full bg-gradient-to-tr from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 ease-in-out" />
 
-          {/* 호버 시 텍스트 */}
-          <span
+          {/* ChatbotLogo */}
+          <ChatbotLogo
             className={cn(
-              "absolute left-full ml-3 whitespace-nowrap",
-              "bg-background border rounded-lg px-3 py-1.5 shadow-lg",
-              "transition-all duration-300 text-sm font-medium text-foreground",
-              isHovered ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-2 pointer-events-none"
+              "h-7 w-7 transition-transform duration-300",
+              isHovered && "scale-110"
             )}
-          >
-            AI 챗봇 열기
+            showSparkles={false}
+          />
+
+          {/* KCA-i 텍스트 */}
+          <span className="font-bold text-sm tracking-tight relative z-10">
+            <span className="text-foreground">KCA</span>
+            <span className="text-primary">-</span>
+            <span className="italic" style={{ color: "var(--chart-2)" }}>i</span>
           </span>
 
           {/* 펄스 효과 */}
-          <span className="absolute inset-0 rounded-full animate-ping bg-purple-400/20" />
+          <span className="absolute inset-0 rounded-full animate-ping bg-primary/10 pointer-events-none" />
         </Button>
       </Link>
 
-      {/* 툴팁 화살표 */}
-      {isHovered && (
-        <div className="absolute top-1/2 -translate-y-1/2 left-full ml-2 w-0 h-0
-          border-t-[6px] border-t-transparent
-          border-r-[8px] border-r-background
-          border-b-[6px] border-b-transparent
-          animate-fade-in"
-        />
-      )}
+      {/* 호버 시 툴팁 */}
+      <span
+        className={cn(
+          "absolute right-0 bottom-full mb-2 whitespace-nowrap",
+          "bg-background border rounded-lg px-3 py-1.5 shadow-lg",
+          "transition-all duration-300 text-xs font-medium text-muted-foreground",
+          isHovered ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1 pointer-events-none"
+        )}
+      >
+        AI 어시스턴트 열기
+      </span>
     </div>
   )
 }

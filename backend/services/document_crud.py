@@ -40,6 +40,7 @@ def create_document(db: Session, doc_request: DocumentSaveRequest) -> Document:
         content_length=content_length,
         content_preview=content_preview,
         status="success",
+        category=doc_request.category,  # 카테고리 저장
     )
 
     db.add(db_document)
@@ -89,7 +90,9 @@ def get_documents(
     skip: int = 0,
     limit: int = 100,
     order_by: str = "created_at",
-    search: Optional[str] = None
+    search: Optional[str] = None,
+    category: Optional[str] = None,
+    category_filter_mode: str = "exact"  # "exact" = 정확히 일치, "uncategorized" = 미분류만
 ) -> tuple[List[Document], int]:
     """
     문서 목록 조회 (검색 및 페이징)
@@ -100,6 +103,8 @@ def get_documents(
         limit: 가져올 최대 개수
         order_by: 정렬 기준 ("created_at", "updated_at")
         search: 검색어 (파일명 검색)
+        category: 카테고리 필터 (컬렉션명)
+        category_filter_mode: "exact"=정확히 일치, "uncategorized"=미분류만
 
     Returns:
         (Document 리스트, 전체 개수)
@@ -109,6 +114,12 @@ def get_documents(
     # 검색 필터
     if search:
         query = query.filter(Document.original_filename.contains(search))
+
+    # 카테고리 필터
+    if category_filter_mode == "uncategorized":
+        query = query.filter(Document.category.is_(None))
+    elif category:
+        query = query.filter(Document.category == category)
 
     # 전체 개수 조회 (페이징 전)
     total = query.count()
@@ -169,3 +180,50 @@ def increment_download_count(db: Session, document_id: int) -> Optional[Document
     db.refresh(document)
 
     return document
+
+
+def get_category_stats(db: Session) -> List[dict]:
+    """
+    카테고리별 문서 수 통계
+
+    Args:
+        db: DB 세션
+
+    Returns:
+        [{"name": "카테고리명 또는 None", "count": 개수}, ...]
+    """
+    from sqlalchemy import func
+
+    results = db.query(
+        Document.category,
+        func.count(Document.id).label("count")
+    ).group_by(Document.category).all()
+
+    return [{"name": row[0], "count": row[1]} for row in results]
+
+
+def update_document_categories(
+    db: Session,
+    document_ids: List[int],
+    category: Optional[str]
+) -> int:
+    """
+    문서들의 카테고리 일괄 변경
+
+    Args:
+        db: DB 세션
+        document_ids: 변경할 문서 ID 목록
+        category: 새 카테고리 (None이면 미분류)
+
+    Returns:
+        변경된 문서 수
+    """
+    updated = db.query(Document).filter(
+        Document.id.in_(document_ids)
+    ).update(
+        {"category": category, "updated_at": datetime.utcnow()},
+        synchronize_session=False
+    )
+    db.commit()
+
+    return updated

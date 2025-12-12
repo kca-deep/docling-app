@@ -12,9 +12,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Sheet,
   FileSpreadsheet,
@@ -23,24 +23,18 @@ import {
   Loader2,
   CheckCircle2,
   XCircle,
-  Database,
-  RefreshCw,
-  Layers,
   Settings2,
   FileText,
   Tag,
   Hash,
   Info,
-  Table,
-  Settings,
-  Globe,
-  Lock,
-  Users
+  Table
 } from "lucide-react"
-import Link from "next/link"
 import { toast } from "sonner"
 import { motion } from "framer-motion"
 import { API_BASE_URL } from "@/lib/api-config"
+import { CollectionSelector } from "@/components/ui/collection-selector"
+import { QdrantCollection } from "@/app/upload/types"
 
 interface ExcelPreviewRow {
   row_index: number
@@ -63,64 +57,6 @@ interface ExcelPreviewResponse {
   preview_rows: ExcelPreviewRow[]
   file_name: string
   detected_mapping: DetectedMapping | null
-}
-
-interface QdrantCollection {
-  name: string
-  documents_count: number
-  points_count: number
-  vector_size: number
-  distance: string
-  visibility?: string
-  description?: string
-  owner_id?: number
-  is_owner?: boolean
-}
-
-// 메타데이터 파싱 함수
-interface CollectionMetadata {
-  koreanName?: string
-  icon?: string
-  keywords?: string[]
-  priority?: number
-  plainDescription?: string
-}
-
-function parseMetadata(description?: string): CollectionMetadata {
-  if (!description) return {}
-  try {
-    const parsed = JSON.parse(description)
-    if (typeof parsed === 'object' && parsed !== null) {
-      return {
-        koreanName: parsed.koreanName,
-        icon: parsed.icon,
-        keywords: Array.isArray(parsed.keywords) ? parsed.keywords : undefined,
-        priority: typeof parsed.priority === 'number' ? parsed.priority : undefined,
-        plainDescription: parsed.plainDescription,
-      }
-    }
-  } catch {
-    return { plainDescription: description }
-  }
-  return {}
-}
-
-// 컬렉션 표시명 가져오기
-function getDisplayName(collection: QdrantCollection): string {
-  const metadata = parseMetadata(collection.description)
-  return metadata.koreanName || collection.name
-}
-
-// Visibility icon helper
-function VisibilityIcon({ visibility }: { visibility?: string }) {
-  switch (visibility) {
-    case "private":
-      return <Lock className="h-3 w-3" />
-    case "shared":
-      return <Users className="h-3 w-3" />
-    default:
-      return <Globe className="h-3 w-3" />
-  }
 }
 
 interface EmbeddingResult {
@@ -393,7 +329,6 @@ export default function ExcelEmbeddingPage() {
     fetchCollections()
   }, [])
 
-  const selectedCollectionInfo = collections.find(c => c.name === selectedCollection)
   const isEmbedDisabled = isEmbedding || !selectedCollection || !previewData ||
     (textColumns.length === 0 && (!useTemplate || !textTemplate))
 
@@ -655,110 +590,20 @@ export default function ExcelEmbeddingPage() {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="space-y-4"
         >
-          {/* Collection 선택 */}
-          <Card className="border-border/50 bg-background/60 backdrop-blur-sm shadow-xl shadow-[color:var(--chart-2)]/5">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-[color:var(--chart-2)]/10">
-                  <Database className="h-4 w-4 text-[color:var(--chart-2)]" />
-                </div>
-                Collection
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {/* 1줄: Collection 라벨 + 정보 배지 */}
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-semibold flex items-center gap-2">
-                  <Layers className="h-4 w-4 text-[color:var(--chart-2)]" />
-                  Collection
-                </Label>
-                {selectedCollectionInfo && (
-                  <div className="flex items-center gap-1.5">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Badge variant="outline" className="text-xs gap-1 border-[color:var(--chart-2)]/30">
-                            <VisibilityIcon visibility={selectedCollectionInfo.visibility} />
-                            {selectedCollectionInfo.visibility || "public"}
-                          </Badge>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p className="text-xs">공개 설정</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    <Badge variant="secondary" className="text-xs gap-1 bg-[color:var(--chart-2)]/10 text-[color:var(--chart-2)]">
-                      <Layers className="h-3 w-3" />
-                      {selectedCollectionInfo.points_count.toLocaleString()} chunks
-                    </Badge>
-                  </div>
-                )}
-              </div>
-
-              {/* 2줄: Select 드롭다운 (전체 너비) */}
-              <Select value={selectedCollection} onValueChange={setSelectedCollection}>
-                <SelectTrigger className="h-11 bg-background/50 border-border/50 focus:border-[color:var(--chart-2)]/30 transition-colors">
-                  <SelectValue placeholder="Collection 선택">
-                    {selectedCollection && getDisplayName(collections.find(c => c.name === selectedCollection) || { name: selectedCollection, documents_count: 0, points_count: 0, vector_size: 0, distance: '' })}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {collections.length === 0 ? (
-                    <div className="px-2 py-3 text-center text-sm text-muted-foreground">
-                      접근 가능한 컬렉션이 없습니다
-                    </div>
-                  ) : (
-                    collections.map((col) => (
-                      <SelectItem key={col.name} value={col.name}>
-                        <div className="flex items-center justify-between w-full gap-3">
-                          <div className="flex items-center gap-2">
-                            <VisibilityIcon visibility={col.visibility} />
-                            <span className="font-medium">{getDisplayName(col)}</span>
-                          </div>
-                          <Badge variant="secondary" className="text-xs">
-                            {col.points_count.toLocaleString()}c
-                          </Badge>
-                        </div>
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-
-              {/* 3줄: 컬렉션 관리 링크 + 새로고침 버튼 */}
-              <div className="flex items-center gap-1.5 justify-between">
-                <Link href="/collections">
-                  <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-[color:var(--chart-2)] transition-colors">
-                    <Settings className="h-3.5 w-3.5" />
-                    컬렉션 관리
-                  </Button>
-                </Link>
-
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={fetchCollections}
-                        disabled={loadingCollections}
-                        className="h-8 w-8 hover:bg-[color:var(--chart-2)]/10 hover:text-[color:var(--chart-2)] transition-colors"
-                      >
-                        {loadingCollections ? (
-                          <Loader2 className="h-4 w-4 animate-spin text-[color:var(--chart-2)]" />
-                        ) : (
-                          <RefreshCw className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p className="text-xs">Collection 목록 새로고침</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Collection 선택 - 모달 방식 */}
+          <CollectionSelector
+            value={selectedCollection}
+            onValueChange={setSelectedCollection}
+            collections={collections}
+            loading={loadingCollections}
+            onRefresh={fetchCollections}
+            showUncategorized={false}
+            showManageLink={true}
+            variant="modal"
+            columns={2}
+            label="Collection"
+            modalTitle="임베딩할 컬렉션 선택"
+          />
 
           {/* 컬럼 매핑 */}
           {previewData && (

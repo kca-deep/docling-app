@@ -78,8 +78,12 @@ function UploadPageContent() {
   const [viewerOpen, setViewerOpen] = useState(false)
   const [selectedDocumentId, setSelectedDocumentId] = useState<number | null>(null)
 
+  // 카테고리 필터 관련 상태
+  const [categoryFilter, setCategoryFilter] = useState<string>("all")
+  const [movingCategory, setMovingCategory] = useState(false)
+
   // 문서 목록 가져오기
-  const fetchDocuments = async (page = 1, search = "") => {
+  const fetchDocuments = async (page = 1, search = "", category = categoryFilter) => {
     setLoadingDocuments(true)
     try {
       const skip = (page - 1) * pageSize
@@ -90,6 +94,13 @@ function UploadPageContent() {
 
       if (search) {
         params.append("search", search)
+      }
+
+      // 카테고리 필터 적용
+      if (category === "uncategorized") {
+        params.append("uncategorized", "true")
+      } else if (category && category !== "all") {
+        params.append("category", category)
       }
 
       const response = await fetch(`${API_BASE_URL}/api/documents/saved?${params}`, {
@@ -108,6 +119,47 @@ function UploadPageContent() {
     } finally {
       setLoadingDocuments(false)
     }
+  }
+
+  // 카테고리 이동 핸들러
+  const handleMoveCategory = async (documentIds: number[], category: string | null) => {
+    setMovingCategory(true)
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/documents/category`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: 'include',
+        body: JSON.stringify({
+          document_ids: documentIds,
+          category: category
+        })
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        toast.success(`${result.updated_count}개 문서의 카테고리가 변경되었습니다`)
+        // 문서 목록 새로고침
+        fetchDocuments(currentPage, searchQuery, categoryFilter)
+        // 선택 초기화
+        setSelectedDocs(new Set())
+        setSelectedDocsInfo(new Map())
+      } else {
+        const error = await response.json()
+        toast.error(error.detail || "카테고리 변경에 실패했습니다")
+      }
+    } catch (error) {
+      console.error("Failed to move category:", error)
+      toast.error("카테고리 변경에 실패했습니다")
+    } finally {
+      setMovingCategory(false)
+    }
+  }
+
+  // 카테고리 필터 변경 핸들러
+  const handleCategoryFilterChange = (category: string) => {
+    setCategoryFilter(category)
+    setCurrentPage(1)
+    fetchDocuments(1, searchQuery, category)
   }
 
   // Dify 데이터셋 목록 가져오기
@@ -202,21 +254,48 @@ function UploadPageContent() {
     }
   }
 
-  // Qdrant Collection 목록 가져오기
+  // Qdrant Collection 목록 가져오기 (카테고리 통계 포함)
   const fetchQdrantCollections = async () => {
     setLoadingQdrantCollections(true)
     try {
-      const response = await fetch(`${API_BASE_URL}/api/qdrant/collections`, {
-        credentials: 'include'
-      })
-      if (response.ok) {
-        const data = await response.json()
+      // Qdrant 컬렉션 목록과 카테고리 통계를 병렬로 가져오기
+      const [collectionsRes, categoryStatsRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/qdrant/collections`, { credentials: 'include' }),
+        fetch(`${API_BASE_URL}/api/documents/categories`, { credentials: 'include' })
+      ])
+
+      if (collectionsRes.ok) {
+        const collectionsData = await collectionsRes.json()
+
+        // 카테고리 통계를 맵으로 변환 (category name -> document count)
+        let categoryCountMap: Record<string, number> = {}
+        if (categoryStatsRes.ok) {
+          const categoryStats = await categoryStatsRes.json()
+          categoryCountMap = (categoryStats.categories || []).reduce(
+            (acc: Record<string, number>, cat: { name: string | null; count: number }) => {
+              if (cat.name) {
+                acc[cat.name] = cat.count
+              }
+              return acc
+            },
+            {}
+          )
+        }
+
+        // 컬렉션에 카테고리 문서 수 병합
+        const collectionsWithCategoryCount = (collectionsData.collections || []).map(
+          (col: QdrantCollection) => ({
+            ...col,
+            documents_count: categoryCountMap[col.name] || 0  // Qdrant 문서수 대신 카테고리 문서수
+          })
+        )
+
         // 컬렉션명으로 오름차순 정렬
-        const sortedCollections = [...(data.collections || [])].sort((a, b) =>
+        const sortedCollections = [...collectionsWithCategoryCount].sort((a, b) =>
           a.name.localeCompare(b.name, 'ko-KR')
         )
         setQdrantCollections(sortedCollections)
-        toast.success(`${data.collections.length}개의 Collection을 불러왔습니다`)
+        toast.success(`${collectionsData.collections.length}개의 Collection을 불러왔습니다`)
       } else {
         toast.error("Collection 목록을 가져오는데 실패했습니다")
       }
@@ -494,6 +573,12 @@ function UploadPageContent() {
             onSearchReset={handleSearchReset}
             onPageChange={handlePageChange}
             onOpenDocumentViewer={openDocumentViewer}
+            // 카테고리 관련 props
+            collections={qdrantCollections}
+            categoryFilter={categoryFilter}
+            onCategoryFilterChange={handleCategoryFilterChange}
+            onMoveCategory={handleMoveCategory}
+            movingCategory={movingCategory}
           />
         </motion.div>
 

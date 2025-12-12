@@ -2,7 +2,7 @@
 
 import { FolderOpen, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { CollectionItem } from "./CollectionItem";
+import { CollectionCard } from "./CollectionCard";
 import type { CollectionWithMetadata } from "../../types/collection-metadata";
 
 interface FullListSectionProps {
@@ -32,11 +32,11 @@ export function FullListSection({
   });
 
   return (
-    <div className="p-2 border-b">
+    <div className="p-3 border-b">
       {/* 헤더 (접기/펼치기) */}
       <Button
         variant="ghost"
-        className="w-full justify-between px-2 py-1.5 h-auto"
+        className="w-full justify-between px-1 py-1.5 h-auto mb-2"
         onClick={() => onExpandChange(!expanded)}
       >
         <div className="flex items-center gap-1.5">
@@ -54,9 +54,9 @@ export function FullListSection({
 
       {/* 목록 */}
       {expanded && (
-        <div className="space-y-0.5 mt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           {sortedCollections.map((collection) => (
-            <CollectionItem
+            <CollectionCard
               key={collection.name}
               collection={collection}
               isSelected={selectedCollection === collection.name}
