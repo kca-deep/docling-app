@@ -286,8 +286,8 @@ export function ChatContainer() {
             a.name.localeCompare(b.name, 'ko-KR')
           );
           setCollections(sortedCollections);
+          // 초기에는 일상대화 모드 유지 (selectedCollection을 빈 문자열로)
           if (sortedCollections.length > 0) {
-            setSelectedCollection(sortedCollections[0].name);
             toast.success(`${sortedCollections.length}개의 컬렉션을 불러왔습니다`);
           }
         }

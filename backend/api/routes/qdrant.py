@@ -7,6 +7,7 @@ Qdrant Vector DB 연동 API 라우트
 """
 import uuid
 import io
+import json
 import logging
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from sqlalchemy.orm import Session
@@ -20,6 +21,8 @@ from backend.database import get_db
 from backend.config.settings import settings
 from backend.dependencies.auth import get_current_active_user, get_current_user_optional
 from backend.models.user import User
+from backend.models.document import Document
+from backend.models.qdrant_upload_history import QdrantUploadHistory
 from backend.models.schemas import (
     QdrantCollectionsResponse,
     QdrantCollectionCreateRequest,
@@ -932,7 +935,8 @@ async def preview_excel(
 @router.post("/excel/embed", response_model=DynamicEmbeddingResponse)
 async def embed_excel_dynamic(
     request: DynamicEmbeddingRequest,
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
 ):
     """
     동적 컬럼 매핑을 사용한 Excel 임베딩 API
@@ -946,6 +950,8 @@ async def embed_excel_dynamic(
     results = []
     success_count = 0
     failure_count = 0
+    vector_ids_all = []  # SQLite 기록용 전체 vector ID
+    texts_all = []  # 미리보기용 텍스트
 
     try:
         # Collection 존재 확인
@@ -1052,8 +1058,12 @@ async def embed_excel_dynamic(
 
                 print(f"[INFO] Embedded batch {batch_start+1}-{batch_end}")
 
+                # SQLite 기록용 데이터 수집
+                vector_ids_all.extend(vector_ids)
+                texts_all.extend(texts)
+
             except Exception as e:
-                print(f"[ERROR] Failed to embed batch {batch_start+1}-{batch_end}: {e}")
+                print(f"[ERROR] Failed to embed Excel batch {batch_start+1}-{batch_end}: {e}")
                 for row in batch_rows:
                     id_value = None
                     if mapping.id_column and mapping.id_column in row.data:
@@ -1066,6 +1076,63 @@ async def embed_excel_dynamic(
                         error=str(e)
                     ))
                     failure_count += 1
+
+        # SQLite에 문서 및 업로드 이력 기록
+        if success_count > 0:
+            try:
+                from backend.services.excel_document_service import (
+                    generate_excel_metadata_content,
+                    generate_preview,
+                    calculate_total_length
+                )
+
+                # rows를 dict로 변환 (Pydantic 모델 -> dict)
+                rows_dict = [{"row_index": r.row_index, "data": r.data} for r in request.rows]
+                mapping_dict = request.mapping.model_dump()
+
+                # Document 생성
+                excel_doc = Document(
+                    task_id=f"excel-{uuid.uuid4().hex[:12]}",
+                    original_filename=request.file_name,
+                    file_size=None,
+                    file_type="xlsx",
+                    status="success",
+                    content_length=calculate_total_length(rows_dict, mapping_dict.get("text_columns", [])),
+                    content_preview=generate_preview(texts_all[:5]),
+                    md_content=generate_excel_metadata_content(
+                        request.file_name,
+                        rows_dict,
+                        mapping_dict,
+                        len(request.rows)
+                    ),
+                    category=request.collection_name,
+                    parse_options={
+                        "source_type": "excel",
+                        "mapping": mapping_dict,
+                        "total_rows": len(request.rows)
+                    }
+                )
+                db.add(excel_doc)
+                db.flush()  # ID 획득
+
+                # QdrantUploadHistory 생성
+                history = QdrantUploadHistory(
+                    document_id=excel_doc.id,
+                    collection_name=request.collection_name,
+                    chunk_count=success_count,
+                    vector_ids_json=json.dumps(vector_ids_all),
+                    qdrant_url=settings.QDRANT_URL,
+                    upload_status="success"
+                )
+                db.add(history)
+                db.commit()
+
+                logger.info(f"Excel document saved to SQLite: id={excel_doc.id}, filename={request.file_name}, collection={request.collection_name}")
+
+            except Exception as db_error:
+                logger.error(f"Failed to save Excel document to SQLite: {db_error}")
+                db.rollback()
+                # Qdrant 업로드는 성공했으므로 에러를 던지지 않고 로그만 기록
 
         return DynamicEmbeddingResponse(
             total=len(rows),
@@ -1081,4 +1148,155 @@ async def embed_excel_dynamic(
         raise HTTPException(
             status_code=500,
             detail=f"Excel 임베딩 실패: {str(e)}"
+        )
+
+
+@router.post("/migrate/excel-collection/{collection_name}")
+async def migrate_excel_collection(
+    collection_name: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    기존 엑셀 컬렉션을 SQLite에 역으로 기록
+
+    Qdrant에서 메타데이터를 추출하여 Document 및 QdrantUploadHistory 생성
+    프롬프트 자동생성 모달에서 엑셀 문서가 표시되도록 함
+    """
+    try:
+        # 1. 컬렉션 존재 확인
+        collection_exists = await qdrant_service.collection_exists(collection_name)
+        if not collection_exists:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Collection '{collection_name}'이 존재하지 않습니다"
+            )
+
+        # 2. 이미 마이그레이션된 문서가 있는지 확인
+        existing_history = db.query(QdrantUploadHistory).filter(
+            QdrantUploadHistory.collection_name == collection_name
+        ).first()
+        if existing_history:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Collection '{collection_name}'은 이미 SQLite에 기록되어 있습니다"
+            )
+
+        # 3. Qdrant에서 포인트 조회 (scroll)
+        all_points = []
+        offset = None
+        while True:
+            points, next_offset = await qdrant_service.client.scroll(
+                collection_name=collection_name,
+                limit=100,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False
+            )
+            all_points.extend(points)
+            if next_offset is None:
+                break
+            offset = next_offset
+
+        if not all_points:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Collection '{collection_name}'에 데이터가 없습니다"
+            )
+
+        # 4. source_file 기준 그룹핑
+        grouped = {}
+        for point in all_points:
+            payload = point.payload or {}
+            source = payload.get("source_file", "unknown.xlsx")
+            if source not in grouped:
+                grouped[source] = {
+                    "texts": [],
+                    "vector_ids": [],
+                    "row_indices": [],
+                    "sample_payload": payload
+                }
+            grouped[source]["texts"].append(payload.get("text", ""))
+            grouped[source]["vector_ids"].append(str(point.id))
+            grouped[source]["row_indices"].append(payload.get("row_index", 0))
+
+        # 5. 각 source_file에 대해 Document 생성
+        created_docs = []
+        for source_file, data in grouped.items():
+            from backend.services.excel_document_service import generate_preview
+
+            # 메타정보 생성
+            sample = data["sample_payload"]
+            text_columns = [k for k in sample.keys() if k not in [
+                "source_file", "row_index", "id", "tags", "headings", "text"
+            ]]
+
+            md_content = f"""# {source_file}
+
+## 문서 정보
+- **유형**: Excel 데이터 (마이그레이션됨)
+- **총 행 수**: {len(data["texts"])}
+- **컬렉션**: {collection_name}
+
+## 메타데이터 컬럼
+- {', '.join(text_columns) if text_columns else '없음'}
+
+## 샘플링 안내
+이 문서의 내용은 Qdrant 벡터 DB에 행 단위로 임베딩되어 있습니다.
+프롬프트 자동생성 시 청크 기반 샘플링을 통해 의미론적으로 관련된 행들이 자동 추출됩니다.
+"""
+
+            doc = Document(
+                task_id=f"excel-migrated-{uuid.uuid4().hex[:8]}",
+                original_filename=source_file,
+                file_type="xlsx",
+                status="success",
+                content_length=sum(len(t) for t in data["texts"]),
+                content_preview=generate_preview(data["texts"][:5]),
+                md_content=md_content,
+                category=collection_name,
+                parse_options={
+                    "source_type": "excel",
+                    "migrated": True,
+                    "original_collection": collection_name
+                }
+            )
+            db.add(doc)
+            db.flush()
+
+            history = QdrantUploadHistory(
+                document_id=doc.id,
+                collection_name=collection_name,
+                chunk_count=len(data["texts"]),
+                vector_ids_json=json.dumps(data["vector_ids"]),
+                qdrant_url=settings.QDRANT_URL,
+                upload_status="success"
+            )
+            db.add(history)
+            created_docs.append({
+                "document_id": doc.id,
+                "filename": source_file,
+                "rows": len(data["texts"])
+            })
+
+        db.commit()
+
+        logger.info(f"Excel collection migrated: {collection_name}, {len(created_docs)} documents")
+
+        return {
+            "success": True,
+            "collection_name": collection_name,
+            "migrated_documents": len(created_docs),
+            "documents": created_docs,
+            "total_points": len(all_points)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to migrate Excel collection: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"마이그레이션 실패: {str(e)}"
         )
