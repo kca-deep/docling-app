@@ -4,6 +4,12 @@ import { useEffect, useState, memo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Sparkles,
   Database,
   FileText,
@@ -15,10 +21,7 @@ import {
   Heart,
   Cpu,
   Globe,
-  Lightbulb,
-  HelpCircle,
-  Search,
-  Zap,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { API_BASE_URL } from "@/lib/api-config";
@@ -77,6 +80,63 @@ const getCollectionIcon = (name: string) => {
   return Database;
 };
 
+// 키워드 하이라이팅 함수
+function highlightKeywords(text: string, themeColor: string): React.ReactNode {
+  // 하이라이팅할 키워드 패턴 (질문 키워드, 중요 명사 등)
+  const keywordPatterns = [
+    /어떻게|무엇|언제|어디|왜|얼마/g,  // 의문사
+    /신청|등록|조회|확인|변경|취소|발급/g,  // 동작
+    /연차|휴가|급여|복지|교육|출장|경비/g,  // 업무 관련
+  ];
+
+  let result = text;
+  let hasMatch = false;
+
+  // 각 패턴에 대해 매칭되는 키워드 찾기
+  for (const pattern of keywordPatterns) {
+    if (pattern.test(text)) {
+      hasMatch = true;
+      break;
+    }
+  }
+
+  if (!hasMatch) {
+    return text;
+  }
+
+  // 모든 패턴을 하나로 합치기
+  const combinedPattern = /어떻게|무엇|언제|어디|왜|얼마|신청|등록|조회|확인|변경|취소|발급|연차|휴가|급여|복지|교육|출장|경비/g;
+
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = combinedPattern.exec(text)) !== null) {
+    // 매치 이전 텍스트
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    // 하이라이트된 키워드
+    parts.push(
+      <span
+        key={match.index}
+        className="font-semibold"
+        style={{ color: themeColor }}
+      >
+        {match[0]}
+      </span>
+    );
+    lastIndex = combinedPattern.lastIndex;
+  }
+
+  // 나머지 텍스트
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : text;
+}
+
 // 스켈레톤 로딩 UI
 function WelcomeSkeleton() {
   return (
@@ -92,14 +152,14 @@ function WelcomeSkeleton() {
         <Skeleton className="h-4 w-56" />
       </div>
 
-      {/* 추천 질문 스켈레톤 */}
-      <div className="space-y-2">
+      {/* 추천 질문 스켈레톤 - 개선된 카드형 */}
+      <div className="space-y-3">
         <div className="flex justify-center">
           <Skeleton className="h-4 w-20" />
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-10 rounded-lg" />
+            <Skeleton key={i} className="h-20 rounded-xl" />
           ))}
         </div>
       </div>
@@ -245,7 +305,7 @@ export const SuggestedPrompts = memo(function SuggestedPrompts({
       </div>
 
       {/* 추천 질문 */}
-      <div className="space-y-2">
+      <div className="space-y-3">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4" style={{ color: themeColors.primary }} />
           <span className="text-sm font-medium text-muted-foreground">
@@ -254,46 +314,108 @@ export const SuggestedPrompts = memo(function SuggestedPrompts({
         </div>
 
         {/* 질문 그리드 - 모바일 1열, 데스크탑 2열 */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {prompts.slice(0, 4).map((prompt, index) => {
-            const icons = [Lightbulb, HelpCircle, Search, Zap];
-            const Icon = icons[index % icons.length];
+            const isLongText = prompt.length > 40;
 
-            return (
+            // 카드 내용 컴포넌트
+            const CardContent = (
               <button
                 key={index}
                 onClick={() => onSelect(prompt)}
                 className={cn(
-                  "group relative overflow-hidden rounded-lg text-sm text-left",
-                  "border border-border/50 bg-background/50",
-                  "hover:bg-background hover:border-border hover:shadow-md",
-                  "active:scale-[0.98] transition-all duration-200"
+                  "group relative overflow-hidden rounded-xl text-left w-full",
+                  "border border-border/50 bg-background/40 backdrop-blur-sm",
+                  "hover:bg-background/80 hover:border-border hover:shadow-lg",
+                  "hover:scale-[1.02] active:scale-[0.98]",
+                  "transition-all duration-300 ease-out",
+                  "min-h-[80px]"
                 )}
+                style={{
+                  animationDelay: `${index * 100}ms`,
+                  animationFillMode: "backwards",
+                }}
               >
-                {/* 좌측 컬러바 */}
+                {/* 하단 컬러 악센트 바 */}
                 <div
-                  className="absolute left-0 top-0 bottom-0 w-1 group-hover:w-1.5 transition-all duration-200"
-                  style={{ backgroundColor: themeColors.primary }}
+                  className="absolute bottom-0 left-0 right-0 h-1 opacity-60 group-hover:opacity-100 transition-opacity duration-300"
+                  style={{
+                    background: `linear-gradient(90deg, ${themeColors.primary}, ${themeColors.secondary})`,
+                  }}
                 />
-                {/* 콘텐츠 */}
-                <div className="flex items-start gap-2.5 pl-4 pr-3 py-2.5">
-                  {/* 아이콘 */}
-                  <Icon
-                    className="h-4 w-4 flex-shrink-0 mt-0.5 transition-colors duration-200"
-                    style={{ color: themeColors.primary }}
-                  />
-                  <span className="flex-1 line-clamp-2 text-sm font-medium leading-relaxed text-foreground/80 group-hover:text-foreground transition-colors">
-                    {prompt}
-                  </span>
-                  {/* 화살표 */}
-                  <span
-                    className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-sm mt-0.5"
-                    style={{ color: themeColors.primary }}
+
+                {/* 콘텐츠 영역 */}
+                <div className="flex items-start gap-3 p-4">
+                  {/* 번호 아이콘 박스 */}
+                  <div
+                    className="flex-shrink-0 h-10 w-10 rounded-xl flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow duration-300"
+                    style={{
+                      background: `linear-gradient(135deg, ${themeColors.primary}, ${themeColors.secondary})`,
+                    }}
                   >
-                    →
-                  </span>
+                    <span className="text-white font-bold text-sm">
+                      {index + 1}
+                    </span>
+                  </div>
+
+                  {/* 텍스트 영역 */}
+                  <div className="flex-1 min-w-0 pt-0.5">
+                    <p className="text-sm font-medium leading-relaxed text-foreground/80 group-hover:text-foreground transition-colors line-clamp-2">
+                      {highlightKeywords(prompt, themeColors.primary)}
+                    </p>
+                  </div>
+
+                  {/* 화살표 */}
+                  <div className="flex-shrink-0 pt-2">
+                    <ChevronRight
+                      className="h-5 w-5 text-muted-foreground/50 group-hover:text-foreground group-hover:translate-x-0.5 transition-all duration-300"
+                    />
+                  </div>
                 </div>
               </button>
+            );
+
+            // 긴 텍스트인 경우 툴팁으로 감싸기
+            if (isLongText) {
+              return (
+                <TooltipProvider key={index} delayDuration={500}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div
+                        className="animate-in fade-in slide-in-from-bottom-2"
+                        style={{
+                          animationDelay: `${index * 100}ms`,
+                          animationDuration: "400ms",
+                          animationFillMode: "backwards",
+                        }}
+                      >
+                        {CardContent}
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="top"
+                      className="max-w-xs text-sm p-3"
+                      sideOffset={8}
+                    >
+                      {prompt}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              );
+            }
+
+            return (
+              <div
+                key={index}
+                className="animate-in fade-in slide-in-from-bottom-2"
+                style={{
+                  animationDelay: `${index * 100}ms`,
+                  animationDuration: "400ms",
+                  animationFillMode: "backwards",
+                }}
+              >
+                {CardContent}
+              </div>
             );
           })}
         </div>

@@ -33,6 +33,7 @@ import {
 } from "recharts"
 import { toast } from "sonner"
 import { API_BASE_URL } from "@/lib/api-config"
+import { getCollectionDisplayName } from "@/lib/collection-utils"
 
 // 차트 설정
 const timelineChartConfig = {
@@ -117,6 +118,11 @@ interface RecentQuery {
   response_time_ms?: number
 }
 
+interface CollectionInfo {
+  name: string
+  description?: string
+}
+
 // ============================================================
 // 메인 컴포넌트
 // ============================================================
@@ -141,7 +147,7 @@ export default function AnalyticsPage() {
   useEffect(() => {
     setMounted(true)
   }, [])
-  const [collections, setCollections] = useState<string[]>([])
+  const [collections, setCollections] = useState<CollectionInfo[]>([])
   const [dateRange, setDateRange] = useState({
     from: addDays(new Date(), -30),
     to: new Date()
@@ -170,8 +176,10 @@ export default function AnalyticsPage() {
       })
       if (!response.ok) throw new Error("컬렉션 조회 실패")
       const data = await response.json()
-      const names = (data.collections?.map((c: any) => c.name) || []).sort((a: string, b: string) => a.localeCompare(b))
-      setCollections(names)
+      const collectionInfos: CollectionInfo[] = (data.collections || [])
+        .map((c: any) => ({ name: c.name, description: c.description }))
+        .sort((a: CollectionInfo, b: CollectionInfo) => a.name.localeCompare(b.name))
+      setCollections(collectionInfos)
     } catch (error) {
       console.error("컬렉션 조회 오류:", error)
     }
@@ -415,14 +423,22 @@ export default function AnalyticsPage() {
         <div className="p-1.5 rounded-2xl bg-background/60 backdrop-blur-xl border border-border/50 shadow-lg supports-[backdrop-filter]:bg-background/40">
           <div className="flex flex-wrap items-center gap-2 p-2">
             <Select value={selectedCollection} onValueChange={setSelectedCollection}>
-              <SelectTrigger className="w-[160px] h-10 rounded-xl border-border/50 bg-background/50 focus:bg-background">
-                <SelectValue placeholder="컬렉션 선택" />
+              <SelectTrigger className="w-[180px] h-10 rounded-xl border-border/50 bg-background/50 focus:bg-background">
+                <SelectValue placeholder="컬렉션 선택">
+                  {selectedCollection === "ALL" ? "전체" :
+                   selectedCollection === "casual" ? "일상대화" :
+                   getCollectionDisplayName(
+                     collections.find(c => c.name === selectedCollection) || { name: selectedCollection }
+                   )}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">전체</SelectItem>
                 <SelectItem value="casual">일상대화</SelectItem>
                 {collections.map((collection) => (
-                  <SelectItem key={collection} value={collection}>{collection}</SelectItem>
+                  <SelectItem key={collection.name} value={collection.name}>
+                    {getCollectionDisplayName(collection)}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
