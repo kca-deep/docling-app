@@ -128,13 +128,14 @@ class RAGService:
             Exception: 생성 실패 시
         """
         try:
-            # 1. RAG 프롬프트 구성
+            # 1. RAG 프롬프트 구성 (EXAONE Deep 모델 여부에 따라 프롬프트 구조 변경)
             messages = self.llm_service.build_rag_messages(
                 query=query,
                 retrieved_docs=retrieved_docs,
                 reasoning_level=reasoning_level,
                 chat_history=chat_history,
-                collection_name=collection_name
+                collection_name=collection_name,
+                model_key=model
             )
 
             # 2. LLM으로 답변 생성
@@ -192,13 +193,14 @@ class RAGService:
             Exception: 생성 실패 시
         """
         try:
-            # 1. RAG 프롬프트 구성
+            # 1. RAG 프롬프트 구성 (EXAONE Deep 모델 여부에 따라 프롬프트 구조 변경)
             messages = self.llm_service.build_rag_messages(
                 query=query,
                 retrieved_docs=retrieved_docs,
                 reasoning_level=reasoning_level,
                 chat_history=chat_history,
-                collection_name=collection_name
+                collection_name=collection_name,
+                model_key=model
             )
 
             # 2. LLM으로 스트리밍 답변 생성

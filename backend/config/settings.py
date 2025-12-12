@@ -68,9 +68,13 @@ class Settings(BaseSettings):
     GPT_OSS_20B_URL: str = "http://ai.kca.kr:8080"
     GPT_OSS_20B_MODEL: str = "gpt-oss-20b"
 
-    # EXAONE Deep 7.8B 설정
+    # EXAONE Deep 7.8B 설정 (공식 권장값 적용)
     EXAONE_DEEP_URL: str = "http://localhost:8081"
     EXAONE_DEEP_MODEL: str = "exaone-deep-7.8b"
+    EXAONE_DEEP_TEMPERATURE: float = 0.6  # 공식 권장값
+    EXAONE_DEEP_TOP_P: float = 0.95  # 공식 권장값
+    EXAONE_DEEP_MAX_TOKENS: int = 8192  # reasoning 토큰 포함
+    EXAONE_DEEP_REPETITION_PENALTY: float = 1.0  # 1.0 초과 금지 (공식 권장)
 
     LLM_DEFAULT_TEMPERATURE: float = 0.7
     LLM_DEFAULT_MAX_TOKENS: int = 4096
@@ -177,23 +181,43 @@ class Settings(BaseSettings):
             model_key: 모델 키 (예: "gpt-oss-20b", "exaone-deep-7.8b")
 
         Returns:
-            dict: {"base_url": str, "model": str}
+            dict: {
+                "base_url": str,
+                "model": str,
+                "temperature": float,
+                "top_p": float,
+                "max_tokens": int,
+                "is_exaone_deep": bool
+            }
         """
         model_configs = {
             "gpt-oss-20b": {
                 "base_url": self.GPT_OSS_20B_URL,
-                "model": self.GPT_OSS_20B_MODEL
+                "model": self.GPT_OSS_20B_MODEL,
+                "temperature": self.LLM_DEFAULT_TEMPERATURE,
+                "top_p": self.LLM_DEFAULT_TOP_P,
+                "max_tokens": self.LLM_DEFAULT_MAX_TOKENS,
+                "is_exaone_deep": False
             },
             "exaone-deep-7.8b": {
                 "base_url": self.EXAONE_DEEP_URL,
-                "model": self.EXAONE_DEEP_MODEL
+                "model": self.EXAONE_DEEP_MODEL,
+                "temperature": self.EXAONE_DEEP_TEMPERATURE,
+                "top_p": self.EXAONE_DEEP_TOP_P,
+                "max_tokens": self.EXAONE_DEEP_MAX_TOKENS,
+                "repetition_penalty": self.EXAONE_DEEP_REPETITION_PENALTY,
+                "is_exaone_deep": True
             }
         }
 
         # 요청된 모델이 있으면 반환, 없으면 기본값
         return model_configs.get(model_key, {
             "base_url": self.LLM_BASE_URL,
-            "model": self.LLM_MODEL
+            "model": self.LLM_MODEL,
+            "temperature": self.LLM_DEFAULT_TEMPERATURE,
+            "top_p": self.LLM_DEFAULT_TOP_P,
+            "max_tokens": self.LLM_DEFAULT_MAX_TOKENS,
+            "is_exaone_deep": False
         })
 
     class Config:

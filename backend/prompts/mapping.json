@@ -81,6 +81,15 @@
         "temperature": 0.3,
         "reasoning_level": "medium"
       }
+    },
+    "kca-compensation": {
+      "prompt_file": "kca-compensation_prompt.md",
+      "description": "kca-compensation 컬렉션 프롬프트",
+      "recommended_params": {
+        "top_k": 10,
+        "temperature": 0.3,
+        "reasoning_level": "medium"
+      }
     }
   },
   "default_prompt": "default.md",
