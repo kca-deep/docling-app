@@ -69,7 +69,7 @@ class Settings(BaseSettings):
     GPT_OSS_20B_MODEL: str = "gpt-oss-20b"
 
     # EXAONE Deep 7.8B 설정
-    EXAONE_DEEP_URL: str = "http://61.80.153.122:1234"
+    EXAONE_DEEP_URL: str = "http://localhost:8081"
     EXAONE_DEEP_MODEL: str = "exaone-deep-7.8b"
 
     LLM_DEFAULT_TEMPERATURE: float = 0.7
@@ -128,7 +128,7 @@ class Settings(BaseSettings):
     QWEN3_VL_MAX_PAGES: int = 50
     QWEN3_VL_MAX_TOKENS: int = 4096
     QWEN3_VL_TEMPERATURE: float = 0.1
-    QWEN3_VL_CONCURRENCY: int = 2  # Qwen3-VL 페이지별 병렬 처리 수
+    QWEN3_VL_CONCURRENCY: int = 4  # Qwen3-VL 페이지별 병렬 처리 수
     QWEN3_VL_OCR_PROMPT: str = "이미지에 있는 모든 텍스트를 정확하게 추출해주세요. 표, 날짜, 숫자 등 모든 내용을 원본 형식 그대로 보존하여 추출해주세요. Extract all text from this image accurately, preserving tables, dates, numbers, and formatting."
 
     # ===========================================

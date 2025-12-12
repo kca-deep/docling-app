@@ -223,15 +223,15 @@ export function CreateCollectionModal({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>새 컬렉션 생성</DialogTitle>
           <DialogDescription>
             벡터 데이터베이스에 새로운 컬렉션을 생성합니다.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4 max-h-[60vh] overflow-y-auto pr-2">
+        <div className="space-y-6 py-4 flex-1 overflow-y-auto pr-3 -mr-1">
           {/* 컬렉션 이름 */}
           <div className="space-y-2">
             <Label htmlFor="name">
@@ -263,41 +263,35 @@ export function CreateCollectionModal({
             </p>
           </div>
 
-          {/* 아이콘 선택 */}
+          {/* 아이콘 선택 - 그리드 형태 */}
           <div className="space-y-2">
             <Label>아이콘</Label>
-            <Select value={selectedIcon} onValueChange={setSelectedIcon}>
-              <SelectTrigger>
-                <SelectValue>
-                  {(() => {
-                    const option = ICON_OPTIONS.find(o => o.value === selectedIcon)
-                    if (option) {
-                      const IconComp = option.icon
-                      return (
-                        <span className="flex items-center gap-2">
-                          <IconComp className="h-4 w-4" />
-                          {option.label}
-                        </span>
-                      )
-                    }
-                    return "아이콘 선택"
-                  })()}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {ICON_OPTIONS.map((option) => {
-                  const IconComp = option.icon
-                  return (
-                    <SelectItem key={option.value} value={option.value}>
-                      <span className="flex items-center gap-2">
-                        <IconComp className="h-4 w-4" />
-                        {option.label}
-                      </span>
-                    </SelectItem>
-                  )
-                })}
-              </SelectContent>
-            </Select>
+            <div className="grid grid-cols-5 gap-2 p-3 rounded-lg border bg-muted/20">
+              {ICON_OPTIONS.map((option) => {
+                const IconComp = option.icon
+                const isSelected = selectedIcon === option.value
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setSelectedIcon(option.value)}
+                    className={cn(
+                      "p-2 rounded-lg transition-all flex flex-col items-center gap-1",
+                      "hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary/50",
+                      isSelected
+                        ? "bg-primary/10 text-primary ring-2 ring-primary/30"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                    title={option.label}
+                  >
+                    <IconComp className="h-5 w-5" />
+                    <span className="text-[9px] truncate w-full text-center leading-tight">
+                      {option.label.split('/')[0]}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           {/* 키워드 */}
@@ -492,16 +486,13 @@ export function CreateCollectionModal({
           </Collapsible>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0 border-t pt-4 mt-2">
           <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={creating}>
             취소
           </Button>
-          <Button onClick={handleCreate} disabled={creating || !name.trim()}>
+          <Button onClick={handleCreate} disabled={creating || !name.trim()} className="min-w-[80px]">
             {creating ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                생성 중...
-              </>
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               "생성"
             )}

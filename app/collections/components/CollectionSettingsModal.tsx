@@ -431,7 +431,7 @@ export function CollectionSettingsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[550px]">
+      <DialogContent className="sm:max-w-[550px] max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5" />
@@ -442,44 +442,56 @@ export function CollectionSettingsModal({
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="w-full">
-            <TabsTrigger value="general" className="flex-1">일반</TabsTrigger>
-            <TabsTrigger value="visibility" className="flex-1">공개 설정</TabsTrigger>
-            <TabsTrigger value="documents" className="flex-1">문서 관리</TabsTrigger>
-            <TabsTrigger value="danger" className="flex-1 text-destructive data-[state=active]:text-destructive">
-              위험 영역
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 flex flex-col min-h-0">
+          <TabsList className="w-full grid grid-cols-4 h-auto flex-shrink-0">
+            <TabsTrigger value="general" className="flex items-center justify-center gap-1.5 py-2 text-xs sm:text-sm">
+              <Settings className="h-4 w-4" />
+              <span className="hidden sm:inline">일반</span>
+            </TabsTrigger>
+            <TabsTrigger value="visibility" className="flex items-center justify-center gap-1.5 py-2 text-xs sm:text-sm">
+              <Globe className="h-4 w-4" />
+              <span className="hidden sm:inline">공개</span>
+            </TabsTrigger>
+            <TabsTrigger value="documents" className="flex items-center justify-center gap-1.5 py-2 text-xs sm:text-sm">
+              <FileText className="h-4 w-4" />
+              <span className="hidden sm:inline">문서</span>
+            </TabsTrigger>
+            <TabsTrigger value="danger" className="flex items-center justify-center gap-1.5 py-2 text-xs sm:text-sm text-destructive data-[state=active]:text-destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <span className="hidden sm:inline">위험</span>
             </TabsTrigger>
           </TabsList>
 
           {/* 일반 탭 */}
-          <TabsContent value="general" className="space-y-4 pt-4 max-h-[50vh] overflow-y-auto pr-2">
-            {/* 컬렉션 정보 */}
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label className="text-muted-foreground text-xs">문서 수</Label>
-                  <div className="flex items-center gap-2">
-                    <Database className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">{collection.documents_count.toLocaleString()}</span>
-                  </div>
+          <TabsContent value="general" className="flex-1 overflow-y-auto space-y-4 pt-4 pr-3 -mr-1">
+            {/* 컬렉션 통계 카드 */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-center">
+                <div className="text-xl font-bold text-primary">
+                  {collection.documents_count}
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-muted-foreground text-xs">청크 수</Label>
-                  <span className="font-medium">{collection.points_count.toLocaleString()}</span>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-muted-foreground text-xs">벡터 크기</Label>
-                  <span className="font-medium">{collection.vector_size}</span>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-muted-foreground text-xs">거리 메트릭</Label>
-                  <span className="font-medium">{collection.distance}</span>
-                </div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">문서</div>
               </div>
+              <div className="p-3 rounded-lg bg-muted/30 border border-border/50 text-center">
+                <div className="text-xl font-bold">
+                  {collection.points_count.toLocaleString()}
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">청크</div>
+              </div>
+              <div className="p-3 rounded-lg bg-muted/30 border border-border/50 text-center">
+                <div className="text-xl font-bold">{collection.vector_size}</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">벡터</div>
+              </div>
+              <div className="p-3 rounded-lg bg-muted/30 border border-border/50 text-center">
+                <div className="text-xl font-bold">{collection.distance}</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">거리</div>
+              </div>
+            </div>
 
-              <Separator />
+            <Separator />
 
+            {/* 폼 섹션 */}
+            <div className="space-y-4">
               {/* 한글명 */}
               <div className="space-y-2">
                 <Label htmlFor="settings-koreanName">표시명 (한글)</Label>
@@ -494,41 +506,35 @@ export function CollectionSettingsModal({
                 </p>
               </div>
 
-              {/* 아이콘 선택 */}
+              {/* 아이콘 선택 - 그리드 형태 */}
               <div className="space-y-2">
                 <Label>아이콘</Label>
-                <Select value={selectedIcon} onValueChange={setSelectedIcon}>
-                  <SelectTrigger>
-                    <SelectValue>
-                      {(() => {
-                        const option = ICON_OPTIONS.find(o => o.value === selectedIcon)
-                        if (option) {
-                          const IconComp = option.icon
-                          return (
-                            <span className="flex items-center gap-2">
-                              <IconComp className="h-4 w-4" />
-                              {option.label}
-                            </span>
-                          )
-                        }
-                        return "아이콘 선택"
-                      })()}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ICON_OPTIONS.map((option) => {
-                      const IconComp = option.icon
-                      return (
-                        <SelectItem key={option.value} value={option.value}>
-                          <span className="flex items-center gap-2">
-                            <IconComp className="h-4 w-4" />
-                            {option.label}
-                          </span>
-                        </SelectItem>
-                      )
-                    })}
-                  </SelectContent>
-                </Select>
+                <div className="grid grid-cols-5 gap-2 p-3 rounded-lg border bg-muted/20">
+                  {ICON_OPTIONS.map((option) => {
+                    const IconComp = option.icon
+                    const isSelected = selectedIcon === option.value
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setSelectedIcon(option.value)}
+                        className={cn(
+                          "p-2 rounded-lg transition-all flex flex-col items-center gap-1",
+                          "hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary/50",
+                          isSelected
+                            ? "bg-primary/10 text-primary ring-2 ring-primary/30"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                        title={option.label}
+                      >
+                        <IconComp className="h-5 w-5" />
+                        <span className="text-[9px] truncate w-full text-center leading-tight">
+                          {option.label.split('/')[0]}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
 
               {/* 키워드 */}
@@ -595,7 +601,7 @@ export function CollectionSettingsModal({
           </TabsContent>
 
           {/* 공개 설정 탭 */}
-          <TabsContent value="visibility" className="space-y-4 pt-4">
+          <TabsContent value="visibility" className="flex-1 overflow-y-auto space-y-4 pt-4 pr-3 -mr-1">
             <div className="space-y-2">
               <Label>현재 상태</Label>
               <div className="flex items-center gap-2">
@@ -706,7 +712,7 @@ export function CollectionSettingsModal({
           </TabsContent>
 
           {/* 문서 관리 탭 */}
-          <TabsContent value="documents" className="space-y-4 pt-4">
+          <TabsContent value="documents" className="flex-1 overflow-y-auto space-y-4 pt-4 pr-3 -mr-1">
             <div className="space-y-4">
               {/* 헤더 */}
               <div className="flex items-center justify-between">
@@ -764,10 +770,10 @@ export function CollectionSettingsModal({
                   )}
 
                   {/* 문서 테이블 */}
-                  <div className="border rounded-lg overflow-hidden max-h-[40vh] overflow-y-auto">
+                  <div className="border rounded-lg max-h-[40vh] overflow-y-auto">
                     <Table>
-                      <TableHeader>
-                        <TableRow>
+                      <TableHeader className="sticky top-0 bg-background z-10">
+                        <TableRow className="hover:bg-transparent">
                           <TableHead className="w-10">
                             <Checkbox
                               checked={documents.length > 0 && selectedDocs.length === documents.length}
@@ -792,7 +798,7 @@ export function CollectionSettingsModal({
                               />
                             </TableCell>
                             <TableCell className="font-medium">
-                              <span className="truncate block max-w-[200px]" title={doc.filename}>
+                              <span className="truncate block max-w-[120px] sm:max-w-[180px]" title={doc.filename}>
                                 {doc.filename}
                               </span>
                             </TableCell>
@@ -831,7 +837,7 @@ export function CollectionSettingsModal({
           </TabsContent>
 
           {/* 위험 영역 탭 */}
-          <TabsContent value="danger" className="space-y-4 pt-4">
+          <TabsContent value="danger" className="flex-1 overflow-y-auto space-y-4 pt-4 pr-3 -mr-1">
             <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4">
               <div className="flex items-start gap-3">
                 <AlertTriangle className="h-5 w-5 text-destructive mt-0.5" />
@@ -858,16 +864,13 @@ export function CollectionSettingsModal({
           </TabsContent>
         </Tabs>
 
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0 border-t pt-4 mt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             취소
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
+          <Button onClick={handleSave} disabled={saving} className="min-w-[80px]">
             {saving ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                저장 중...
-              </>
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               "저장"
             )}

@@ -501,30 +501,32 @@ export function PromptGeneratorModal({
         </DialogHeader>
 
         {/* Step indicator */}
-        <div className="flex items-center justify-between px-2 py-4">
+        <div className="flex items-center justify-between px-1 sm:px-2 py-4">
           {STEPS.map((step, index) => (
             <div key={step.id} className="flex items-center">
               <div className="flex flex-col items-center">
                 <div
                   className={cn(
-                    "w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors",
+                    "w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-sm font-medium transition-all",
                     currentStep > step.id
                       ? "bg-primary text-primary-foreground"
                       : currentStep === step.id
-                      ? "bg-primary text-primary-foreground"
+                      ? "bg-primary/20 text-primary ring-4 ring-primary/20"
                       : "bg-muted text-muted-foreground"
                   )}
                 >
                   {currentStep > step.id ? (
-                    <Check className="h-4 w-4" />
+                    <Check className="h-4 w-4 sm:h-5 sm:w-5" />
                   ) : (
-                    step.id
+                    <span className="text-xs sm:text-sm font-semibold">{step.id}</span>
                   )}
                 </div>
                 <span
                   className={cn(
-                    "text-xs mt-1 hidden sm:block",
-                    currentStep >= step.id
+                    "text-[10px] sm:text-xs mt-1 hidden sm:block font-medium",
+                    currentStep === step.id
+                      ? "text-primary"
+                      : currentStep > step.id
                       ? "text-foreground"
                       : "text-muted-foreground"
                   )}
@@ -535,7 +537,7 @@ export function PromptGeneratorModal({
               {index < STEPS.length - 1 && (
                 <div
                   className={cn(
-                    "w-12 sm:w-16 h-0.5 mx-2",
+                    "w-6 sm:w-10 md:w-14 h-0.5 mx-1 sm:mx-2 rounded-full transition-colors",
                     currentStep > step.id ? "bg-primary" : "bg-muted"
                   )}
                 />
