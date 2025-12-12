@@ -81,7 +81,7 @@ export default function ParsePage() {
 
   // 공통 옵션 상태
   const [parseOptions, setParseOptions] = useState<ParseOptions>({
-    strategy: "docling",
+    strategy: "qwen3-vl",
     do_ocr: true,
     do_table_structure: true,
     include_images: true,
@@ -761,21 +761,21 @@ export default function ParsePage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="docling">
-                        <div className="flex items-center gap-2">
-                          <Zap className="w-3.5 h-3.5 text-[color:var(--chart-3)]" />
-                          <span>Docling</span>
-                          <Badge variant="secondary" className="text-xs bg-[color:var(--chart-3)]/10 text-[color:var(--chart-3)]">
-                            빠름
-                          </Badge>
-                        </div>
-                      </SelectItem>
                       <SelectItem value="qwen3-vl">
                         <div className="flex items-center gap-2">
                           <Sparkles className="w-3.5 h-3.5 text-[color:var(--chart-5)]" />
                           <span>Qwen3-VL</span>
                           <Badge variant="secondary" className="text-xs bg-[color:var(--chart-5)]/10 text-[color:var(--chart-5)]">
                             AI
+                          </Badge>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="docling">
+                        <div className="flex items-center gap-2">
+                          <Zap className="w-3.5 h-3.5 text-[color:var(--chart-3)]" />
+                          <span>Docling</span>
+                          <Badge variant="secondary" className="text-xs bg-[color:var(--chart-3)]/10 text-[color:var(--chart-3)]">
+                            빠름
                           </Badge>
                         </div>
                       </SelectItem>

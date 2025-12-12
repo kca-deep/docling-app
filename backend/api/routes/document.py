@@ -60,7 +60,7 @@ async def _process_qwen3_background(
 async def convert_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    strategy: str = Form(default="docling"),
+    strategy: str = Form(default="qwen3-vl"),
     target_type: str = Form(default="inbody"),
     to_formats: str = Form(default="md"),
     do_ocr: str = Form(default="true"),
