@@ -84,6 +84,7 @@ class Settings(BaseSettings):
     RAG_DEFAULT_TOP_K: int = 5
     RAG_DEFAULT_SCORE_THRESHOLD: Optional[float] = None
     RAG_DEFAULT_REASONING_LEVEL: str = "medium"
+    RAG_DEEP_THINKING_LEVEL: str = "medium"  # low, medium, high
 
     # 프롬프트 설정
     PROMPTS_DIR: Optional[str] = None  # None이면 backend/prompts/ 사용
