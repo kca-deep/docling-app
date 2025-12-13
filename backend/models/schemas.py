@@ -450,6 +450,7 @@ class ChatResponse(BaseModel):
     """채팅 응답"""
     conversation_id: Optional[str] = None  # 대화 ID
     answer: str
+    reasoning_content: Optional[str] = None  # GPT-OSS 추론 과정 (high 레벨)
     retrieved_docs: List[RetrievedDocument]
     usage: Optional[dict] = None
 

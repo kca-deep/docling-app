@@ -210,7 +210,21 @@ class LLMService:
 
             # 모델별 응답 후처리 (EXAONE의 thought 태그 제거 등)
             if result.get("choices") and len(result["choices"]) > 0:
-                content = result["choices"][0].get("message", {}).get("content", "")
+                message = result["choices"][0].get("message", {})
+                content = message.get("content", "")
+                reasoning_content = message.get("reasoning_content", "")
+
+                # GPT-OSS의 reasoning_content 처리
+                if reasoning_content:
+                    logger.info(f"[LLM API CALL] reasoning_content detected ({len(reasoning_content)} chars)")
+                    # reasoning_content를 응답에 포함 (프론트엔드에서 표시 가능)
+                    result["choices"][0]["message"]["reasoning_content"] = reasoning_content
+
+                    # content가 비어있으면 reasoning_content를 content로 사용 (fallback)
+                    if not content.strip():
+                        logger.warning("[LLM API CALL] content is empty, using reasoning_content as fallback")
+                        content = reasoning_content
+
                 cleaned_content = self._clean_model_response(content, model_key)
                 result["choices"][0]["message"]["content"] = cleaned_content
 
@@ -386,10 +400,11 @@ class LLMService:
         Returns:
             List[Dict[str, str]]: 메시지 리스트
         """
-        # PromptLoader에서 동적으로 프롬프트 가져오기
+        # PromptLoader에서 동적으로 프롬프트 가져오기 (모델별 reasoning instruction 적용)
         system_content = self.prompt_loader.get_system_prompt(
             collection_name=collection_name,
-            reasoning_level=reasoning_level
+            reasoning_level=reasoning_level,
+            model_key=model_key
         )
 
         # EXAONE Deep 모델 여부 확인

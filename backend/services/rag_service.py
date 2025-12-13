@@ -351,14 +351,22 @@ class RAGService:
             )
 
             # 3. 응답 포맷팅
-            answer = llm_response.get("choices", [{}])[0].get("message", {}).get("content", "")
+            message = llm_response.get("choices", [{}])[0].get("message", {})
+            answer = message.get("content", "")
+            reasoning_content = message.get("reasoning_content", "")
             usage = llm_response.get("usage", {})
 
-            return {
+            result = {
                 "answer": answer,
                 "retrieved_docs": retrieved_docs,
                 "usage": usage
             }
+
+            # GPT-OSS의 reasoning_content가 있으면 포함
+            if reasoning_content:
+                result["reasoning_content"] = reasoning_content
+
+            return result
 
         except Exception as e:
             print(f"[ERROR] RAG chat failed: {e}")

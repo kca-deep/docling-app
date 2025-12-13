@@ -35,17 +35,38 @@ class PromptLoader:
             print(f"[WARNING] Creating prompts directory...")
             self.prompts_dir.mkdir(parents=True, exist_ok=True)
 
-        # reasoning_level별 지시사항
-        self.reasoning_instructions = {
+        # 기본 reasoning_instructions (호환성 유지)
+        self.default_reasoning_instructions = {
             "low": "답변은 간단하고 명확하게 작성하세요.",
             "medium": "답변은 적절한 수준의 설명과 함께 작성하세요.",
             "high": "답변은 깊이 있는 분석과 추론을 포함하여 상세하게 작성하세요."
         }
 
+        # GPT-OSS 전용 - 공식 Reasoning 지시어 사용
+        # https://huggingface.co/openai/gpt-oss-20b 권장 형식
+        self.gpt_oss_reasoning_instructions = {
+            "low": "Reasoning: low",
+            "medium": "Reasoning: medium",
+            "high": "Reasoning: high"
+        }
+
+        # EXAONE Deep 전용 - 지시사항 상세함으로 조절
+        # https://huggingface.co/LGAI-EXAONE/EXAONE-Deep-7.8B-GGUF 권장
+        # EXAONE은 별도 reasoning level 개념이 없으며, 지시사항으로 조절
+        self.exaone_reasoning_instructions = {
+            "low": "간결하게 답변하세요.",
+            "medium": "",  # 기본 동작, 추가 지시 없음
+            "high": "Please reason step by step. 단계별로 깊이 분석하여 상세하게 답변하세요."
+        }
+
+        # 하위 호환성을 위해 기본 instructions도 유지
+        self.reasoning_instructions = self.default_reasoning_instructions
+
     def get_system_prompt(
         self,
         collection_name: Optional[str],
-        reasoning_level: str = "medium"
+        reasoning_level: str = "medium",
+        model_key: Optional[str] = None
     ) -> str:
         """
         컬렉션에 맞는 시스템 프롬프트 반환
@@ -59,6 +80,7 @@ class PromptLoader:
         Args:
             collection_name: Qdrant 컬렉션 이름
             reasoning_level: 추론 수준 (low/medium/high)
+            model_key: LLM 모델 키 (gpt-oss-20b, exaone-deep-7.8b 등)
 
         Returns:
             str: 시스템 프롬프트 (reasoning_instruction 플레이스홀더 대체됨)
@@ -69,17 +91,49 @@ class PromptLoader:
         # 2. 프롬프트 파일 읽기
         prompt_content = self._read_prompt_file(prompt_file)
 
-        # 3. {reasoning_instruction} 플레이스홀더 대체
-        reasoning_instruction = self.reasoning_instructions.get(
-            reasoning_level,
-            self.reasoning_instructions["medium"]
+        # 3. 모델별 reasoning_instruction 선택
+        reasoning_instruction = self._get_reasoning_instruction(
+            reasoning_level=reasoning_level,
+            model_key=model_key
         )
+
+        # 4. {reasoning_instruction} 플레이스홀더 대체
         prompt_content = prompt_content.replace(
             "{reasoning_instruction}",
             reasoning_instruction
         )
 
         return prompt_content
+
+    def _get_reasoning_instruction(
+        self,
+        reasoning_level: str,
+        model_key: Optional[str] = None
+    ) -> str:
+        """
+        모델별 reasoning instruction 반환
+
+        Args:
+            reasoning_level: 추론 수준 (low/medium/high)
+            model_key: LLM 모델 키
+
+        Returns:
+            str: 해당 모델과 추론 수준에 맞는 instruction
+        """
+        # GPT-OSS 모델: 공식 "Reasoning: level" 형식 사용
+        if model_key and "gpt-oss" in model_key.lower():
+            instructions = self.gpt_oss_reasoning_instructions
+            print(f"[PromptLoader] Using GPT-OSS reasoning instruction: {reasoning_level}")
+        # EXAONE 모델: 한국어 지시사항으로 조절
+        elif model_key and "exaone" in model_key.lower():
+            instructions = self.exaone_reasoning_instructions
+            print(f"[PromptLoader] Using EXAONE reasoning instruction: {reasoning_level}")
+        # 기타 모델: 기본 instructions 사용
+        else:
+            instructions = self.default_reasoning_instructions
+            print(f"[PromptLoader] Using default reasoning instruction: {reasoning_level}")
+
+        return instructions.get(reasoning_level, instructions.get("medium", ""))
 
     def _get_prompt_file(self, collection_name: Optional[str]) -> str:
         """

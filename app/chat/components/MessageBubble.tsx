@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Wand2, User, FileText, Copy, Check, RefreshCw, Reply, StopCircle, ChevronRight } from "lucide-react";
 import { MarkdownMessage } from "@/components/markdown-message";
 import { cn } from "@/lib/utils";
-import { useState, memo } from "react";
+import { useState, memo, useEffect } from "react";
 import {
   Collapsible,
   CollapsibleContent,
@@ -19,7 +19,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ChevronDown, ChevronUp, ExternalLink, Link } from "lucide-react";
+import { ChevronDown, ChevronUp, ExternalLink, Link, Brain } from "lucide-react";
 import { SourceArtifactModal } from "./SourceArtifactModal";
 
 interface Source {
@@ -45,6 +45,7 @@ interface MessageBubbleProps {
   timestamp: Date;
   model?: string; // 메시지를 생성한 모델 정보
   sources?: Source[];
+  reasoningContent?: string; // GPT-OSS 추론 과정
   metadata?: {
     tokens?: number;
     processingTime?: number;
@@ -65,6 +66,7 @@ export const MessageBubble = memo(function MessageBubble({
   timestamp,
   model,
   sources,
+  reasoningContent,
   metadata,
   onCopy,
   onRegenerate,
@@ -75,8 +77,29 @@ export const MessageBubble = memo(function MessageBubble({
 }: MessageBubbleProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [thoughtExpanded, setThoughtExpanded] = useState(false);
+  const [reasoningExpanded, setReasoningExpanded] = useState(false); // GPT-OSS 추론 과정
   const [openTooltipId, setOpenTooltipId] = useState<string | null>(null);
   const [mobileModalOpen, setMobileModalOpen] = useState(false);
+
+  // Debug: reasoningContent 확인
+  if (role === "assistant" && reasoningContent) {
+    console.log('[DEBUG MessageBubble] reasoningContent received:', reasoningContent.substring(0, 100));
+  }
+
+  // 스트리밍 중 추론 패널 자동 제어
+  // - 추론 중 (content 없음): 패널 펼치기
+  // - 답변 시작 (content 있음): 패널 접기
+  useEffect(() => {
+    if (isStreaming && reasoningContent) {
+      if (!content) {
+        // 추론 중: 펼치기
+        setReasoningExpanded(true);
+      } else {
+        // 답변 시작: 접기
+        setReasoningExpanded(false);
+      }
+    }
+  }, [isStreaming, reasoningContent, content]);
 
   // 메시지 내용 파싱: <thought> 태그와 답변 부분 분리
   const parseMessageContent = (content: string, streaming: boolean = false) => {
@@ -274,6 +297,45 @@ export const MessageBubble = memo(function MessageBubble({
                 {parsedContent.answer && (
                   <MarkdownMessage content={parsedContent.answer} />
                 )}
+              </div>
+            ) : role === "assistant" && reasoningContent ? (
+              // GPT-OSS 모델: 추론 과정과 답변 분리 표시
+              <div className="space-y-3">
+                {/* GPT-OSS 추론 과정 (접을 수 있음) */}
+                <Collapsible open={reasoningExpanded} onOpenChange={setReasoningExpanded} className="w-full">
+                  <div className="rounded-lg border bg-muted/30 overflow-hidden">
+                    <CollapsibleTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-between p-3 hover:bg-muted/50 rounded-none"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Brain className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-xs font-medium text-muted-foreground">
+                            추론 과정
+                          </span>
+                          <span className="text-[0.65rem] text-muted-foreground/70">
+                            ({reasoningContent.length}자)
+                          </span>
+                        </div>
+                        {reasoningExpanded ? (
+                          <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="px-3 pb-3 text-xs text-muted-foreground whitespace-pre-wrap border-t pt-3 max-h-[300px] overflow-y-auto">
+                        {reasoningContent}
+                      </div>
+                    </CollapsibleContent>
+                  </div>
+                </Collapsible>
+
+                {/* 답변 (content가 있을 때만 표시) */}
+                {content && <MarkdownMessage content={content} />}
               </div>
             ) : role === "assistant" || role === "system" ? (
               // 기본 마크다운 렌더링

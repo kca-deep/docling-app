@@ -389,6 +389,7 @@ async def chat(
         # conversation_id 포함하여 응답
         response = ChatResponse(
             answer=result.get("answer", ""),
+            reasoning_content=result.get("reasoning_content"),
             retrieved_docs=retrieved_docs,
             usage=result.get("usage")
         )
@@ -508,12 +509,90 @@ async def chat_stream(
                 for msg in chat_request.chat_history
             ]
 
+        # llama.cpp는 스트리밍 모드에서도 delta.reasoning_content를 전송함
+        # non-streaming fallback 불필요 - 스트리밍에서 직접 수집
+        use_non_streaming_for_reasoning = False
+
         # 스트리밍 제너레이터 (collection_name이 None이면 일상대화 모드)
-        collected_response = {"answer": "", "retrieved_docs": [], "usage": {}}
+        collected_response = {"answer": "", "retrieved_docs": [], "usage": {}, "reasoning_content": ""}
         stream_error_info = None
 
         async def generate():
             nonlocal collected_response, stream_error_info
+
+            # GPT-OSS + 추론 모드: non-streaming API 호출 후 simulated streaming
+            if use_non_streaming_for_reasoning:
+                try:
+                    logger.info("[CHAT API] Calling non-streaming API for reasoning_content")
+                    result = await rag_service.chat(
+                        collection_name=chat_request.collection_name,
+                        query=chat_request.message,
+                        model=chat_request.model,
+                        reasoning_level=chat_request.reasoning_level,
+                        temperature=chat_request.temperature,
+                        max_tokens=chat_request.max_tokens,
+                        top_p=chat_request.top_p,
+                        frequency_penalty=chat_request.frequency_penalty,
+                        presence_penalty=chat_request.presence_penalty,
+                        top_k=chat_request.top_k,
+                        score_threshold=chat_request.score_threshold,
+                        chat_history=chat_history,
+                        use_reranking=chat_request.use_reranking
+                    )
+
+                    # 검색된 문서 전송
+                    if result.get("retrieved_docs"):
+                        sources_data = result["retrieved_docs"]
+                        collected_response["retrieved_docs"] = sources_data
+                        yield f'data: {json.dumps({"sources": sources_data}, ensure_ascii=False)}\n\n'
+
+                    # 답변을 청크로 나눠서 simulated streaming (더 자연스러운 UX)
+                    answer = result.get("answer", "")
+                    collected_response["answer"] = answer
+                    collected_response["usage"] = result.get("usage", {})
+
+                    # 청크 단위로 전송 (약 50자씩)
+                    chunk_size = 50
+                    for i in range(0, len(answer), chunk_size):
+                        chunk_text = answer[i:i + chunk_size]
+                        sse_chunk = {
+                            "id": f"chatcmpl-{uuid.uuid4().hex[:8]}",
+                            "object": "chat.completion.chunk",
+                            "choices": [{
+                                "index": 0,
+                                "delta": {"content": chunk_text},
+                                "finish_reason": None
+                            }]
+                        }
+                        yield f'data: {json.dumps(sse_chunk, ensure_ascii=False)}\n\n'
+                        # 약간의 딜레이를 추가하여 자연스러운 스트리밍 효과 (선택적)
+                        # await asyncio.sleep(0.01)
+
+                    # reasoning_content 전송
+                    reasoning_content = result.get("reasoning_content", "")
+                    if reasoning_content:
+                        collected_response["reasoning_content"] = reasoning_content
+                        logger.info(f"[CHAT API] Sending reasoning_content event ({len(reasoning_content)} chars)")
+                        reasoning_event = {
+                            "type": "reasoning_content",
+                            "reasoning_content": reasoning_content
+                        }
+                        yield f'data: {json.dumps(reasoning_event, ensure_ascii=False)}\n\n'
+
+                    # 완료 신호
+                    yield 'data: [DONE]\n\n'
+                    return
+
+                except Exception as e:
+                    logger.error(f"[CHAT API] Non-streaming fallback failed: {e}")
+                    stream_error_info = {
+                        "error_type": type(e).__name__,
+                        "error_message": str(e)
+                    }
+                    yield f'data: {{"error": "처리 실패: {str(e)}"}}\n\n'
+                    return
+
+            # 일반 스트리밍 모드
             try:
                 async for chunk in rag_service.chat_stream(
                     collection_name=chat_request.collection_name,
@@ -537,12 +616,35 @@ async def chat_stream(
                             if data_str.strip() and data_str != '[DONE]':
                                 data = json.loads(data_str)
 
-                                # OpenAI 호환 API: choices[0].delta.content에서 추출
+                                # OpenAI 호환 API: choices[0].delta에서 추출
                                 if 'choices' in data and data['choices']:
-                                    delta = data['choices'][0].get('delta', {})
+                                    choice = data['choices'][0]
+                                    delta = choice.get('delta', {})
                                     content = delta.get('content', '')
+                                    reasoning_content = delta.get('reasoning_content', '')
+
+                                    # 최종 message에서 reasoning_content 확인 (일부 서버에서 지원)
+                                    message = choice.get('message', {})
+                                    if message.get('reasoning_content'):
+                                        reasoning_content = message.get('reasoning_content', '')
+                                        logger.info(f"[STREAM DEBUG] Got reasoning_content from message: {len(reasoning_content)} chars")
+
+                                    # 디버그: delta/choice 내용 확인 (처음 3개 청크만)
+                                    if len(collected_response["answer"]) < 50:
+                                        logger.info(f"[STREAM DEBUG] Full chunk: {data}")
+                                        logger.info(f"[STREAM DEBUG] choice keys: {list(choice.keys())}, delta keys: {list(delta.keys())}, delta: {delta}")
+
                                     if content:
                                         collected_response["answer"] += content
+                                    if reasoning_content:
+                                        logger.info(f"[STREAM DEBUG] Got reasoning_content chunk: {len(reasoning_content)} chars")
+                                        collected_response["reasoning_content"] += reasoning_content
+                                        # 실시간으로 reasoning_chunk 이벤트 전송
+                                        reasoning_chunk_event = {
+                                            "type": "reasoning_chunk",
+                                            "content": reasoning_content
+                                        }
+                                        yield f'data: {json.dumps(reasoning_chunk_event)}\n\n'
 
                                 # rag_service에서 'sources'로 보내므로 둘 다 처리
                                 if 'sources' in data:
@@ -553,6 +655,11 @@ async def chat_stream(
                                     collected_response["usage"] = data['usage']
                         except json.JSONDecodeError:
                             pass
+
+                    # [DONE] 로깅 (reasoning_content는 이미 실시간으로 전송됨)
+                    if 'data: [DONE]' in chunk:
+                        rc_len = len(collected_response["reasoning_content"])
+                        logger.info(f"[STREAM DEBUG] [DONE] detected, total reasoning_content: {rc_len} chars")
 
                     yield chunk
             except Exception as e:
@@ -741,6 +848,144 @@ async def regenerate(request: RegenerateRequest):
     except Exception as e:
         print(f"[ERROR] Regenerate failed: {e}")
         raise HTTPException(status_code=500, detail=f"응답 재생성 실패: {str(e)}")
+
+
+@router.post("/regenerate/stream")
+async def regenerate_stream(request: RegenerateRequest):
+    """
+    AI 응답 재생성 (스트리밍, 검색 결과 재사용)
+
+    Args:
+        request: 재생성 요청
+            - query: 원본 질문
+            - collection_name: 컬렉션 이름
+            - retrieved_docs: 이전에 검색된 문서들
+            - model: 사용할 모델
+            - reasoning_level: 추론 수준
+            - temperature: 온도
+            - max_tokens: 최대 토큰 수
+            - top_p: Top P
+            - frequency_penalty: 빈도 패널티
+            - presence_penalty: 존재 패널티
+            - chat_history: 이전 대화 기록
+
+    Returns:
+        StreamingResponse: SSE 스트림
+    """
+    logger.info("="*80)
+    logger.info("[REGENERATE STREAM] Endpoint called")
+    logger.info(f"[REGENERATE STREAM] Model: {request.model}")
+    logger.info(f"[REGENERATE STREAM] Collection: {request.collection_name}")
+    logger.info(f"[REGENERATE STREAM] Query: {request.query[:50]}...")
+    logger.info("="*80)
+
+    try:
+        # 대화 기록 변환
+        chat_history = None
+        if request.chat_history:
+            chat_history = [
+                {"role": msg.role, "content": msg.content}
+                for msg in request.chat_history
+            ]
+
+        # RetrievedDocument -> 내부 포맷 변환
+        retrieved_docs_internal = []
+        for doc in request.retrieved_docs:
+            payload = {"text": doc.text}
+            if doc.metadata:
+                payload.update(doc.metadata)
+            retrieved_docs_internal.append({
+                "id": doc.id,
+                "score": doc.score,
+                "payload": payload
+            })
+
+        # 스트리밍 응답 수집용
+        collected_response = {"answer": "", "reasoning_content": ""}
+
+        async def generate():
+            nonlocal collected_response
+
+            try:
+                # 검색된 문서를 먼저 전송
+                sources_data = [
+                    {
+                        "id": doc.id,
+                        "text": doc.text,
+                        "score": doc.score,
+                        "metadata": doc.metadata
+                    }
+                    for doc in request.retrieved_docs
+                ]
+                yield f'data: {json.dumps({"sources": sources_data}, ensure_ascii=False)}\n\n'
+
+                # 스트리밍 생성
+                async for chunk in rag_service.generate_stream(
+                    query=request.query,
+                    retrieved_docs=retrieved_docs_internal,
+                    model=request.model,
+                    reasoning_level=request.reasoning_level,
+                    temperature=request.temperature,
+                    max_tokens=request.max_tokens,
+                    top_p=request.top_p,
+                    frequency_penalty=request.frequency_penalty,
+                    presence_penalty=request.presence_penalty,
+                    chat_history=chat_history,
+                    collection_name=request.collection_name
+                ):
+                    # SSE 포맷 파싱하여 응답 수집
+                    if chunk.startswith('data: '):
+                        try:
+                            data_str = chunk[6:]  # 'data: ' 제거
+                            if data_str.strip() and data_str != '[DONE]':
+                                data = json.loads(data_str)
+
+                                # OpenAI 호환 API: choices[0].delta에서 추출
+                                if 'choices' in data and data['choices']:
+                                    choice = data['choices'][0]
+                                    delta = choice.get('delta', {})
+                                    content = delta.get('content', '')
+                                    reasoning_content = delta.get('reasoning_content', '')
+
+                                    if content:
+                                        collected_response["answer"] += content
+                                    if reasoning_content:
+                                        logger.info(f"[REGENERATE STREAM] Got reasoning_content chunk: {len(reasoning_content)} chars")
+                                        collected_response["reasoning_content"] += reasoning_content
+                                        # 실시간으로 reasoning_chunk 이벤트 전송
+                                        reasoning_chunk_event = {
+                                            "type": "reasoning_chunk",
+                                            "content": reasoning_content
+                                        }
+                                        yield f'data: {json.dumps(reasoning_chunk_event)}\n\n'
+
+                        except json.JSONDecodeError:
+                            pass
+
+                    # [DONE] 로깅
+                    if 'data: [DONE]' in chunk:
+                        rc_len = len(collected_response["reasoning_content"])
+                        logger.info(f"[REGENERATE STREAM] [DONE] detected, total reasoning_content: {rc_len} chars")
+
+                    yield chunk
+
+            except Exception as e:
+                logger.error(f"[REGENERATE STREAM] Generation failed: {e}")
+                yield f'data: {{"error": "재생성 스트리밍 실패: {str(e)}"}}\n\n'
+
+        return StreamingResponse(
+            generate(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"[REGENERATE STREAM] Failed: {e}")
+        raise HTTPException(status_code=500, detail=f"재생성 스트리밍 실패: {str(e)}")
 
 
 @router.get("/collections")

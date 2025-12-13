@@ -26,6 +26,7 @@ interface Message {
   timestamp: Date;
   model?: string; // 메시지를 생성한 모델 정보
   sources?: Source[];
+  reasoningContent?: string; // GPT-OSS 추론 과정
   metadata?: {
     tokens?: number;
     processingTime?: number;
@@ -386,6 +387,7 @@ export function ChatContainer() {
         timestamp: new Date(),
         model: settings.model, // 현재 사용 중인 모델 정보 저장
         sources: sources,
+        reasoningContent: data.reasoning_content, // GPT-OSS 추론 과정
         metadata: {
           tokens: data.usage?.total_tokens,
           processingTime: data.usage?.processing_time,
@@ -497,6 +499,7 @@ export function ChatContainer() {
       }
 
       let aiContent = "";
+      let aiReasoningContent = ""; // GPT-OSS 추론 과정
       let sources: Source[] = [];
       let retrievedDocs: RetrievedDocument[] = [];
       let messageCreated = false;
@@ -552,6 +555,39 @@ export function ChatContainer() {
                 setCurrentSources(sources);
               }
 
+              // reasoning_chunk 이벤트 처리 (실시간 스트리밍)
+              if (parsed.type === "reasoning_chunk" && parsed.content) {
+                aiReasoningContent += parsed.content;
+                console.log('[DEBUG] Received reasoning_chunk, total length:', aiReasoningContent.length);
+
+                // 추론 청크가 먼저 도착하면 메시지를 미리 생성 (추론 탭 표시)
+                if (!messageCreated) {
+                  messageCreated = true;
+                  setMessages((prev) => [
+                    ...prev,
+                    {
+                      id: aiMessageId,
+                      role: "assistant",
+                      content: "", // 아직 답변 없음
+                      timestamp: new Date(),
+                      model: settings.model,
+                      sources,
+                      reasoningContent: aiReasoningContent,
+                    },
+                  ]);
+                } else {
+                  // 메시지가 이미 있으면 reasoningContent만 업데이트
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === aiMessageId
+                        ? { ...msg, reasoningContent: aiReasoningContent }
+                        : msg
+                    )
+                  );
+                }
+                continue;
+              }
+
               // 컨텐츠 추출
               const delta = parsed.choices?.[0]?.delta;
               if (delta?.content) {
@@ -572,11 +608,11 @@ export function ChatContainer() {
                     },
                   ]);
                 } else {
-                  // 이후에는 업데이트
+                  // 이후에는 업데이트 (reasoningContent 유지)
                   setMessages((prev) =>
                     prev.map((msg) =>
                       msg.id === aiMessageId
-                        ? { ...msg, content: aiContent, sources }
+                        ? { ...msg, content: aiContent, sources, reasoningContent: aiReasoningContent || msg.reasoningContent }
                         : msg
                     )
                   );
@@ -686,7 +722,7 @@ export function ChatContainer() {
     toast.success("대화가 초기화되었습니다");
   }, []);
 
-  // 재생성 핸들러
+  // 재생성 핸들러 (스트리밍)
   const handleRegenerate = useCallback(async (messageIndex: number) => {
     const targetMessage = messages[messageIndex];
 
@@ -711,8 +747,8 @@ export function ChatContainer() {
       // 현재 고급설정의 temperature 사용 (다양성을 위해 약간 증가)
       const regenerateTemp = Math.min(settings.temperature + 0.2, 2.0);
 
-      // 백엔드 /api/chat/regenerate 호출 (현재 고급설정 값 사용)
-      const response = await fetch(`${API_BASE_URL}/api/chat/regenerate`, {
+      // 스트리밍 엔드포인트 호출
+      const response = await fetch(`${API_BASE_URL}/api/chat/regenerate/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: 'include',
@@ -720,8 +756,8 @@ export function ChatContainer() {
           query: context.originalQuery,
           collection_name: context.collectionName,
           retrieved_docs: context.retrievedDocs,
-          model: settings.model, // 현재 선택된 모델 사용
-          reasoning_level: settings.reasoningLevel, // 현재 추론 수준 사용
+          model: settings.model,
+          reasoning_level: settings.reasoningLevel,
           temperature: regenerateTemp,
           max_tokens: settings.maxTokens,
           top_p: settings.topP,
@@ -736,67 +772,145 @@ export function ChatContainer() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ detail: '알 수 없는 오류' }));
-        console.error('[Regenerate] API Error:', {
-          status: response.status,
-          detail: errorData.detail,
-          model: settings.model,
-          collection: context.collectionName
-        });
         throw new Error(`API 오류 (${response.status}): ${errorData.detail || '알 수 없는 오류'}`);
       }
 
-      const data = await response.json();
+      // 스트리밍 응답 처리
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      const aiMessageId = (Date.now() + 1).toString();
 
-      // 소스 문서 처리 (중복 항목 정리)
-      const sources: Source[] = (data.retrieved_docs || context.retrievedDocs).map((doc: RetrievedDocument) => {
-        const filename = doc.metadata?.filename;
-        const headings = doc.metadata?.headings;
-        const hasHeadings = headings && headings.length > 0;
+      let aiContent = "";
+      let aiReasoningContent = "";
+      let messageCreated = false;
+      let sources: Source[] = [];
 
-        // title: headings가 있으면 사용, 없으면 filename
-        const title = hasHeadings ? headings.join(' > ') : (filename || `문서 ${doc.id}`);
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-        // section: headings가 있고 filename과 다를 때만 설정 (중복 방지)
-        const section = hasHeadings && headings.join(' > ') !== filename ? headings.join(' > ') : undefined;
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split("\n");
 
-        return {
-          id: doc.id,
-          title,
-          content: doc.text,
-          score: doc.score,
-          metadata: {
-            file: filename,
-            section,  // title과 중복되지 않도록 조건부 설정
-            chunk_index: doc.metadata?.chunk_index,
-            document_id: doc.metadata?.document_id,
-            num_tokens: doc.metadata?.num_tokens,
-            page: doc.metadata?.page,
-            url: doc.metadata?.url,
-          },
-        };
-      });
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const data = line.slice(6);
+            if (data === "[DONE]") continue;
 
-      // 새 AI 메시지 생성
-      const newAiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: data.answer || "응답을 생성할 수 없습니다.",
-        timestamp: new Date(),
-        model: settings.model, // 현재 선택된 모델 정보 사용
-        sources: sources,
-        metadata: {
-          tokens: data.usage?.total_tokens,
-          processingTime: data.usage?.processing_time,
-        },
-        regenerationContext: {
-          originalQuery: context.originalQuery,
-          collectionName: context.collectionName,
-          settings: { ...settings }, // 현재 설정으로 업데이트
-          retrievedDocs: context.retrievedDocs,
-        },
-      };
+            try {
+              const parsed = JSON.parse(data);
 
-      setMessages((prev) => [...prev, newAiMessage]);
+              // sources 처리
+              if (parsed.sources) {
+                sources = parsed.sources.map((doc: RetrievedDocument) => {
+                  const filename = doc.metadata?.filename;
+                  const headings = doc.metadata?.headings;
+                  const hasHeadings = headings && headings.length > 0;
+                  const title = hasHeadings ? headings.join(' > ') : (filename || `문서 ${doc.id}`);
+                  const section = hasHeadings && headings.join(' > ') !== filename ? headings.join(' > ') : undefined;
+
+                  return {
+                    id: doc.id,
+                    title,
+                    content: doc.text,
+                    score: doc.score,
+                    metadata: {
+                      file: filename,
+                      section,
+                      chunk_index: doc.metadata?.chunk_index,
+                      document_id: doc.metadata?.document_id,
+                      num_tokens: doc.metadata?.num_tokens,
+                      page: doc.metadata?.page,
+                      url: doc.metadata?.url,
+                    },
+                  };
+                });
+                setCurrentSources(sources);
+              }
+
+              // reasoning_chunk 처리 (실시간 스트리밍)
+              if (parsed.type === "reasoning_chunk" && parsed.content) {
+                aiReasoningContent += parsed.content;
+
+                if (!messageCreated) {
+                  messageCreated = true;
+                  setMessages((prev) => [
+                    ...prev,
+                    {
+                      id: aiMessageId,
+                      role: "assistant",
+                      content: "",
+                      timestamp: new Date(),
+                      model: settings.model,
+                      sources,
+                      reasoningContent: aiReasoningContent,
+                    },
+                  ]);
+                } else {
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === aiMessageId
+                        ? { ...msg, reasoningContent: aiReasoningContent }
+                        : msg
+                    )
+                  );
+                }
+                continue;
+              }
+
+              // 컨텐츠 추출
+              const delta = parsed.choices?.[0]?.delta;
+              if (delta?.content) {
+                aiContent += delta.content;
+
+                if (!messageCreated) {
+                  messageCreated = true;
+                  setMessages((prev) => [
+                    ...prev,
+                    {
+                      id: aiMessageId,
+                      role: "assistant",
+                      content: aiContent,
+                      timestamp: new Date(),
+                      model: settings.model,
+                      sources,
+                    },
+                  ]);
+                } else {
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === aiMessageId
+                        ? { ...msg, content: aiContent, sources, reasoningContent: aiReasoningContent || msg.reasoningContent }
+                        : msg
+                    )
+                  );
+                }
+              }
+            } catch (e) {
+              console.debug("Failed to parse chunk:", data);
+            }
+          }
+        }
+      }
+
+      // 스트리밍 완료 후 regenerationContext 추가
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === aiMessageId
+            ? {
+                ...msg,
+                regenerationContext: {
+                  originalQuery: context.originalQuery,
+                  collectionName: context.collectionName,
+                  settings: { ...settings },
+                  retrievedDocs: context.retrievedDocs,
+                },
+              }
+            : msg
+        )
+      );
+
       toast.success("답변이 재생성되었습니다");
     } catch (error) {
       console.error("Error regenerating message:", error);
@@ -804,7 +918,7 @@ export function ChatContainer() {
     } finally {
       setIsLoading(false);
     }
-  }, [messages, settings]); // settings 의존성 추가
+  }, [messages, settings, setCurrentSources]);
 
   // <thought> 태그 제거 유틸리티 함수
   const removeThoughtTags = useCallback((content: string, model?: string): string => {

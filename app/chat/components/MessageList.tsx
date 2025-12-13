@@ -14,6 +14,7 @@ interface Message {
   timestamp: Date;
   model?: string; // 메시지를 생성한 모델 정보
   sources?: Source[];
+  reasoningContent?: string; // GPT-OSS 추론 과정
   metadata?: {
     tokens?: number;
     processingTime?: number;
@@ -147,6 +148,7 @@ export const MessageList = memo(function MessageList({
               timestamp={message.timestamp}
               model={message.model}
               sources={message.sources}
+              reasoningContent={message.reasoningContent}
               metadata={message.metadata}
               onCopy={() => handleCopy(message.content)}
               onRegenerate={() => handleRegenerate(index)}
