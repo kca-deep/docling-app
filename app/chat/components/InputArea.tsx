@@ -363,7 +363,31 @@ export const InputArea = memo(function InputArea({
               </Popover>
             </div>
 
-            {/* 오른쪽: 모델 선택 - 모바일 숨김 */}
+            {/* 오른쪽: 모델 선택 */}
+            {/* 모바일: 아이콘만 표시 */}
+            <div className="flex sm:hidden items-center">
+              <Select value={selectedModel} onValueChange={onModelChange}>
+                <SelectTrigger className="h-8 w-auto border-muted hover:bg-muted/50 transition-colors gap-1 rounded-full px-2">
+                  <div className="flex items-center gap-1">
+                    {selectedModelOption?.icon}
+                    <span className="text-[10px] font-medium">
+                      {selectedModel === "gpt-oss-20b" ? "GPT" : "EXA"}
+                    </span>
+                  </div>
+                </SelectTrigger>
+                <SelectContent align="end">
+                  {modelOptions.map((model) => (
+                    <SelectItem key={model.value} value={model.value}>
+                      <div className="flex items-center gap-2">
+                        {model.icon}
+                        <span className="font-medium">{model.label}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* 데스크톱: 전체 표시 */}
             <div className="hidden sm:flex items-center gap-2">
               <Select value={selectedModel} onValueChange={onModelChange}>
                 <SelectTrigger className="h-8 w-auto border-muted hover:bg-muted/50 transition-colors gap-2 rounded-full">

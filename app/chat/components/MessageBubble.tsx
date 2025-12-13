@@ -506,9 +506,9 @@ export const MessageBubble = memo(function MessageBubble({
             {formatTime(timestamp)}
           </span>
 
-          {/* 액션 버튼 (호버 시 표시) */}
+          {/* 액션 버튼 (모바일: 항상 표시, 데스크톱: 호버 시 표시) */}
           {(role === "assistant" || role === "user") && (
-            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+            <div className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center gap-1">
               {role === "assistant" && (
                 <>
                   <Button
