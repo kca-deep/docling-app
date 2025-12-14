@@ -98,8 +98,8 @@ class Settings(BaseSettings):
 
     # 프롬프트 자동 생성 설정
     PROMPT_GEN_MAX_TOKENS: int = 4096  # 시스템 프롬프트 생성 시 최대 출력 토큰
-    PROMPT_GEN_QUESTIONS_MAX_TOKENS: int = 2000  # 추천 질문 생성 시 최대 출력 토큰 (reasoning 모드 고려)
-    PROMPT_GEN_SAMPLE_LIMIT: int = 3000  # 문서 샘플 최대 문자수 (입력 토큰 절약)
+    PROMPT_GEN_QUESTIONS_MAX_TOKENS: int = 4096  # 추천 질문 생성 시 최대 출력 토큰 (reasoning 모드 고려)
+    PROMPT_GEN_SAMPLE_LIMIT: int = 4096  # 문서 샘플 최대 문자수 (입력 토큰 절약)
 
     # BGE Reranker v2-m3 설정
     RERANKER_URL: str = "http://ai.kca.kr:8006"

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import {
   Dialog,
   DialogContent,
@@ -12,8 +12,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Progress } from "@/components/ui/progress"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import {
   Select,
   SelectContent,
@@ -37,6 +35,8 @@ import {
   MessageSquare,
   Save,
   AlertCircle,
+  Cpu,
+  Zap,
 } from "lucide-react"
 import { toast } from "sonner"
 import { API_BASE_URL } from "@/lib/api-config"
@@ -64,6 +64,38 @@ interface GeneratedPrompt {
   suggestedQuestions: string[]
 }
 
+interface ModelOption {
+  key: string
+  label: string
+  description: string
+  status: "healthy" | "unhealthy" | "degraded" | "unconfigured" | "error"
+  error?: string
+}
+
+// 모델별 아이콘 매핑
+const getModelIcon = (modelKey: string) => {
+  if (modelKey.includes("gpt-oss")) {
+    return <Sparkles className="h-4 w-4" style={{ color: "var(--chart-1)" }} />
+  }
+  if (modelKey.includes("exaone") && modelKey.includes("32b")) {
+    return <Cpu className="h-4 w-4" style={{ color: "var(--chart-2)" }} />
+  }
+  if (modelKey.includes("exaone")) {
+    return <Zap className="h-4 w-4" style={{ color: "var(--chart-3)" }} />
+  }
+  return <Sparkles className="h-4 w-4" style={{ color: "var(--chart-4)" }} />
+}
+
+// 상태 표시 점
+const StatusDot = ({ status }: { status: string }) => (
+  <span
+    className={cn(
+      "w-2 h-2 rounded-full shrink-0",
+      status === "healthy" ? "bg-green-500" : "bg-red-500"
+    )}
+  />
+)
+
 interface PromptGeneratorModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -74,41 +106,48 @@ interface PromptGeneratorModalProps {
 const TEMPLATES: PromptTemplate[] = [
   {
     id: "regulation",
-    name: "규정/지침 문서",
+    name: "규정/지침",
     description: "인사규정, 복무지침, 내규 등 규정 문서에 최적화된 프롬프트",
-    icon: <FileText className="h-5 w-5" />,
+    icon: <FileText className="h-4 w-4" />,
   },
   {
     id: "budget",
-    name: "예산/재무 문서",
+    name: "예산/재무",
     description: "예산안, 결산서, 재무제표 등 재무 문서에 최적화된 프롬프트",
-    icon: <FileCode className="h-5 w-5" />,
+    icon: <FileCode className="h-4 w-4" />,
   },
   {
     id: "casual",
     name: "일상대화",
     description: "친근하고 자연스러운 대화형 응답에 최적화된 프롬프트",
-    icon: <MessageSquare className="h-5 w-5" />,
+    icon: <MessageSquare className="h-4 w-4" />,
   },
   {
     id: "technical",
     name: "기술문서",
     description: "API 문서, 시스템 설계서, 매뉴얼 등 기술 문서에 최적화된 프롬프트",
-    icon: <FileCode className="h-5 w-5" />,
+    icon: <FileCode className="h-4 w-4" />,
   },
   {
     id: "default",
     name: "일반 문서",
     description: "기본 RAG 프롬프트 (범용적으로 사용 가능)",
-    icon: <FileText className="h-5 w-5" />,
+    icon: <FileText className="h-4 w-4" />,
   },
 ]
 
 const STEPS = [
   { id: 1, name: "문서 선택", description: "프롬프트 생성에 사용할 문서 선택" },
-  { id: 2, name: "템플릿 선택", description: "문서 유형에 맞는 템플릿 선택" },
+  { id: 2, name: "생성 설정", description: "LLM 및 템플릿 선택" },
   { id: 3, name: "파일명 입력", description: "저장할 프롬프트 파일명 입력" },
   { id: 4, name: "생성 및 편집", description: "프롬프트 생성 결과 확인 및 편집" },
+]
+
+// 초기 fallback 모델 목록
+const FALLBACK_MODELS: ModelOption[] = [
+  { key: "gpt-oss-20b", label: "GPT-OSS 20B", description: "빠른 응답, 범용", status: "healthy" },
+  { key: "exaone-deep-7.8b", label: "EXAONE 7.8B", description: "경량화, 빠른 추론", status: "healthy" },
+  { key: "exaone-4.0-32b", label: "EXAONE 32B", description: "고성능, 장문 처리", status: "healthy" },
 ]
 
 export function PromptGeneratorModal({
@@ -125,8 +164,11 @@ export function PromptGeneratorModal({
   const [selectedDocIds, setSelectedDocIds] = useState<number[]>([])
   const [loadingDocs, setLoadingDocs] = useState(false)
 
-  // Step 2: Template selection
+  // Step 2: LLM and Template selection
   const [selectedTemplate, setSelectedTemplate] = useState<string>("default")
+  const [selectedModel, setSelectedModel] = useState<string>("gpt-oss-20b")
+  const [modelOptions, setModelOptions] = useState<ModelOption[]>(FALLBACK_MODELS)
+  const [isLoadingModels, setIsLoadingModels] = useState(true)
 
   // Step 3: Filename
   const [promptFilename, setPromptFilename] = useState("")
@@ -141,10 +183,38 @@ export function PromptGeneratorModal({
   // Saving state
   const [saving, setSaving] = useState(false)
 
-  // Load documents when modal opens
+  // LLM 모델 상태 가져오기
+  const fetchLLMModels = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/health/llm-models`, {
+        credentials: "include"
+      })
+      if (response.ok) {
+        const data = await response.json()
+        const models = data.models || []
+        setModelOptions(models)
+
+        // 현재 선택된 모델이 unhealthy면 healthy한 모델로 전환
+        const currentModel = models.find((m: ModelOption) => m.key === selectedModel)
+        if (!currentModel || currentModel.status !== "healthy") {
+          const healthyModel = models.find((m: ModelOption) => m.status === "healthy")
+          if (healthyModel) {
+            setSelectedModel(healthyModel.key)
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch LLM models:", error)
+    } finally {
+      setIsLoadingModels(false)
+    }
+  }, [selectedModel])
+
+  // Load documents and LLM models when modal opens
   useEffect(() => {
     if (open && collectionName) {
       fetchDocuments()
+      fetchLLMModels()
       // Reset state
       setCurrentStep(1)
       setSelectedDocIds([])
@@ -211,6 +281,7 @@ export function PromptGeneratorModal({
           document_ids: selectedDocIds,
           template_type: selectedTemplate,
           prompt_filename: promptFilename,
+          model: selectedModel,
         }),
       })
 
@@ -456,12 +527,15 @@ export function PromptGeneratorModal({
   }
 
   // Navigation
+  const selectedModelOption = modelOptions.find(m => m.key === selectedModel)
+  const isSelectedModelHealthy = selectedModelOption?.status === "healthy"
+
   const canGoNext = () => {
     switch (currentStep) {
       case 1:
         return selectedDocIds.length > 0
       case 2:
-        return selectedTemplate !== ""
+        return selectedTemplate !== "" && selectedModel !== "" && isSelectedModelHealthy
       case 3:
         return promptFilename.trim() !== ""
       case 4:
@@ -490,42 +564,35 @@ export function PromptGeneratorModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[700px] max-h-[85vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            프롬프트 자동 생성
-          </DialogTitle>
-          <DialogDescription>
-            '{collectionName}' 컬렉션을 위한 시스템 프롬프트와 추천 질문을 생성합니다.
-          </DialogDescription>
+        <DialogHeader className="pb-4 border-b">
+          <div className="flex items-start gap-3">
+            <div className="p-3 rounded-xl bg-gradient-to-br from-[color:var(--chart-1)] to-[color:var(--chart-2)] text-white shadow-lg">
+              <Sparkles className="h-6 w-6" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <DialogTitle className="text-lg font-bold">
+                프롬프트 자동 생성
+              </DialogTitle>
+              <DialogDescription className="mt-1 flex items-center gap-2 text-sm">
+                <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">{collectionName}</span>
+                <span className="text-muted-foreground/50">·</span>
+                <span>{documents.length}개 문서 기반</span>
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
-        {/* Step indicator */}
-        <div className="flex items-center justify-between px-1 sm:px-2 py-4">
-          {STEPS.map((step, index) => (
-            <div key={step.id} className="flex items-center">
-              <div className="flex flex-col items-center">
-                <div
-                  className={cn(
-                    "w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-sm font-medium transition-all",
-                    currentStep > step.id
-                      ? "bg-primary text-primary-foreground"
-                      : currentStep === step.id
-                      ? "bg-primary/20 text-primary ring-4 ring-primary/20"
-                      : "bg-muted text-muted-foreground"
-                  )}
-                >
-                  {currentStep > step.id ? (
-                    <Check className="h-4 w-4 sm:h-5 sm:w-5" />
-                  ) : (
-                    <span className="text-xs sm:text-sm font-semibold">{step.id}</span>
-                  )}
-                </div>
+        {/* Step indicator - Progress bar style */}
+        <div className="py-4 space-y-3">
+          {/* Step labels */}
+          <div className="flex justify-between px-2">
+            {STEPS.map((step) => (
+              <div key={step.id} className="flex flex-col items-center flex-1">
                 <span
                   className={cn(
-                    "text-[10px] sm:text-xs mt-1 hidden sm:block font-medium",
+                    "text-xs font-medium transition-colors",
                     currentStep === step.id
-                      ? "text-primary"
+                      ? "text-[color:var(--chart-1)]"
                       : currentStep > step.id
                       ? "text-foreground"
                       : "text-muted-foreground"
@@ -533,20 +600,50 @@ export function PromptGeneratorModal({
                 >
                   {step.name}
                 </span>
-              </div>
-              {index < STEPS.length - 1 && (
-                <div
-                  className={cn(
-                    "w-6 sm:w-10 md:w-14 h-0.5 mx-1 sm:mx-2 rounded-full transition-colors",
-                    currentStep > step.id ? "bg-primary" : "bg-muted"
+                {/* Step summary - show below current/completed steps */}
+                <span className="text-[10px] text-muted-foreground mt-0.5 h-4">
+                  {currentStep > step.id && step.id === 1 && selectedDocIds.length > 0 && (
+                    `${selectedDocIds.length}개 선택`
                   )}
-                />
-              )}
+                  {currentStep > step.id && step.id === 2 && (
+                    `${modelOptions.find(m => m.key === selectedModel)?.label?.split(" ")[0] || "LLM"}`
+                  )}
+                  {currentStep > step.id && step.id === 3 && promptFilename && (
+                    `${promptFilename}.md`
+                  )}
+                  {currentStep === step.id && "진행 중"}
+                </span>
+              </div>
+            ))}
+          </div>
+          {/* Progress bar */}
+          <div className="relative h-2 bg-muted rounded-full overflow-hidden">
+            <div
+              className="absolute inset-y-0 left-0 bg-gradient-to-r from-[color:var(--chart-1)] to-[color:var(--chart-2)] rounded-full transition-all duration-500"
+              style={{ width: `${((currentStep - 1) / (STEPS.length - 1)) * 100}%` }}
+            />
+            {/* Step dots */}
+            <div className="absolute inset-0 flex justify-between items-center px-0">
+              {STEPS.map((step) => (
+                <div
+                  key={step.id}
+                  className={cn(
+                    "w-4 h-4 rounded-full border-2 transition-all flex items-center justify-center",
+                    currentStep > step.id
+                      ? "bg-[color:var(--chart-1)] border-[color:var(--chart-1)]"
+                      : currentStep === step.id
+                      ? "bg-background border-[color:var(--chart-1)] ring-4 ring-[color:var(--chart-1)]/20"
+                      : "bg-background border-muted-foreground/30"
+                  )}
+                >
+                  {currentStep > step.id && (
+                    <Check className="h-2.5 w-2.5 text-white" />
+                  )}
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
-
-        <Separator />
 
         {/* Step content */}
         <div className="flex-1 overflow-hidden py-4">
@@ -618,54 +715,95 @@ export function PromptGeneratorModal({
             </div>
           )}
 
-          {/* Step 2: Template Selection */}
+          {/* Step 2: Generation Settings - LLM & Template */}
           {currentStep === 2 && (
-            <div className="space-y-4">
-              <Label className="text-base font-medium">
-                문서 유형에 맞는 템플릿 선택
-              </Label>
-
-              <RadioGroup
-                value={selectedTemplate}
-                onValueChange={setSelectedTemplate}
-                className="space-y-3"
-              >
-                {TEMPLATES.map((template) => (
-                  <div
-                    key={template.id}
-                    className={cn(
-                      "flex items-start space-x-3 p-4 rounded-lg border cursor-pointer transition-colors",
-                      selectedTemplate === template.id
-                        ? "border-primary bg-primary/5"
-                        : "border-muted hover:border-muted-foreground/50"
-                    )}
-                    onClick={() => setSelectedTemplate(template.id)}
-                  >
-                    <RadioGroupItem value={template.id} id={template.id} className="mt-0.5" />
-                    <div
-                      className={cn(
-                        "p-2 rounded-md",
-                        selectedTemplate === template.id
-                          ? "bg-primary/10 text-primary"
-                          : "bg-muted text-muted-foreground"
-                      )}
-                    >
-                      {template.icon}
-                    </div>
-                    <div className="flex-1">
-                      <Label
-                        htmlFor={template.id}
-                        className="cursor-pointer font-medium"
+            <div className="space-y-5">
+              {/* LLM Selection */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">생성에 사용할 LLM</Label>
+                <Select value={selectedModel} onValueChange={setSelectedModel}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue>
+                      {(() => {
+                        const model = modelOptions.find(m => m.key === selectedModel)
+                        if (!model) return "LLM 선택..."
+                        return (
+                          <div className="flex items-center gap-2">
+                            <StatusDot status={model.status} />
+                            {getModelIcon(model.key)}
+                            <span>{model.label}</span>
+                          </div>
+                        )
+                      })()}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {modelOptions.map((model) => (
+                      <SelectItem
+                        key={model.key}
+                        value={model.key}
+                        disabled={model.status !== "healthy"}
+                        className={cn(model.status !== "healthy" && "opacity-50")}
                       >
-                        {template.name}
-                      </Label>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {template.description}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </RadioGroup>
+                        <div className="flex items-center gap-2">
+                          <StatusDot status={model.status} />
+                          {getModelIcon(model.key)}
+                          <div className="flex flex-col">
+                            <span className="font-medium">{model.label}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {model.status === "healthy"
+                                ? model.description
+                                : model.error || "서버에 연결할 수 없습니다"}
+                            </span>
+                          </div>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Template Selection */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">문서 유형에 맞는 템플릿</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {TEMPLATES.map((template, index) => {
+                    const isSelected = selectedTemplate === template.id
+                    const colorVar = (index % 4) + 1
+                    return (
+                      <div
+                        key={template.id}
+                        className={cn(
+                          "relative p-2.5 rounded-lg border cursor-pointer transition-all",
+                          isSelected
+                            ? "border-[color:var(--chart-" + colorVar + ")] bg-[color:var(--chart-" + colorVar + ")]/5"
+                            : "border-muted hover:border-muted-foreground/50"
+                        )}
+                        onClick={() => setSelectedTemplate(template.id)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div
+                            className={cn(
+                              "w-7 h-7 rounded flex items-center justify-center shrink-0 transition-colors",
+                              isSelected ? "" : "bg-muted text-muted-foreground"
+                            )}
+                            style={isSelected ? {
+                              backgroundColor: `color-mix(in srgb, var(--chart-${colorVar}) 15%, transparent)`,
+                              color: `var(--chart-${colorVar})`
+                            } : undefined}
+                          >
+                            {template.icon}
+                          </div>
+                          <span className="text-xs font-medium truncate">{template.name}</span>
+                          {isSelected && (
+                            <Check className="h-3.5 w-3.5 ml-auto shrink-0" style={{ color: `var(--chart-${colorVar})` }} />
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
             </div>
           )}
 
@@ -719,13 +857,62 @@ export function PromptGeneratorModal({
           {currentStep === 4 && (
             <div className="space-y-4 h-full">
               {generating ? (
-                <div className="flex flex-col items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-                  <p className="text-sm font-medium mb-2">프롬프트 생성 중...</p>
-                  <Progress value={generationProgress} className="w-48" />
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {generationProgress}% 완료
-                  </p>
+                <div className="flex flex-col items-center justify-center py-8">
+                  {/* Animated icon */}
+                  <div className="relative mb-6">
+                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[color:var(--chart-1)] to-[color:var(--chart-2)] flex items-center justify-center shadow-lg">
+                      <Sparkles className="h-10 w-10 text-white animate-pulse" />
+                    </div>
+                    <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-background border-2 border-[color:var(--chart-1)] flex items-center justify-center">
+                      <Loader2 className="h-3 w-3 animate-spin text-[color:var(--chart-1)]" />
+                    </div>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="w-64 space-y-2 mb-4">
+                    <div className="relative h-3 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="absolute inset-y-0 left-0 bg-gradient-to-r from-[color:var(--chart-1)] to-[color:var(--chart-2)] rounded-full transition-all duration-500"
+                        style={{ width: `${generationProgress}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>
+                        {generationProgress < 30 ? "문서 분석 중..." :
+                         generationProgress < 60 ? "프롬프트 생성 중..." :
+                         generationProgress < 90 ? "추천 질문 생성 중..." : "마무리 중..."}
+                      </span>
+                      <span className="font-mono">{generationProgress}%</span>
+                    </div>
+                  </div>
+
+                  {/* Generation steps */}
+                  <div className="flex gap-3 text-xs">
+                    {[
+                      { label: "문서 분석", threshold: 30 },
+                      { label: "프롬프트 생성", threshold: 60 },
+                      { label: "추천 질문", threshold: 90 },
+                    ].map((phase, i) => (
+                      <div
+                        key={phase.label}
+                        className={cn(
+                          "flex items-center gap-1.5 px-2 py-1 rounded-full transition-colors",
+                          generationProgress >= phase.threshold
+                            ? "bg-[color:var(--chart-1)]/10 text-[color:var(--chart-1)]"
+                            : "bg-muted text-muted-foreground"
+                        )}
+                      >
+                        {generationProgress >= phase.threshold ? (
+                          <Check className="h-3 w-3" />
+                        ) : generationProgress >= phase.threshold - 30 ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <div className="w-3 h-3 rounded-full border border-current" />
+                        )}
+                        <span>{phase.label}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ) : generatedPrompt ? (
                 <Tabs defaultValue="prompt" className="w-full h-full">

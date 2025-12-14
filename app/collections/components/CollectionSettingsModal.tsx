@@ -168,6 +168,9 @@ export function CollectionSettingsModal({
   const [selectedDocs, setSelectedDocs] = useState<CollectionDocumentInfo[]>([])
   const [deleting, setDeleting] = useState(false)
 
+  // 삭제 확인용 상태
+  const [deleteConfirmName, setDeleteConfirmName] = useState("")
+
   // collection이 변경되면 폼 초기화
   useEffect(() => {
     if (collection) {
@@ -179,6 +182,7 @@ export function CollectionSettingsModal({
       setPlainDescription(metadata.plainDescription || "")
       setVisibility(collection.visibility || "public")
       setKeywordInput("")
+      setDeleteConfirmName("")
     }
   }, [collection])
 
@@ -432,14 +436,39 @@ export function CollectionSettingsModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[550px] max-h-[90vh] flex flex-col overflow-hidden">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            컬렉션 설정
-          </DialogTitle>
-          <DialogDescription>
-            {collection.name}
-          </DialogDescription>
+        <DialogHeader className="pb-4 border-b">
+          {(() => {
+            const metadata = parseMetadata(collection.description)
+            const IconComp = ICON_OPTIONS.find(o => o.value === (metadata.icon || "Database"))?.icon || Database
+            const displayName = metadata.koreanName || collection.name
+            return (
+              <div className="flex items-start gap-3">
+                <div className="p-3 rounded-xl bg-[color:var(--chart-1)]/10 text-[color:var(--chart-1)] flex-shrink-0">
+                  <IconComp className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <DialogTitle className="text-lg font-bold truncate">
+                      {displayName}
+                    </DialogTitle>
+                    {metadata.priority === 1 && (
+                      <Badge className="bg-amber-500/90 text-white text-[10px] px-1.5 py-0 h-5 gap-0.5 flex-shrink-0">
+                        <Star className="h-3 w-3 fill-current" />
+                        추천
+                      </Badge>
+                    )}
+                  </div>
+                  <DialogDescription className="mt-1 flex items-center gap-2 text-sm">
+                    <span className="font-mono text-xs">{collection.name}</span>
+                    <span className="text-muted-foreground/50">·</span>
+                    <span>{collection.documents_count}문서</span>
+                    <span className="text-muted-foreground/50">·</span>
+                    <span>{collection.points_count.toLocaleString()}청크</span>
+                  </DialogDescription>
+                </div>
+              </div>
+            )
+          })()}
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 flex flex-col min-h-0">
@@ -463,53 +492,30 @@ export function CollectionSettingsModal({
           </TabsList>
 
           {/* 일반 탭 */}
-          <TabsContent value="general" className="flex-1 overflow-y-auto space-y-4 pt-4 pr-3 -mr-1">
-            {/* 컬렉션 통계 카드 */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-center">
-                <div className="text-xl font-bold text-primary">
-                  {collection.documents_count}
-                </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">문서</div>
+          <TabsContent value="general" className="flex-1 overflow-y-auto space-y-3 pt-4 pr-3 -mr-1">
+            {/* 표시 설정 섹션 */}
+            <div className="rounded-lg border bg-card p-4 space-y-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <Settings className="h-4 w-4" />
+                표시 설정
               </div>
-              <div className="p-3 rounded-lg bg-muted/30 border border-border/50 text-center">
-                <div className="text-xl font-bold">
-                  {collection.points_count.toLocaleString()}
-                </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">청크</div>
-              </div>
-              <div className="p-3 rounded-lg bg-muted/30 border border-border/50 text-center">
-                <div className="text-xl font-bold">{collection.vector_size}</div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">벡터</div>
-              </div>
-              <div className="p-3 rounded-lg bg-muted/30 border border-border/50 text-center">
-                <div className="text-xl font-bold">{collection.distance}</div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">거리</div>
-              </div>
-            </div>
 
-            <Separator />
-
-            {/* 폼 섹션 */}
-            <div className="space-y-4">
               {/* 한글명 */}
               <div className="space-y-2">
-                <Label htmlFor="settings-koreanName">표시명 (한글)</Label>
+                <Label htmlFor="settings-koreanName" className="text-sm">표시명 (한글)</Label>
                 <Input
                   id="settings-koreanName"
                   placeholder="예: 복무·복지"
                   value={koreanName}
                   onChange={(e) => setKoreanName(e.target.value)}
+                  className="h-9"
                 />
-                <p className="text-xs text-muted-foreground">
-                  UI에 표시될 이름입니다
-                </p>
               </div>
 
-              {/* 아이콘 선택 - 그리드 형태 */}
+              {/* 아이콘 선택 */}
               <div className="space-y-2">
-                <Label>아이콘</Label>
-                <div className="grid grid-cols-5 gap-2 p-3 rounded-lg border bg-muted/20">
+                <Label className="text-sm">아이콘</Label>
+                <div className="grid grid-cols-5 gap-1.5 p-2 rounded-lg border bg-muted/10">
                   {ICON_OPTIONS.map((option) => {
                     const IconComp = option.icon
                     const isSelected = selectedIcon === option.value
@@ -519,16 +525,16 @@ export function CollectionSettingsModal({
                         type="button"
                         onClick={() => setSelectedIcon(option.value)}
                         className={cn(
-                          "p-2 rounded-lg transition-all flex flex-col items-center gap-1",
-                          "hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary/50",
+                          "p-2 rounded-md transition-all flex flex-col items-center gap-0.5",
+                          "hover:bg-muted focus:outline-none",
                           isSelected
-                            ? "bg-primary/10 text-primary ring-2 ring-primary/30"
+                            ? "bg-[color:var(--chart-1)]/10 text-[color:var(--chart-1)] ring-1 ring-[color:var(--chart-1)]/30"
                             : "text-muted-foreground hover:text-foreground"
                         )}
                         title={option.label}
                       >
-                        <IconComp className="h-5 w-5" />
-                        <span className="text-[9px] truncate w-full text-center leading-tight">
+                        <IconComp className="h-4 w-4" />
+                        <span className="text-[8px] truncate w-full text-center leading-tight">
                           {option.label.split('/')[0]}
                         </span>
                       </button>
@@ -536,10 +542,18 @@ export function CollectionSettingsModal({
                   })}
                 </div>
               </div>
+            </div>
+
+            {/* 검색 설정 섹션 */}
+            <div className="rounded-lg border bg-card p-4 space-y-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <Search className="h-4 w-4" />
+                검색 설정
+              </div>
 
               {/* 키워드 */}
               <div className="space-y-2">
-                <Label htmlFor="settings-keywords">키워드</Label>
+                <Label htmlFor="settings-keywords" className="text-sm">키워드</Label>
                 <div className="flex gap-2">
                   <Input
                     id="settings-keywords"
@@ -547,20 +561,21 @@ export function CollectionSettingsModal({
                     value={keywordInput}
                     onChange={(e) => setKeywordInput(e.target.value)}
                     onKeyDown={handleKeywordKeyDown}
+                    className="h-9"
                   />
-                  <Button type="button" variant="outline" size="sm" onClick={addKeyword}>
+                  <Button type="button" variant="outline" size="sm" onClick={addKeyword} className="h-9 px-3">
                     추가
                   </Button>
                 </div>
                 {keywords.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mt-2">
+                  <div className="flex flex-wrap gap-1.5">
                     {keywords.map((keyword) => (
-                      <Badge key={keyword} variant="secondary" className="gap-1 pr-1">
+                      <Badge key={keyword} variant="secondary" className="gap-1 pr-1 text-xs">
                         {keyword}
                         <button
                           type="button"
                           onClick={() => removeKeyword(keyword)}
-                          className="ml-1 hover:bg-muted rounded-full p-0.5"
+                          className="ml-0.5 hover:bg-muted rounded-full p-0.5"
                         >
                           <X className="h-3 w-3" />
                         </button>
@@ -568,147 +583,187 @@ export function CollectionSettingsModal({
                     ))}
                   </div>
                 )}
-                <p className="text-xs text-muted-foreground">
-                  검색에 사용될 키워드입니다
-                </p>
-              </div>
-
-              {/* 추천 컬렉션 */}
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="settings-priority"
-                  checked={isPriority}
-                  onCheckedChange={(checked) => setIsPriority(checked === true)}
-                />
-                <Label htmlFor="settings-priority" className="flex items-center gap-1.5 cursor-pointer">
-                  <Star className="h-4 w-4 text-amber-500" />
-                  추천 컬렉션으로 표시
-                </Label>
               </div>
 
               {/* 설명 */}
               <div className="space-y-2">
-                <Label htmlFor="settings-plainDescription">설명</Label>
+                <Label htmlFor="settings-plainDescription" className="text-sm">설명</Label>
                 <Textarea
                   id="settings-plainDescription"
                   placeholder="컬렉션에 대한 간단한 설명"
                   value={plainDescription}
                   onChange={(e) => setPlainDescription(e.target.value)}
                   rows={2}
+                  className="resize-none text-sm"
                 />
+              </div>
+            </div>
+
+            {/* 추천 설정 섹션 */}
+            <div
+              className={cn(
+                "rounded-lg border p-4 cursor-pointer transition-all",
+                isPriority
+                  ? "bg-amber-500/5 border-amber-500/30"
+                  : "bg-card hover:border-muted-foreground/30"
+              )}
+              onClick={() => setIsPriority(!isPriority)}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "p-2 rounded-lg",
+                    isPriority ? "bg-amber-500/20 text-amber-600" : "bg-muted text-muted-foreground"
+                  )}>
+                    <Star className={cn("h-4 w-4", isPriority && "fill-current")} />
+                  </div>
+                  <div>
+                    <div className="font-medium text-sm">추천 컬렉션</div>
+                    <div className="text-xs text-muted-foreground">메인 화면에 우선 표시됩니다</div>
+                  </div>
+                </div>
+                <div className={cn(
+                  "w-10 h-6 rounded-full transition-colors relative",
+                  isPriority ? "bg-amber-500" : "bg-muted"
+                )}>
+                  <div className={cn(
+                    "absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all",
+                    isPriority ? "left-5" : "left-1"
+                  )} />
+                </div>
+              </div>
+            </div>
+
+            {/* 기술 정보 (축소) */}
+            <div className="rounded-lg border bg-muted/30 p-3">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>벡터 차원: {collection.vector_size}</span>
+                <span>거리 함수: {collection.distance}</span>
               </div>
             </div>
           </TabsContent>
 
           {/* 공개 설정 탭 */}
-          <TabsContent value="visibility" className="flex-1 overflow-y-auto space-y-4 pt-4 pr-3 -mr-1">
-            <div className="space-y-2">
-              <Label>현재 상태</Label>
-              <div className="flex items-center gap-2">
-                {visibility === "public" && (
-                  <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
-                    <Globe className="h-3 w-3 mr-1" />
-                    공개
-                  </Badge>
-                )}
-                {visibility === "private" && (
-                  <Badge variant="secondary" className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                    <Lock className="h-3 w-3 mr-1" />
-                    비공개
-                  </Badge>
-                )}
-                {visibility === "shared" && (
-                  <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
-                    <Users className="h-3 w-3 mr-1" />
-                    공유
-                  </Badge>
-                )}
-              </div>
-            </div>
-
-            <Separator />
-
-            <RadioGroup
-              value={visibility}
-              onValueChange={(v) => setVisibility(v as Visibility)}
-              className="space-y-3"
-            >
+          <TabsContent value="visibility" className="flex-1 overflow-y-auto space-y-3 pt-4 pr-3 -mr-1">
+            <div className="space-y-3">
               {/* 비공개 */}
               <div
                 className={cn(
-                  "flex items-start space-x-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                  "rounded-lg border p-4 cursor-pointer transition-all",
                   visibility === "private"
-                    ? "border-primary bg-primary/5"
-                    : "border-muted hover:border-muted-foreground/50"
+                    ? "border-orange-500/50 bg-orange-500/5 ring-1 ring-orange-500/20"
+                    : "bg-card hover:border-muted-foreground/30"
                 )}
                 onClick={() => setVisibility("private")}
               >
-                <RadioGroupItem value="private" id="settings-private" className="mt-0.5" />
-                <div className="flex-1">
-                  <Label htmlFor="settings-private" className="flex items-center gap-2 cursor-pointer font-medium">
-                    <Lock className="h-4 w-4" />
-                    비공개 (Private)
-                  </Label>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    본인만 접근 가능
-                  </p>
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "p-2.5 rounded-lg",
+                    visibility === "private"
+                      ? "bg-orange-500/20 text-orange-600"
+                      : "bg-muted text-muted-foreground"
+                  )}>
+                    <Lock className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium">비공개</div>
+                    <div className="text-xs text-muted-foreground">본인만 접근 가능</div>
+                  </div>
+                  <div className={cn(
+                    "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
+                    visibility === "private"
+                      ? "border-orange-500 bg-orange-500"
+                      : "border-muted-foreground/30"
+                  )}>
+                    {visibility === "private" && (
+                      <div className="w-2 h-2 rounded-full bg-white" />
+                    )}
+                  </div>
                 </div>
               </div>
 
               {/* 공개 */}
               <div
                 className={cn(
-                  "flex items-start space-x-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                  "rounded-lg border p-4 cursor-pointer transition-all",
                   visibility === "public"
-                    ? "border-primary bg-primary/5"
-                    : "border-muted hover:border-muted-foreground/50"
+                    ? "border-green-500/50 bg-green-500/5 ring-1 ring-green-500/20"
+                    : "bg-card hover:border-muted-foreground/30"
                 )}
                 onClick={() => setVisibility("public")}
               >
-                <RadioGroupItem value="public" id="settings-public" className="mt-0.5" />
-                <div className="flex-1">
-                  <Label htmlFor="settings-public" className="flex items-center gap-2 cursor-pointer font-medium">
-                    <Globe className="h-4 w-4" />
-                    공개 (Public)
-                  </Label>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    모든 사용자가 검색 가능 (비로그인 포함)
-                  </p>
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "p-2.5 rounded-lg",
+                    visibility === "public"
+                      ? "bg-green-500/20 text-green-600"
+                      : "bg-muted text-muted-foreground"
+                  )}>
+                    <Globe className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium">공개</div>
+                    <div className="text-xs text-muted-foreground">모든 사용자가 검색 가능</div>
+                  </div>
+                  <div className={cn(
+                    "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
+                    visibility === "public"
+                      ? "border-green-500 bg-green-500"
+                      : "border-muted-foreground/30"
+                  )}>
+                    {visibility === "public" && (
+                      <div className="w-2 h-2 rounded-full bg-white" />
+                    )}
+                  </div>
                 </div>
               </div>
 
               {/* 공유 */}
               <div
                 className={cn(
-                  "flex items-start space-x-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                  "rounded-lg border p-4 cursor-pointer transition-all",
                   visibility === "shared"
-                    ? "border-primary bg-primary/5"
-                    : "border-muted hover:border-muted-foreground/50"
+                    ? "border-blue-500/50 bg-blue-500/5 ring-1 ring-blue-500/20"
+                    : "bg-card hover:border-muted-foreground/30"
                 )}
                 onClick={() => setVisibility("shared")}
               >
-                <RadioGroupItem value="shared" id="settings-shared" className="mt-0.5" />
-                <div className="flex-1">
-                  <Label htmlFor="settings-shared" className="flex items-center gap-2 cursor-pointer font-medium">
-                    <Users className="h-4 w-4" />
-                    공유 (Shared)
-                  </Label>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    선택한 사용자만 접근 가능
-                  </p>
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "p-2.5 rounded-lg",
+                    visibility === "shared"
+                      ? "bg-blue-500/20 text-blue-600"
+                      : "bg-muted text-muted-foreground"
+                  )}>
+                    <Users className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium">공유</div>
+                    <div className="text-xs text-muted-foreground">선택한 사용자만 접근</div>
+                  </div>
+                  <div className={cn(
+                    "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
+                    visibility === "shared"
+                      ? "border-blue-500 bg-blue-500"
+                      : "border-muted-foreground/30"
+                  )}>
+                    {visibility === "shared" && (
+                      <div className="w-2 h-2 rounded-full bg-white" />
+                    )}
+                  </div>
                 </div>
               </div>
-            </RadioGroup>
 
-            {/* 공유 사용자 선택 (shared일 때만) */}
-            {visibility === "shared" && (
-              <div className="space-y-2 pt-2">
-                <Label>접근 허용 사용자</Label>
-                <div className="p-4 rounded-lg border border-dashed text-center text-sm text-muted-foreground">
-                  사용자 선택 기능은 준비 중입니다
+              {/* 공유 사용자 선택 (shared일 때만) */}
+              {visibility === "shared" && (
+                <div className="rounded-lg border border-dashed bg-muted/20 p-4 mt-2">
+                  <div className="text-center">
+                    <Users className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
+                    <p className="text-sm text-muted-foreground">사용자 선택 기능은 준비 중입니다</p>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </TabsContent>
 
           {/* 문서 관리 탭 */}
@@ -838,27 +893,63 @@ export function CollectionSettingsModal({
 
           {/* 위험 영역 탭 */}
           <TabsContent value="danger" className="flex-1 overflow-y-auto space-y-4 pt-4 pr-3 -mr-1">
-            <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="h-5 w-5 text-destructive mt-0.5" />
-                <div className="space-y-2">
-                  <h4 className="font-medium text-destructive">컬렉션 삭제</h4>
-                  <p className="text-sm text-muted-foreground">
-                    컬렉션을 삭제하면 모든 벡터 데이터가 영구적으로 삭제됩니다.
-                    이 작업은 되돌릴 수 없습니다.
-                  </p>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="mt-2"
-                    onClick={() => {
-                      onOpenChange(false)
-                      onDelete?.()
-                    }}
-                  >
-                    컬렉션 삭제
-                  </Button>
+            <div className="rounded-xl border border-destructive/30 bg-destructive/5 overflow-hidden">
+              {/* 경고 헤더 */}
+              <div className="bg-destructive/10 px-4 py-3 border-b border-destructive/20">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  <h4 className="font-semibold text-destructive">위험 영역</h4>
                 </div>
+              </div>
+
+              {/* 삭제 정보 */}
+              <div className="p-4 space-y-4">
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">이 작업은 되돌릴 수 없습니다!</p>
+                  <ul className="text-sm text-muted-foreground space-y-1">
+                    <li className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-destructive/60" />
+                      모든 벡터 데이터가 영구 삭제됩니다
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-destructive/60" />
+                      {collection.documents_count}개 문서, {collection.points_count.toLocaleString()}개 청크 삭제
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-destructive/60" />
+                      관련 프롬프트 설정도 삭제됩니다
+                    </li>
+                  </ul>
+                </div>
+
+                <Separator />
+
+                {/* 컬렉션명 입력 확인 */}
+                <div className="space-y-2">
+                  <Label htmlFor="delete-confirm" className="text-sm">
+                    삭제하려면 컬렉션명 <span className="font-mono font-bold text-destructive">{collection.name}</span>을(를) 입력하세요
+                  </Label>
+                  <Input
+                    id="delete-confirm"
+                    placeholder={collection.name}
+                    value={deleteConfirmName}
+                    onChange={(e) => setDeleteConfirmName(e.target.value)}
+                    className="font-mono text-sm h-9 border-destructive/30 focus:border-destructive"
+                  />
+                </div>
+
+                <Button
+                  variant="destructive"
+                  className="w-full"
+                  disabled={deleteConfirmName !== collection.name}
+                  onClick={() => {
+                    onOpenChange(false)
+                    onDelete?.()
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  컬렉션 영구 삭제
+                </Button>
               </div>
             </div>
           </TabsContent>

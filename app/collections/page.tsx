@@ -581,21 +581,18 @@ export default function CollectionsPage() {
 
       {/* 컬렉션 그리드 */}
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
             <Card key={i} className="border-border/50 bg-background/50">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <Skeleton className="h-10 w-10 rounded-lg" />
-                  <div className="space-y-1.5 flex-1">
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-3 w-16" />
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Skeleton className="h-8 w-8 rounded-lg" />
+                  <div className="space-y-1 flex-1">
+                    <Skeleton className="h-3.5 w-20" />
+                    <Skeleton className="h-2.5 w-14" />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Skeleton className="h-3 w-full" />
-                  <Skeleton className="h-3 w-2/3" />
-                </div>
+                <Skeleton className="h-2.5 w-full" />
               </CardContent>
             </Card>
           ))}
@@ -629,7 +626,7 @@ export default function CollectionsPage() {
           variants={container}
           initial="hidden"
           animate="show"
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+          className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3"
         >
           {filteredCollections.map((collection) => {
             const metadata = parseMetadata(collection.description)
@@ -642,36 +639,36 @@ export default function CollectionsPage() {
                 <Card className="relative overflow-hidden border-border/40 bg-background/80 backdrop-blur-sm hover:border-[color:var(--chart-1)]/40 hover:shadow-lg transition-all duration-300">
                   {/* Priority 배지 */}
                   {metadata.priority === 1 && (
-                    <div className="absolute top-2 right-2 z-20">
-                      <Badge className="bg-amber-500/90 text-white text-[10px] px-1.5 py-0 h-5 gap-1">
-                        <Star className="h-3 w-3 fill-current" />
+                    <div className="absolute top-1.5 right-1.5 z-20">
+                      <Badge className="bg-amber-500/90 text-white text-[9px] px-1 py-0 h-4 gap-0.5">
+                        <Star className="h-2.5 w-2.5 fill-current" />
                         추천
                       </Badge>
                     </div>
                   )}
 
-                  <CardContent className="p-4 relative z-10">
+                  <CardContent className="p-3 relative z-10">
                     {/* 헤더 - 아이콘, 타이틀, 공개상태 */}
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-start gap-2">
                       {/* 아이콘 */}
-                      <div className="p-2.5 rounded-xl bg-[color:var(--chart-1)]/10 text-[color:var(--chart-1)] flex-shrink-0">
-                        <IconComponent className="h-5 w-5" />
+                      <div className="p-2 rounded-lg bg-[color:var(--chart-1)]/10 text-[color:var(--chart-1)] flex-shrink-0">
+                        <IconComponent className="h-4 w-4" />
                       </div>
 
                       {/* 메인 정보 */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-bold text-base truncate" title={displayName}>
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="font-bold text-sm truncate" title={displayName}>
                             {displayName}
                           </h3>
                           {getVisibilityBadge(collection.visibility, true)}
                         </div>
                         {hasMetadata && (
-                          <p className="text-xs text-muted-foreground truncate" title={collection.name}>
+                          <p className="text-[10px] text-muted-foreground truncate" title={collection.name}>
                             {collection.name}
                           </p>
                         )}
-                        <p className="text-xs text-muted-foreground mt-1">
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
                           {collection.points_count > 0 ? (
                             <>{collection.documents_count}문서 · {collection.points_count.toLocaleString()}청크</>
                           ) : (
@@ -683,22 +680,22 @@ export default function CollectionsPage() {
 
                     {/* 키워드 태그 */}
                     {metadata.keywords && metadata.keywords.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-3">
-                        {metadata.keywords.slice(0, 4).map((keyword, idx) => (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {metadata.keywords.slice(0, 3).map((keyword, idx) => (
                           <Badge
                             key={idx}
                             variant="secondary"
-                            className="text-[10px] px-1.5 py-0 h-5 font-normal bg-muted/50"
+                            className="text-[9px] px-1.5 py-0 h-4 font-normal bg-muted/50"
                           >
                             {keyword}
                           </Badge>
                         ))}
-                        {metadata.keywords.length > 4 && (
+                        {metadata.keywords.length > 3 && (
                           <Badge
                             variant="secondary"
-                            className="text-[10px] px-1.5 py-0 h-5 font-normal bg-muted/50"
+                            className="text-[9px] px-1.5 py-0 h-4 font-normal bg-muted/50"
                           >
-                            +{metadata.keywords.length - 4}
+                            +{metadata.keywords.length - 3}
                           </Badge>
                         )}
                       </div>
@@ -706,20 +703,20 @@ export default function CollectionsPage() {
 
                     {/* 설명 */}
                     {metadata.plainDescription && (
-                      <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
+                      <p className="text-[10px] text-muted-foreground mt-1.5 line-clamp-1">
                         {metadata.plainDescription}
                       </p>
                     )}
 
                     {/* 구분선 */}
-                    <div className="h-px bg-border/50 my-3" />
+                    <div className="h-px bg-border/50 my-2" />
 
                     {/* 액션 버튼 - 항상 표시 */}
-                    <div className="flex gap-2">
+                    <div className="flex gap-1.5">
                       <Button
                         variant="outline"
                         size="sm"
-                        className="flex-1 h-8 text-xs gap-1.5 hover:bg-[color:var(--chart-1)]/10 hover:text-[color:var(--chart-1)] hover:border-[color:var(--chart-1)]/30"
+                        className="flex-1 h-7 text-[10px] gap-1 hover:bg-[color:var(--chart-1)]/10 hover:text-[color:var(--chart-1)] hover:border-[color:var(--chart-1)]/30"
                         onClick={(e) => {
                           e.stopPropagation()
                           openPromptGenerator(collection)
@@ -732,7 +729,7 @@ export default function CollectionsPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="flex-1 h-8 text-xs gap-1.5"
+                        className="flex-1 h-7 text-[10px] gap-1"
                         onClick={(e) => {
                           e.stopPropagation()
                           openSettingsModal(collection)
