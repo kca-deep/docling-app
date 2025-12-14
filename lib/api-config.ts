@@ -72,6 +72,7 @@ export const apiEndpoints = {
   health: `${API_BASE_URL}/health`,
   healthReady: `${API_BASE_URL}/health/ready`,
   healthLive: `${API_BASE_URL}/health/live`,
+  healthLlmModels: `${API_BASE_URL}/api/health/llm-models`,
 } as const
 
 /**

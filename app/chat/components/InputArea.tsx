@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, KeyboardEvent, useEffect, memo } from "react";
+import { useState, useRef, KeyboardEvent, useEffect, memo, useCallback } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,8 +34,11 @@ import {
   Trash2,
   Settings,
   Brain,
+  Cpu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { API_BASE_URL } from "@/lib/api-config";
+import { toast } from "sonner";
 
 interface QuotedMessage {
   role: "user" | "assistant";
@@ -43,10 +46,12 @@ interface QuotedMessage {
 }
 
 interface ModelOption {
-  value: string;
+  key: string;
   label: string;
   description: string;
-  icon?: React.ReactNode;
+  status: "healthy" | "unhealthy" | "degraded" | "unconfigured" | "error";
+  error?: string;
+  latency_ms?: number;
 }
 
 interface Collection {
@@ -99,6 +104,36 @@ interface InputAreaProps {
   onDeepThinkingChange: (enabled: boolean) => void;
 }
 
+// 모델별 아이콘 매핑
+const getModelIcon = (modelKey: string) => {
+  if (modelKey.includes("gpt-oss")) {
+    return <Sparkles className="h-4 w-4" style={{ color: "var(--chart-1)" }} />;
+  }
+  if (modelKey.includes("exaone") && modelKey.includes("32b")) {
+    return <Cpu className="h-4 w-4" style={{ color: "var(--chart-2)" }} />;
+  }
+  if (modelKey.includes("exaone")) {
+    return <Zap className="h-4 w-4" style={{ color: "var(--chart-3)" }} />;
+  }
+  return <Sparkles className="h-4 w-4" />;
+};
+
+// 상태 표시 점 컴포넌트
+const StatusDot = ({ status }: { status: string }) => {
+  const colorClass = status === "healthy"
+    ? "bg-green-500"
+    : status === "degraded"
+      ? "bg-yellow-500"
+      : "bg-red-500";
+
+  return (
+    <span className={cn(
+      "inline-block w-2 h-2 rounded-full",
+      colorClass
+    )} />
+  );
+};
+
 export const InputArea = memo(function InputArea({
   input,
   setInput,
@@ -125,22 +160,49 @@ export const InputArea = memo(function InputArea({
 }: InputAreaProps) {
   const [isComposing, setIsComposing] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // 사용 가능한 모델 목록
-  const modelOptions: ModelOption[] = [
-    {
-      value: "gpt-oss-20b",
-      label: "GPT-OSS 20B",
-      description: "빠른 응답, 범용 질문에 적합",
-      icon: <Sparkles className="h-4 w-4" style={{ color: "var(--chart-1)" }} />,
-    },
-    {
-      value: "exaone-deep-7.8b",
-      label: "EXAONE 7.8B",
-      description: "경량화, 빠른 추론",
-      icon: <Zap className="h-4 w-4" style={{ color: "var(--chart-3)" }} />,
-    },
+  // 초기 fallback 모델 목록 (API 로딩 전 표시용)
+  const fallbackModels: ModelOption[] = [
+    { key: "gpt-oss-20b", label: "GPT-OSS 20B", description: "빠른 응답, 범용", status: "healthy" },
+    { key: "exaone-deep-7.8b", label: "EXAONE 7.8B", description: "경량화, 빠른 추론", status: "healthy" },
+    { key: "exaone-4.0-32b", label: "EXAONE 32B", description: "고성능, 장문 처리", status: "healthy" },
   ];
+
+  const [modelOptions, setModelOptions] = useState<ModelOption[]>(fallbackModels);
+  const [isLoadingModels, setIsLoadingModels] = useState(true);
+
+  // LLM 모델 상태 가져오기
+  const fetchLLMModels = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/health/llm-models`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setModelOptions(data.models || []);
+
+        // 현재 선택된 모델이 unhealthy면 healthy한 모델로 전환
+        const currentModel = data.models?.find((m: ModelOption) => m.key === selectedModel);
+        if (currentModel && currentModel.status !== "healthy") {
+          const healthyModel = data.models?.find((m: ModelOption) => m.status === "healthy");
+          if (healthyModel) {
+            onModelChange(healthyModel.key);
+            toast.info(`${currentModel.label} 서버가 오프라인입니다. ${healthyModel.label}로 전환되었습니다.`);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch LLM models:", error);
+    } finally {
+      setIsLoadingModels(false);
+    }
+  }, [selectedModel, onModelChange]);
+
+  // 마운트 시 + 30초 간격 polling
+  useEffect(() => {
+    fetchLLMModels();
+    const interval = setInterval(fetchLLMModels, 30000);
+    return () => clearInterval(interval);
+  }, [fetchLLMModels]);
 
   // 자동 포커스 제거 - 모바일에서 키보드가 자동으로 올라오는 문제 방지
   // useEffect(() => {
@@ -165,7 +227,8 @@ export const InputArea = memo(function InputArea({
 
   // 일상대화 모드에서는 disabled 무시하고 메시지만 있으면 전송 가능
   const canSend = !isLoading && input.trim().length > 0;
-  const selectedModelOption = modelOptions.find(m => m.value === selectedModel);
+  const selectedModelOption = modelOptions.find(m => m.key === selectedModel);
+  const isSelectedModelHealthy = selectedModelOption?.status === "healthy";
 
   return (
     <div className="flex-shrink-0 px-4 md:px-6 py-4">
@@ -369,18 +432,30 @@ export const InputArea = memo(function InputArea({
               <Select value={selectedModel} onValueChange={onModelChange}>
                 <SelectTrigger className="h-8 w-auto border-muted hover:bg-muted/50 transition-colors gap-1 rounded-full px-2">
                   <div className="flex items-center gap-1">
-                    {selectedModelOption?.icon}
+                    {selectedModelOption && <StatusDot status={selectedModelOption.status} />}
+                    {selectedModelOption && getModelIcon(selectedModelOption.key)}
                     <span className="text-[10px] font-medium">
-                      {selectedModel === "gpt-oss-20b" ? "GPT" : "EXA"}
+                      {selectedModelOption?.label?.split(" ")[0] || "LLM"}
                     </span>
                   </div>
                 </SelectTrigger>
-                <SelectContent align="end">
+                <SelectContent align="end" side="top">
                   {modelOptions.map((model) => (
-                    <SelectItem key={model.value} value={model.value}>
+                    <SelectItem
+                      key={model.key}
+                      value={model.key}
+                      disabled={model.status !== "healthy"}
+                      className={cn(
+                        model.status !== "healthy" && "opacity-50"
+                      )}
+                    >
                       <div className="flex items-center gap-2">
-                        {model.icon}
+                        <StatusDot status={model.status} />
+                        {getModelIcon(model.key)}
                         <span className="font-medium">{model.label}</span>
+                        {model.status !== "healthy" && (
+                          <span className="text-xs text-destructive">(오프라인)</span>
+                        )}
                       </div>
                     </SelectItem>
                   ))}
@@ -392,19 +467,35 @@ export const InputArea = memo(function InputArea({
               <Select value={selectedModel} onValueChange={onModelChange}>
                 <SelectTrigger className="h-8 w-auto border-muted hover:bg-muted/50 transition-colors gap-2 rounded-full">
                   <div className="flex items-center gap-1.5">
-                    {selectedModelOption?.icon}
+                    {selectedModelOption && <StatusDot status={selectedModelOption.status} />}
+                    {selectedModelOption && getModelIcon(selectedModelOption.key)}
                     <span className="text-xs font-medium">{selectedModelOption?.label}</span>
                   </div>
                 </SelectTrigger>
-                <SelectContent align="end">
+                <SelectContent align="end" side="top">
                   {modelOptions.map((model) => (
-                    <SelectItem key={model.value} value={model.value}>
+                    <SelectItem
+                      key={model.key}
+                      value={model.key}
+                      disabled={model.status !== "healthy"}
+                      className={cn(
+                        model.status !== "healthy" && "opacity-50"
+                      )}
+                    >
                       <div className="flex items-center gap-2">
-                        {model.icon}
+                        <StatusDot status={model.status} />
+                        {getModelIcon(model.key)}
                         <div className="flex flex-col">
-                          <span className="font-medium">{model.label}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{model.label}</span>
+                            {model.status !== "healthy" && (
+                              <span className="text-xs text-destructive">(오프라인)</span>
+                            )}
+                          </div>
                           <span className="text-xs text-muted-foreground">
-                            {model.description}
+                            {model.status === "healthy"
+                              ? model.description
+                              : model.error || "서버에 연결할 수 없습니다"}
                           </span>
                         </div>
                       </div>

@@ -232,6 +232,19 @@ async def health_ready():
     return JSONResponse(content=result, status_code=status_code)
 
 
+@app.get("/health/llm-models")
+@app.get("/api/health/llm-models")
+async def health_llm_models():
+    """
+    LLM 모델별 상태 확인
+
+    Returns:
+        각 LLM 모델의 상태 (healthy/unhealthy/unconfigured)
+    """
+    result = await health_service.check_llm_models()
+    return result
+
+
 @app.get("/favicon.ico")
 async def favicon():
     """파비콘 요청 처리 (204 No Content 반환)"""

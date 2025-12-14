@@ -69,12 +69,19 @@ class Settings(BaseSettings):
     GPT_OSS_20B_MODEL: str = "gpt-oss-20b"
 
     # EXAONE Deep 7.8B 설정 (공식 권장값 적용)
-    EXAONE_DEEP_URL: str = "http://localhost:8081"
+    EXAONE_DEEP_URL: str = "http://localhost:8085"
     EXAONE_DEEP_MODEL: str = "exaone-deep-7.8b"
     EXAONE_DEEP_TEMPERATURE: float = 0.6  # 공식 권장값
     EXAONE_DEEP_TOP_P: float = 0.95  # 공식 권장값
     EXAONE_DEEP_MAX_TOKENS: int = 8192  # reasoning 토큰 포함
     EXAONE_DEEP_REPETITION_PENALTY: float = 1.0  # 1.0 초과 금지 (공식 권장)
+
+    # EXAONE 4.0 32B 설정
+    EXAONE_4_0_32B_URL: str = "http://localhost:8081"
+    EXAONE_4_0_32B_MODEL: str = "exaone-4.0-32b"
+    EXAONE_4_0_32B_TEMPERATURE: float = 0.7
+    EXAONE_4_0_32B_TOP_P: float = 0.9
+    EXAONE_4_0_32B_MAX_TOKENS: int = 8192
 
     LLM_DEFAULT_TEMPERATURE: float = 0.7
     LLM_DEFAULT_MAX_TOKENS: int = 4096
@@ -179,7 +186,7 @@ class Settings(BaseSettings):
         모델 키를 기반으로 LLM 설정 반환
 
         Args:
-            model_key: 모델 키 (예: "gpt-oss-20b", "exaone-deep-7.8b")
+            model_key: 모델 키 (예: "gpt-oss-20b", "exaone-deep-7.8b", "exaone-4.0-32b")
 
         Returns:
             dict: {
@@ -208,6 +215,14 @@ class Settings(BaseSettings):
                 "max_tokens": self.EXAONE_DEEP_MAX_TOKENS,
                 "repetition_penalty": self.EXAONE_DEEP_REPETITION_PENALTY,
                 "is_exaone_deep": True
+            },
+            "exaone-4.0-32b": {
+                "base_url": self.EXAONE_4_0_32B_URL,
+                "model": self.EXAONE_4_0_32B_MODEL,
+                "temperature": self.EXAONE_4_0_32B_TEMPERATURE,
+                "top_p": self.EXAONE_4_0_32B_TOP_P,
+                "max_tokens": self.EXAONE_4_0_32B_MAX_TOKENS,
+                "is_exaone_deep": False
             }
         }
 
@@ -220,6 +235,34 @@ class Settings(BaseSettings):
             "max_tokens": self.LLM_DEFAULT_MAX_TOKENS,
             "is_exaone_deep": False
         })
+
+    def get_available_llm_models(self) -> list:
+        """
+        사용 가능한 LLM 모델 목록 반환 (프론트엔드용)
+
+        Returns:
+            list: 모델 정보 리스트
+        """
+        return [
+            {
+                "key": "gpt-oss-20b",
+                "label": "GPT-OSS 20B",
+                "description": "빠른 응답, 범용",
+                "url": self.GPT_OSS_20B_URL
+            },
+            {
+                "key": "exaone-deep-7.8b",
+                "label": "EXAONE 7.8B",
+                "description": "경량화, 빠른 추론",
+                "url": self.EXAONE_DEEP_URL
+            },
+            {
+                "key": "exaone-4.0-32b",
+                "label": "EXAONE 32B",
+                "description": "고성능, 장문 처리",
+                "url": self.EXAONE_4_0_32B_URL
+            }
+        ]
 
     class Config:
         # settings.py 파일의 위치를 기준으로 .env 파일의 절대 경로 계산
