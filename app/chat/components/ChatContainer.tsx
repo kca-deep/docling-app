@@ -503,13 +503,20 @@ export function ChatContainer() {
       let sources: Source[] = [];
       let retrievedDocs: RetrievedDocument[] = [];
       let messageCreated = false;
+      let sseBuffer = ""; // SSE 버퍼링: 불완전한 라인 보관
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value);
-        const lines = chunk.split("\n");
+        // SSE 버퍼링: 기존 버퍼에 새 청크 추가 (stream: true로 멀티바이트 문자 처리)
+        sseBuffer += decoder.decode(value, { stream: true });
+
+        // 완전한 라인들만 분리
+        const lines = sseBuffer.split("\n");
+
+        // 마지막 요소는 불완전할 수 있으므로 버퍼에 보관
+        sseBuffer = lines.pop() || "";
 
         for (const line of lines) {
           if (line.startsWith("data: ")) {
@@ -619,18 +626,54 @@ export function ChatContainer() {
                 }
               }
             } catch (e) {
-              console.debug("Failed to parse chunk:", data);
+              // SSE 버퍼링으로 인해 이 에러는 거의 발생하지 않아야 함
+              console.warn("[SSE] JSON parse failed:", {
+                data: data.substring(0, 200),
+                error: e instanceof Error ? e.message : e
+              });
             }
           }
         }
       }
 
-      // 스트리밍 완료 후 regenerationContext 추가
+      // SSE 버퍼에 남은 데이터 처리 (마지막 라인이 \n으로 끝나지 않은 경우)
+      if (sseBuffer.trim() && sseBuffer.startsWith("data: ")) {
+        const data = sseBuffer.slice(6);
+        if (data !== "[DONE]") {
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.sources && !sources.length) {
+              console.log("[SSE] Processing buffered sources data");
+              retrievedDocs = parsed.sources;
+              sources = parsed.sources.map((doc: RetrievedDocument) => ({
+                id: doc.id,
+                title: doc.metadata?.headings?.join(' > ') || doc.metadata?.filename || `문서 ${doc.id}`,
+                content: doc.text,
+                score: doc.score,
+                metadata: {
+                  file: doc.metadata?.filename,
+                  chunk_index: doc.metadata?.chunk_index,
+                  document_id: doc.metadata?.document_id,
+                  num_tokens: doc.metadata?.num_tokens,
+                  page: doc.metadata?.page,
+                  url: doc.metadata?.url,
+                },
+              }));
+              setCurrentSources(sources);
+            }
+          } catch (e) {
+            console.warn("[SSE] Final buffer parse failed:", { data: data.substring(0, 100) });
+          }
+        }
+      }
+
+      // 스트리밍 완료 후 sources와 regenerationContext 추가
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === aiMessageId
             ? {
                 ...msg,
+                sources: sources.length > 0 ? sources : msg.sources, // sources 최종 반영
                 regenerationContext: {
                   originalQuery: userMessage.content,
                   collectionName: selectedCollection,
@@ -784,14 +827,21 @@ export function ChatContainer() {
       let aiReasoningContent = "";
       let messageCreated = false;
       let sources: Source[] = [];
+      let sseBuffer = ""; // SSE 버퍼링: 불완전한 라인 보관
 
       if (reader) {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split("\n");
+          // SSE 버퍼링: 기존 버퍼에 새 청크 추가
+          sseBuffer += decoder.decode(value, { stream: true });
+
+          // 완전한 라인들만 분리
+          const lines = sseBuffer.split("\n");
+
+          // 마지막 요소는 불완전할 수 있으므로 버퍼에 보관
+          sseBuffer = lines.pop() || "";
 
           for (const line of lines) {
             if (!line.startsWith("data: ")) continue;
@@ -888,18 +938,52 @@ export function ChatContainer() {
                 }
               }
             } catch (e) {
-              console.debug("Failed to parse chunk:", data);
+              console.warn("[SSE Regenerate] JSON parse failed:", {
+                data: data.substring(0, 200),
+                error: e instanceof Error ? e.message : e
+              });
+            }
+          }
+        }
+
+        // SSE 버퍼에 남은 데이터 처리
+        if (sseBuffer.trim() && sseBuffer.startsWith("data: ")) {
+          const data = sseBuffer.slice(6);
+          if (data !== "[DONE]") {
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.sources && !sources.length) {
+                console.log("[SSE Regenerate] Processing buffered sources data");
+                sources = parsed.sources.map((doc: RetrievedDocument) => ({
+                  id: doc.id,
+                  title: doc.metadata?.headings?.join(' > ') || doc.metadata?.filename || `문서 ${doc.id}`,
+                  content: doc.text,
+                  score: doc.score,
+                  metadata: {
+                    file: doc.metadata?.filename,
+                    chunk_index: doc.metadata?.chunk_index,
+                    document_id: doc.metadata?.document_id,
+                    num_tokens: doc.metadata?.num_tokens,
+                    page: doc.metadata?.page,
+                    url: doc.metadata?.url,
+                  },
+                }));
+                setCurrentSources(sources);
+              }
+            } catch (e) {
+              console.warn("[SSE Regenerate] Final buffer parse failed:", { data: data.substring(0, 100) });
             }
           }
         }
       }
 
-      // 스트리밍 완료 후 regenerationContext 추가
+      // 스트리밍 완료 후 sources와 regenerationContext 추가
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === aiMessageId
             ? {
                 ...msg,
+                sources: sources.length > 0 ? sources : msg.sources, // sources 최종 반영
                 regenerationContext: {
                   originalQuery: context.originalQuery,
                   collectionName: context.collectionName,
