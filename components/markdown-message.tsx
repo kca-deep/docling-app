@@ -51,7 +51,7 @@ function MarkdownTable({ children }: { children: React.ReactNode }) {
       </div>
       <CollapsibleContent>
         <div className="w-full rounded-md border overflow-x-auto max-w-full">
-          <table className="w-full divide-y divide-border border-collapse text-sm table-fixed">
+          <table className="w-full divide-y divide-border border-collapse text-sm table-auto">
             {children}
           </table>
         </div>
@@ -64,7 +64,7 @@ function MarkdownTable({ children }: { children: React.ReactNode }) {
 function CompactTable({ children }: { children: React.ReactNode }) {
   return (
     <div className="my-3 w-full rounded-md border overflow-x-auto">
-      <table className="w-full divide-y divide-border border-collapse text-sm table-fixed">
+      <table className="w-full divide-y divide-border border-collapse text-sm table-auto">
         {children}
       </table>
     </div>

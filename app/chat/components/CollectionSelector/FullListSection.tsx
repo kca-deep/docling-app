@@ -54,7 +54,7 @@ export function FullListSection({
 
       {/* 목록 */}
       {expanded && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5">
           {sortedCollections.map((collection) => (
             <CollectionCard
               key={collection.name}

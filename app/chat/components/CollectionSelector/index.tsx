@@ -106,22 +106,22 @@ export function CollectionSelector({
           aria-expanded={open}
           disabled={disabled}
           className={cn(
-            "h-8 w-auto min-w-[140px] justify-between gap-2 rounded-full",
+            "h-8 w-auto min-w-[100px] max-w-[140px] sm:min-w-[140px] sm:max-w-[200px] justify-between gap-1 sm:gap-2 rounded-full",
             "border-muted hover:bg-muted/50 transition-colors"
           )}
         >
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1 sm:gap-1.5 overflow-hidden">
             <SelectedIcon
-              className="h-3.5 w-3.5"
+              className="h-3.5 w-3.5 flex-shrink-0"
               style={{ color: "var(--chart-2)" }}
             />
-            <span className="text-xs font-medium">{selectedDisplayName}</span>
+            <span className="text-xs font-medium truncate">{selectedDisplayName}</span>
           </div>
-          <ChevronDown className="h-3 w-3 opacity-50" />
+          <ChevronDown className="h-3 w-3 opacity-50 flex-shrink-0" />
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent className="w-[calc(100vw-2rem)] sm:w-[720px] max-w-[720px] p-0" align="start">
+      <PopoverContent className="w-[calc(100vw-1rem)] sm:w-[640px] md:w-[800px] max-w-[800px] p-0" align="start">
         {/* 헤더 */}
         <div className="px-3 py-2 border-b">
           <h4 className="font-medium text-sm">지식 베이스 선택</h4>
@@ -134,7 +134,7 @@ export function CollectionSelector({
           placeholder="컬렉션 검색..."
         />
 
-        <div className="max-h-[400px] overflow-y-auto">
+        <div className="max-h-[60vh] sm:max-h-[450px] overflow-y-auto">
           {/* 검색 중일 때 */}
           {searchQuery ? (
             <div className="p-3">
@@ -143,7 +143,7 @@ export function CollectionSelector({
                   <p className="text-xs text-muted-foreground px-1 py-1 mb-2">
                     검색 결과 ({filteredCollections.length}개)
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5">
                     {filteredCollections.map((c) => (
                       <CollectionCard
                         key={c.name}

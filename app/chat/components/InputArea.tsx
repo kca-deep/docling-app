@@ -288,7 +288,7 @@ export const InputArea = memo(function InputArea({
             />
 
             {/* 전송/중단 버튼 (입력창 내부) */}
-            <div className="absolute bottom-3 right-5">
+            <div className="absolute bottom-2 sm:bottom-3 right-3 sm:right-5">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -297,7 +297,7 @@ export const InputArea = memo(function InputArea({
                       disabled={isStreaming ? false : !canSend}
                       size="icon"
                       className={cn(
-                        "h-10 w-10 rounded-full transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-110 active:scale-95",
+                        "h-8 w-8 sm:h-10 sm:w-10 rounded-full transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-110 active:scale-95",
                         isStreaming
                           ? "bg-destructive text-destructive-foreground hover:bg-destructive/90 animate-pulse"
                           : !canSend
@@ -327,7 +327,7 @@ export const InputArea = memo(function InputArea({
           {/* 하단 기능 버튼들 - Claude 스타일 */}
           <div className="px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between gap-1 sm:gap-2">
             {/* 왼쪽: 컬렉션 선택 및 기능 버튼들 */}
-            <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+            <div className="flex items-center gap-1 sm:gap-2 flex-nowrap overflow-hidden">
               {/* 컬렉션 선택 - 새로운 CollectionSelector 컴포넌트 */}
               <CollectionSelector
                 selectedCollection={selectedCollection}

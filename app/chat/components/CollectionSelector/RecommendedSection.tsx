@@ -25,7 +25,7 @@ export function RecommendedSection({
           추천 ({collections.length}개)
         </span>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5">
         {collections.map((collection) => (
           <CollectionCard
             key={collection.name}

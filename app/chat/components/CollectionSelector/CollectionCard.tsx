@@ -53,7 +53,7 @@ export function CollectionCard({
     <button
       onClick={onSelect}
       className={cn(
-        "flex flex-col p-2.5 rounded-lg border text-left transition-all",
+        "flex flex-col p-2 rounded-lg border text-left transition-all",
         "hover:border-primary/50 hover:bg-muted/50 hover:shadow-sm",
         isSelected
           ? "border-primary bg-primary/5 ring-2 ring-primary/20"
@@ -61,35 +61,35 @@ export function CollectionCard({
       )}
     >
       {/* 상단: 아이콘 + 제목 + 체크 */}
-      <div className="flex items-center gap-2 mb-1.5">
+      <div className="flex items-center gap-1.5 mb-1">
         <Icon
-          className="h-4 w-4 flex-shrink-0"
+          className="h-3.5 w-3.5 flex-shrink-0"
           style={{ color: "var(--chart-2)" }}
         />
         <h4 className="font-semibold text-sm truncate flex-1">
           {highlightText ? highlightMatch(displayName, highlightText) : displayName}
         </h4>
         {isSelected && (
-          <Check className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+          <Check className="h-3 w-3 text-primary flex-shrink-0" />
         )}
       </div>
 
       {/* 키워드 (1줄) */}
       {keywords.length > 0 && (
-        <p className="text-xs text-muted-foreground truncate mb-1.5">
-          {keywords.slice(0, 3).join(", ")}
-          {keywords.length > 3 && ` +${keywords.length - 3}`}
+        <p className="text-xs text-muted-foreground truncate mb-1">
+          {keywords.slice(0, 2).join(", ")}
+          {keywords.length > 2 && ` +${keywords.length - 2}`}
         </p>
       )}
 
       {/* 하단: 문서 수 / 청크 수 */}
-      <div className="flex items-center gap-3 pt-1.5 border-t border-muted">
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          <FileText className="h-3 w-3" />
+      <div className="flex items-center gap-2 pt-1 border-t border-muted">
+        <div className="flex items-center gap-0.5 text-xs text-muted-foreground">
+          <FileText className="h-2.5 w-2.5" />
           <span>{collection.documents_count}</span>
         </div>
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          <Database className="h-3 w-3" />
+        <div className="flex items-center gap-0.5 text-xs text-muted-foreground">
+          <Database className="h-2.5 w-2.5" />
           <span>{formatNumber(collection.points_count)}</span>
         </div>
       </div>
