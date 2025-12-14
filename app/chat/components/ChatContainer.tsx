@@ -576,11 +576,11 @@ export function ChatContainer() {
                     },
                   ]);
                 } else {
-                  // 메시지가 이미 있으면 reasoningContent만 업데이트
+                  // 메시지가 이미 있으면 reasoningContent와 sources 업데이트
                   setMessages((prev) =>
                     prev.map((msg) =>
                       msg.id === aiMessageId
-                        ? { ...msg, reasoningContent: aiReasoningContent }
+                        ? { ...msg, reasoningContent: aiReasoningContent, sources: sources.length > 0 ? sources : msg.sources }
                         : msg
                     )
                   );
