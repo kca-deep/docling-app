@@ -76,8 +76,7 @@ export const MessageBubble = memo(function MessageBubble({
   isStreaming,
 }: MessageBubbleProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [thoughtExpanded, setThoughtExpanded] = useState(false);
-  const [reasoningExpanded, setReasoningExpanded] = useState(false); // GPT-OSS 추론 과정
+  const [reasoningExpanded, setReasoningExpanded] = useState(false); // 추론 과정 (GPT-OSS, EXAONE 공통)
   const [openTooltipId, setOpenTooltipId] = useState<string | null>(null);
   const [mobileModalOpen, setMobileModalOpen] = useState(false);
 
@@ -101,75 +100,8 @@ export const MessageBubble = memo(function MessageBubble({
     }
   }, [isStreaming, reasoningContent, content]);
 
-  // 메시지 내용 파싱: <thought> 태그와 답변 부분 분리
-  const parseMessageContent = (content: string, streaming: boolean = false) => {
-    // 스트리밍 중: <thought>로 시작하는지 확인
-    if (streaming) {
-      const thoughtStart = content.indexOf('<thought>');
-      if (thoughtStart === -1) {
-        // <thought> 태그 없음 - 전체를 답변으로 처리
-        return {
-          hasThought: false,
-          thought: '',
-          answer: content,
-          thoughtClosed: true,
-        };
-      }
-
-      const thoughtEnd = content.indexOf('</thought>');
-
-      if (thoughtEnd === -1) {
-        // <thought>는 있지만 </thought>가 아직 없음 - 스트리밍 중
-        const thoughtContent = content.substring(thoughtStart + 9); // '<thought>'.length = 9
-        return {
-          hasThought: true,
-          thought: thoughtContent,
-          answer: '',
-          thoughtClosed: false, // 아직 닫히지 않음
-        };
-      } else {
-        // <thought>와 </thought> 모두 있음 - 완성됨
-        const thoughtContent = content.substring(thoughtStart + 9, thoughtEnd).trim();
-        const answerContent = content.substring(thoughtEnd + 10).trim(); // '</thought>'.length = 10
-        return {
-          hasThought: true,
-          thought: thoughtContent,
-          answer: answerContent,
-          thoughtClosed: true,
-        };
-      }
-    }
-
-    // 비스트리밍: 기존 로직 (완성된 메시지)
-    const thoughtRegex = /<thought>([\s\S]*?)<\/thought>/;
-    const thoughtMatch = content.match(thoughtRegex);
-
-    if (thoughtMatch) {
-      const thoughtContent = thoughtMatch[1].trim();
-      const answerContent = content.replace(thoughtRegex, '').trim();
-
-      return {
-        hasThought: true,
-        thought: thoughtContent,
-        answer: answerContent,
-        thoughtClosed: true,
-      };
-    }
-
-    return {
-      hasThought: false,
-      thought: '',
-      answer: content,
-      thoughtClosed: true,
-    };
-  };
-
-  // EXAONE 모델인지 확인 및 메시지 파싱
-  const isExaone = model?.toLowerCase().includes('exaone');
-  const parsedContent = isExaone && role === 'assistant' ? parseMessageContent(content, isStreaming) : null;
-
   // 추론 진행 중 상태 (thinking 애니메이션용)
-  const isThinking = isStreaming && parsedContent?.hasThought && !parsedContent?.thoughtClosed;
+  const isThinkingInProgress = isStreaming && reasoningContent && !content;
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString("ko-KR", {
@@ -251,57 +183,10 @@ export const MessageBubble = memo(function MessageBubble({
           )}
         >
           <div className={cn("min-w-0 link-primary prose-sm", role === "assistant" && "text-foreground/90")}>
-            {parsedContent && parsedContent.hasThought ? (
-              // EXAONE 모델: 추론 과정과 답변 분리 표시
+            {role === "assistant" && reasoningContent ? (
+              // 추론 과정이 있는 경우 (GPT-OSS, EXAONE 공통)
               <div className="space-y-3">
                 {/* 추론 과정 (접을 수 있음) */}
-                {parsedContent.thought && (
-                  <Collapsible open={thoughtExpanded} onOpenChange={setThoughtExpanded} className="w-full">
-                    <div className="rounded-lg border bg-muted/30 overflow-hidden">
-                      <CollapsibleTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="w-full justify-between p-3 hover:bg-muted/50 rounded-none"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium text-muted-foreground">
-                              💭 추론 과정
-                            </span>
-                            {isThinking && !thoughtExpanded && (
-                              <span className="flex items-center gap-1 text-[0.65rem] text-primary animate-pulse">
-                                <span className="inline-block w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                                <span className="inline-block w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                                <span className="inline-block w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                                <span className="ml-1">thinking...</span>
-                              </span>
-                            )}
-                          </div>
-                          {thoughtExpanded ? (
-                            <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                          )}
-                        </Button>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <div className="px-3 pb-3 text-xs text-muted-foreground whitespace-pre-wrap border-t pt-3">
-                          {parsedContent.thought}
-                        </div>
-                      </CollapsibleContent>
-                    </div>
-                  </Collapsible>
-                )}
-
-                {/* 답변 */}
-                {parsedContent.answer && (
-                  <MarkdownMessage content={parsedContent.answer} />
-                )}
-              </div>
-            ) : role === "assistant" && reasoningContent ? (
-              // GPT-OSS 모델: 추론 과정과 답변 분리 표시
-              <div className="space-y-3">
-                {/* GPT-OSS 추론 과정 (접을 수 있음) */}
                 <Collapsible open={reasoningExpanded} onOpenChange={setReasoningExpanded} className="w-full">
                   <div className="rounded-lg border bg-muted/30 overflow-hidden">
                     <CollapsibleTrigger asChild>
@@ -313,11 +198,21 @@ export const MessageBubble = memo(function MessageBubble({
                         <div className="flex items-center gap-2">
                           <Brain className="h-3.5 w-3.5 text-muted-foreground" />
                           <span className="text-xs font-medium text-muted-foreground">
-                            추론 과정
+                            {model || 'AI'} 추론 과정
                           </span>
-                          <span className="text-[0.65rem] text-muted-foreground/70">
-                            ({reasoningContent.length}자)
-                          </span>
+                          {isThinkingInProgress && !reasoningExpanded && (
+                            <span className="flex items-center gap-1 text-[0.65rem] text-primary animate-pulse">
+                              <span className="inline-block w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <span className="inline-block w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <span className="inline-block w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                              <span className="ml-1">thinking...</span>
+                            </span>
+                          )}
+                          {!isThinkingInProgress && (
+                            <span className="text-[0.65rem] text-muted-foreground/70">
+                              ({reasoningContent.length}자)
+                            </span>
+                          )}
                         </div>
                         {reasoningExpanded ? (
                           <ChevronUp className="h-4 w-4 text-muted-foreground" />

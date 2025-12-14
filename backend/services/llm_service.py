@@ -208,7 +208,7 @@ class LLMService:
 
             result = response.json()
 
-            # 모델별 응답 후처리 (EXAONE의 thought 태그 제거 등)
+            # 모델별 응답 처리
             if result.get("choices") and len(result["choices"]) > 0:
                 message = result["choices"][0].get("message", {})
                 content = message.get("content", "")
@@ -217,16 +217,34 @@ class LLMService:
                 # GPT-OSS의 reasoning_content 처리
                 if reasoning_content:
                     logger.info(f"[LLM API CALL] reasoning_content detected ({len(reasoning_content)} chars)")
-                    # reasoning_content를 응답에 포함 (프론트엔드에서 표시 가능)
                     result["choices"][0]["message"]["reasoning_content"] = reasoning_content
 
-                    # content가 비어있으면 reasoning_content를 content로 사용 (fallback)
                     if not content.strip():
                         logger.warning("[LLM API CALL] content is empty, using reasoning_content as fallback")
                         content = reasoning_content
 
-                cleaned_content = self._clean_model_response(content, model_key)
-                result["choices"][0]["message"]["content"] = cleaned_content
+                # EXAONE <thought> 태그 처리: 추론 내용 분리하여 reasoning_content로 저장
+                is_exaone = "exaone" in model_key.lower()
+
+                # 가상 <thought> 태그 추가
+                # chat_template이 generation_prompt로 <thought>\n을 추가하지만
+                # llama.cpp API 응답에는 포함되지 않으므로 가상으로 복원
+                if is_exaone and '</thought>' in content and '<thought>' not in content:
+                    content = '<thought>\n' + content
+                    logger.info("[LLM API CALL] EXAONE: Added virtual <thought> tag (chat_template prefix)")
+
+                if is_exaone and '<thought>' in content and '</thought>' in content:
+                    thought_start = content.find('<thought>')
+                    thought_end = content.find('</thought>')
+                    if thought_start < thought_end:
+                        thought_content = content[thought_start + 9:thought_end]
+                        answer_content = content[thought_end + 10:].strip()
+                        result["choices"][0]["message"]["reasoning_content"] = thought_content
+                        result["choices"][0]["message"]["content"] = answer_content
+                        logger.info(f"[LLM API CALL] EXAONE thought extracted ({len(thought_content)} chars)")
+                else:
+                    # EXAONE이 아니거나 thought 태그가 없으면 그대로 유지
+                    result["choices"][0]["message"]["content"] = content.strip()
 
             logger.info(f"[LLM API CALL] Completion successful. Tokens used: {result.get('usage', {}).get('total_tokens', 'N/A')}")
             return result
@@ -299,70 +317,20 @@ class LLMService:
             async with self.client.stream("POST", url, json=payload) as response:
                 response.raise_for_status()
 
-                is_exaone = "exaone" in model_key.lower()
+                # 모든 모델: 원본 응답 그대로 전송
+                # EXAONE <thought> 태그 처리는 chat.py에서 수행
+                buffer = ""
+                async for chunk in response.aiter_text():
+                    buffer += chunk
 
-                if is_exaone:
-                    # EXAONE Deep: thought 블록 버퍼링 후 제거
-                    thought_buffer = ""
-                    thought_ended = False
-                    sse_buffer = ""
+                    while "\n" in buffer:
+                        line, buffer = buffer.split("\n", 1)
 
-                    async for chunk in response.aiter_text():
-                        sse_buffer += chunk
+                        if line.strip():
+                            yield f"{line}\n"
 
-                        while "\n" in sse_buffer:
-                            line, sse_buffer = sse_buffer.split("\n", 1)
-
-                            if not line.strip():
-                                continue
-
-                            # SSE에서 content 추출
-                            content = self._extract_content_from_sse(line)
-                            if content is None:
-                                # data: [DONE] 등은 그대로 전송
-                                if line.startswith("data:"):
-                                    yield f"{line}\n"
-                                continue
-
-                            if not thought_ended:
-                                # thought 블록 버퍼링
-                                thought_buffer += content
-
-                                if '</thought>' in thought_buffer:
-                                    thought_ended = True
-                                    # </thought> 이후 내용 추출
-                                    after_thought = thought_buffer.split('</thought>', 1)[-1]
-                                    after_thought = self._clean_exaone_content(after_thought)
-                                    if after_thought.strip():
-                                        yield self._create_sse_chunk(after_thought)
-                                    thought_buffer = ""
-                            else:
-                                # thought 종료 후에는 태그 정리 후 바로 전송
-                                cleaned = self._clean_exaone_content(content)
-                                if cleaned:
-                                    yield self._create_sse_chunk(cleaned)
-
-                    # 버퍼에 남은 데이터 처리
-                    if sse_buffer.strip():
-                        content = self._extract_content_from_sse(sse_buffer)
-                        if content and thought_ended:
-                            cleaned = self._clean_exaone_content(content)
-                            if cleaned:
-                                yield self._create_sse_chunk(cleaned)
-                else:
-                    # 기존 모델 (GPT-OSS 등): 그대로 전송
-                    buffer = ""
-                    async for chunk in response.aiter_text():
-                        buffer += chunk
-
-                        while "\n" in buffer:
-                            line, buffer = buffer.split("\n", 1)
-
-                            if line.strip():
-                                yield f"{line}\n"
-
-                    if buffer.strip():
-                        yield f"{buffer}\n"
+                if buffer.strip():
+                    yield f"{buffer}\n"
 
             logger.info(f"[LLM STREAM] Streaming completed")
 

@@ -52,11 +52,12 @@ class PromptLoader:
 
         # EXAONE Deep 전용 - 지시사항 상세함으로 조절
         # https://huggingface.co/LGAI-EXAONE/EXAONE-Deep-7.8B-GGUF 권장
-        # EXAONE은 별도 reasoning level 개념이 없으며, 지시사항으로 조절
+        # EXAONE Deep의 chat template이 <thought> 태그를 자동 처리함
+        # high 레벨에서는 모델의 기본 추론을 그대로 사용
         self.exaone_reasoning_instructions = {
             "low": "간결하게 답변하세요.",
             "medium": "",  # 기본 동작, 추가 지시 없음
-            "high": "Please reason step by step. 단계별로 깊이 분석하여 상세하게 답변하세요."
+            "high": ""  # EXAONE Deep 기본 추론 모드 사용 (chat template이 <thought> 처리)
         }
 
         # 하위 호환성을 위해 기본 instructions도 유지

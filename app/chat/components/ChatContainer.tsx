@@ -1108,7 +1108,13 @@ export function ChatContainer() {
             quotedMessage={quotedMessage && quotedMessage.role !== "system" ? { role: quotedMessage.role, content: quotedMessage.content } : null}
             onClearQuote={handleClearQuote}
             selectedModel={settings.model}
-            onModelChange={(model) => setSettings({ ...settings, model })}
+            onModelChange={(model) => {
+              console.log('[MODEL CHANGE] User selected model:', model);
+              setSettings(prev => {
+                console.log('[MODEL CHANGE] Previous model:', prev.model, '→ New model:', model);
+                return { ...prev, model };
+              });
+            }}
             onClearChat={handleClearChat}
             isFullscreen={isFullscreen}
             selectedCollection={selectedCollection}

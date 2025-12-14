@@ -52,8 +52,15 @@ backend/venv/
 /*.pptx
 /*.xlsx
 
-# Test scripts (root level)
+# Test scripts and results (root level)
 /test_*.py
+/*_results.json
+/*_test_results.json
+
+# Scripts folder - test files and results
+scripts/test_*.py
+scripts/test_*.json
+scripts/*_results.json
 
 # Docs folder - ignore test data, binaries, and plan documents
 docs/*/

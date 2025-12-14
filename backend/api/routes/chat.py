@@ -593,6 +593,14 @@ async def chat_stream(
                     return
 
             # 일반 스트리밍 모드
+            # EXAONE 모델 감지 및 <thought> 태그 처리를 위한 상태 변수
+            is_exaone = "exaone" in chat_request.model.lower()
+            exaone_buffer = ""  # EXAONE 응답 버퍼 (추론 분리 전)
+            exaone_answer_buffer = ""  # EXAONE 답변 버퍼 (태그 제거용)
+            exaone_in_thought = False  # <thought> 태그 내부 여부
+            exaone_thought_sent = False  # 첫 thought 내용 전송 여부
+            exaone_answer_started = False  # 한국어 답변 시작 여부 (실시간 스트리밍용)
+
             try:
                 async for chunk in rag_service.chat_stream(
                     collection_name=chat_request.collection_name,
@@ -634,21 +642,80 @@ async def chat_stream(
                                         logger.info(f"[STREAM DEBUG] Full chunk: {data}")
                                         logger.info(f"[STREAM DEBUG] choice keys: {list(choice.keys())}, delta keys: {list(delta.keys())}, delta: {delta}")
 
-                                    if content:
-                                        collected_response["answer"] += content
-                                    if reasoning_content:
-                                        logger.info(f"[STREAM DEBUG] Got reasoning_content chunk: {len(reasoning_content)} chars")
-                                        collected_response["reasoning_content"] += reasoning_content
-                                        # 실시간으로 reasoning_chunk 이벤트 전송
-                                        reasoning_chunk_event = {
-                                            "type": "reasoning_chunk",
-                                            "content": reasoning_content
-                                        }
-                                        yield f'data: {json.dumps(reasoning_chunk_event)}\n\n'
+                                    # EXAONE 모델: 하이브리드 우선순위로 추론/답변 분리
+                                    # 우선순위: 1) </thought> 태그 2) 답변 마커 3) 연속 한국어 (버퍼 초과 시)
+                                    if is_exaone and content:
+                                        # 이미 답변 스트리밍 중이면 버퍼링 후 태그 제거하여 전송
+                                        if exaone_answer_started:
+                                            exaone_answer_buffer += content
+
+                                            # 먼저 불완전한 태그 패턴 확인 (원본 버퍼에서)
+                                            pending_part = ""
+                                            for pattern in ['</thought', '</thoug', '</thou', '</tho', '</th', '</t', '</',
+                                                          '<thought', '<thoug', '<thou', '<tho', '<th', '<t', '<']:
+                                                if exaone_answer_buffer.endswith(pattern):
+                                                    pending_part = pattern
+                                                    exaone_answer_buffer = exaone_answer_buffer[:-len(pattern)]
+                                                    break
+
+                                            # 버퍼에서 완전한 태그 제거
+                                            clean_buffer = exaone_answer_buffer.replace('<thought>', '').replace('</thought>', '')
+
+                                            # 전송할 내용이 있으면 전송
+                                            if clean_buffer:
+                                                collected_response["answer"] += clean_buffer
+                                                yield f'data: {json.dumps({"choices": [{"delta": {"content": clean_buffer}, "index": 0}]})}\n\n'
+
+                                            # 대기 중인 불완전 태그만 버퍼에 유지
+                                            exaone_answer_buffer = pending_part
+                                        else:
+                                            # 버퍼에 축적
+                                            exaone_buffer += content
+
+                                            # </thought> 태그만 신뢰 (마커 폴백 제거 - 예시 답변 오탐 방지)
+                                            if '</thought>' in exaone_buffer:
+                                                thought_end = exaone_buffer.find('</thought>')
+                                                thought_content = exaone_buffer[:thought_end].replace('<thought>', '').strip()
+                                                # 답변 부분에서 <thought>, </thought> 태그 모두 제거
+                                                answer_content = exaone_buffer[thought_end + 10:].replace('<thought>', '').replace('</thought>', '').strip()
+
+                                                # 추론 전송
+                                                if thought_content:
+                                                    collected_response["reasoning_content"] += thought_content
+                                                    yield f'data: {json.dumps({"type": "reasoning_chunk", "content": thought_content})}\n\n'
+                                                    logger.info(f"[EXAONE] Reasoning sent (tag): {len(thought_content)} chars")
+
+                                                # 답변 전송 (태그 정리됨)
+                                                if answer_content:
+                                                    collected_response["answer"] += answer_content
+                                                    yield f'data: {json.dumps({"choices": [{"delta": {"content": answer_content}, "index": 0}]})}\n\n'
+                                                    logger.info(f"[EXAONE] Answer started (tag): {len(answer_content)} chars")
+
+                                                exaone_answer_started = True
+                                                exaone_in_thought = False
+                                                exaone_buffer = ""
+                                            # else: 계속 버퍼링 (</thought> 태그 대기 중)
+
+                                    else:
+                                        # GPT-OSS 및 기타 모델
+                                        if content:
+                                            collected_response["answer"] += content
+                                        if reasoning_content:
+                                            logger.info(f"[STREAM DEBUG] Got reasoning_content chunk: {len(reasoning_content)} chars")
+                                            collected_response["reasoning_content"] += reasoning_content
+                                            # 실시간으로 reasoning_chunk 이벤트 전송
+                                            reasoning_chunk_event = {
+                                                "type": "reasoning_chunk",
+                                                "content": reasoning_content
+                                            }
+                                            yield f'data: {json.dumps(reasoning_chunk_event)}\n\n'
 
                                 # rag_service에서 'sources'로 보내므로 둘 다 처리
                                 if 'sources' in data:
                                     collected_response["retrieved_docs"] = data['sources']
+                                    # EXAONE도 sources는 전달해야 함
+                                    if is_exaone:
+                                        yield f'data: {json.dumps({"sources": data["sources"]})}\n\n'
                                 if 'retrieved_docs' in data:
                                     collected_response["retrieved_docs"] = data['retrieved_docs']
                                 if 'usage' in data:
@@ -656,12 +723,36 @@ async def chat_stream(
                         except json.JSONDecodeError:
                             pass
 
-                    # [DONE] 로깅 (reasoning_content는 이미 실시간으로 전송됨)
+                    # [DONE] 처리
                     if 'data: [DONE]' in chunk:
                         rc_len = len(collected_response["reasoning_content"])
                         logger.info(f"[STREAM DEBUG] [DONE] detected, total reasoning_content: {rc_len} chars")
 
-                    yield chunk
+                        # EXAONE: 답변 버퍼에 남은 내용 처리 (태그 제거 후 전송)
+                        if is_exaone and exaone_answer_buffer:
+                            remaining = exaone_answer_buffer.replace('<thought>', '').replace('</thought>', '')
+                            if remaining.strip():
+                                collected_response["answer"] += remaining
+                                yield f'data: {json.dumps({"choices": [{"delta": {"content": remaining}, "index": 0}]})}\n\n'
+                                logger.info(f"[EXAONE DONE] 답변 버퍼 잔여분 전송: {len(remaining)} chars")
+
+                        # EXAONE: 추론 버퍼에 내용이 남아있는 경우 처리 (응답 종료 시점)
+                        # </thought> 태그가 감지되지 않은 경우 - 전체를 답변으로 처리
+                        if is_exaone and exaone_buffer and not exaone_answer_started:
+                            logger.warning(f"[EXAONE DONE] </thought> 태그 없이 종료, 버퍼 길이: {len(exaone_buffer)}")
+
+                            # <thought>, </thought> 태그 정리 후 전체를 답변으로 처리
+                            clean_buffer = exaone_buffer.replace('<thought>', '').replace('</thought>', '').strip()
+
+                            if clean_buffer:
+                                collected_response["answer"] += clean_buffer
+                                yield f'data: {json.dumps({"choices": [{"delta": {"content": clean_buffer}, "index": 0}]})}\n\n'
+                                logger.info(f"[EXAONE DONE] 전체를 답변으로 전송: {len(clean_buffer)} chars")
+
+                        yield chunk  # [DONE] 전달
+                    elif not is_exaone:
+                        # EXAONE이 아닌 경우만 원본 chunk 전달
+                        yield chunk
             except Exception as e:
                 logger.error(f"[CHAT API] Stream generation failed: {e}")
                 stream_error_info = {
@@ -919,6 +1010,13 @@ async def regenerate_stream(request: RegenerateRequest):
                 ]
                 yield f'data: {json.dumps({"sources": sources_data}, ensure_ascii=False)}\n\n'
 
+                # EXAONE 모델 감지 및 <thought> 태그 처리를 위한 상태 변수
+                is_exaone = "exaone" in request.model.lower()
+                exaone_buffer = ""  # EXAONE 응답 버퍼 (추론 분리 전)
+                exaone_answer_buffer = ""  # EXAONE 답변 버퍼 (태그 제거용)
+                exaone_in_thought = False
+                exaone_answer_started = False  # 한국어 답변 시작 여부 (실시간 스트리밍용)
+
                 # 스트리밍 생성
                 async for chunk in rag_service.generate_stream(
                     query=request.query,
@@ -947,27 +1045,98 @@ async def regenerate_stream(request: RegenerateRequest):
                                     content = delta.get('content', '')
                                     reasoning_content = delta.get('reasoning_content', '')
 
-                                    if content:
-                                        collected_response["answer"] += content
-                                    if reasoning_content:
-                                        logger.info(f"[REGENERATE STREAM] Got reasoning_content chunk: {len(reasoning_content)} chars")
-                                        collected_response["reasoning_content"] += reasoning_content
-                                        # 실시간으로 reasoning_chunk 이벤트 전송
-                                        reasoning_chunk_event = {
-                                            "type": "reasoning_chunk",
-                                            "content": reasoning_content
-                                        }
-                                        yield f'data: {json.dumps(reasoning_chunk_event)}\n\n'
+                                    # EXAONE 모델: 하이브리드 우선순위로 추론/답변 분리
+                                    # 우선순위: 1) </thought> 태그 2) 답변 마커 3) 연속 한국어 (버퍼 초과 시)
+                                    if is_exaone and content:
+                                        # 이미 답변 스트리밍 중이면 버퍼링 후 태그 제거하여 전송
+                                        if exaone_answer_started:
+                                            exaone_answer_buffer += content
+
+                                            # 먼저 불완전한 태그 패턴 확인 (원본 버퍼에서)
+                                            pending_part = ""
+                                            for pattern in ['</thought', '</thoug', '</thou', '</tho', '</th', '</t', '</',
+                                                          '<thought', '<thoug', '<thou', '<tho', '<th', '<t', '<']:
+                                                if exaone_answer_buffer.endswith(pattern):
+                                                    pending_part = pattern
+                                                    exaone_answer_buffer = exaone_answer_buffer[:-len(pattern)]
+                                                    break
+
+                                            # 버퍼에서 완전한 태그 제거
+                                            clean_buffer = exaone_answer_buffer.replace('<thought>', '').replace('</thought>', '')
+
+                                            # 전송할 내용이 있으면 전송
+                                            if clean_buffer:
+                                                collected_response["answer"] += clean_buffer
+                                                yield f'data: {json.dumps({"choices": [{"delta": {"content": clean_buffer}, "index": 0}]})}\n\n'
+
+                                            # 대기 중인 불완전 태그만 버퍼에 유지
+                                            exaone_answer_buffer = pending_part
+                                        else:
+                                            exaone_buffer += content
+
+                                            # </thought> 태그만 신뢰 (마커 폴백 제거 - 예시 답변 오탐 방지)
+                                            if '</thought>' in exaone_buffer:
+                                                thought_end = exaone_buffer.find('</thought>')
+                                                thought_content = exaone_buffer[:thought_end].replace('<thought>', '').strip()
+                                                # 답변 부분에서 <thought>, </thought> 태그 모두 제거
+                                                answer_content = exaone_buffer[thought_end + 10:].replace('<thought>', '').replace('</thought>', '').strip()
+
+                                                if thought_content:
+                                                    collected_response["reasoning_content"] += thought_content
+                                                    yield f'data: {json.dumps({"type": "reasoning_chunk", "content": thought_content})}\n\n'
+                                                    logger.info(f"[REGENERATE EXAONE] Reasoning sent (tag): {len(thought_content)} chars")
+
+                                                # 답변 전송 (태그 정리됨)
+                                                if answer_content:
+                                                    collected_response["answer"] += answer_content
+                                                    yield f'data: {json.dumps({"choices": [{"delta": {"content": answer_content}, "index": 0}]})}\n\n'
+                                                    logger.info(f"[REGENERATE EXAONE] Answer started (tag): {len(answer_content)} chars")
+
+                                                exaone_answer_started = True
+                                                exaone_in_thought = False
+                                                exaone_buffer = ""
+                                            # else: 계속 버퍼링 (</thought> 태그 대기 중)
+                                    else:
+                                        # GPT-OSS 및 기타 모델
+                                        if content:
+                                            collected_response["answer"] += content
+                                        if reasoning_content:
+                                            logger.info(f"[REGENERATE STREAM] Got reasoning_content chunk: {len(reasoning_content)} chars")
+                                            collected_response["reasoning_content"] += reasoning_content
+                                            yield f'data: {json.dumps({"type": "reasoning_chunk", "content": reasoning_content})}\n\n'
 
                         except json.JSONDecodeError:
                             pass
 
-                    # [DONE] 로깅
+                    # [DONE] 처리
                     if 'data: [DONE]' in chunk:
                         rc_len = len(collected_response["reasoning_content"])
                         logger.info(f"[REGENERATE STREAM] [DONE] detected, total reasoning_content: {rc_len} chars")
 
-                    yield chunk
+                        # EXAONE: 답변 버퍼에 남은 내용 처리 (태그 제거 후 전송)
+                        if is_exaone and exaone_answer_buffer:
+                            remaining = exaone_answer_buffer.replace('<thought>', '').replace('</thought>', '')
+                            if remaining.strip():
+                                collected_response["answer"] += remaining
+                                yield f'data: {json.dumps({"choices": [{"delta": {"content": remaining}, "index": 0}]})}\n\n'
+                                logger.info(f"[REGENERATE EXAONE DONE] 답변 버퍼 잔여분 전송: {len(remaining)} chars")
+
+                        # EXAONE: 추론 버퍼에 내용이 남아있는 경우 처리 (응답 종료 시점)
+                        # </thought> 태그가 감지되지 않은 경우 - 전체를 답변으로 처리
+                        if is_exaone and exaone_buffer and not exaone_answer_started:
+                            logger.warning(f"[REGENERATE EXAONE DONE] </thought> 태그 없이 종료, 버퍼 길이: {len(exaone_buffer)}")
+
+                            # <thought>, </thought> 태그 정리 후 전체를 답변으로 처리
+                            clean_buffer = exaone_buffer.replace('<thought>', '').replace('</thought>', '').strip()
+
+                            if clean_buffer:
+                                collected_response["answer"] += clean_buffer
+                                yield f'data: {json.dumps({"choices": [{"delta": {"content": clean_buffer}, "index": 0}]})}\n\n'
+                                logger.info(f"[REGENERATE EXAONE DONE] 전체를 답변으로 전송: {len(clean_buffer)} chars")
+
+                        yield chunk  # [DONE] 전달
+                    elif not is_exaone:
+                        yield chunk
 
             except Exception as e:
                 logger.error(f"[REGENERATE STREAM] Generation failed: {e}")
