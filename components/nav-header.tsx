@@ -3,7 +3,14 @@
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { usePathname } from "next/navigation"
-import { FileText, Home, MessageSquare, Database, Sheet, BarChart3, Sparkles, LogOut, LucideIcon, FolderCog } from "lucide-react"
+import { FileText, Home, MessageSquare, Database, Sheet as SheetIcon, BarChart3, Sparkles, LogOut, LucideIcon, FolderCog, Menu, X } from "lucide-react"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { useAuth } from "@/components/auth/auth-provider"
 import { Button } from "@/components/ui/button"
@@ -21,6 +28,7 @@ export function NavHeader() {
   const pathname = usePathname()
   const { isAuthenticated, isLoading, logout, user } = useAuth()
   const [isScrolled, setIsScrolled] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   // Scroll detection for immersive header
   useEffect(() => {
@@ -43,7 +51,7 @@ export function NavHeader() {
     { href: "/collections", label: "컬렉션", icon: FolderCog, requiresAuth: true },
     { href: "/parse", label: "문서변환", icon: FileText, requiresAuth: true },
     { href: "/upload", label: "문서업로드", icon: Database, requiresAuth: true },
-    { href: "/excel-embedding", label: "엑셀업로드", icon: Sheet, requiresAuth: true },
+    { href: "/excel-embedding", label: "엑셀업로드", icon: SheetIcon, requiresAuth: true },
     { href: "/chat?fullscreen=true", label: "AI챗봇", icon: MessageSquare, requiresAuth: false },
     { href: "/analytics", label: "통계", icon: BarChart3, requiresAuth: true },
   ]
@@ -81,8 +89,8 @@ export function NavHeader() {
 
 
 
-        {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-1">
+        {/* Desktop Navigation - lg 이상에서 텍스트 + 아이콘 */}
+        <nav className="hidden lg:flex items-center gap-1">
           {visibleNavItems.map((item) => {
             const Icon = item.icon
             const itemPathname = item.href.split("?")[0]
@@ -113,8 +121,8 @@ export function NavHeader() {
 
         {/* Right: Mobile Nav + Theme Toggle + Auth */}
         <div className="flex items-center gap-2">
-          {/* Mobile Navigation */}
-          <nav className="md:hidden flex items-center gap-0.5">
+          {/* Tablet Navigation - sm~lg 사이에서 아이콘만 표시 */}
+          <nav className="hidden sm:flex lg:hidden items-center gap-0.5">
             {visibleNavItems.map((item) => {
               const Icon = item.icon
               const itemPathname = item.href.split("?")[0]
@@ -138,6 +146,83 @@ export function NavHeader() {
               )
             })}
           </nav>
+
+          {/* Mobile Hamburger Menu - sm 미만에서 표시 */}
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetTrigger asChild className="sm:hidden">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9 w-9 p-0"
+              >
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">메뉴 열기</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[280px] sm:w-[320px]">
+              <SheetHeader className="border-b pb-4 mb-4">
+                <SheetTitle className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-[color:var(--chart-1)]/10 border border-[color:var(--chart-1)]/20">
+                    <Sparkles className="h-4 w-4 text-[color:var(--chart-1)]" />
+                  </div>
+                  <span className="font-bold">KCA-RAG</span>
+                </SheetTitle>
+              </SheetHeader>
+              <nav className="flex flex-col gap-1">
+                {visibleNavItems.map((item) => {
+                  const Icon = item.icon
+                  const itemPathname = item.href.split("?")[0]
+                  const isActive = pathname === itemPathname
+
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                        isActive
+                          ? "bg-muted text-foreground"
+                          : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span>{item.label}</span>
+                    </Link>
+                  )
+                })}
+              </nav>
+              {/* 모바일 메뉴 하단 인증 버튼 */}
+              <div className="absolute bottom-6 left-4 right-4 border-t pt-4">
+                {!isLoading && (
+                  isAuthenticated ? (
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start gap-2"
+                      onClick={() => {
+                        logout()
+                        setMobileMenuOpen(false)
+                      }}
+                    >
+                      <LogOut className="h-4 w-4" />
+                      <span>로그아웃</span>
+                      {user?.username && (
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          {user.username}
+                        </span>
+                      )}
+                    </Button>
+                  ) : (
+                    <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
+                      <Button variant="outline" className="w-full">
+                        로그인
+                      </Button>
+                    </Link>
+                  )
+                )}
+              </div>
+            </SheetContent>
+          </Sheet>
 
           {/* Theme Toggle */}
           <ThemeToggle />

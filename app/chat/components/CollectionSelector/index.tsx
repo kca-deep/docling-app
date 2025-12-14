@@ -121,7 +121,11 @@ export function CollectionSelector({
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent className="w-[calc(100vw-1rem)] sm:w-[640px] md:w-[800px] max-w-[800px] p-0" align="start">
+      <PopoverContent
+        className="w-[calc(100vw-1rem)] sm:w-[640px] md:w-[800px] max-w-[800px] p-0"
+        align="start"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         {/* 헤더 */}
         <div className="px-3 py-2 border-b">
           <h4 className="font-medium text-sm">지식 베이스 선택</h4>
