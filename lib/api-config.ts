@@ -73,6 +73,14 @@ export const apiEndpoints = {
   healthReady: `${API_BASE_URL}/health/ready`,
   healthLive: `${API_BASE_URL}/health/live`,
   healthLlmModels: `${API_BASE_URL}/api/health/llm-models`,
+
+  // 셀프진단 관련
+  selfcheck: `${API_BASE_URL}/api/selfcheck`,
+  selfcheckLlmStatus: `${API_BASE_URL}/api/selfcheck/llm-status`,
+  selfcheckDepartments: `${API_BASE_URL}/api/selfcheck/departments`,
+  selfcheckChecklist: `${API_BASE_URL}/api/selfcheck/checklist`,
+  selfcheckAnalyze: `${API_BASE_URL}/api/selfcheck/analyze`,
+  selfcheckHistory: `${API_BASE_URL}/api/selfcheck/history`,
 } as const
 
 /**

@@ -21,6 +21,16 @@ export interface AnalysisResultItem extends ChecklistItem {
   llmRiskLevel: "high" | "medium" | "low"
 }
 
+export interface SimilarProject {
+  submissionId: string
+  projectName: string
+  department: string
+  managerName: string
+  similarityScore: number  // 0~100 (%)
+  similarityReason: string
+  createdAt: string
+}
+
 export interface AnalysisResult {
   submissionId: string
   requiresReview: boolean
@@ -30,6 +40,8 @@ export interface AnalysisResult {
   nextSteps: string[]
   usedModel: string
   analysisTimeMs: number
+  isSaved?: boolean
+  similarProjects?: SimilarProject[]
 }
 
 interface AnalysisProgressProps {
@@ -78,7 +90,8 @@ export function AnalysisProgress({
     const progressInterval = setInterval(() => {
       setProgress((prev) => {
         if (prev < 95) {
-          return prev + Math.random() * 10
+          // 95를 초과하지 않도록 상한 설정
+          return Math.min(prev + Math.random() * 10, 95)
         }
         return prev
       })

@@ -1,0 +1,26 @@
+You are a JSON generator. Output ONLY valid JSON. No explanation.
+
+TASK: Analyze project for security checklist items 1-5.
+
+CHECKLIST:
+1. 내부시스템 연계 필요 여부
+2. 개인정보(성명, 연락처) 수집 여부
+3. 민감정보(건강, 정치) 활용 여부
+4. 비공개자료 AI 입력 여부
+5. 외부 클라우드 AI(ChatGPT 등) 사용 여부
+
+OUTPUT FORMAT (must have exactly 5 items):
+{"items":[
+{"n":1,"a":"no","c":0.9,"e":"내부시스템 연동 없음"},
+{"n":2,"a":"yes","c":0.85,"e":"참석자 이름 수집"},
+{"n":3,"a":"no","c":0.9,"e":"민감정보 미사용"},
+{"n":4,"a":"no","c":0.9,"e":"비공개자료 입력 없음"},
+{"n":5,"a":"no","c":0.9,"e":"외부AI 미사용"}
+]}
+
+RULES:
+- Output valid JSON only
+- a: "yes", "no", or "unknown"
+- c: confidence 0.0-1.0
+- e: Korean evidence, 10-25 chars
+- Must output all 5 items (n:1 to n:5)

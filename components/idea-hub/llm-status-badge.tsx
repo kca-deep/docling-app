@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Badge } from "@/components/ui/badge"
 import {
   Tooltip,
@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/tooltip"
 import { Brain, Wifi, WifiOff, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { apiEndpoints } from "@/lib/api-config"
 
 interface LlmStatus {
   selectedModel: string
@@ -26,20 +27,45 @@ export function LlmStatusBadge() {
     status: "loading",
   })
 
-  // Fetch LLM status (mock for now)
-  useEffect(() => {
-    // Simulate API call
-    const timer = setTimeout(() => {
-      setStatus({
-        selectedModel: "gpt-oss-20b",
-        selectedModelLabel: "GPT-OSS 20B",
-        latencyMs: 45,
-        status: "healthy",
+  // Fetch LLM status from API
+  const fetchLlmStatus = useCallback(async () => {
+    try {
+      const response = await fetch(apiEndpoints.selfcheckLlmStatus, {
+        credentials: "include",
       })
-    }, 1000)
+      if (response.ok) {
+        const data = await response.json()
+        // Determine overall status from all_models
+        const healthyModels = data.all_models?.filter(
+          (m: { status: string }) => m.status === "healthy"
+        ) || []
+        const overallStatus = healthyModels.length > 0
+          ? "healthy"
+          : data.all_models?.some((m: { status: string }) => m.status === "degraded")
+            ? "degraded"
+            : "unhealthy"
 
-    return () => clearTimeout(timer)
+        setStatus({
+          selectedModel: data.selected_model,
+          selectedModelLabel: data.selected_model_label,
+          latencyMs: data.latency_ms,
+          status: overallStatus,
+        })
+      } else {
+        setStatus(prev => ({ ...prev, status: "unhealthy" }))
+      }
+    } catch (error) {
+      console.error("Failed to fetch LLM status:", error)
+      setStatus(prev => ({ ...prev, status: "unhealthy" }))
+    }
   }, [])
+
+  useEffect(() => {
+    fetchLlmStatus()
+    // Refresh status every 30 seconds
+    const interval = setInterval(fetchLlmStatus, 30000)
+    return () => clearInterval(interval)
+  }, [fetchLlmStatus])
 
   const getStatusColor = () => {
     switch (status.status) {

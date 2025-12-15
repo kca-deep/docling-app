@@ -15,25 +15,23 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
-import {
   AlertTriangle,
+  Brain,
   CheckCircle2,
   XCircle,
   HelpCircle,
   ChevronDown,
   Download,
   RotateCcw,
-  Save,
   FileText,
   Shield,
   ArrowRight,
+  Copy,
+  Calendar,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { AnalysisResult, AnalysisResultItem } from "./analysis-progress"
+import { apiEndpoints } from "@/lib/api-config"
+import type { AnalysisResult, AnalysisResultItem, SimilarProject } from "./analysis-progress"
 
 // ProjectInfo type for result display
 export interface ProjectInfo {
@@ -53,8 +51,9 @@ interface ResultComparisonProps {
 type MatchStatus = "match" | "mismatch" | "reference" | "keep"
 
 function getMatchStatus(item: AnalysisResultItem): MatchStatus {
-  if (item.userAnswer === "unknown") {
-    return "reference" // AI 결과 참조
+  // userAnswer가 null이거나 "unknown"이면 AI 결과 참조
+  if (item.userAnswer === null || item.userAnswer === "unknown") {
+    return "reference"
   }
   if (item.llmAnswer === "need_check") {
     return "keep" // 사용자 선택 유지
@@ -127,6 +126,22 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
       })
     )
   )
+  // 기본적으로 모든 항목을 펼침
+  const [expandedItems, setExpandedItems] = useState<Set<number>>(
+    new Set(result.items.map(item => item.number))
+  )
+
+  const toggleItem = (itemNumber: number) => {
+    setExpandedItems((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(itemNumber)) {
+        newSet.delete(itemNumber)
+      } else {
+        newSet.add(itemNumber)
+      }
+      return newSet
+    })
+  }
 
   const mismatchItems = result.items.filter(
     (item) => getMatchStatus(item) === "mismatch"
@@ -139,13 +154,32 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
   ).length
 
   const handleDownloadPdf = async () => {
-    // TODO: Implement PDF download
-    alert("PDF 다운로드 기능은 백엔드 연동 후 사용 가능합니다.")
-  }
-
-  const handleSave = async () => {
-    // TODO: Implement save
-    alert("저장 기능은 로그인 후 사용 가능합니다.")
+    try {
+      const response = await fetch(
+        `${apiEndpoints.selfcheck}/${result.submissionId}/pdf`,
+        {
+          credentials: "include",
+        }
+      )
+      if (response.ok) {
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `selfcheck_${projectInfo.projectName.slice(0, 20)}_${result.submissionId.slice(0, 8)}.pdf`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        window.URL.revokeObjectURL(url)
+      } else if (response.status === 401) {
+        alert("로그인이 필요합니다.")
+      } else {
+        alert("PDF 다운로드에 실패했습니다.")
+      }
+    } catch (error) {
+      console.error("PDF download error:", error)
+      alert("PDF 다운로드 중 오류가 발생했습니다.")
+    }
   }
 
   return (
@@ -153,6 +187,134 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
       {/* Header with Result Summary */}
       <div className="text-center mb-6">
         <h2 className="text-2xl font-bold mb-4">분석 결과 확인</h2>
+
+        {/* AI 종합의견 */}
+        <Card className="mb-4 text-left">
+          <CardContent className="pt-4">
+            <div className="space-y-3">
+              <div className="flex items-start gap-2">
+                <Brain className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium text-sm text-primary mb-2">AI 종합의견</p>
+                  <div className="text-sm text-muted-foreground space-y-1">
+                    {/* 필수항목 중 "예" 응답 항목 */}
+                    {result.items.filter(i => i.category === "required" && i.llmAnswer === "yes").length > 0 ? (
+                      <p>
+                        <span className="text-amber-600 dark:text-amber-400 font-medium">주의:</span>{" "}
+                        필수 항목 중{" "}
+                        {result.items
+                          .filter(i => i.category === "required" && i.llmAnswer === "yes")
+                          .map(i => `${i.number}번(${i.shortLabel})`)
+                          .join(", ")}
+                        이(가) "예"로 분석되어 상위기관 보안성 검토가 필요합니다.
+                      </p>
+                    ) : (
+                      <p>
+                        <span className="text-green-600 dark:text-green-400 font-medium">양호:</span>{" "}
+                        필수 항목(1~4번)에서 보안 검토가 필요한 항목이 발견되지 않았습니다.
+                      </p>
+                    )}
+                    {/* 선택항목 중 "예" 응답 항목 */}
+                    {result.items.filter(i => i.category === "optional" && i.llmAnswer === "yes").length > 0 && (
+                      <p>
+                        <span className="text-blue-600 dark:text-blue-400 font-medium">참고:</span>{" "}
+                        선택 항목 중{" "}
+                        {result.items
+                          .filter(i => i.category === "optional" && i.llmAnswer === "yes")
+                          .map(i => `${i.number}번(${i.shortLabel})`)
+                          .join(", ")}
+                        이(가) "예"로 분석되었습니다. 해당 사항에 대한 추가 검토를 권장합니다.
+                      </p>
+                    )}
+                    {/* 불일치 항목 */}
+                    {mismatchItems.length > 0 && (
+                      <p>
+                        <span className="text-amber-600 dark:text-amber-400 font-medium">확인필요:</span>{" "}
+                        {mismatchItems.length}개 항목에서 사용자 선택과 AI 분석 결과가 다릅니다.
+                        해당 항목을 펼쳐서 최종 선택을 확인해주세요.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Similar Projects Section */}
+        {result.similarProjects && result.similarProjects.length > 0 && (
+          <Card className="mb-4 text-left border-2 border-orange-400 bg-orange-50 dark:bg-orange-950/20">
+            <CardContent className="pt-4">
+              <div className="space-y-3">
+                <div className="flex items-start gap-2">
+                  <Copy className="w-5 h-5 text-orange-600 dark:text-orange-400 mt-0.5 shrink-0" />
+                  <div className="flex-1">
+                    <p className="font-medium text-sm text-orange-700 dark:text-orange-300 mb-2">
+                      유사 과제 발견 ({result.similarProjects.length}건)
+                    </p>
+                    <div className="space-y-2">
+                      {result.similarProjects.map((proj, idx) => (
+                        <div
+                          key={proj.submissionId}
+                          className={cn(
+                            "p-3 rounded-lg border",
+                            proj.similarityScore >= 85
+                              ? "bg-red-50 dark:bg-red-950/30 border-red-300 dark:border-red-700"
+                              : "bg-white dark:bg-gray-900 border-orange-200 dark:border-orange-800"
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <p className="font-medium text-sm">
+                              {idx + 1}. {proj.projectName}
+                              <span className="text-muted-foreground font-normal ml-1">
+                                ({proj.department}, {proj.managerName})
+                              </span>
+                            </p>
+                            <Badge
+                              variant={proj.similarityScore >= 85 ? "destructive" : "secondary"}
+                              className={cn(
+                                "shrink-0",
+                                proj.similarityScore >= 85
+                                  ? "bg-red-500 hover:bg-red-500"
+                                  : "bg-orange-500 hover:bg-orange-500 text-white"
+                              )}
+                            >
+                              {proj.similarityScore}%
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              {proj.createdAt ? new Date(proj.createdAt).toLocaleDateString('ko-KR') : '-'}
+                            </span>
+                            <span className="flex-1">{proj.similarityReason}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
+                      * 유사한 과제가 이미 진행 중일 수 있습니다. 중복 추진 여부를 확인하시기 바랍니다.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* No Similar Projects Message */}
+        {(!result.similarProjects || result.similarProjects.length === 0) && (
+          <Card className="mb-4 text-left border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/20">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 shrink-0" />
+                <p className="text-sm text-green-700 dark:text-green-300">
+                  유사 과제가 발견되지 않았습니다.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Review Status Card */}
         <Card
@@ -233,118 +395,113 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
                 .filter((item) => item.category === "required")
                 .map((item) => {
                   const status = getMatchStatus(item)
+                  const isExpanded = expandedItems.has(item.number)
                   return (
-                    <Collapsible key={item.number} asChild>
-                      <>
-                        <TableRow
-                          className={cn(
-                            status === "mismatch" && "bg-amber-50 dark:bg-amber-950/10"
-                          )}
-                        >
-                          <TableCell>
-                            <Badge variant="outline">{item.number}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <CollapsibleTrigger className="flex items-center gap-2 hover:text-primary transition-colors">
-                              <span className="text-sm">{item.shortLabel}</span>
-                              <ChevronDown className="w-4 h-4" />
-                            </CollapsibleTrigger>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <span
-                              className={cn(
-                                "font-medium",
-                                item.userAnswer === "yes" && "text-red-600",
-                                item.userAnswer === "no" && "text-green-600"
+                    <>
+                      <TableRow
+                        key={item.number}
+                        className={cn(
+                          status === "mismatch" && "bg-amber-50 dark:bg-amber-950/10"
+                        )}
+                      >
+                        <TableCell>
+                          <Badge variant="outline">{item.number}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <button
+                            type="button"
+                            onClick={() => toggleItem(item.number)}
+                            className="flex items-center gap-2 hover:text-primary transition-colors cursor-pointer text-left"
+                          >
+                            <span className="text-sm">{item.shortLabel}</span>
+                            <ChevronDown className={cn("w-4 h-4 transition-transform", isExpanded && "rotate-180")} />
+                          </button>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span
+                            className={cn(
+                              "font-medium",
+                              item.userAnswer === "yes" && "text-red-600",
+                              item.userAnswer === "no" && "text-green-600"
+                            )}
+                          >
+                            {formatAnswer(item.userAnswer)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span
+                            className={cn(
+                              "font-medium",
+                              item.llmAnswer === "yes" && "text-red-600",
+                              item.llmAnswer === "no" && "text-green-600"
+                            )}
+                          >
+                            {formatAnswer(item.llmAnswer)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {getStatusBadge(status)}
+                        </TableCell>
+                      </TableRow>
+                      {isExpanded && (
+                        <TableRow key={`${item.number}-detail`} className="bg-muted/30">
+                          <TableCell colSpan={5} className="py-2 px-4">
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-3 flex-wrap">
+                                <span className="text-xs text-muted-foreground shrink-0">AI 근거:</span>
+                                <span className="text-sm flex-1">{item.llmEvidence || "판단 근거 없음"}</span>
+                                <Badge variant="outline" className="shrink-0">
+                                  신뢰도 {Math.round(item.llmConfidence * 100)}%
+                                </Badge>
+                              </div>
+                              {status === "mismatch" && (
+                                <div className="pt-2 border-t flex items-center gap-4">
+                                  <span className="text-sm font-medium shrink-0">최종 선택:</span>
+                                  <RadioGroup
+                                    value={finalAnswers[item.number]}
+                                    onValueChange={(v) =>
+                                      setFinalAnswers((prev) => ({
+                                        ...prev,
+                                        [item.number]: v,
+                                      }))
+                                    }
+                                    className="flex gap-4"
+                                  >
+                                    <div className="flex items-center space-x-2">
+                                      <RadioGroupItem
+                                        value="yes"
+                                        id={`final-${item.number}-yes`}
+                                      />
+                                      <Label htmlFor={`final-${item.number}-yes`}>
+                                        예
+                                      </Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <RadioGroupItem
+                                        value="no"
+                                        id={`final-${item.number}-no`}
+                                      />
+                                      <Label htmlFor={`final-${item.number}-no`}>
+                                        아니오
+                                      </Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <RadioGroupItem
+                                        value="need_check"
+                                        id={`final-${item.number}-check`}
+                                      />
+                                      <Label htmlFor={`final-${item.number}-check`}>
+                                        확인필요
+                                      </Label>
+                                    </div>
+                                  </RadioGroup>
+                                </div>
                               )}
-                            >
-                              {formatAnswer(item.userAnswer)}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <span
-                              className={cn(
-                                "font-medium",
-                                item.llmAnswer === "yes" && "text-red-600",
-                                item.llmAnswer === "no" && "text-green-600"
-                              )}
-                            >
-                              {formatAnswer(item.llmAnswer)}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {getStatusBadge(status)}
+                            </div>
                           </TableCell>
                         </TableRow>
-                        <CollapsibleContent asChild>
-                          <TableRow className="bg-muted/30">
-                            <TableCell colSpan={5} className="p-4">
-                              <div className="space-y-3">
-                                <div>
-                                  <p className="text-xs text-muted-foreground mb-1">
-                                    AI 판단 근거
-                                  </p>
-                                  <p className="text-sm">{item.llmEvidence}</p>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs text-muted-foreground">
-                                    신뢰도:
-                                  </span>
-                                  <Badge variant="outline">
-                                    {Math.round(item.llmConfidence * 100)}%
-                                  </Badge>
-                                </div>
-                                {status === "mismatch" && (
-                                  <div className="pt-2 border-t">
-                                    <p className="text-sm font-medium mb-2">
-                                      최종 선택:
-                                    </p>
-                                    <RadioGroup
-                                      value={finalAnswers[item.number]}
-                                      onValueChange={(v) =>
-                                        setFinalAnswers((prev) => ({
-                                          ...prev,
-                                          [item.number]: v,
-                                        }))
-                                      }
-                                      className="flex gap-4"
-                                    >
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem
-                                          value="yes"
-                                          id={`final-${item.number}-yes`}
-                                        />
-                                        <Label htmlFor={`final-${item.number}-yes`}>
-                                          예
-                                        </Label>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem
-                                          value="no"
-                                          id={`final-${item.number}-no`}
-                                        />
-                                        <Label htmlFor={`final-${item.number}-no`}>
-                                          아니오
-                                        </Label>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem
-                                          value="need_check"
-                                          id={`final-${item.number}-check`}
-                                        />
-                                        <Label htmlFor={`final-${item.number}-check`}>
-                                          확인필요
-                                        </Label>
-                                      </div>
-                                    </RadioGroup>
-                                  </div>
-                                )}
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        </CollapsibleContent>
-                      </>
-                    </Collapsible>
+                      )}
+                    </>
                   )
                 })}
             </TableBody>
@@ -376,22 +533,108 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
                 .filter((item) => item.category === "optional")
                 .map((item) => {
                   const status = getMatchStatus(item)
+                  const isExpanded = expandedItems.has(item.number)
                   return (
-                    <TableRow key={item.number}>
-                      <TableCell>
-                        <Badge variant="outline">{item.number}</Badge>
-                      </TableCell>
-                      <TableCell className="text-sm">{item.shortLabel}</TableCell>
-                      <TableCell className="text-center">
-                        {formatAnswer(item.userAnswer)}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {formatAnswer(item.llmAnswer)}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {getStatusBadge(status)}
-                      </TableCell>
-                    </TableRow>
+                    <>
+                      <TableRow key={item.number}>
+                        <TableCell>
+                          <Badge variant="outline">{item.number}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <button
+                            type="button"
+                            onClick={() => toggleItem(item.number)}
+                            className="flex items-center gap-2 hover:text-primary transition-colors cursor-pointer text-left"
+                          >
+                            <span className="text-sm">{item.shortLabel}</span>
+                            <ChevronDown className={cn("w-4 h-4 transition-transform", isExpanded && "rotate-180")} />
+                          </button>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span
+                            className={cn(
+                              "font-medium",
+                              item.userAnswer === "yes" && "text-red-600",
+                              item.userAnswer === "no" && "text-green-600"
+                            )}
+                          >
+                            {formatAnswer(item.userAnswer)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span
+                            className={cn(
+                              "font-medium",
+                              item.llmAnswer === "yes" && "text-red-600",
+                              item.llmAnswer === "no" && "text-green-600"
+                            )}
+                          >
+                            {formatAnswer(item.llmAnswer)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {getStatusBadge(status)}
+                        </TableCell>
+                      </TableRow>
+                      {isExpanded && (
+                        <TableRow key={`${item.number}-detail`} className="bg-muted/30">
+                          <TableCell colSpan={5} className="py-2 px-4">
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-3 flex-wrap">
+                                <span className="text-xs text-muted-foreground shrink-0">AI 근거:</span>
+                                <span className="text-sm flex-1">{item.llmEvidence || "판단 근거 없음"}</span>
+                                <Badge variant="outline" className="shrink-0">
+                                  신뢰도 {Math.round(item.llmConfidence * 100)}%
+                                </Badge>
+                              </div>
+                              {status === "mismatch" && (
+                                <div className="pt-2 border-t flex items-center gap-4">
+                                  <span className="text-sm font-medium shrink-0">최종 선택:</span>
+                                  <RadioGroup
+                                    value={finalAnswers[item.number]}
+                                    onValueChange={(v) =>
+                                      setFinalAnswers((prev) => ({
+                                        ...prev,
+                                        [item.number]: v,
+                                      }))
+                                    }
+                                    className="flex gap-4"
+                                  >
+                                    <div className="flex items-center space-x-2">
+                                      <RadioGroupItem
+                                        value="yes"
+                                        id={`final-${item.number}-yes`}
+                                      />
+                                      <Label htmlFor={`final-${item.number}-yes`}>
+                                        예
+                                      </Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <RadioGroupItem
+                                        value="no"
+                                        id={`final-${item.number}-no`}
+                                      />
+                                      <Label htmlFor={`final-${item.number}-no`}>
+                                        아니오
+                                      </Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <RadioGroupItem
+                                        value="need_check"
+                                        id={`final-${item.number}-check`}
+                                      />
+                                      <Label htmlFor={`final-${item.number}-check`}>
+                                        확인필요
+                                      </Label>
+                                    </div>
+                                  </RadioGroup>
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
                   )
                 })}
             </TableBody>
@@ -428,10 +671,6 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
         <Button variant="outline" onClick={onRestart} className="gap-2">
           <RotateCcw className="w-4 h-4" />
           처음부터 다시
-        </Button>
-        <Button variant="outline" onClick={handleSave} className="gap-2">
-          <Save className="w-4 h-4" />
-          저장
         </Button>
         <Button onClick={handleDownloadPdf} className="gap-2">
           <Download className="w-4 h-4" />

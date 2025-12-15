@@ -21,6 +21,7 @@ import {
 import { motion } from "framer-motion"
 import Link from "next/link"
 import { useAuth } from "@/components/auth/auth-provider"
+import { apiEndpoints } from "@/lib/api-config"
 import { ProjectForm, type ProjectFormData } from "@/components/idea-hub/project-form"
 import { ChecklistForm, type ChecklistItem } from "@/components/idea-hub/checklist-form"
 import { AnalysisProgress, type AnalysisResult } from "@/components/idea-hub/analysis-progress"
@@ -102,10 +103,26 @@ export default function SelfCheckPage() {
   const [currentStep, setCurrentStep] = useState(1)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
 
-  // Form data states
+  // Form data states - 예시 데이터로 초기화 (각 체크리스트 항목 관련 정보 포함)
   const [projectForm, setProjectForm] = useState<ProjectFormData>({
-    projectName: "",
-    content: "",
+    projectName: "AI 기반 민원 자동응답 시스템",
+    content: `본 과제는 민원 자동응답 AI 챗봇 시스템을 구축하는 것입니다.
+
+[수행 정보]
+- 자체수행 여부: 발의부서에서 바이브코딩으로 자체 구축
+- 수행주체: OO부서 (외주개발 없음)
+
+[체크리스트 관련 정보]
+1. 내부시스템 연계: 업무포털, 민원관리시스템과 API 연동 예정
+2. 개인정보 수집: 민원인 성명, 연락처 수집 (처리 후 1년 보관)
+3. 민감정보: 건강정보, 정치적 견해 등 민감정보는 수집하지 않음
+4. 비공개자료: 내부문서, 대외비 자료는 AI에 입력하지 않음
+5. 외부 클라우드 AI: ChatGPT API를 활용하여 자연어 처리 수행
+6. 자체 AI 모델: 별도 AI 모델 구축/학습 계획 없음, 외부 API만 활용
+7. 대국민 서비스: 일반 국민 대상 민원 응답 서비스로 제공 예정
+8. 외부 API 연동: OpenAI API(ChatGPT)와 연동하여 답변 생성
+9. 검증 절차: 생성된 답변은 담당자가 검수 후 발송하는 절차 마련
+10. 이용약관: ChatGPT 이용약관 및 저작권 사항 검토 완료`,
     department: "",
     managerName: "",
     email: "",
@@ -158,53 +175,108 @@ export default function SelfCheckPage() {
       setCurrentStep(3)
       setIsAnalyzing(true)
 
-      // Simulate API call (will be replaced with actual API)
-      setTimeout(() => {
-        // Mock analysis result
-        const mockResult: AnalysisResult = {
-          submissionId: `selfcheck-${Date.now()}`,
-          requiresReview: true,
-          reviewReason: "필수항목 2개 해당 (내부시스템 연계, 개인정보 처리)",
-          items: checklistItems.map((item) => {
-            // Simulate LLM analysis - determine answer based on random factor
-            let llmAnswer: "yes" | "no" | "need_check" | null
-
-            if (item.userAnswer === "unknown" || item.userAnswer === null) {
-              // User doesn't know, LLM provides its analysis
-              llmAnswer = Math.random() > 0.5 ? "yes" : "no"
-            } else if (Math.random() > 0.3) {
-              // 70% chance: LLM agrees with user
-              llmAnswer = item.userAnswer
-            } else {
-              // 30% chance: LLM disagrees (for demo purposes)
-              llmAnswer = item.userAnswer === "yes" ? "no" : "yes"
-            }
-
-            return {
-              ...item,
-              llmAnswer,
-              llmConfidence: 0.7 + Math.random() * 0.3,
-              llmEvidence: `AI가 과제 내용에서 "${item.shortLabel}" 관련 키워드를 분석한 결과입니다.`,
-              llmRiskLevel: (item.category === "required" ? "high" : "medium") as "high" | "medium" | "low",
-            }
+      try {
+        // Call actual API
+        const response = await fetch(apiEndpoints.selfcheckAnalyze, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            project_name: projectForm.projectName,
+            department: projectForm.department,
+            manager_name: projectForm.managerName,
+            contact: "",
+            email: projectForm.email,
+            project_description: projectForm.content,
+            checklist_items: checklistItems.map((item) => ({
+              number: item.number,
+              user_answer: item.userAnswer || "unknown",
+              user_details: item.userDetails || null,
+            })),
           }),
-          summary: "필수 항목 중 2개가 해당되어 상위기관 보안성 검토가 필요합니다.",
-          nextSteps: [
-            "보안성 검토 서류 6종 작성",
-            "정보보호팀 제출 (security@kca.kr)",
-            "CAIO/BAIO 추진과제 선정 회의 상정",
-          ],
-          usedModel: "gpt-oss-20b",
-          analysisTimeMs: 2500,
-        }
+        })
 
-        setAnalysisResult(mockResult)
+        if (response.ok) {
+          const data = await response.json()
+          // Map API response to AnalysisResult
+          const result: AnalysisResult = {
+            submissionId: data.submission_id,
+            requiresReview: data.requires_review,
+            reviewReason: data.review_reason || "",
+            items: data.items.map((item: {
+              item_number: number
+              item_category: string
+              question: string
+              short_label: string
+              user_answer: string | null
+              user_details: string | null
+              llm_answer: string
+              llm_confidence: number
+              llm_evidence: string
+              llm_risk_level: string
+              match_status: string
+              final_answer: string | null
+            }) => ({
+              number: item.item_number,
+              category: item.item_category as "required" | "optional",
+              question: item.question,
+              shortLabel: item.short_label,
+              userAnswer: item.user_answer as "yes" | "no" | "unknown" | null,
+              userDetails: item.user_details || "",
+              llmAnswer: item.llm_answer as "yes" | "no" | "need_check" | null,
+              llmConfidence: item.llm_confidence,
+              llmEvidence: item.llm_evidence,
+              llmRiskLevel: item.llm_risk_level as "high" | "medium" | "low",
+            })),
+            summary: data.summary,
+            nextSteps: data.next_steps,
+            usedModel: data.used_model,
+            analysisTimeMs: data.analysis_time_ms,
+            isSaved: data.is_saved,
+            // 유사과제 정보 매핑
+            similarProjects: data.similar_projects?.map((proj: {
+              submission_id: string
+              project_name: string
+              department: string
+              manager_name: string
+              similarity_score: number
+              similarity_reason: string
+              created_at: string
+            }) => ({
+              submissionId: proj.submission_id,
+              projectName: proj.project_name,
+              department: proj.department,
+              managerName: proj.manager_name,
+              similarityScore: proj.similarity_score,
+              similarityReason: proj.similarity_reason,
+              createdAt: proj.created_at,
+            })) || [],
+          }
+          setAnalysisResult(result)
+        } else if (response.status === 401) {
+          alert("로그인이 필요합니다.")
+          setCurrentStep(1)
+        } else if (response.status === 503) {
+          alert("현재 AI 모델이 사용 불가능합니다. 잠시 후 다시 시도해주세요.")
+          setCurrentStep(2)
+        } else {
+          const errorData = await response.json().catch(() => ({}))
+          alert(errorData.detail || "분석 중 오류가 발생했습니다.")
+          setCurrentStep(2)
+        }
+      } catch (error) {
+        console.error("Analysis error:", error)
+        alert("분석 요청 중 오류가 발생했습니다. 네트워크 연결을 확인해주세요.")
+        setCurrentStep(2)
+      } finally {
         setIsAnalyzing(false)
-      }, 3000)
+      }
     } else if (currentStep < 3) {
       setCurrentStep((prev) => prev + 1)
     }
-  }, [currentStep, checklistItems])
+  }, [currentStep, checklistItems, projectForm])
 
   const handlePrev = useCallback(() => {
     if (currentStep > 1) {

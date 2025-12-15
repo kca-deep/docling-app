@@ -119,6 +119,22 @@ class Settings(BaseSettings):
     PROMPT_GEN_QUESTIONS_MAX_TOKENS: int = 4096  # 추천 질문 생성 시 최대 출력 토큰 (reasoning 모드 고려)
     PROMPT_GEN_SAMPLE_LIMIT: int = 4096  # 문서 샘플 최대 문자수 (입력 토큰 절약)
 
+    # 셀프진단 설정
+    SELFCHECK_MAX_TOKENS: int = 4000  # 셀프진단 LLM 분석 최대 토큰
+    SELFCHECK_BATCH_MAX_TOKENS: int = 2000  # 배치 호출 최대 토큰
+    SELFCHECK_RECOVERY_MAX_TOKENS: int = 300  # 복구 호출 최대 토큰
+    SELFCHECK_TEMPERATURE: float = 0.3  # 셀프진단 LLM 온도
+    SELFCHECK_TIMEOUT: int = 60  # 배치 호출 타임아웃 (초)
+    SELFCHECK_RECOVERY_TIMEOUT: int = 30  # 복구 호출 타임아웃 (초)
+
+    # 셀프진단 유사과제 검토 설정
+    SELFCHECK_SIMILARITY_ENABLED: bool = True  # 유사과제 검토 활성화
+    SELFCHECK_SIMILARITY_THRESHOLD: int = 70  # 유사도 임계값 (%)
+    SELFCHECK_SIMILARITY_HIGH_THRESHOLD: int = 85  # 높은 유사도 임계값 (%)
+    SELFCHECK_SIMILARITY_MAX_RESULTS: int = 3  # 최대 유사과제 수
+    SELFCHECK_SIMILARITY_DAYS: int = 180  # 검토 대상 기간 (일)
+    SELFCHECK_SIMILARITY_MAX_TOKENS: int = 1000  # 유사성 판단 LLM 최대 토큰
+
     # BGE Reranker v2-m3 설정
     RERANKER_URL: str = "http://ai.kca.kr:8006"
     RERANKER_MODEL: str = "BAAI/bge-reranker-v2-m3"

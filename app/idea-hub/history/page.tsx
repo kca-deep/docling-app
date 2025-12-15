@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { PageContainer } from "@/components/page-container"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -34,57 +34,86 @@ import {
   User,
   Building2,
   Plus,
+  Loader2,
 } from "lucide-react"
 import { motion } from "framer-motion"
 import { useAuth } from "@/components/auth/auth-provider"
+import { apiEndpoints } from "@/lib/api-config"
 import Link from "next/link"
 
-// Mock data for history
-const mockHistory = [
-  {
-    id: 1,
-    submissionId: "selfcheck-1734250000000",
-    projectName: "AI 기반 민원 자동응답 시스템",
-    department: "고객지원팀",
-    managerName: "홍길동",
-    requiresReview: true,
-    status: "completed",
-    createdAt: "2025-12-15 14:30",
-    usedModel: "gpt-oss-20b",
-  },
-  {
-    id: 2,
-    submissionId: "selfcheck-1734249000000",
-    projectName: "문서 자동 분류 시스템",
-    department: "AI디지털심화팀",
-    managerName: "김철수",
-    requiresReview: false,
-    status: "completed",
-    createdAt: "2025-12-15 10:15",
-    usedModel: "gpt-oss-20b",
-  },
-  {
-    id: 3,
-    submissionId: "selfcheck-1734248000000",
-    projectName: "전파 간섭 분석 AI 도구",
-    department: "전파관리본부",
-    managerName: "이영희",
-    requiresReview: true,
-    status: "completed",
-    createdAt: "2025-12-14 16:45",
-    usedModel: "exaone-4.0-32b",
-  },
-]
+interface HistoryItem {
+  id: number
+  submission_id: string
+  project_name: string
+  department: string
+  manager_name: string
+  requires_review: boolean
+  status: string
+  used_model: string | null
+  created_at: string
+}
 
 export default function HistoryPage() {
   const { isAuthenticated, isLoading } = useAuth()
   const [searchQuery, setSearchQuery] = useState("")
+  const [history, setHistory] = useState<HistoryItem[]>([])
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
 
-  const filteredHistory = mockHistory.filter(
+  const fetchHistory = useCallback(async () => {
+    setIsLoadingHistory(true)
+    try {
+      const response = await fetch(apiEndpoints.selfcheckHistory, {
+        credentials: "include",
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setHistory(data.items || [])
+      }
+    } catch (error) {
+      console.error("Failed to fetch history:", error)
+    } finally {
+      setIsLoadingHistory(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchHistory()
+    }
+  }, [isAuthenticated, fetchHistory])
+
+  const handleDownloadPdf = async (submissionId: string, projectName: string) => {
+    try {
+      const response = await fetch(
+        `${apiEndpoints.selfcheck}/${submissionId}/pdf`,
+        {
+          credentials: "include",
+        }
+      )
+      if (response.ok) {
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `selfcheck_${projectName.slice(0, 20)}_${submissionId.slice(0, 8)}.pdf`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        window.URL.revokeObjectURL(url)
+      } else {
+        alert("PDF 다운로드에 실패했습니다.")
+      }
+    } catch (error) {
+      console.error("PDF download error:", error)
+      alert("PDF 다운로드 중 오류가 발생했습니다.")
+    }
+  }
+
+  const filteredHistory = history.filter(
     (item) =>
-      item.projectName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.project_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.department.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.managerName.toLowerCase().includes(searchQuery.toLowerCase())
+      item.manager_name.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   if (isLoading) {
@@ -221,7 +250,7 @@ export default function HistoryPage() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <FileText className="w-4 h-4 text-muted-foreground" />
-                          <span className="font-medium">{item.projectName}</span>
+                          <span className="font-medium">{item.project_name}</span>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -233,11 +262,11 @@ export default function HistoryPage() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <User className="w-4 h-4 text-muted-foreground" />
-                          <span>{item.managerName}</span>
+                          <span>{item.manager_name}</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
-                        {item.requiresReview ? (
+                        {item.requires_review ? (
                           <Badge variant="destructive" className="gap-1">
                             <AlertTriangle className="w-3 h-3" />
                             예
@@ -252,7 +281,7 @@ export default function HistoryPage() {
                       <TableCell>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <Calendar className="w-4 h-4" />
-                          <span>{item.createdAt}</span>
+                          <span>{item.created_at.slice(0, 16).replace("T", " ")}</span>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -263,17 +292,12 @@ export default function HistoryPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem className="gap-2">
-                              <Eye className="w-4 h-4" />
-                              상세 보기
-                            </DropdownMenuItem>
-                            <DropdownMenuItem className="gap-2">
+                            <DropdownMenuItem
+                              className="gap-2"
+                              onClick={() => handleDownloadPdf(item.submission_id, item.project_name)}
+                            >
                               <Download className="w-4 h-4" />
                               PDF 다운로드
-                            </DropdownMenuItem>
-                            <DropdownMenuItem className="gap-2 text-destructive">
-                              <Trash2 className="w-4 h-4" />
-                              삭제
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -312,7 +336,7 @@ export default function HistoryPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">전체 진단</p>
-                  <p className="text-2xl font-bold">{mockHistory.length}</p>
+                  <p className="text-2xl font-bold">{history.length}</p>
                 </div>
                 <div className="p-3 rounded-full bg-blue-500/10">
                   <FileText className="w-5 h-5 text-blue-500" />
@@ -326,7 +350,7 @@ export default function HistoryPage() {
                 <div>
                   <p className="text-sm text-muted-foreground">검토 대상</p>
                   <p className="text-2xl font-bold text-amber-600">
-                    {mockHistory.filter((h) => h.requiresReview).length}
+                    {history.filter((h) => h.requires_review).length}
                   </p>
                 </div>
                 <div className="p-3 rounded-full bg-amber-500/10">
@@ -341,7 +365,7 @@ export default function HistoryPage() {
                 <div>
                   <p className="text-sm text-muted-foreground">검토 불필요</p>
                   <p className="text-2xl font-bold text-green-600">
-                    {mockHistory.filter((h) => !h.requiresReview).length}
+                    {history.filter((h) => !h.requires_review).length}
                   </p>
                 </div>
                 <div className="p-3 rounded-full bg-green-500/10">

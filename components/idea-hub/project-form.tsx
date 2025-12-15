@@ -115,16 +115,7 @@ export function ProjectForm({ value, onChange, user }: ProjectFormProps) {
 
           <Textarea
             id="projectDesc"
-            placeholder="예시:
-본 과제는 KCA 업무포털에 접수되는 민원을 AI 챗봇으로 자동 응답하는 시스템을 구축하는 것입니다.
-
-주요 기능:
-1. 기존 FAQ 데이터를 학습하여 자주 묻는 질문에 자동 응답
-2. ChatGPT API를 활용한 자연어 처리
-3. 민원인의 성명, 연락처를 수집하여 처리 결과 안내
-
-대상: 일반 국민 (대국민 서비스)
-연계 시스템: 업무포털, 민원관리시스템"
+            placeholder="과제 내용을 입력하세요. 위 예시를 참고하여 수정해주세요."
             value={value.content}
             onChange={(e) => handleChange("content", e.target.value)}
             className="min-h-[200px] resize-none"
