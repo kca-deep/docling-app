@@ -202,7 +202,7 @@ function RegisterForm() {
   }
 
   return (
-    <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden py-12">
+    <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden">
       {/* Animated Background */}
       <div className="absolute inset-0 z-0">
         <div className="absolute inset-0 bg-background" />
@@ -259,13 +259,13 @@ function RegisterForm() {
       </div>
 
       {/* Content */}
-      <div className="relative z-10 w-full max-w-md px-6">
+      <div className="relative z-10 w-full max-w-2xl px-6">
         {/* Back to Home */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="mb-8"
+          className="mb-4"
         >
           <Link
             href="/"
@@ -286,32 +286,32 @@ function RegisterForm() {
             {/* Gradient Border Effect */}
             <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-[color:var(--chart-1)]/20 via-transparent to-[color:var(--chart-3)]/20 pointer-events-none" />
 
-            <CardHeader className="text-center pb-2 pt-8 relative">
+            <CardHeader className="text-center pb-2 pt-6 relative">
               {/* Animated Logo */}
               <motion.div
-                className="flex justify-center mb-6"
+                className="flex justify-center mb-4"
                 whileHover={{ scale: 1.05 }}
                 transition={{ type: "spring", stiffness: 300 }}
               >
                 <div className="relative group">
-                  <div className="absolute inset-0 bg-gradient-to-r from-[color:var(--chart-1)] to-[color:var(--chart-3)] rounded-2xl blur-xl opacity-30 group-hover:opacity-50 transition-opacity" />
-                  <div className="relative p-4 rounded-2xl bg-gradient-to-br from-[color:var(--chart-1)]/10 to-[color:var(--chart-3)]/10 border border-[color:var(--chart-1)]/20">
-                    <Sparkles className="h-10 w-10 text-[color:var(--chart-1)] relative z-10" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-[color:var(--chart-1)] to-[color:var(--chart-3)] rounded-xl blur-lg opacity-30 group-hover:opacity-50 transition-opacity" />
+                  <div className="relative p-3 rounded-xl bg-gradient-to-br from-[color:var(--chart-1)]/10 to-[color:var(--chart-3)]/10 border border-[color:var(--chart-1)]/20">
+                    <Sparkles className="h-8 w-8 text-[color:var(--chart-1)] relative z-10" />
                   </div>
                 </div>
               </motion.div>
 
-              <CardTitle className="text-2xl font-bold">
+              <CardTitle className="text-xl font-bold">
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
                   회원가입
                 </span>
               </CardTitle>
-              <CardDescription className="text-muted-foreground mt-2">
+              <CardDescription className="text-muted-foreground mt-1 text-sm">
                 KCA-RAG 서비스에 가입하세요
               </CardDescription>
             </CardHeader>
 
-            <CardContent className="pt-4 pb-8 px-8 relative">
+            <CardContent className="pt-4 pb-6 px-6 relative">
               <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Error Alert */}
                 {error && (
@@ -326,183 +326,185 @@ function RegisterForm() {
                   </motion.div>
                 )}
 
-                {/* Username */}
-                <div className="space-y-2">
-                  <Label htmlFor="username" className="text-sm font-medium">
-                    아이디
-                  </Label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="username"
-                      type="text"
-                      placeholder="4자 이상, 영문/숫자/_"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      required
-                      disabled={isSubmitting}
-                      autoComplete="username"
-                      autoFocus
-                      className="pl-10 pr-10 h-11 bg-background/50 border-border/50 focus:border-[color:var(--chart-1)] focus:ring-[color:var(--chart-1)]/20 transition-colors"
-                    />
-                    {usernameStatus === 'checking' && (
-                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
-                    )}
-                    {usernameStatus === 'available' && (
-                      <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
-                    )}
-                    {usernameStatus === 'duplicate' && (
-                      <XCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500" />
-                    )}
-                  </div>
-                  {usernameStatus === 'duplicate' && (
-                    <p className="text-xs text-red-500">이미 사용 중인 아이디입니다.</p>
-                  )}
-                </div>
-
-                {/* Email */}
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-sm font-medium">
-                    이메일
-                  </Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="example@kca.kr"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                      disabled={isSubmitting}
-                      autoComplete="email"
-                      className="pl-10 pr-10 h-11 bg-background/50 border-border/50 focus:border-[color:var(--chart-1)] focus:ring-[color:var(--chart-1)]/20 transition-colors"
-                    />
-                    {emailStatus === 'checking' && (
-                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
-                    )}
-                    {emailStatus === 'available' && (
-                      <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
-                    )}
-                    {(emailStatus === 'duplicate' || emailStatus === 'invalid_domain') && (
-                      <XCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500" />
-                    )}
-                  </div>
-                  {emailStatus === 'duplicate' && (
-                    <p className="text-xs text-red-500">이미 사용 중인 이메일입니다.</p>
-                  )}
-                  {emailStatus === 'invalid_domain' && (
-                    <p className="text-xs text-red-500">@kca.kr 도메인 이메일만 사용 가능합니다.</p>
-                  )}
-                  <p className="text-xs text-muted-foreground">@kca.kr 도메인만 허용됩니다.</p>
-                </div>
-
-                {/* Password */}
-                <div className="space-y-2">
-                  <Label htmlFor="password" className="text-sm font-medium">
-                    비밀번호
-                  </Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="8자 이상, 대/소문자, 숫자, 특수문자"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      disabled={isSubmitting}
-                      autoComplete="new-password"
-                      className="pl-10 h-11 bg-background/50 border-border/50 focus:border-[color:var(--chart-1)] focus:ring-[color:var(--chart-1)]/20 transition-colors"
-                    />
-                  </div>
-                  {password && (
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className={`h-full transition-all ${
-                            passwordStrength.score <= 2 ? 'bg-red-500' :
-                            passwordStrength.score <= 3 ? 'bg-yellow-500' :
-                            'bg-green-500'
-                          }`}
-                          style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
-                        />
-                      </div>
-                      <span className={`text-xs ${passwordStrength.color}`}>
-                        {passwordStrength.label}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Password Confirm */}
-                <div className="space-y-2">
-                  <Label htmlFor="passwordConfirm" className="text-sm font-medium">
-                    비밀번호 확인
-                  </Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="passwordConfirm"
-                      type="password"
-                      placeholder="비밀번호를 다시 입력하세요"
-                      value={passwordConfirm}
-                      onChange={(e) => setPasswordConfirm(e.target.value)}
-                      required
-                      disabled={isSubmitting}
-                      autoComplete="new-password"
-                      className="pl-10 pr-10 h-11 bg-background/50 border-border/50 focus:border-[color:var(--chart-1)] focus:ring-[color:var(--chart-1)]/20 transition-colors"
-                    />
-                    {passwordConfirm && (
-                      passwordsMatch ? (
+                {/* 2-column grid */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Username */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="username" className="text-sm font-medium">
+                      아이디
+                    </Label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="username"
+                        type="text"
+                        placeholder="4자 이상, 영문/숫자/_"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        required
+                        disabled={isSubmitting}
+                        autoComplete="username"
+                        autoFocus
+                        className="pl-10 pr-10 h-10 bg-background/50 border-border/50 focus:border-[color:var(--chart-1)] focus:ring-[color:var(--chart-1)]/20 transition-colors"
+                      />
+                      {usernameStatus === 'checking' && (
+                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                      )}
+                      {usernameStatus === 'available' && (
                         <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
-                      ) : (
+                      )}
+                      {usernameStatus === 'duplicate' && (
                         <XCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500" />
-                      )
+                      )}
+                    </div>
+                    {usernameStatus === 'duplicate' && (
+                      <p className="text-xs text-red-500">이미 사용 중인 아이디입니다.</p>
                     )}
                   </div>
-                  {passwordConfirm && !passwordsMatch && (
-                    <p className="text-xs text-red-500">비밀번호가 일치하지 않습니다.</p>
-                  )}
-                </div>
 
-                {/* Name */}
-                <div className="space-y-2">
-                  <Label htmlFor="name" className="text-sm font-medium">
-                    이름
-                  </Label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="name"
-                      type="text"
-                      placeholder="실명을 입력하세요"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      required
-                      disabled={isSubmitting}
-                      autoComplete="name"
-                      className="pl-10 h-11 bg-background/50 border-border/50 focus:border-[color:var(--chart-1)] focus:ring-[color:var(--chart-1)]/20 transition-colors"
-                    />
+                  {/* Email */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="email" className="text-sm font-medium">
+                      이메일 <span className="text-xs text-muted-foreground">(@kca.kr)</span>
+                    </Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="example@kca.kr"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        disabled={isSubmitting}
+                        autoComplete="email"
+                        className="pl-10 pr-10 h-10 bg-background/50 border-border/50 focus:border-[color:var(--chart-1)] focus:ring-[color:var(--chart-1)]/20 transition-colors"
+                      />
+                      {emailStatus === 'checking' && (
+                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                      )}
+                      {emailStatus === 'available' && (
+                        <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
+                      )}
+                      {(emailStatus === 'duplicate' || emailStatus === 'invalid_domain') && (
+                        <XCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500" />
+                      )}
+                    </div>
+                    {emailStatus === 'duplicate' && (
+                      <p className="text-xs text-red-500">이미 사용 중인 이메일입니다.</p>
+                    )}
+                    {emailStatus === 'invalid_domain' && (
+                      <p className="text-xs text-red-500">@kca.kr 도메인만 사용 가능합니다.</p>
+                    )}
                   </div>
-                </div>
 
-                {/* Team Name */}
-                <div className="space-y-2">
-                  <Label htmlFor="teamName" className="text-sm font-medium">
-                    팀명 <span className="text-muted-foreground">(선택)</span>
-                  </Label>
-                  <div className="relative">
-                    <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="teamName"
-                      type="text"
-                      placeholder="소속 팀을 입력하세요"
-                      value={teamName}
-                      onChange={(e) => setTeamName(e.target.value)}
-                      disabled={isSubmitting}
-                      className="pl-10 h-11 bg-background/50 border-border/50 focus:border-[color:var(--chart-1)] focus:ring-[color:var(--chart-1)]/20 transition-colors"
-                    />
+                  {/* Password */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="password" className="text-sm font-medium">
+                      비밀번호
+                    </Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="password"
+                        type="password"
+                        placeholder="8자 이상"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        disabled={isSubmitting}
+                        autoComplete="new-password"
+                        className="pl-10 h-10 bg-background/50 border-border/50 focus:border-[color:var(--chart-1)] focus:ring-[color:var(--chart-1)]/20 transition-colors"
+                      />
+                    </div>
+                    {password && (
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className={`h-full transition-all ${
+                              passwordStrength.score <= 2 ? 'bg-red-500' :
+                              passwordStrength.score <= 3 ? 'bg-yellow-500' :
+                              'bg-green-500'
+                            }`}
+                            style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
+                          />
+                        </div>
+                        <span className={`text-xs ${passwordStrength.color}`}>
+                          {passwordStrength.label}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Password Confirm */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="passwordConfirm" className="text-sm font-medium">
+                      비밀번호 확인
+                    </Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="passwordConfirm"
+                        type="password"
+                        placeholder="비밀번호 재입력"
+                        value={passwordConfirm}
+                        onChange={(e) => setPasswordConfirm(e.target.value)}
+                        required
+                        disabled={isSubmitting}
+                        autoComplete="new-password"
+                        className="pl-10 pr-10 h-10 bg-background/50 border-border/50 focus:border-[color:var(--chart-1)] focus:ring-[color:var(--chart-1)]/20 transition-colors"
+                      />
+                      {passwordConfirm && (
+                        passwordsMatch ? (
+                          <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
+                        ) : (
+                          <XCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500" />
+                        )
+                      )}
+                    </div>
+                    {passwordConfirm && !passwordsMatch && (
+                      <p className="text-xs text-red-500">비밀번호가 일치하지 않습니다.</p>
+                    )}
+                  </div>
+
+                  {/* Name */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="name" className="text-sm font-medium">
+                      이름
+                    </Label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="name"
+                        type="text"
+                        placeholder="실명"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        required
+                        disabled={isSubmitting}
+                        autoComplete="name"
+                        className="pl-10 h-10 bg-background/50 border-border/50 focus:border-[color:var(--chart-1)] focus:ring-[color:var(--chart-1)]/20 transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Team Name */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="teamName" className="text-sm font-medium">
+                      팀명 <span className="text-muted-foreground text-xs">(선택)</span>
+                    </Label>
+                    <div className="relative">
+                      <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="teamName"
+                        type="text"
+                        placeholder="소속 팀"
+                        value={teamName}
+                        onChange={(e) => setTeamName(e.target.value)}
+                        disabled={isSubmitting}
+                        className="pl-10 h-10 bg-background/50 border-border/50 focus:border-[color:var(--chart-1)] focus:ring-[color:var(--chart-1)]/20 transition-colors"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -510,11 +512,10 @@ function RegisterForm() {
                 <motion.div
                   whileHover={{ scale: 1.01 }}
                   whileTap={{ scale: 0.99 }}
-                  className="pt-2"
                 >
                   <Button
                     type="submit"
-                    className="w-full h-11 bg-gradient-to-r from-[color:var(--chart-1)] to-[color:var(--chart-2)] hover:opacity-90 text-white font-semibold shadow-lg shadow-[color:var(--chart-1)]/20 hover:shadow-[color:var(--chart-1)]/40 transition-all border-0"
+                    className="w-full h-10 bg-gradient-to-r from-[color:var(--chart-1)] to-[color:var(--chart-2)] hover:opacity-90 text-white font-semibold shadow-lg shadow-[color:var(--chart-1)]/20 hover:shadow-[color:var(--chart-1)]/40 transition-all border-0"
                     disabled={
                       isSubmitting ||
                       !username ||
@@ -540,7 +541,7 @@ function RegisterForm() {
                 </motion.div>
 
                 {/* Login Link */}
-                <div className="text-center text-sm pt-2">
+                <div className="text-center text-sm">
                   <span className="text-muted-foreground">이미 계정이 있으신가요? </span>
                   <Link
                     href="/login"
@@ -559,7 +560,7 @@ function RegisterForm() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.4 }}
-          className="mt-8 text-center text-sm text-muted-foreground"
+          className="mt-4 text-center text-xs text-muted-foreground"
         >
           관리자 승인 후 서비스를 이용할 수 있습니다.
         </motion.p>

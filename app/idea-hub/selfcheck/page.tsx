@@ -5,7 +5,6 @@ import { PageContainer } from "@/components/page-container"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 import {
   ArrowLeft,
@@ -17,6 +16,7 @@ import {
   Home,
   LogIn,
   UserPlus,
+  ChevronRight,
 } from "lucide-react"
 import { motion } from "framer-motion"
 import Link from "next/link"
@@ -94,8 +94,7 @@ export const CHECKLIST_QUESTIONS = [
 const STEPS = [
   { number: 1, title: "과제 정보", description: "과제명 및 내용 입력" },
   { number: 2, title: "체크리스트", description: "항목별 직접 선택" },
-  { number: 3, title: "AI 검증", description: "AI 분석 진행" },
-  { number: 4, title: "결과 확인", description: "사용자 vs AI 비교" },
+  { number: 3, title: "AI 검증", description: "AI 분석 및 결과 확인" },
 ]
 
 export default function SelfCheckPage() {
@@ -147,8 +146,6 @@ export default function SelfCheckPage() {
         return isStep1Valid
       case 2:
         return isStep2Valid
-      case 3:
-        return analysisResult !== null
       default:
         return true
     }
@@ -204,7 +201,7 @@ export default function SelfCheckPage() {
         setAnalysisResult(mockResult)
         setIsAnalyzing(false)
       }, 3000)
-    } else if (currentStep < 4) {
+    } else if (currentStep < 3) {
       setCurrentStep((prev) => prev + 1)
     }
   }, [currentStep, checklistItems])
@@ -236,8 +233,6 @@ export default function SelfCheckPage() {
     )
     setAnalysisResult(null)
   }, [user])
-
-  const progress = ((currentStep - 1) / (STEPS.length - 1)) * 100
 
   // Loading state
   if (authLoading) {
@@ -365,64 +360,43 @@ export default function SelfCheckPage() {
       </div>
 
       <div className="max-w-6xl mx-auto space-y-6">
-        {/* Progress Header */}
-        <Card>
-          <CardHeader className="pb-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-amber-500/10">
-                  <Shield className="w-5 h-5 text-amber-600" />
-                </div>
-                <div>
-                  <CardTitle className="text-lg">
-                    Step {currentStep}/{STEPS.length}: {STEPS[currentStep - 1].title}
-                  </CardTitle>
-                  <CardDescription>
-                    {STEPS[currentStep - 1].description}
-                  </CardDescription>
-                </div>
-              </div>
-              <LlmStatusBadge />
-            </div>
-          </CardHeader>
-          <CardContent className="pt-0">
-            {/* Progress Bar */}
-            <Progress value={progress} className="h-2 mb-4" />
-
-            {/* Step Indicators */}
-            <div className="flex justify-between">
-              {STEPS.map((step) => (
+        {/* Progress Header - 브레드크럼 스타일 */}
+        <div className="flex items-center justify-between px-4 py-3 rounded-lg bg-muted/50 border">
+          <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+            {STEPS.map((step, index) => (
+              <div key={step.number} className="flex items-center">
                 <div
-                  key={step.number}
                   className={cn(
-                    "flex flex-col items-center gap-1",
-                    step.number <= currentStep ? "text-primary" : "text-muted-foreground"
+                    "flex items-center gap-1.5 text-sm transition-colors",
+                    step.number < currentStep && "text-green-600 dark:text-green-400",
+                    step.number === currentStep && "text-primary font-medium",
+                    step.number > currentStep && "text-muted-foreground"
                   )}
                 >
-                  <div
-                    className={cn(
-                      "w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors",
-                      step.number < currentStep
-                        ? "bg-primary border-primary text-primary-foreground"
-                        : step.number === currentStep
-                        ? "border-primary text-primary"
-                        : "border-muted-foreground/30"
-                    )}
-                  >
-                    {step.number < currentStep ? (
-                      <CheckCircle2 className="w-5 h-5" />
-                    ) : step.number === currentStep && isAnalyzing ? (
+                  {step.number < currentStep ? (
+                    <CheckCircle2 className="w-4 h-4" />
+                  ) : step.number === currentStep ? (
+                    isAnalyzing ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
-                      <span className="text-sm font-medium">{step.number}</span>
-                    )}
-                  </div>
-                  <span className="text-xs font-medium hidden sm:block">{step.title}</span>
+                      <div className="w-4 h-4 rounded-full border-2 border-primary flex items-center justify-center">
+                        <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                      </div>
+                    )
+                  ) : (
+                    <div className="w-4 h-4 rounded-full border-2 border-muted-foreground/30" />
+                  )}
+                  <span className="hidden sm:inline">{step.title}</span>
+                  <span className="sm:hidden">{step.number}</span>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                {index < STEPS.length - 1 && (
+                  <ChevronRight className="w-4 h-4 text-muted-foreground/50 mx-1" />
+                )}
+              </div>
+            ))}
+          </div>
+          <LlmStatusBadge />
+        </div>
 
         {/* Step Content */}
         <Card className="min-h-[400px]">
@@ -443,25 +417,37 @@ export default function SelfCheckPage() {
             )}
 
             {currentStep === 3 && (
-              <AnalysisProgress
-                isAnalyzing={isAnalyzing}
-                result={analysisResult}
-                checklistItems={checklistItems}
-              />
-            )}
+              <div className="space-y-6">
+                {/* 분석 진행 중 */}
+                {isAnalyzing && (
+                  <AnalysisProgress
+                    isAnalyzing={isAnalyzing}
+                    result={analysisResult}
+                    checklistItems={checklistItems}
+                  />
+                )}
 
-            {currentStep === 4 && analysisResult && (
-              <ResultComparison
-                result={analysisResult}
-                projectInfo={{
-                  projectName: projectForm.projectName,
-                  department: projectForm.department,
-                  managerName: projectForm.managerName,
-                  contact: "",
-                  email: projectForm.email,
-                }}
-                onRestart={handleRestart}
-              />
+                {/* 분석 완료 - 결과 인라인 표시 */}
+                {!isAnalyzing && analysisResult && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5 }}
+                  >
+                    <ResultComparison
+                      result={analysisResult}
+                      projectInfo={{
+                        projectName: projectForm.projectName,
+                        department: projectForm.department,
+                        managerName: projectForm.managerName,
+                        contact: "",
+                        email: projectForm.email,
+                      }}
+                      onRestart={handleRestart}
+                    />
+                  </motion.div>
+                )}
+              </div>
             )}
           </CardContent>
         </Card>
@@ -478,7 +464,7 @@ export default function SelfCheckPage() {
             이전
           </Button>
 
-          {currentStep < 4 && (
+          {currentStep < 3 && (
             <Button
               onClick={handleNext}
               disabled={!canProceed() || isAnalyzing}
@@ -488,11 +474,6 @@ export default function SelfCheckPage() {
                 <>
                   AI 검증 시작
                   <Shield className="w-4 h-4" />
-                </>
-              ) : currentStep === 3 ? (
-                <>
-                  결과 확인
-                  <ArrowRight className="w-4 h-4" />
                 </>
               ) : (
                 <>
