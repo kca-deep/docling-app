@@ -251,16 +251,16 @@ class Settings(BaseSettings):
                 "url": self.GPT_OSS_20B_URL
             },
             {
-                "key": "exaone-deep-7.8b",
-                "label": "EXAONE 7.8B",
-                "description": "경량화, 빠른 추론",
-                "url": self.EXAONE_DEEP_URL
-            },
-            {
                 "key": "exaone-4.0-32b",
                 "label": "EXAONE 32B",
                 "description": "고성능, 장문 처리",
                 "url": self.EXAONE_4_0_32B_URL
+            },
+            {
+                "key": "exaone-deep-7.8b",
+                "label": "EXAONE 7.8B",
+                "description": "경량화, 빠른 추론",
+                "url": self.EXAONE_DEEP_URL
             }
         ]
 

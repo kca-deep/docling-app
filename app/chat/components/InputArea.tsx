@@ -163,8 +163,8 @@ export const InputArea = memo(function InputArea({
   // 초기 fallback 모델 목록 (API 로딩 전 표시용)
   const fallbackModels: ModelOption[] = [
     { key: "gpt-oss-20b", label: "GPT-OSS 20B", description: "빠른 응답, 범용", status: "healthy" },
-    { key: "exaone-deep-7.8b", label: "EXAONE 7.8B", description: "경량화, 빠른 추론", status: "healthy" },
     { key: "exaone-4.0-32b", label: "EXAONE 32B", description: "고성능, 장문 처리", status: "healthy" },
+    { key: "exaone-deep-7.8b", label: "EXAONE 7.8B", description: "경량화, 빠른 추론", status: "healthy" },
   ];
 
   const [modelOptions, setModelOptions] = useState<ModelOption[]>(fallbackModels);
