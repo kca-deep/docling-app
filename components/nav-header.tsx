@@ -19,6 +19,9 @@ import {
   ChevronDown,
   Settings,
   FileStack,
+  Lightbulb,
+  Shield,
+  History,
 } from "lucide-react"
 import {
   Sheet,
@@ -79,8 +82,21 @@ export function NavHeader() {
   // 단일 메뉴 아이템
   const singleItems: NavItem[] = [
     { href: "/", label: "홈", icon: Home, requiresAuth: false },
-    { href: "/chat?fullscreen=true", label: "AI챗봇", icon: MessageSquare, requiresAuth: false },
   ]
+
+  // AI Idea Hub 그룹 (AI챗봇 앞에 위치)
+  const ideaHubGroup: NavGroup = {
+    label: "AI Idea Hub",
+    icon: Lightbulb,
+    requiresAuth: false,
+    items: [
+      { href: "/idea-hub", label: "셀프진단", icon: Shield, requiresAuth: false },
+      { href: "/idea-hub/history", label: "진단 이력", icon: History, requiresAuth: true },
+    ],
+  }
+
+  // AI챗봇 아이템
+  const chatItem: NavItem = { href: "/chat?fullscreen=true", label: "AI챗봇", icon: MessageSquare, requiresAuth: false }
 
   // 문서 그룹
   const documentGroup: NavGroup = {
@@ -246,15 +262,60 @@ export function NavHeader() {
             </DropdownMenu>
           )}
 
+          {/* AI Idea Hub 드롭다운 */}
+          {shouldShowGroup(ideaHubGroup) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className={cn(
+                    "relative inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-colors hover:text-foreground outline-none",
+                    isGroupActive(ideaHubGroup) ? "text-foreground" : "text-muted-foreground"
+                  )}
+                >
+                  {isGroupActive(ideaHubGroup) && (
+                    <motion.div
+                      layoutId="navbar-active"
+                      className="absolute inset-0 bg-muted rounded-full -z-10"
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                    />
+                  )}
+                  <ideaHubGroup.icon className="h-4 w-4" />
+                  <span>{ideaHubGroup.label}</span>
+                  <ChevronDown className="h-3 w-3 opacity-60" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-48">
+                {filterItems(ideaHubGroup.items).map((item) => {
+                  const Icon = item.icon
+                  const itemPathname = item.href.split("?")[0]
+                  const isActive = pathname === itemPathname || pathname.startsWith(`${itemPathname}/`)
+                  return (
+                    <DropdownMenuItem key={item.href} asChild>
+                      <Link
+                        href={item.href}
+                        className={cn(
+                          "flex items-center gap-2 cursor-pointer",
+                          isActive && "bg-muted"
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
+                        <span>{item.label}</span>
+                      </Link>
+                    </DropdownMenuItem>
+                  )
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
           {/* AI챗봇 */}
-          {visibleSingleItems.filter(item => item.href.startsWith("/chat")).map((item) => {
-            const Icon = item.icon
-            const itemPathname = item.href.split("?")[0]
+          {(() => {
+            const Icon = chatItem.icon
+            const itemPathname = chatItem.href.split("?")[0]
             const isActive = pathname === itemPathname || pathname.startsWith("/chat")
             return (
               <Link
-                key={item.href}
-                href={item.href}
+                href={chatItem.href}
                 className={cn(
                   "relative inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium transition-colors hover:text-foreground",
                   isActive ? "text-foreground" : "text-muted-foreground"
@@ -268,10 +329,10 @@ export function NavHeader() {
                   />
                 )}
                 <Icon className="h-4 w-4" />
-                <span>{item.label}</span>
+                <span>{chatItem.label}</span>
               </Link>
             )
-          })}
+          })()}
 
           {/* 설정 드롭다운 */}
           {shouldShowGroup(settingsGroup) && (
@@ -351,11 +412,11 @@ export function NavHeader() {
                 </SheetTitle>
               </SheetHeader>
               <nav className="flex flex-col gap-1">
-                {/* 홈 & AI챗봇 */}
+                {/* 홈 */}
                 {visibleSingleItems.map((item) => {
                   const Icon = item.icon
                   const itemPathname = item.href.split("?")[0]
-                  const isActive = pathname === itemPathname || (item.href.startsWith("/chat") && pathname.startsWith("/chat"))
+                  const isActive = pathname === itemPathname
 
                   return (
                     <Link
@@ -374,6 +435,62 @@ export function NavHeader() {
                     </Link>
                   )
                 })}
+
+                {/* AI Idea Hub 그룹 */}
+                {shouldShowGroup(ideaHubGroup) && (
+                  <>
+                    <div className="px-3 py-2 mt-2">
+                      <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                        <ideaHubGroup.icon className="h-4 w-4" />
+                        {ideaHubGroup.label}
+                      </p>
+                    </div>
+                    {filterItems(ideaHubGroup.items).map((item) => {
+                      const Icon = item.icon
+                      const itemPathname = item.href.split("?")[0]
+                      const isActive = pathname === itemPathname || pathname.startsWith(`${itemPathname}/`)
+
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => setMobileMenuOpen(false)}
+                          className={cn(
+                            "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ml-2",
+                            isActive
+                              ? "bg-muted text-foreground"
+                              : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                          )}
+                        >
+                          <Icon className="h-4 w-4" />
+                          <span>{item.label}</span>
+                        </Link>
+                      )
+                    })}
+                  </>
+                )}
+
+                {/* AI챗봇 */}
+                {(() => {
+                  const Icon = chatItem.icon
+                  const itemPathname = chatItem.href.split("?")[0]
+                  const isActive = pathname === itemPathname || pathname.startsWith("/chat")
+                  return (
+                    <Link
+                      href={chatItem.href}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                        isActive
+                          ? "bg-muted text-foreground"
+                          : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span>{chatItem.label}</span>
+                    </Link>
+                  )
+                })()}
 
                 {/* 문서 그룹 */}
                 {shouldShowGroup(documentGroup) && (
