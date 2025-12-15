@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 100">
+  <!-- KCA Text (Navy) -->
+  <text x="15" y="68" font-family="Arial Black, Arial, sans-serif" font-size="52" font-weight="900" fill="#1a3a6e" letter-spacing="-2">KCA</text>
+
+  <!-- Blue Wing (방송) - 가장 위 -->
+  <path d="M140 50 C155 25, 185 10, 220 8 C200 25, 175 40, 155 52 C150 50, 145 50, 140 50Z" fill="#0066cc"/>
+
+  <!-- Green Wing (통신) - 중간 -->
+  <path d="M145 58 C165 40, 200 35, 235 38 C210 48, 180 55, 160 60 C155 58, 150 58, 145 58Z" fill="#00a651"/>
+
+  <!-- Red Wing (전파) - 가장 아래 -->
+  <path d="M150 66 C175 55, 210 55, 240 62 C215 68, 185 70, 165 68 C160 67, 155 66, 150 66Z" fill="#ed1c24"/>
+</svg>
