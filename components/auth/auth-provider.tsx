@@ -34,7 +34,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 // === 보호된 경로 목록 ===
-const PROTECTED_ROUTES = ["/parse", "/upload", "/excel-embedding", "/analytics"]
+const PROTECTED_ROUTES = ["/parse", "/upload", "/excel-embedding", "/analytics", "/collections", "/admin"]
 
 // === 보안: pathname 검증 함수 ===
 const sanitizePathname = (path: string): string => {

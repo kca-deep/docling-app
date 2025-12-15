@@ -85,7 +85,15 @@ function LoginForm() {
       const redirect = getSafeRedirect(searchParams.get("redirect"))
       router.push(redirect)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "로그인에 실패했습니다.")
+      // errorCode를 확인하여 상태별 메시지 표시
+      const error = err as Error & { errorCode?: string }
+      if (error.errorCode === "PENDING_APPROVAL") {
+        setError("가입 승인 대기 중입니다. 관리자 승인 후 로그인할 수 있습니다.")
+      } else if (error.errorCode === "REJECTED") {
+        setError("가입이 거절되었습니다. 관리자에게 문의하세요.")
+      } else {
+        setError(error.message || "로그인에 실패했습니다.")
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -301,6 +309,19 @@ function LoginForm() {
                   </Button>
                 </motion.div>
               </form>
+
+              {/* Register Link */}
+              <div className="mt-6 pt-6 border-t border-border/50">
+                <p className="text-center text-sm text-muted-foreground">
+                  계정이 없으신가요?{" "}
+                  <Link
+                    href="/register"
+                    className="font-medium text-[color:var(--chart-1)] hover:text-[color:var(--chart-2)] transition-colors"
+                  >
+                    회원가입
+                  </Link>
+                </p>
+              </div>
             </CardContent>
           </Card>
         </motion.div>
@@ -312,7 +333,7 @@ function LoginForm() {
           transition={{ duration: 0.5, delay: 0.4 }}
           className="mt-8 text-center text-sm text-muted-foreground"
         >
-          관리자 전용 로그인
+          Document AI Pipeline 로그인
         </motion.p>
       </div>
     </div>

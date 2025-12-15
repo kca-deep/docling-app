@@ -1,23 +1,32 @@
 """
 인증 서비스
-JWT 토큰 생성, 비밀번호 해싱, 사용자 인증 로직
+JWT 토큰 생성, 비밀번호 해싱, 사용자 인증 로직, 회원가입 관리
 """
 import logging
 import hashlib
 import secrets
+import re
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, List, Tuple
 
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from backend.config.settings import settings
-from backend.models.user import User
+from backend.models.user import User, UserStatus
 
 logger = logging.getLogger(__name__)
 
 # JWT 설정
 ALGORITHM = "HS256"
+
+
+class AuthenticationError(Exception):
+    """인증 관련 예외"""
+    def __init__(self, message: str, error_code: str = "AUTH_ERROR"):
+        self.message = message
+        self.error_code = error_code
+        super().__init__(self.message)
 
 
 class AuthService:
@@ -112,7 +121,7 @@ class AuthService:
         db: Session,
         username: str,
         password: str
-    ) -> Optional[User]:
+    ) -> User:
         """
         사용자 인증
 
@@ -122,21 +131,33 @@ class AuthService:
             password: 평문 비밀번호
 
         Returns:
-            User: 인증 성공 시 사용자 객체, 실패 시 None
+            User: 인증 성공 시 사용자 객체
+
+        Raises:
+            AuthenticationError: 인증 실패 시
         """
         user = db.query(User).filter(User.username == username).first()
 
         if not user:
             logger.warning(f"Authentication failed: user '{username}' not found")
-            return None
+            raise AuthenticationError("아이디 또는 비밀번호가 올바르지 않습니다.", "INVALID_CREDENTIALS")
+
+        # 승인 상태 확인
+        if user.status == UserStatus.PENDING.value:
+            logger.warning(f"Authentication failed: user '{username}' is pending approval")
+            raise AuthenticationError("가입 승인 대기 중입니다. 관리자 승인 후 로그인할 수 있습니다.", "PENDING_APPROVAL")
+
+        if user.status == UserStatus.REJECTED.value:
+            logger.warning(f"Authentication failed: user '{username}' was rejected")
+            raise AuthenticationError("가입이 거절되었습니다. 관리자에게 문의하세요.", "REJECTED")
 
         if not user.is_active:
             logger.warning(f"Authentication failed: user '{username}' is inactive")
-            return None
+            raise AuthenticationError("비활성화된 계정입니다. 관리자에게 문의하세요.", "INACTIVE")
 
         if not self.verify_password(password, user.password_hash):
             logger.warning(f"Authentication failed: invalid password for '{username}'")
-            return None
+            raise AuthenticationError("아이디 또는 비밀번호가 올바르지 않습니다.", "INVALID_CREDENTIALS")
 
         # 마지막 로그인 시간 업데이트
         user.last_login = datetime.utcnow()
@@ -158,16 +179,26 @@ class AuthService:
         db: Session,
         username: str,
         password: str,
-        role: str = "admin"
+        role: str = "admin",
+        email: Optional[str] = None,
+        name: Optional[str] = None,
+        team_name: Optional[str] = None,
+        status: str = UserStatus.APPROVED.value,
+        is_active: bool = True
     ) -> User:
         """
-        새 사용자 생성
+        새 사용자 생성 (기존 호환성 유지)
 
         Args:
             db: 데이터베이스 세션
             username: 사용자명
             password: 평문 비밀번호
             role: 역할 (기본값: admin)
+            email: 이메일 (선택)
+            name: 실명 (선택)
+            team_name: 팀명 (선택)
+            status: 승인 상태 (기본값: approved)
+            is_active: 활성 상태 (기본값: True)
 
         Returns:
             User: 생성된 사용자 객체
@@ -175,15 +206,320 @@ class AuthService:
         password_hash = self.get_password_hash(password)
         user = User(
             username=username,
+            email=email or f"{username}@kca.kr",
             password_hash=password_hash,
+            name=name or username,
+            team_name=team_name,
             role=role,
-            is_active=True
+            status=status,
+            is_active=is_active
         )
         db.add(user)
         db.commit()
         db.refresh(user)
-        logger.info(f"User '{username}' created with role '{role}'")
+        logger.info(f"User '{username}' created with role '{role}', status '{status}'")
         return user
+
+    # =========================================
+    # 회원가입 관련 메서드
+    # =========================================
+
+    def validate_password_strength(self, password: str) -> Tuple[bool, str]:
+        """
+        비밀번호 강도 검증
+
+        Args:
+            password: 검증할 비밀번호
+
+        Returns:
+            Tuple[bool, str]: (유효여부, 에러메시지)
+        """
+        errors = []
+
+        if len(password) < settings.PASSWORD_MIN_LENGTH:
+            errors.append(f"비밀번호는 최소 {settings.PASSWORD_MIN_LENGTH}자 이상이어야 합니다.")
+
+        if settings.PASSWORD_REQUIRE_UPPERCASE and not re.search(r'[A-Z]', password):
+            errors.append("대문자를 포함해야 합니다.")
+
+        if settings.PASSWORD_REQUIRE_LOWERCASE and not re.search(r'[a-z]', password):
+            errors.append("소문자를 포함해야 합니다.")
+
+        if settings.PASSWORD_REQUIRE_DIGIT and not re.search(r'\d', password):
+            errors.append("숫자를 포함해야 합니다.")
+
+        if settings.PASSWORD_REQUIRE_SPECIAL and not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+            errors.append("특수문자를 포함해야 합니다.")
+
+        if errors:
+            return False, " ".join(errors)
+
+        return True, ""
+
+    def validate_email_domain(self, email: str) -> Tuple[bool, str]:
+        """
+        이메일 도메인 검증
+
+        Args:
+            email: 검증할 이메일
+
+        Returns:
+            Tuple[bool, str]: (유효여부, 에러메시지)
+        """
+        if not settings.ALLOWED_EMAIL_DOMAINS:
+            return True, ""
+
+        try:
+            domain = email.split("@")[1].lower()
+        except IndexError:
+            return False, "올바른 이메일 형식이 아닙니다."
+
+        allowed_domains = [d.lower() for d in settings.ALLOWED_EMAIL_DOMAINS]
+
+        if domain not in allowed_domains:
+            domains_str = ", ".join(f"@{d}" for d in settings.ALLOWED_EMAIL_DOMAINS)
+            return False, f"허용된 이메일 도메인이 아닙니다. ({domains_str})"
+
+        return True, ""
+
+    def check_duplicate_username(self, db: Session, username: str) -> bool:
+        """
+        아이디 중복 체크
+
+        Args:
+            db: 데이터베이스 세션
+            username: 체크할 아이디
+
+        Returns:
+            bool: 중복이면 True
+        """
+        user = db.query(User).filter(User.username == username).first()
+        return user is not None
+
+    def check_duplicate_email(self, db: Session, email: str) -> bool:
+        """
+        이메일 중복 체크
+
+        Args:
+            db: 데이터베이스 세션
+            email: 체크할 이메일
+
+        Returns:
+            bool: 중복이면 True
+        """
+        user = db.query(User).filter(User.email == email).first()
+        return user is not None
+
+    def get_user_by_email(self, db: Session, email: str) -> Optional[User]:
+        """이메일로 사용자 조회"""
+        return db.query(User).filter(User.email == email).first()
+
+    def register_user(
+        self,
+        db: Session,
+        username: str,
+        email: str,
+        password: str,
+        name: str,
+        team_name: Optional[str] = None
+    ) -> User:
+        """
+        새 사용자 회원가입 (승인 대기 상태로 생성)
+
+        Args:
+            db: 데이터베이스 세션
+            username: 아이디
+            email: 이메일
+            password: 비밀번호
+            name: 실명
+            team_name: 팀명 (선택)
+
+        Returns:
+            User: 생성된 사용자 객체
+
+        Raises:
+            AuthenticationError: 검증 실패 시
+        """
+        # 회원가입 활성화 확인
+        if not settings.REGISTRATION_ENABLED:
+            raise AuthenticationError("회원가입이 비활성화되어 있습니다.", "REGISTRATION_DISABLED")
+
+        # 비밀번호 강도 검증
+        is_valid, error_msg = self.validate_password_strength(password)
+        if not is_valid:
+            raise AuthenticationError(error_msg, "WEAK_PASSWORD")
+
+        # 이메일 도메인 검증
+        is_valid, error_msg = self.validate_email_domain(email)
+        if not is_valid:
+            raise AuthenticationError(error_msg, "INVALID_EMAIL_DOMAIN")
+
+        # 중복 체크
+        if self.check_duplicate_username(db, username):
+            raise AuthenticationError("이미 사용 중인 아이디입니다.", "DUPLICATE_USERNAME")
+
+        if self.check_duplicate_email(db, email):
+            raise AuthenticationError("이미 사용 중인 이메일입니다.", "DUPLICATE_EMAIL")
+
+        # 사용자 생성 (승인 대기 상태)
+        password_hash = self.get_password_hash(password)
+        user = User(
+            username=username,
+            email=email,
+            password_hash=password_hash,
+            name=name,
+            team_name=team_name,
+            role="user",
+            status=UserStatus.PENDING.value,
+            is_active=False
+        )
+
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        logger.info(f"New user registered: {username} ({email}) - awaiting approval")
+        return user
+
+    def approve_user(
+        self,
+        db: Session,
+        user_id: int,
+        admin_id: int
+    ) -> User:
+        """
+        사용자 승인
+
+        Args:
+            db: 데이터베이스 세션
+            user_id: 승인할 사용자 ID
+            admin_id: 승인하는 관리자 ID
+
+        Returns:
+            User: 승인된 사용자 객체
+
+        Raises:
+            AuthenticationError: 사용자를 찾을 수 없거나 이미 처리된 경우
+        """
+        user = self.get_user_by_id(db, user_id)
+        if not user:
+            raise AuthenticationError("사용자를 찾을 수 없습니다.", "USER_NOT_FOUND")
+
+        if user.status != UserStatus.PENDING.value:
+            raise AuthenticationError(f"이미 처리된 사용자입니다. (상태: {user.status})", "ALREADY_PROCESSED")
+
+        user.status = UserStatus.APPROVED.value
+        user.is_active = True
+        user.approved_at = datetime.utcnow()
+        user.approved_by = admin_id
+
+        db.commit()
+        db.refresh(user)
+
+        logger.info(f"User '{user.username}' approved by admin ID {admin_id}")
+        return user
+
+    def reject_user(
+        self,
+        db: Session,
+        user_id: int,
+        admin_id: int,
+        reason: Optional[str] = None
+    ) -> User:
+        """
+        사용자 거절
+
+        Args:
+            db: 데이터베이스 세션
+            user_id: 거절할 사용자 ID
+            admin_id: 거절하는 관리자 ID
+            reason: 거절 사유 (선택)
+
+        Returns:
+            User: 거절된 사용자 객체
+
+        Raises:
+            AuthenticationError: 사용자를 찾을 수 없거나 이미 처리된 경우
+        """
+        user = self.get_user_by_id(db, user_id)
+        if not user:
+            raise AuthenticationError("사용자를 찾을 수 없습니다.", "USER_NOT_FOUND")
+
+        if user.status != UserStatus.PENDING.value:
+            raise AuthenticationError(f"이미 처리된 사용자입니다. (상태: {user.status})", "ALREADY_PROCESSED")
+
+        user.status = UserStatus.REJECTED.value
+        user.is_active = False
+        user.rejected_reason = reason
+        user.approved_by = admin_id  # 거절도 approved_by 필드 재사용
+
+        db.commit()
+        db.refresh(user)
+
+        logger.info(f"User '{user.username}' rejected by admin ID {admin_id}. Reason: {reason}")
+        return user
+
+    def get_pending_users(self, db: Session) -> List[User]:
+        """
+        승인 대기 중인 사용자 목록 조회
+
+        Args:
+            db: 데이터베이스 세션
+
+        Returns:
+            List[User]: 대기 중인 사용자 목록
+        """
+        return db.query(User).filter(
+            User.status == UserStatus.PENDING.value
+        ).order_by(User.created_at.desc()).all()
+
+    def get_all_users(
+        self,
+        db: Session,
+        skip: int = 0,
+        limit: int = 100,
+        status_filter: Optional[str] = None
+    ) -> List[User]:
+        """
+        사용자 목록 조회
+
+        Args:
+            db: 데이터베이스 세션
+            skip: 건너뛸 개수
+            limit: 최대 개수
+            status_filter: 상태 필터 (pending, approved, rejected)
+
+        Returns:
+            List[User]: 사용자 목록
+        """
+        query = db.query(User)
+
+        if status_filter:
+            query = query.filter(User.status == status_filter)
+
+        return query.order_by(User.created_at.desc()).offset(skip).limit(limit).all()
+
+    def delete_user(self, db: Session, user_id: int) -> bool:
+        """
+        사용자 삭제
+
+        Args:
+            db: 데이터베이스 세션
+            user_id: 삭제할 사용자 ID
+
+        Returns:
+            bool: 삭제 성공 여부
+        """
+        user = self.get_user_by_id(db, user_id)
+        if not user:
+            return False
+
+        username = user.username
+        db.delete(user)
+        db.commit()
+
+        logger.info(f"User '{username}' (ID: {user_id}) deleted")
+        return True
 
     def ensure_admin_exists(self, db: Session) -> None:
         """

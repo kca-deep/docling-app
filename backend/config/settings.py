@@ -25,6 +25,24 @@ class Settings(BaseSettings):
     # 세션 만료 시간 (시간 단위)
     SESSION_EXPIRE_HOURS: int = 24
 
+    # ===========================================
+    # 회원가입 설정 (Registration)
+    # ===========================================
+    # 회원가입 활성화 여부
+    REGISTRATION_ENABLED: bool = True
+    # 허용 이메일 도메인 (빈 리스트면 모든 도메인 허용)
+    ALLOWED_EMAIL_DOMAINS: List[str] = ["kca.kr"]
+    # 비밀번호 최소 길이
+    PASSWORD_MIN_LENGTH: int = 8
+    # 비밀번호 대문자 필수
+    PASSWORD_REQUIRE_UPPERCASE: bool = True
+    # 비밀번호 소문자 필수
+    PASSWORD_REQUIRE_LOWERCASE: bool = True
+    # 비밀번호 숫자 필수
+    PASSWORD_REQUIRE_DIGIT: bool = True
+    # 비밀번호 특수문자 필수
+    PASSWORD_REQUIRE_SPECIAL: bool = True
+
     # Database 설정
     DATABASE_URL: str = "sqlite:///./docling.db"
 

@@ -1,20 +1,22 @@
 """
 인증 API 라우터
-로그인, 로그아웃, 사용자 정보 조회
+로그인, 로그아웃, 사용자 정보 조회, 회원가입, 사용자 관리
 """
 import logging
 from datetime import timedelta
+from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.config.settings import settings
-from backend.services.auth_service import auth_service
+from backend.services.auth_service import auth_service, AuthenticationError
 from backend.dependencies.auth import (
     get_current_user,
     get_current_active_user,
+    require_admin,
     ACCESS_TOKEN_COOKIE_KEY
 )
 from backend.models.user import User
@@ -36,7 +38,11 @@ class UserResponse(BaseModel):
     """사용자 정보 응답"""
     id: int
     username: str
+    email: Optional[str] = None
+    name: Optional[str] = None
+    team_name: Optional[str] = None
     role: str
+    status: str = "approved"
     is_active: bool
 
     class Config:
@@ -51,6 +57,79 @@ class AuthStatusResponse(BaseModel):
 
 class MessageResponse(BaseModel):
     """메시지 응답"""
+    message: str
+
+
+# === 회원가입 스키마 ===
+
+class RegisterRequest(BaseModel):
+    """회원가입 요청"""
+    username: str = Field(..., min_length=4, max_length=50, pattern=r"^[a-zA-Z0-9_]+$")
+    email: EmailStr
+    password: str = Field(..., min_length=8, max_length=128)
+    password_confirm: str
+    name: str = Field(..., min_length=2, max_length=100)
+    team_name: Optional[str] = Field(None, max_length=100)
+
+
+class RegisterResponse(BaseModel):
+    """회원가입 응답"""
+    id: int
+    username: str
+    email: str
+    name: str
+    status: str
+    message: str
+
+
+class DuplicateCheckRequest(BaseModel):
+    """중복 체크 요청"""
+    field: str  # "username" or "email"
+    value: str
+
+
+class DuplicateCheckResponse(BaseModel):
+    """중복 체크 응답"""
+    is_duplicate: bool
+    field: str
+    message: str
+
+
+# === 관리자 스키마 ===
+
+class UserListResponse(BaseModel):
+    """사용자 목록 응답"""
+    id: int
+    username: str
+    email: Optional[str] = None
+    name: Optional[str] = None
+    team_name: Optional[str] = None
+    role: str
+    status: str
+    is_active: bool
+    created_at: Optional[str] = None
+    last_login: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ApproveRequest(BaseModel):
+    """승인 요청"""
+    user_id: int
+
+
+class RejectRequest(BaseModel):
+    """거절 요청"""
+    user_id: int
+    reason: Optional[str] = None
+
+
+class ApproveRejectResponse(BaseModel):
+    """승인/거절 응답"""
+    success: bool
+    user_id: int
+    status: str
     message: str
 
 
@@ -70,16 +149,24 @@ async def login(
     Returns:
         UserResponse: 로그인된 사용자 정보
     """
-    user = auth_service.authenticate_user(
-        db=db,
-        username=request.username,
-        password=request.password
-    )
-
-    if user is None:
+    try:
+        user = auth_service.authenticate_user(
+            db=db,
+            username=request.username,
+            password=request.password
+        )
+    except AuthenticationError as e:
+        # 상태별 에러 코드 매핑
+        status_code_map = {
+            "PENDING_APPROVAL": status.HTTP_403_FORBIDDEN,
+            "REJECTED": status.HTTP_403_FORBIDDEN,
+            "INACTIVE": status.HTTP_403_FORBIDDEN,
+            "INVALID_CREDENTIALS": status.HTTP_401_UNAUTHORIZED,
+        }
+        http_status = status_code_map.get(e.error_code, status.HTTP_401_UNAUTHORIZED)
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password"
+            status_code=http_status,
+            detail={"message": e.message, "error_code": e.error_code}
         )
 
     # JWT 토큰 생성
@@ -163,3 +250,256 @@ async def verify_auth(
         authenticated=True,
         user=UserResponse.model_validate(user)
     )
+
+
+# =========================================
+# 회원가입 엔드포인트
+# =========================================
+
+@router.post("/register", response_model=RegisterResponse)
+async def register(
+    request: RegisterRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    회원가입
+
+    새 사용자를 승인 대기 상태로 등록합니다.
+    관리자 승인 후 로그인 가능합니다.
+
+    Returns:
+        RegisterResponse: 등록 결과
+    """
+    # 비밀번호 확인
+    if request.password != request.password_confirm:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"message": "비밀번호가 일치하지 않습니다.", "error_code": "PASSWORD_MISMATCH"}
+        )
+
+    try:
+        user = auth_service.register_user(
+            db=db,
+            username=request.username,
+            email=request.email,
+            password=request.password,
+            name=request.name,
+            team_name=request.team_name
+        )
+    except AuthenticationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"message": e.message, "error_code": e.error_code}
+        )
+
+    logger.info(f"New user registered: {user.username}")
+
+    return RegisterResponse(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        name=user.name,
+        status=user.status,
+        message="회원가입이 완료되었습니다. 관리자 승인 후 로그인할 수 있습니다."
+    )
+
+
+@router.post("/check-duplicate", response_model=DuplicateCheckResponse)
+async def check_duplicate(
+    request: DuplicateCheckRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    중복 체크
+
+    아이디 또는 이메일 중복 여부를 확인합니다.
+
+    Returns:
+        DuplicateCheckResponse: 중복 여부
+    """
+    if request.field not in ["username", "email"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="field는 'username' 또는 'email'이어야 합니다."
+        )
+
+    is_duplicate = False
+    message = ""
+
+    if request.field == "username":
+        is_duplicate = auth_service.check_duplicate_username(db, request.value)
+        message = "이미 사용 중인 아이디입니다." if is_duplicate else "사용 가능한 아이디입니다."
+    elif request.field == "email":
+        is_duplicate = auth_service.check_duplicate_email(db, request.value)
+        message = "이미 사용 중인 이메일입니다." if is_duplicate else "사용 가능한 이메일입니다."
+
+    return DuplicateCheckResponse(
+        is_duplicate=is_duplicate,
+        field=request.field,
+        message=message
+    )
+
+
+# =========================================
+# 관리자 엔드포인트
+# =========================================
+
+def _user_to_list_response(user: User) -> UserListResponse:
+    """User 모델을 UserListResponse로 변환"""
+    return UserListResponse(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        name=user.name,
+        team_name=user.team_name,
+        role=user.role,
+        status=user.status,
+        is_active=user.is_active,
+        created_at=user.created_at.isoformat() if user.created_at else None,
+        last_login=user.last_login.isoformat() if user.last_login else None
+    )
+
+
+@router.get("/users", response_model=List[UserListResponse])
+async def list_users(
+    status_filter: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin)
+):
+    """
+    사용자 목록 조회 (관리자 전용)
+
+    Args:
+        status_filter: 상태 필터 (pending, approved, rejected)
+        skip: 건너뛸 개수
+        limit: 최대 개수
+
+    Returns:
+        List[UserListResponse]: 사용자 목록
+    """
+    users = auth_service.get_all_users(
+        db=db,
+        skip=skip,
+        limit=limit,
+        status_filter=status_filter
+    )
+
+    return [_user_to_list_response(user) for user in users]
+
+
+@router.get("/users/pending", response_model=List[UserListResponse])
+async def list_pending_users(
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin)
+):
+    """
+    승인 대기 사용자 목록 조회 (관리자 전용)
+
+    Returns:
+        List[UserListResponse]: 대기 중인 사용자 목록
+    """
+    users = auth_service.get_pending_users(db)
+    return [_user_to_list_response(user) for user in users]
+
+
+@router.post("/users/approve", response_model=ApproveRejectResponse)
+async def approve_user(
+    request: ApproveRequest,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin)
+):
+    """
+    사용자 승인 (관리자 전용)
+
+    Returns:
+        ApproveRejectResponse: 승인 결과
+    """
+    try:
+        user = auth_service.approve_user(
+            db=db,
+            user_id=request.user_id,
+            admin_id=admin.id
+        )
+    except AuthenticationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"message": e.message, "error_code": e.error_code}
+        )
+
+    logger.info(f"User {user.username} approved by admin {admin.username}")
+
+    return ApproveRejectResponse(
+        success=True,
+        user_id=user.id,
+        status=user.status,
+        message=f"사용자 '{user.username}'이(가) 승인되었습니다."
+    )
+
+
+@router.post("/users/reject", response_model=ApproveRejectResponse)
+async def reject_user(
+    request: RejectRequest,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin)
+):
+    """
+    사용자 거절 (관리자 전용)
+
+    Returns:
+        ApproveRejectResponse: 거절 결과
+    """
+    try:
+        user = auth_service.reject_user(
+            db=db,
+            user_id=request.user_id,
+            admin_id=admin.id,
+            reason=request.reason
+        )
+    except AuthenticationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"message": e.message, "error_code": e.error_code}
+        )
+
+    logger.info(f"User {user.username} rejected by admin {admin.username}. Reason: {request.reason}")
+
+    return ApproveRejectResponse(
+        success=True,
+        user_id=user.id,
+        status=user.status,
+        message=f"사용자 '{user.username}'이(가) 거절되었습니다."
+    )
+
+
+@router.delete("/users/{user_id}", response_model=MessageResponse)
+async def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin)
+):
+    """
+    사용자 삭제 (관리자 전용)
+
+    Returns:
+        MessageResponse: 삭제 결과
+    """
+    # 자기 자신 삭제 방지
+    if user_id == admin.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="자기 자신은 삭제할 수 없습니다."
+        )
+
+    success = auth_service.delete_user(db, user_id)
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="사용자를 찾을 수 없습니다."
+        )
+
+    logger.info(f"User ID {user_id} deleted by admin {admin.username}")
+
+    return MessageResponse(message="사용자가 삭제되었습니다.")
