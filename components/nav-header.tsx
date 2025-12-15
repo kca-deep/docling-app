@@ -10,7 +10,6 @@ import {
   Database,
   Sheet as SheetIcon,
   BarChart3,
-  Sparkles,
   LogOut,
   LucideIcon,
   FolderCog,
@@ -172,20 +171,16 @@ export function NavHeader() {
       )}
     >
       <div className="flex h-14 items-center justify-between px-4 md:px-6 max-w-7xl mx-auto">
-        {/* Logo */}
-        <Link href="/" className="flex items-center gap-2.5 group">
-          <div className="relative overflow-hidden p-2 rounded-lg bg-[color:var(--chart-1)]/10 border border-[color:var(--chart-1)]/20 group-hover:bg-[color:var(--chart-1)]/20 transition-all duration-300">
-            <motion.div
-              className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/20 to-transparent"
-              animate={{ x: ["-100%", "200%"] }}
-              transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+        {/* Logo - 오션 블루 배지 + 그라디언트 Black 이탤릭 */}
+        <Link href="/" className="flex items-center gap-2.5 group shrink-0">
+          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-[#06b6d4] via-[#3b82f6] to-[#1e3a8a] hover:opacity-90 transition-opacity shadow-lg shadow-cyan-500/30">
+            <img
+              src="/logo/kca_small.png"
+              alt="KCA"
+              className="h-7 w-auto brightness-0 invert"
             />
-            <Sparkles className="h-5 w-5 text-[color:var(--chart-1)]" />
           </div>
-          <div className="hidden sm:flex flex-col leading-none">
-            <span className="font-bold text-base text-foreground tracking-tight">KCA-RAG</span>
-            <span className="text-[10px] text-muted-foreground font-medium tracking-widest uppercase">Document AI</span>
-          </div>
+          <span className="text-xl font-black italic tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-[#0066cc] via-[#00a651] to-[#ed1c24]">AI-Hub</span>
         </Link>
 
         {/* Desktop Navigation - md 이상에서 표시 */}
@@ -404,11 +399,15 @@ export function NavHeader() {
             </SheetTrigger>
             <SheetContent side="right" className="w-[280px] sm:w-[320px]">
               <SheetHeader className="border-b pb-4 mb-4">
-                <SheetTitle className="flex items-center gap-2">
-                  <div className="p-1.5 rounded-lg bg-[color:var(--chart-1)]/10 border border-[color:var(--chart-1)]/20">
-                    <Sparkles className="h-4 w-4 text-[color:var(--chart-1)]" />
+                <SheetTitle className="flex items-center gap-2.5">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-[#06b6d4] via-[#3b82f6] to-[#1e3a8a] shadow-lg shadow-cyan-500/30">
+                    <img
+                      src="/logo/kca_small.png"
+                      alt="KCA"
+                      className="h-7 w-auto brightness-0 invert"
+                    />
                   </div>
-                  <span className="font-bold">KCA-RAG</span>
+                  <span className="text-xl font-black italic tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-[#0066cc] via-[#00a651] to-[#ed1c24]">AI-Hub</span>
                 </SheetTitle>
               </SheetHeader>
               <nav className="flex flex-col gap-1">
