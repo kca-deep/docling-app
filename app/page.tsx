@@ -429,8 +429,7 @@ export default function HomePage() {
               {[
                 { name: "GPT-OSS 20B", badge: "US", type: "General", port: "8080", vram: "16GB", active: true, colorVar: 1 },
                 { name: "Qwen3-VL 8B", badge: "CN", type: "Vision OCR", port: "8084", vram: "8GB", active: true, colorVar: 2 },
-                { name: "EXAONE Deep 7.8B", badge: "KR", type: "Reasoning", port: "8085", vram: "8GB", active: true, colorVar: 3 },
-                { name: "EXAONE 4.0 32B", badge: "KR", type: "Long Context", port: "8081", vram: "20GB", active: true, colorVar: 4 },
+                { name: "EXAONE 4.0 32B", badge: "KR", type: "Long Context", port: "8081", vram: "20GB", active: true, colorVar: 3 },
               ].map((model, i) => (
                 <motion.div
                   key={i}
