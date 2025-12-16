@@ -19,6 +19,21 @@ import {
   ChevronRight,
 } from "lucide-react"
 import { motion } from "framer-motion"
+
+// Stagger animation variants
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.08 }
+  }
+}
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 15 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.3 } }
+}
+
 import Link from "next/link"
 import { useAuth } from "@/components/auth/auth-provider"
 import { apiEndpoints } from "@/lib/api-config"
@@ -350,7 +365,12 @@ export default function SelfCheckPage() {
         </div>
 
         {/* Login Required Card */}
-        <div className="max-w-lg mx-auto">
+        <motion.div
+          className="max-w-lg mx-auto"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
           <Card className="border-2 border-amber-200 dark:border-amber-800">
             <CardHeader className="text-center pb-4">
               <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
@@ -385,55 +405,36 @@ export default function SelfCheckPage() {
               </div>
             </CardContent>
           </Card>
-        </div>
+        </motion.div>
       </PageContainer>
     )
   }
 
   // Authenticated - show diagnosis flow
   return (
-    <PageContainer maxWidth="wide" className="py-8 space-y-8">
-      {/* Background Noise & Gradient */}
-      <div className="absolute inset-0 bg-noise opacity-30 pointer-events-none -z-10" />
-      <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-amber-500/5 to-transparent -z-10" />
-
+    <PageContainer maxWidth="wide" className="space-y-4">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 relative z-10">
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/20">
-              <Shield className="h-5 w-5" />
-            </div>
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
-              보안성 셀프진단
-            </span>
-          </h1>
-          <p className="text-muted-foreground mt-3 text-lg max-w-2xl">
-            과제 내용을 입력하면 AI가 보안성 검토 체크리스트를 자동으로 분석합니다.
-          </p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
-          <Link href="/idea-hub">
-            <Button variant="outline" className="gap-2 rounded-full">
-              <Home className="h-4 w-4" />
-              AI Idea Hub
-            </Button>
-          </Link>
-        </motion.div>
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-semibold flex items-center gap-2">
+          <Shield className="h-5 w-5 text-muted-foreground" />
+          보안성 셀프진단
+        </h1>
+        <Link href="/idea-hub">
+          <Button variant="outline" size="sm" className="gap-1.5">
+            <Home className="h-4 w-4" />
+            AI Idea Hub
+          </Button>
+        </Link>
       </div>
 
-      <div className="max-w-6xl mx-auto space-y-6">
+      <motion.div
+        className="max-w-6xl mx-auto space-y-6"
+        variants={containerVariants}
+        initial="hidden"
+        animate="show"
+      >
         {/* Progress Header - 브레드크럼 스타일 */}
-        <div className="flex items-center justify-between px-4 py-3 rounded-lg bg-muted/50 border">
+        <motion.div variants={itemVariants} className="flex items-center justify-between px-4 py-3 rounded-lg bg-muted/50 border">
           <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
             {STEPS.map((step, index) => (
               <div key={step.number} className="flex items-center">
@@ -468,9 +469,10 @@ export default function SelfCheckPage() {
             ))}
           </div>
           <LlmStatusBadge />
-        </div>
+        </motion.div>
 
         {/* Step Content */}
+        <motion.div variants={itemVariants}>
         <Card className="min-h-[400px]">
           <CardContent className="pt-6">
             {currentStep === 1 && (
@@ -523,9 +525,10 @@ export default function SelfCheckPage() {
             )}
           </CardContent>
         </Card>
+        </motion.div>
 
         {/* Navigation Buttons */}
-        <div className="flex justify-between">
+        <motion.div variants={itemVariants} className="flex justify-between">
           <Button
             variant="outline"
             onClick={handlePrev}
@@ -555,8 +558,8 @@ export default function SelfCheckPage() {
               )}
             </Button>
           )}
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     </PageContainer>
   )
 }

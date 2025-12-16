@@ -6,7 +6,7 @@ import json
 import logging
 import re
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 
@@ -127,7 +127,7 @@ class SelfCheckService:
 
         try:
             # 검토 기간 계산
-            cutoff_date = datetime.utcnow() - timedelta(days=settings.SELFCHECK_SIMILARITY_DAYS)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=settings.SELFCHECK_SIMILARITY_DAYS)
 
             # 기존 과제 조회 (기간 내, completed 상태)
             query = db.query(SelfCheckSubmission).filter(

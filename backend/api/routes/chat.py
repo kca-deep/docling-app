@@ -2,9 +2,9 @@
 Chat API 라우터
 RAG 기반 채팅 엔드포인트
 """
+import asyncio
 import json
 import logging
-import sys
 import uuid
 import time
 from pathlib import Path
@@ -30,6 +30,7 @@ from backend.services.conversation_service import conversation_service
 from backend.services import collection_crud
 from backend.dependencies.auth import get_current_user_optional
 from backend.models.user import User
+from backend.utils.exaone_utils import clean_thought_tags_simple, is_exaone_model
 
 # 로거 설정
 logger = logging.getLogger("uvicorn")
@@ -470,17 +471,6 @@ async def chat_stream(
     is_casual_mode = not chat_request.collection_name
     collection_display = chat_request.collection_name or "(일상대화)"
 
-    # 강제 출력 - 반드시 보여야 함
-    sys.stderr.write("\n" + "="*80 + "\n")
-    sys.stderr.write(f"[CHAT API] Stream endpoint called\n")
-    sys.stderr.write(f"[CHAT API] Request ID: {tracking_ids.get('request_id')}\n")
-    sys.stderr.write(f"[CHAT API] Requested model: {chat_request.model}\n")
-    sys.stderr.write(f"[CHAT API] Collection: {collection_display}\n")
-    sys.stderr.write(f"[CHAT API] Mode: {'Casual' if is_casual_mode else 'RAG'}\n")
-    sys.stderr.write(f"[CHAT API] Message: {chat_request.message[:50]}...\n")
-    sys.stderr.write("="*80 + "\n\n")
-    sys.stderr.flush()
-
     logger.info("="*80)
     logger.info("[CHAT API] Stream endpoint called")
     logger.info(f"[CHAT API] Request ID: {tracking_ids.get('request_id')}")
@@ -601,7 +591,7 @@ async def chat_stream(
 
             # 일반 스트리밍 모드
             # EXAONE 모델 감지 (llama.cpp가 reasoning_content와 content를 별도 필드로 전송)
-            is_exaone = "exaone" in chat_request.model.lower()
+            is_exaone = is_exaone_model(chat_request.model)
 
             try:
                 async for chunk in rag_service.chat_stream(
@@ -656,7 +646,7 @@ async def chat_stream(
                                         # content 필드가 있으면 답변으로 처리 (태그 제거)
                                         if content:
                                             # 혹시 남아있는 태그 제거
-                                            clean_content = content.replace('<thought>', '').replace('</thought>', '').replace('<think>', '').replace('</think>', '')
+                                            clean_content = clean_thought_tags_simple(content)
                                             if clean_content:
                                                 collected_response["answer"] += clean_content
                                                 yield f'data: {json.dumps({"choices": [{"delta": {"content": clean_content}, "index": 0}]})}\n\n'
@@ -697,6 +687,21 @@ async def chat_stream(
                     elif not is_exaone:
                         # EXAONE이 아닌 경우만 원본 chunk 전달
                         yield chunk
+            except asyncio.CancelledError:
+                # 클라이언트 연결 끊김 시에도 기본 정보는 기록
+                logger.warning("[CHAT API] Stream cancelled by client")
+                stream_error_info = {
+                    "error_type": "CancelledError",
+                    "error_message": "Client disconnected"
+                }
+                raise  # 예외 재발생하여 정상적인 정리 진행
+            except asyncio.TimeoutError:
+                logger.error(f"[CHAT API] Stream timeout after {settings.STREAMING_TIMEOUT_SECONDS}s")
+                stream_error_info = {
+                    "error_type": "TimeoutError",
+                    "error_message": f"Stream timeout ({settings.STREAMING_TIMEOUT_SECONDS}s)"
+                }
+                yield f'data: {{"error": "응답 시간 초과"}}\n\n'
             except Exception as e:
                 logger.error(f"[CHAT API] Stream generation failed: {e}")
                 stream_error_info = {
@@ -705,7 +710,7 @@ async def chat_stream(
                 }
                 yield f'data: {{"error": "스트리밍 실패: {str(e)}"}}\n\n'
             finally:
-                # 스트리밍 완료 후 로깅 (finally 블록에서 실행)
+                # 스트리밍 완료 후 로깅 (asyncio.shield로 취소 방지)
                 final_response_time_ms = int((time.time() - start_time) * 1000)
                 final_token_count = collected_response.get("usage", {}).get("total_tokens", 0)
 
@@ -735,9 +740,9 @@ async def chat_stream(
                     "top_p": chat_request.top_p
                 }
 
-                # 동기적으로 로깅 태스크 실행
+                # asyncio.shield()로 로깅 태스크 보호 (클라이언트 취소에도 완료 보장)
                 try:
-                    await log_chat_interaction_task(
+                    await asyncio.shield(log_chat_interaction_task(
                         session_id=session_id,
                         conversation_id=conversation_id,
                         collection_name=chat_request.collection_name or "casual",
@@ -752,7 +757,10 @@ async def chat_stream(
                         request_id=tracking_ids.get("request_id"),
                         trace_id=tracking_ids.get("trace_id"),
                         client_info=client_info
-                    )
+                    ))
+                except asyncio.CancelledError:
+                    # shield 내부에서도 취소될 수 있으므로 무시
+                    logger.warning("[CHAT API] Stream logging interrupted but basic info recorded")
                 except Exception as log_error:
                     logger.error(f"[CHAT API] Stream logging failed: {log_error}")
 
@@ -881,7 +889,7 @@ async def regenerate(request: RegenerateRequest):
         )
 
     except Exception as e:
-        print(f"[ERROR] Regenerate failed: {e}")
+        logger.error(f"Regenerate failed: {e}")
         raise HTTPException(status_code=500, detail=f"응답 재생성 실패: {str(e)}")
 
 
@@ -955,7 +963,7 @@ async def regenerate_stream(request: RegenerateRequest):
                 yield f'data: {json.dumps({"sources": sources_data}, ensure_ascii=False)}\n\n'
 
                 # EXAONE 모델 감지 (llama.cpp가 reasoning_content와 content를 별도 필드로 전송)
-                is_exaone = "exaone" in request.model.lower()
+                is_exaone = is_exaone_model(request.model)
 
                 # 스트리밍 생성
                 async for chunk in rag_service.generate_stream(
@@ -996,7 +1004,7 @@ async def regenerate_stream(request: RegenerateRequest):
                                         # content 필드가 있으면 답변으로 처리 (태그 제거)
                                         if content:
                                             # 혹시 남아있는 태그 제거
-                                            clean_content = content.replace('<thought>', '').replace('</thought>', '').replace('<think>', '').replace('</think>', '')
+                                            clean_content = clean_thought_tags_simple(content)
                                             if clean_content:
                                                 collected_response["answer"] += clean_content
                                                 yield f'data: {json.dumps({"choices": [{"delta": {"content": clean_content}, "index": 0}]})}\n\n'
@@ -1145,7 +1153,7 @@ async def get_suggested_prompts(collection_name: str):
         }
 
     except Exception as e:
-        print(f"[ERROR] Get suggested prompts failed: {e}")
+        logger.error(f"Get suggested prompts failed: {e}")
         raise HTTPException(status_code=500, detail=f"추천 질문 조회 실패: {str(e)}")
 
 

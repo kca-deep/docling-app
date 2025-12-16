@@ -1,9 +1,13 @@
 """
 API 요청/응답 스키마
 """
-from pydantic import BaseModel
-from typing import Optional, Any, List
+from datetime import datetime
+from pydantic import BaseModel, Field, ConfigDict
+from typing import Optional, Any, List, Generic, TypeVar
 from enum import Enum
+
+# 제네릭 타입 변수
+T = TypeVar("T")
 
 
 class TargetType(str, Enum):
@@ -57,7 +61,26 @@ class ConvertResult(BaseModel):
 
 
 class ErrorResponse(BaseModel):
-    """에러 응답"""
+    """구조화된 에러 응답 (보안 강화)"""
+    error_code: str = Field(..., description="에러 코드 (예: VALIDATION_ERROR, AUTH_ERROR)")
+    message: str = Field(..., description="사용자에게 표시할 에러 메시지")
+    detail: Optional[str] = Field(None, description="상세 정보 (개발 환경에서만 포함)")
+    timestamp: datetime = Field(default_factory=datetime.utcnow, description="에러 발생 시간")
+    request_id: Optional[str] = Field(None, description="요청 추적 ID")
+
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "error_code": "VALIDATION_ERROR",
+            "message": "요청 데이터가 올바르지 않습니다.",
+            "detail": None,
+            "timestamp": "2025-12-16T10:30:00Z",
+            "request_id": "req_abc123"
+        }
+    })
+
+
+class SimpleErrorResponse(BaseModel):
+    """간단한 에러 응답 (기존 호환성 유지)"""
     error: str
     detail: Optional[str] = None
 
@@ -86,8 +109,7 @@ class DocumentListResponse(BaseModel):
     created_at: str
     category: Optional[str] = None  # 카테고리 (Qdrant Collection 이름)
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DocumentDetailResponse(BaseModel):
@@ -104,8 +126,7 @@ class DocumentDetailResponse(BaseModel):
     created_at: str
     category: Optional[str] = None  # 카테고리
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DocumentSaveResponse(BaseModel):
@@ -115,8 +136,7 @@ class DocumentSaveResponse(BaseModel):
     original_filename: str
     message: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Document 카테고리 관련 스키마
@@ -186,8 +206,7 @@ class DifyDatasetResponse(BaseModel):
     total_available_documents: Optional[int] = None
     enable_api: Optional[bool] = None
 
-    class Config:
-        extra = "ignore"  # 혹시 모를 추가 필드 무시
+    model_config = ConfigDict(extra="ignore")
 
 
 class DifyDatasetListResponse(BaseModel):
@@ -198,8 +217,7 @@ class DifyDatasetListResponse(BaseModel):
     total: int
     page: int
 
-    class Config:
-        extra = "ignore"  # 추가 필드 무시
+    model_config = ConfigDict(extra="ignore")
 
 
 class DifyUploadRequest(BaseModel):
@@ -241,8 +259,7 @@ class DifyUploadHistoryResponse(BaseModel):
     error_message: Optional[str]
     uploaded_at: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Dify 설정 저장 관련 스키마
@@ -278,8 +295,7 @@ class DifyConfigListResponse(BaseModel):
     created_at: str
     last_used_at: Optional[str]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # URL 파싱 관련 스키마
@@ -738,8 +754,7 @@ class SelfCheckHistoryItem(BaseModel):
     used_model: Optional[str] = None
     created_at: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SelfCheckHistoryResponse(BaseModel):
@@ -767,8 +782,7 @@ class SelfCheckDetailResponse(BaseModel):
     items: List[SelfCheckItemResult]
     similar_projects: List[SimilarProject] = []  # 중복성 검토 결과
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ==================== SelfCheck Export Schemas ====================
@@ -788,3 +802,63 @@ class SelfCheckExportPdfRequest(BaseModel):
     """셀프진단 PDF 내보내기 요청"""
     submission_ids: List[str]  # submission_id 목록
     mode: ExportPdfMode = ExportPdfMode.INDIVIDUAL  # 내보내기 모드
+
+
+# ==================== Common Response Schemas ====================
+
+class ApiResponse(BaseModel, Generic[T]):
+    """공통 API 응답 래퍼"""
+    success: bool = True
+    message: Optional[str] = None
+    data: Optional[T] = None
+    error_code: Optional[str] = None
+
+
+class PaginationMeta(BaseModel):
+    """페이지네이션 메타데이터"""
+    total: int  # 전체 항목 수
+    page: int  # 현재 페이지 (1부터 시작)
+    page_size: int  # 페이지당 항목 수
+    total_pages: int  # 전체 페이지 수
+    has_next: bool  # 다음 페이지 존재 여부
+    has_prev: bool  # 이전 페이지 존재 여부
+
+
+class PaginatedResponse(BaseModel, Generic[T]):
+    """페이지네이션 응답"""
+    items: List[T]
+    pagination: PaginationMeta
+
+    @classmethod
+    def create(
+        cls,
+        items: List[T],
+        total: int,
+        page: int = 1,
+        page_size: int = 20
+    ) -> "PaginatedResponse[T]":
+        """
+        페이지네이션 응답 생성 헬퍼
+
+        Args:
+            items: 현재 페이지의 항목 리스트
+            total: 전체 항목 수
+            page: 현재 페이지 번호 (1부터 시작)
+            page_size: 페이지당 항목 수
+
+        Returns:
+            PaginatedResponse: 페이지네이션 응답
+        """
+        total_pages = (total + page_size - 1) // page_size if page_size > 0 else 0
+
+        return cls(
+            items=items,
+            pagination=PaginationMeta(
+                total=total,
+                page=page,
+                page_size=page_size,
+                total_pages=total_pages,
+                has_next=page < total_pages,
+                has_prev=page > 1
+            )
+        )

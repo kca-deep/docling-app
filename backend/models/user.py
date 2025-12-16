@@ -2,7 +2,7 @@
 사용자 모델
 인증 및 권한 관리를 위한 User 테이블 정의
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text
 from backend.database import Base
@@ -31,8 +31,12 @@ class User(Base):
     rejected_reason = Column(Text, nullable=True)
     approved_at = Column(DateTime, nullable=True)
     approved_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     last_login = Column(DateTime, nullable=True)
+
+    # 브루트포스 공격 방어 필드
+    failed_login_attempts = Column(Integer, default=0, nullable=False)
+    locked_until = Column(DateTime, nullable=True)  # 계정 잠금 해제 시간
 
     def __repr__(self):
         return f"<User(id={self.id}, username='{self.username}', email='{self.email}', status='{self.status}')>"
@@ -52,3 +56,25 @@ class User(Base):
     def can_login(self) -> bool:
         """로그인 가능한지 확인"""
         return self.is_approved() and self.is_active
+
+    def is_locked(self) -> bool:
+        """계정이 잠겨있는지 확인"""
+        if self.locked_until is None:
+            return False
+        # timezone-aware 비교를 위해 naive datetime 처리
+        now = datetime.now(timezone.utc)
+        locked = self.locked_until
+        if locked.tzinfo is None:
+            locked = locked.replace(tzinfo=timezone.utc)
+        return now < locked
+
+    def get_remaining_lockout_seconds(self) -> int:
+        """남은 잠금 시간(초) 반환"""
+        if self.locked_until is None:
+            return 0
+        now = datetime.now(timezone.utc)
+        locked = self.locked_until
+        if locked.tzinfo is None:
+            locked = locked.replace(tzinfo=timezone.utc)
+        remaining = (locked - now).total_seconds()
+        return max(0, int(remaining))

@@ -20,6 +20,12 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+} from "@/components/ui/pagination"
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -55,9 +61,25 @@ import {
   ChevronDown,
   RotateCcw,
   X,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react"
 import { motion } from "framer-motion"
 import { useAuth } from "@/components/auth/auth-provider"
+
+// Stagger animation variants
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.05 }
+  }
+}
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 15 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.3 } }
+}
 import { apiEndpoints } from "@/lib/api-config"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -74,6 +96,10 @@ interface HistoryItem {
   created_at: string
 }
 
+// Pagination constants
+const ITEMS_PER_PAGE = 15
+const PAGES_PER_BLOCK = 10
+
 export default function HistoryPage() {
   const { isAuthenticated, isLoading } = useAuth()
   const [searchQuery, setSearchQuery] = useState("")
@@ -83,6 +109,7 @@ export default function HistoryPage() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined)
   const [isDownloading, setIsDownloading] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
 
   // Track mobile viewport for calendar
   useEffect(() => {
@@ -153,12 +180,21 @@ export default function HistoryPage() {
     }
   }
 
-  // 선택 관련 함수들
+  // 선택 관련 함수들 (현재 페이지 항목만 대상)
   const toggleSelectAll = () => {
-    if (selectedIds.size === filteredHistory.length) {
-      setSelectedIds(new Set())
+    const currentPageIds = paginatedHistory.map(item => item.submission_id)
+    const allSelected = currentPageIds.every(id => selectedIds.has(id))
+
+    if (allSelected) {
+      // 현재 페이지 항목만 선택 해제
+      const newSet = new Set(selectedIds)
+      currentPageIds.forEach(id => newSet.delete(id))
+      setSelectedIds(newSet)
     } else {
-      setSelectedIds(new Set(filteredHistory.map(item => item.submission_id)))
+      // 현재 페이지 항목 모두 선택 추가
+      const newSet = new Set(selectedIds)
+      currentPageIds.forEach(id => newSet.add(id))
+      setSelectedIds(newSet)
     }
   }
 
@@ -264,7 +300,43 @@ export default function HistoryPage() {
       item.manager_name.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  const isAllSelected = filteredHistory.length > 0 && selectedIds.size === filteredHistory.length
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredHistory.length / ITEMS_PER_PAGE)
+  const currentBlock = Math.floor((currentPage - 1) / PAGES_PER_BLOCK)
+  const startPage = currentBlock * PAGES_PER_BLOCK + 1
+  const endPage = Math.min(startPage + PAGES_PER_BLOCK - 1, totalPages)
+
+  const paginatedHistory = filteredHistory.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  )
+
+  // Reset page when search/filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, dateRange])
+
+  // Ensure currentPage is valid when totalPages changes
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages)
+    }
+  }, [totalPages, currentPage])
+
+  const goToPreviousBlock = () => {
+    if (currentBlock > 0) {
+      setCurrentPage((currentBlock - 1) * PAGES_PER_BLOCK + PAGES_PER_BLOCK)
+    }
+  }
+
+  const goToNextBlock = () => {
+    if (endPage < totalPages) {
+      setCurrentPage((currentBlock + 1) * PAGES_PER_BLOCK + 1)
+    }
+  }
+
+  const isAllSelected = paginatedHistory.length > 0 &&
+    paginatedHistory.every(item => selectedIds.has(item.submission_id))
 
   if (isLoading) {
     return (
@@ -306,46 +378,19 @@ export default function HistoryPage() {
   }
 
   return (
-    <PageContainer maxWidth="wide" className="py-8 space-y-8">
-      {/* Background Noise & Gradient */}
-      <div className="absolute inset-0 bg-noise opacity-30 pointer-events-none -z-10" />
-      <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-blue-500/5 to-transparent -z-10" />
-
+    <PageContainer maxWidth="wide" className="space-y-4">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 relative z-10">
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/20">
-              <History className="h-5 w-5" />
-            </div>
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
-              진단 이력
-            </span>
-          </h1>
-          <p className="text-muted-foreground mt-3 text-lg max-w-2xl">
-            AI 과제 보안성 셀프진단 이력을 조회하고 결과를 다운로드할 수 있습니다.
-          </p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
-          <Link href="/idea-hub/selfcheck">
-            <Button
-              size="lg"
-              className="gap-2 rounded-full shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 hover:scale-105 active:scale-95 transition-all bg-blue-500 hover:bg-blue-500/90"
-            >
-              <Plus className="h-5 w-5" />
-              새 진단 시작
-            </Button>
-          </Link>
-        </motion.div>
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-semibold flex items-center gap-2">
+          <History className="h-5 w-5 text-muted-foreground" />
+          진단 이력
+        </h1>
+        <Link href="/idea-hub/selfcheck">
+          <Button size="sm" className="gap-1.5">
+            <Plus className="h-4 w-4" />
+            새 진단
+          </Button>
+        </Link>
       </div>
 
       <div className="space-y-4">
@@ -438,23 +483,28 @@ export default function HistoryPage() {
 
               {/* Stats Row */}
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-xs">
+                <motion.div
+                  className="flex flex-wrap items-center gap-1.5"
+                  variants={containerVariants}
+                  initial="hidden"
+                  animate="show"
+                >
+                  <motion.div variants={itemVariants} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-xs">
                     <FileText className="w-3 h-3 text-blue-500" />
                     <span className="text-muted-foreground">전체</span>
                     <span className="font-semibold">{history.length}</span>
-                  </div>
-                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-xs">
+                  </motion.div>
+                  <motion.div variants={itemVariants} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-xs">
                     <AlertTriangle className="w-3 h-3 text-amber-500" />
                     <span className="text-muted-foreground">검토 대상</span>
                     <span className="font-semibold text-amber-600">{history.filter((h) => h.requires_review).length}</span>
-                  </div>
-                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/10 border border-green-500/20 text-xs">
+                  </motion.div>
+                  <motion.div variants={itemVariants} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/10 border border-green-500/20 text-xs">
                     <CheckCircle2 className="w-3 h-3 text-green-500" />
                     <span className="text-muted-foreground">검토 불필요</span>
                     <span className="font-semibold text-green-600">{history.filter((h) => !h.requires_review).length}</span>
-                  </div>
-                </div>
+                  </motion.div>
+                </motion.div>
 
                 {/* Bulk Download Buttons */}
                 {selectedIds.size > 0 && (
@@ -514,6 +564,16 @@ export default function HistoryPage() {
         {/* History Table */}
         {filteredHistory.length > 0 ? (
           <>
+            {/* Page Info - Inline */}
+            <div className="flex items-center justify-end text-sm text-muted-foreground">
+              전체 {filteredHistory.length}건 중{" "}
+              <span className="font-medium text-foreground mx-1">
+                {(currentPage - 1) * ITEMS_PER_PAGE + 1}-
+                {Math.min(currentPage * ITEMS_PER_PAGE, filteredHistory.length)}
+              </span>
+              건
+            </div>
+
             {/* Desktop: Table View */}
             <Card className="hidden md:block">
               <CardContent className="pt-6">
@@ -536,7 +596,7 @@ export default function HistoryPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredHistory.map((item) => (
+                    {paginatedHistory.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell>
                           <Checkbox
@@ -619,8 +679,15 @@ export default function HistoryPage() {
                 <span className="text-sm text-muted-foreground">전체 선택</span>
               </div>
 
-              {filteredHistory.map((item) => (
-                <Card key={item.id} className="p-4">
+              <motion.div
+                variants={containerVariants}
+                initial="hidden"
+                animate="show"
+                className="space-y-3"
+              >
+              {paginatedHistory.map((item) => (
+                <motion.div key={item.id} variants={itemVariants}>
+                <Card className="p-4">
                   <div className="flex items-start gap-3">
                     <Checkbox
                       checked={selectedIds.has(item.submission_id)}
@@ -679,8 +746,67 @@ export default function HistoryPage() {
                     </div>
                   </div>
                 </Card>
+                </motion.div>
               ))}
+              </motion.div>
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex justify-center mt-4">
+                <Pagination>
+                  <PaginationContent>
+                    {/* Previous Block Button */}
+                    <PaginationItem>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1 h-8 px-2"
+                        onClick={goToPreviousBlock}
+                        disabled={currentBlock === 0}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        <span className="hidden sm:inline">이전</span>
+                      </Button>
+                    </PaginationItem>
+
+                    {/* Page Numbers */}
+                    {Array.from(
+                      { length: endPage - startPage + 1 },
+                      (_, i) => startPage + i
+                    ).map((page) => (
+                      <PaginationItem key={page}>
+                        <PaginationLink
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            setCurrentPage(page)
+                          }}
+                          isActive={page === currentPage}
+                          className="h-8 w-8 p-0"
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    ))}
+
+                    {/* Next Block Button */}
+                    <PaginationItem>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1 h-8 px-2"
+                        onClick={goToNextBlock}
+                        disabled={endPage >= totalPages}
+                      >
+                        <span className="hidden sm:inline">이후</span>
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </div>
+            )}
           </>
         ) : (
           <Card>

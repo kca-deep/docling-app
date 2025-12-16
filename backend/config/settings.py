@@ -2,9 +2,13 @@
 애플리케이션 설정
 .env 파일에서 환경변수를 읽어옵니다.
 """
-from pydantic_settings import BaseSettings
+import logging
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
 from typing import List, Optional
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -47,7 +51,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./docling.db"
 
     # Docling Serve API 설정
-    DOCLING_BASE_URL: str = "http://ai.kca.kr:8007"
+    # [개발 기본값] 프로덕션에서는 .env에서 실제 서버 URL로 변경
+    DOCLING_BASE_URL: str = "http://localhost:8007"
 
     # API 설정
     API_TITLE: str = "Docling Parse API"
@@ -64,26 +69,31 @@ class Settings(BaseSettings):
     POLL_INTERVAL: int = 2  # 초
 
     # Qdrant Vector DB 설정
-    QDRANT_URL: str = "http://ai.kca.kr:6333"
+    # [개발 기본값] 프로덕션에서는 .env에서 실제 서버 URL로 변경
+    QDRANT_URL: str = "http://localhost:6333"
     QDRANT_API_KEY: Optional[str] = None
     DEFAULT_COLLECTION_NAME: str = "documents"
 
     # Docling Serve 청킹 서버 설정
-    DOCLING_CHUNKING_URL: str = "http://ai.kca.kr:8007"
+    # [개발 기본값] 프로덕션에서는 .env에서 실제 서버 URL로 변경
+    DOCLING_CHUNKING_URL: str = "http://localhost:8007"
     DEFAULT_CHUNK_SIZE: int = 500
     DEFAULT_CHUNK_OVERLAP: int = 50
 
     # BGE-M3 임베딩 서버 설정
-    EMBEDDING_URL: str = "http://ai.kca.kr:8083"
+    # [개발 기본값] 프로덕션에서는 .env에서 실제 서버 URL로 변경
+    EMBEDDING_URL: str = "http://localhost:8083"
     EMBEDDING_MODEL: str = "bge-m3-korean"
     EMBEDDING_DIMENSION: int = 1024
 
     # LLM API 설정 (다중 모델 지원)
-    LLM_BASE_URL: str = "http://ai.kca.kr:8080"
+    # [개발 기본값] 프로덕션에서는 .env에서 실제 서버 URL로 변경
+    LLM_BASE_URL: str = "http://localhost:8080"
     LLM_MODEL: str = "gpt-oss-20b"
 
     # GPT-OSS 20B 설정
-    GPT_OSS_20B_URL: str = "http://ai.kca.kr:8080"
+    # [개발 기본값] 프로덕션에서는 .env에서 실제 서버 URL로 변경
+    GPT_OSS_20B_URL: str = "http://localhost:8080"
     GPT_OSS_20B_MODEL: str = "gpt-oss-20b"
 
     # EXAONE Deep 7.8B 설정 (공식 권장값 적용)
@@ -137,7 +147,8 @@ class Settings(BaseSettings):
     SELFCHECK_SIMILARITY_MAX_TOKENS: int = 1000  # 유사성 판단 LLM 최대 토큰
 
     # BGE Reranker v2-m3 설정
-    RERANKER_URL: str = "http://ai.kca.kr:8006"
+    # [개발 기본값] 프로덕션에서는 .env에서 실제 서버 URL로 변경
+    RERANKER_URL: str = "http://localhost:8006"
     RERANKER_MODEL: str = "BAAI/bge-reranker-v2-m3"
     RERANKER_TIMEOUT: int = 30
     USE_RERANKING: bool = True
@@ -167,6 +178,11 @@ class Settings(BaseSettings):
     RATE_LIMIT_CHAT: str = "30/minute"
     RATE_LIMIT_UPLOAD: str = "10/minute"
     RATE_LIMIT_SEARCH: str = "60/minute"
+    # Rate Limit 저장소 URI
+    # - 단일 인스턴스 (개발): memory://
+    # - 다중 인스턴스 (프로덕션): redis://localhost:6379
+    # - Redis with auth: redis://user:password@host:port/db
+    # - Redis Sentinel: redis+sentinel://host:port/mymaster/db
     RATE_LIMIT_STORAGE_URI: str = "memory://"
 
     # ===========================================
@@ -176,6 +192,11 @@ class Settings(BaseSettings):
     HTTP_MAX_KEEPALIVE: int = 20
     HTTP_TIMEOUT_DEFAULT: float = 30.0
     HTTP_ENABLE_HTTP2: bool = True
+
+    # ===========================================
+    # 스트리밍 설정
+    # ===========================================
+    STREAMING_TIMEOUT_SECONDS: int = 300  # 스트리밍 최대 타임아웃 (5분)
 
     # Qwen3 VL OCR 설정
     QWEN3_VL_BASE_URL: str = "http://localhost:8084"
@@ -302,11 +323,43 @@ class Settings(BaseSettings):
             }
         ]
 
-    class Config:
-        # settings.py 파일의 위치를 기준으로 .env 파일의 절대 경로 계산
-        # backend/config/settings.py -> backend/.env
-        env_file = str(Path(__file__).parent.parent / ".env")
-        case_sensitive = True
+    # ===========================================
+    # Security Validators
+    # ===========================================
+    @field_validator('SESSION_SECRET')
+    @classmethod
+    def validate_session_secret(cls, v: str) -> str:
+        """SESSION_SECRET 기본값 사용 방지 (프로덕션 보안)"""
+        if v == "your-secret-key-change-in-production":
+            raise ValueError(
+                "SESSION_SECRET must be changed in production! "
+                "Please set a secure random string in your .env file."
+            )
+        if len(v) < 32:
+            logger.warning(
+                "SESSION_SECRET is shorter than 32 characters. "
+                "Consider using a longer secret for better security."
+            )
+        return v
+
+    @field_validator('ADMIN_PASSWORD')
+    @classmethod
+    def validate_admin_password(cls, v: str) -> str:
+        """ADMIN_PASSWORD 기본값 사용 시 경고"""
+        if v == "changeme":
+            logger.warning(
+                "ADMIN_PASSWORD is set to default value 'changeme'. "
+                "This is insecure for production environments. "
+                "Please change it in your .env file."
+            )
+        return v
+
+    # settings.py 파일의 위치를 기준으로 .env 파일의 절대 경로 계산
+    # backend/config/settings.py -> backend/.env
+    model_config = SettingsConfigDict(
+        env_file=str(Path(__file__).parent.parent / ".env"),
+        case_sensitive=True
+    )
 
 
 settings = Settings()

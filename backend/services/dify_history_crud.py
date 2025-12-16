@@ -3,7 +3,7 @@ Dify Upload History CRUD operations
 """
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from backend.models.dify_upload_history import DifyUploadHistory
 from backend.models.document import Document
@@ -43,7 +43,7 @@ def create_upload_history(
         dify_base_url=dify_base_url,
         upload_status=upload_status,
         error_message=error_message,
-        uploaded_at=datetime.utcnow()
+        uploaded_at=datetime.now(timezone.utc)
     )
 
     db.add(history)

@@ -4,7 +4,7 @@ Dify 설정 CRUD 함수
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from backend.models.dify_config import DifyConfig
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def create_config(
@@ -159,7 +159,7 @@ def update_config(
     if is_active is not None:
         db_config.is_active = is_active
 
-    db_config.updated_at = datetime.utcnow()
+    db_config.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(db_config)
     return db_config
@@ -180,7 +180,7 @@ def update_last_used(db: Session, config_id: int) -> Optional[DifyConfig]:
     if not db_config:
         return None
 
-    db_config.last_used_at = datetime.utcnow()
+    db_config.last_used_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(db_config)
     return db_config

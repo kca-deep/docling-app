@@ -274,121 +274,57 @@ export default function AdminUsersPage() {
   }
 
   return (
-    <PageContainer maxWidth="wide" className="py-8 space-y-6">
-      {/* Background Gradient */}
-      <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-[color:var(--chart-1)]/5 to-transparent -z-10" />
-
+    <PageContainer maxWidth="wide" className="space-y-4">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5 }}
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-semibold flex items-center gap-2">
+          <Users className="h-5 w-5 text-muted-foreground" />
+          사용자 관리
+        </h1>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={fetchUsers}
+          disabled={isLoading}
         >
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-[color:var(--chart-1)] to-[color:var(--chart-2)] text-white shadow-lg shadow-[color:var(--chart-1)]/20">
-              <Users className="h-5 w-5" />
-            </div>
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
-              사용자 관리
-            </span>
-          </h1>
-          <p className="text-muted-foreground mt-2 max-w-xl">
-            가입 요청을 승인하고 사용자를 관리합니다.
-          </p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="flex items-center gap-2"
-        >
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={fetchUsers}
-            disabled={isLoading}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
-            새로고침
-          </Button>
-        </motion.div>
+          <RefreshCw className={`h-4 w-4 mr-1.5 ${isLoading ? "animate-spin" : ""}`} />
+          새로고침
+        </Button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <Card className="border-border/40 bg-background/80 backdrop-blur-sm">
-            <CardContent className="px-4 py-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">전체</p>
-                  <p className="text-2xl font-bold">{statusCounts.all}</p>
-                </div>
-                <Users className="h-8 w-8 text-muted-foreground/30" />
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+      {/* Stats Cards - Compact Layout */}
+      <div className="grid grid-cols-4 gap-2">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border/40 bg-background/80">
+          <Users className="h-5 w-5 text-muted-foreground/50" />
+          <div>
+            <p className="text-xs text-muted-foreground">전체</p>
+            <p className="text-lg font-bold">{statusCounts.all}</p>
+          </div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
-        >
-          <Card className="border-yellow-500/30 bg-yellow-500/5 backdrop-blur-sm">
-            <CardContent className="px-4 py-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">대기</p>
-                  <p className="text-2xl font-bold text-yellow-600">{statusCounts.pending}</p>
-                </div>
-                <Clock className="h-8 w-8 text-yellow-500/30" />
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-yellow-500/30 bg-yellow-500/5">
+          <Clock className="h-5 w-5 text-yellow-500/50" />
+          <div>
+            <p className="text-xs text-muted-foreground">대기</p>
+            <p className="text-lg font-bold text-yellow-600">{statusCounts.pending}</p>
+          </div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <Card className="border-green-500/30 bg-green-500/5 backdrop-blur-sm">
-            <CardContent className="px-4 py-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">승인</p>
-                  <p className="text-2xl font-bold text-green-600">{statusCounts.approved}</p>
-                </div>
-                <CheckCircle className="h-8 w-8 text-green-500/30" />
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-green-500/30 bg-green-500/5">
+          <CheckCircle className="h-5 w-5 text-green-500/50" />
+          <div>
+            <p className="text-xs text-muted-foreground">승인</p>
+            <p className="text-lg font-bold text-green-600">{statusCounts.approved}</p>
+          </div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
-        >
-          <Card className="border-red-500/30 bg-red-500/5 backdrop-blur-sm">
-            <CardContent className="px-4 py-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">거절</p>
-                  <p className="text-2xl font-bold text-red-600">{statusCounts.rejected}</p>
-                </div>
-                <XCircle className="h-8 w-8 text-red-500/30" />
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-red-500/30 bg-red-500/5">
+          <XCircle className="h-5 w-5 text-red-500/50" />
+          <div>
+            <p className="text-xs text-muted-foreground">거절</p>
+            <p className="text-lg font-bold text-red-600">{statusCounts.rejected}</p>
+          </div>
+        </div>
       </div>
 
       {/* Main Content */}

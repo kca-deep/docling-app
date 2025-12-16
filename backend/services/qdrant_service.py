@@ -1,11 +1,21 @@
 """
 Qdrant Vector DB 연동 서비스
 """
-from typing import List, Optional, Dict, Any
+import asyncio
+import logging
+from datetime import datetime, timedelta
+from typing import List, Optional, Dict, Any, Tuple
 import uuid
 from qdrant_client import AsyncQdrantClient, models
 from qdrant_client.http.exceptions import UnexpectedResponse
 from backend.models.schemas import QdrantCollectionInfo
+from backend.exceptions import QdrantServiceError
+
+# 로거 설정
+logger = logging.getLogger(__name__)
+
+# 캐시 TTL 설정 (5분)
+CACHE_TTL = timedelta(minutes=5)
 
 
 class QdrantService:
@@ -26,10 +36,12 @@ class QdrantService:
             api_key=api_key,
             timeout=30.0
         )
+        # 문서 수 캐시: {collection_name: (count, expires_at)}
+        self._doc_count_cache: Dict[str, Tuple[int, datetime]] = {}
 
     async def get_collections(self) -> List[QdrantCollectionInfo]:
         """
-        모든 Collection 목록 조회
+        모든 Collection 목록 조회 (병렬 처리로 최적화)
 
         Returns:
             List[QdrantCollectionInfo]: Collection 정보 리스트
@@ -41,56 +53,80 @@ class QdrantService:
             # Qdrant에서 모든 collection 정보 가져오기
             collections = await self.client.get_collections()
 
-            result = []
-            for collection in collections.collections:
-                # 각 collection의 상세 정보 조회
-                collection_info = await self.client.get_collection(collection.name)
+            if not collections.collections:
+                return []
 
-                # Distance metric 추출
-                distance_map = {
-                    models.Distance.COSINE: "Cosine",
-                    models.Distance.EUCLID: "Euclidean",
-                    models.Distance.DOT: "Dot"
-                }
+            # 각 컬렉션 정보를 병렬로 조회
+            tasks = [
+                self._get_collection_info(collection.name)
+                for collection in collections.collections
+            ]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
 
-                # vectors_config에서 정보 추출
-                vector_config = collection_info.config.params.vectors
+            # 성공한 결과만 반환 (예외 발생한 컬렉션은 제외)
+            collection_infos = []
+            for result in results:
+                if isinstance(result, QdrantCollectionInfo):
+                    collection_infos.append(result)
+                elif isinstance(result, Exception):
+                    logger.warning(f"Failed to get collection info: {result}")
 
-                # VectorParams인 경우 (단일 벡터)
-                if isinstance(vector_config, models.VectorParams):
-                    vector_size = vector_config.size
-                    distance = distance_map.get(vector_config.distance, "Unknown")
-                else:
-                    # 여러 벡터 설정이 있는 경우 (named vectors)
-                    # 첫 번째 벡터 설정 사용
-                    first_vector = next(iter(vector_config.values()))
-                    vector_size = first_vector.size
-                    distance = distance_map.get(first_vector.distance, "Unknown")
-
-                points = collection_info.points_count or 0
-
-                # 고유 문서 수 집계 (document_id 메타데이터 기반)
-                documents_count = await self._count_unique_documents(collection.name)
-
-                result.append(
-                    QdrantCollectionInfo(
-                        name=collection.name,
-                        documents_count=documents_count,
-                        points_count=points,
-                        vector_size=vector_size,
-                        distance=distance
-                    )
-                )
-
-            return result
+            return collection_infos
 
         except Exception as e:
-            print(f"[ERROR] Failed to get collections from Qdrant: {e}")
-            raise Exception(f"Qdrant collection 조회 실패: {str(e)}")
+            logger.error(f"Failed to get collections from Qdrant: {e}")
+            raise QdrantServiceError(f"Qdrant collection 조회 실패: {str(e)}") from e
+
+    async def _get_collection_info(self, collection_name: str) -> QdrantCollectionInfo:
+        """
+        개별 컬렉션의 상세 정보 조회 (병렬 처리용 헬퍼)
+
+        Args:
+            collection_name: 컬렉션 이름
+
+        Returns:
+            QdrantCollectionInfo: 컬렉션 정보
+        """
+        # Distance metric 매핑
+        distance_map = {
+            models.Distance.COSINE: "Cosine",
+            models.Distance.EUCLID: "Euclidean",
+            models.Distance.DOT: "Dot"
+        }
+
+        # 컬렉션 상세 정보와 문서 수를 병렬로 조회
+        collection_info, documents_count = await asyncio.gather(
+            self.client.get_collection(collection_name),
+            self._count_unique_documents(collection_name)
+        )
+
+        # vectors_config에서 정보 추출
+        vector_config = collection_info.config.params.vectors
+
+        # VectorParams인 경우 (단일 벡터)
+        if isinstance(vector_config, models.VectorParams):
+            vector_size = vector_config.size
+            distance = distance_map.get(vector_config.distance, "Unknown")
+        else:
+            # 여러 벡터 설정이 있는 경우 (named vectors)
+            # 첫 번째 벡터 설정 사용
+            first_vector = next(iter(vector_config.values()))
+            vector_size = first_vector.size
+            distance = distance_map.get(first_vector.distance, "Unknown")
+
+        points = collection_info.points_count or 0
+
+        return QdrantCollectionInfo(
+            name=collection_name,
+            documents_count=documents_count,
+            points_count=points,
+            vector_size=vector_size,
+            distance=distance
+        )
 
     async def _count_unique_documents(self, collection_name: str) -> int:
         """
-        컬렉션 내 고유 문서 수 집계
+        컬렉션 내 고유 문서 수 집계 (TTL 캐싱 적용)
 
         Args:
             collection_name: Collection 이름
@@ -99,6 +135,14 @@ class QdrantService:
             int: 고유 문서 수
         """
         try:
+            # 캐시 확인
+            cached = self._doc_count_cache.get(collection_name)
+            if cached:
+                count, expires_at = cached
+                if datetime.now() < expires_at:
+                    return count
+
+            # 캐시 미스 또는 만료: 새로 계산
             unique_doc_ids = set()
             offset = None
 
@@ -120,11 +164,28 @@ class QdrantService:
                     break
                 offset = next_offset
 
-            return len(unique_doc_ids)
+            count = len(unique_doc_ids)
+
+            # 캐시 업데이트
+            self._doc_count_cache[collection_name] = (count, datetime.now() + CACHE_TTL)
+
+            return count
 
         except Exception as e:
-            print(f"[WARN] Failed to count unique documents in '{collection_name}': {e}")
+            logger.warning(f"Failed to count unique documents in '{collection_name}': {e}")
             return 0  # 실패 시 0 반환
+
+    def invalidate_cache(self, collection_name: Optional[str] = None) -> None:
+        """
+        캐시 무효화
+
+        Args:
+            collection_name: 특정 컬렉션만 무효화 (None이면 전체)
+        """
+        if collection_name:
+            self._doc_count_cache.pop(collection_name, None)
+        else:
+            self._doc_count_cache.clear()
 
     async def create_collection(
         self,
@@ -173,12 +234,12 @@ class QdrantService:
                 )
             )
 
-            print(f"[INFO] Successfully created collection: {collection_name}")
+            logger.info(f"Successfully created collection: {collection_name}")
             return True
 
         except Exception as e:
-            print(f"[ERROR] Failed to create collection: {e}")
-            raise Exception(f"Collection 생성 실패: {str(e)}")
+            logger.error(f"Failed to create collection: {e}")
+            raise QdrantServiceError(f"Collection 생성 실패: {str(e)}") from e
 
     async def collection_exists(self, collection_name: str) -> bool:
         """
@@ -193,7 +254,7 @@ class QdrantService:
         try:
             return await self.client.collection_exists(collection_name)
         except Exception as e:
-            print(f"[ERROR] Failed to check collection existence: {e}")
+            logger.error(f"Failed to check collection existence: {e}")
             return False
 
     async def delete_collection(self, collection_name: str) -> bool:
@@ -218,12 +279,12 @@ class QdrantService:
             # Collection 삭제
             await self.client.delete_collection(collection_name=collection_name)
 
-            print(f"[INFO] Successfully deleted collection: {collection_name}")
+            logger.info(f"Successfully deleted collection: {collection_name}")
             return True
 
         except Exception as e:
-            print(f"[ERROR] Failed to delete collection: {e}")
-            raise Exception(f"Collection 삭제 실패: {str(e)}")
+            logger.error(f"Failed to delete collection: {e}")
+            raise QdrantServiceError(f"Collection 삭제 실패: {str(e)}") from e
 
     async def upsert_vectors(
         self,
@@ -278,12 +339,12 @@ class QdrantService:
                 wait=True
             )
 
-            print(f"[INFO] Successfully upserted {len(points)} vectors to collection '{collection_name}'")
+            logger.info(f"Successfully upserted {len(points)} vectors to collection '{collection_name}'")
             return vector_ids
 
         except Exception as e:
-            print(f"[ERROR] Failed to upsert vectors: {e}")
-            raise Exception(f"벡터 업로드 실패: {str(e)}")
+            logger.error(f"Failed to upsert vectors: {e}")
+            raise QdrantServiceError(f"벡터 업로드 실패: {str(e)}") from e
 
     async def search(
         self,
@@ -329,12 +390,12 @@ class QdrantService:
                     "payload": result.payload
                 })
 
-            print(f"[INFO] Found {len(results)} results in collection '{collection_name}'")
+            logger.info(f"Found {len(results)} results in collection '{collection_name}'")
             return results
 
         except Exception as e:
-            print(f"[ERROR] Failed to search vectors: {e}")
-            raise Exception(f"벡터 검색 실패: {str(e)}")
+            logger.error(f"Failed to search vectors: {e}")
+            raise QdrantServiceError(f"벡터 검색 실패: {str(e)}") from e
 
     async def get_documents_in_collection(
         self,
@@ -397,8 +458,8 @@ class QdrantService:
             return list(documents.values())
 
         except Exception as e:
-            print(f"[ERROR] Failed to get documents in collection '{collection_name}': {e}")
-            raise Exception(f"문서 목록 조회 실패: {str(e)}")
+            logger.error(f"Failed to get documents in collection '{collection_name}': {e}")
+            raise QdrantServiceError(f"문서 목록 조회 실패: {str(e)}") from e
 
     async def _count_points_by_document_id(
         self,
@@ -429,7 +490,7 @@ class QdrantService:
             )
             return count_result.count
         except Exception as e:
-            print(f"[WARN] Failed to count points for document_id {document_id}: {e}")
+            logger.warning(f"Failed to count points for document_id {document_id}: {e}")
             return 0
 
     async def _count_points_by_source_file(
@@ -461,7 +522,7 @@ class QdrantService:
             )
             return count_result.count
         except Exception as e:
-            print(f"[WARN] Failed to count points for source_file {source_file}: {e}")
+            logger.warning(f"Failed to count points for source_file {source_file}: {e}")
             return 0
 
     async def delete_document_points(
@@ -484,7 +545,7 @@ class QdrantService:
             count_before = await self._count_points_by_document_id(collection_name, document_id)
 
             if count_before == 0:
-                print(f"[INFO] No points found for document_id {document_id}")
+                logger.info(f"No points found for document_id {document_id}")
                 return 0
 
             # 필터 기반 삭제
@@ -502,12 +563,12 @@ class QdrantService:
                 )
             )
 
-            print(f"[INFO] Deleted {count_before} points for document_id {document_id} from '{collection_name}'")
+            logger.info(f"Deleted {count_before} points for document_id {document_id} from '{collection_name}'")
             return count_before
 
         except Exception as e:
-            print(f"[ERROR] Failed to delete points for document_id {document_id}: {e}")
-            raise Exception(f"문서 포인트 삭제 실패: {str(e)}")
+            logger.error(f"Failed to delete points for document_id {document_id}: {e}")
+            raise QdrantServiceError(f"문서 포인트 삭제 실패: {str(e)}") from e
 
     async def delete_excel_points(
         self,
@@ -529,7 +590,7 @@ class QdrantService:
             count_before = await self._count_points_by_source_file(collection_name, source_file)
 
             if count_before == 0:
-                print(f"[INFO] No points found for source_file {source_file}")
+                logger.info(f"No points found for source_file {source_file}")
                 return 0
 
             # 필터 기반 삭제
@@ -547,12 +608,12 @@ class QdrantService:
                 )
             )
 
-            print(f"[INFO] Deleted {count_before} points for source_file '{source_file}' from '{collection_name}'")
+            logger.info(f"Deleted {count_before} points for source_file '{source_file}' from '{collection_name}'")
             return count_before
 
         except Exception as e:
-            print(f"[ERROR] Failed to delete points for source_file {source_file}: {e}")
-            raise Exception(f"Excel 포인트 삭제 실패: {str(e)}")
+            logger.error(f"Failed to delete points for source_file {source_file}: {e}")
+            raise QdrantServiceError(f"Excel 포인트 삭제 실패: {str(e)}") from e
 
     async def close(self):
         """클라이언트 연결 종료"""

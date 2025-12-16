@@ -3,9 +3,12 @@
 컬렉션별 시스템 프롬프트를 파일에서 로드하고 캐싱하는 서비스
 """
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Dict, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 
 class PromptLoader:
@@ -31,8 +34,8 @@ class PromptLoader:
 
         # 프롬프트 디렉토리 존재 확인
         if not self.prompts_dir.exists():
-            print(f"[WARNING] Prompts directory does not exist: {self.prompts_dir}")
-            print(f"[WARNING] Creating prompts directory...")
+            logger.warning(f"Prompts directory does not exist: {self.prompts_dir}")
+            logger.warning("Creating prompts directory...")
             self.prompts_dir.mkdir(parents=True, exist_ok=True)
 
         # 기본 reasoning_instructions (호환성 유지)
@@ -124,15 +127,15 @@ class PromptLoader:
         # GPT-OSS 모델: 공식 "Reasoning: level" 형식 사용
         if model_key and "gpt-oss" in model_key.lower():
             instructions = self.gpt_oss_reasoning_instructions
-            print(f"[PromptLoader] Using GPT-OSS reasoning instruction: {reasoning_level}")
+            logger.debug(f"Using GPT-OSS reasoning instruction: {reasoning_level}")
         # EXAONE 모델: 한국어 지시사항으로 조절
         elif model_key and "exaone" in model_key.lower():
             instructions = self.exaone_reasoning_instructions
-            print(f"[PromptLoader] Using EXAONE reasoning instruction: {reasoning_level}")
+            logger.debug(f"Using EXAONE reasoning instruction: {reasoning_level}")
         # 기타 모델: 기본 instructions 사용
         else:
             instructions = self.default_reasoning_instructions
-            print(f"[PromptLoader] Using default reasoning instruction: {reasoning_level}")
+            logger.debug(f"Using default reasoning instruction: {reasoning_level}")
 
         return instructions.get(reasoning_level, instructions.get("medium", ""))
 
@@ -148,7 +151,7 @@ class PromptLoader:
         """
         # collection_name이 None이면 casual.md (일상대화 모드)
         if not collection_name:
-            print(f"[INFO] No collection specified, using casual.md for casual conversation")
+            logger.info("No collection specified, using casual.md for casual conversation")
             return "casual.md"
 
         # mapping.json 로드
@@ -159,12 +162,12 @@ class PromptLoader:
         if collection_name in collection_prompts:
             prompt_file = collection_prompts[collection_name].get("prompt_file")
             if prompt_file:
-                print(f"[INFO] Using prompt file '{prompt_file}' for collection '{collection_name}'")
+                logger.info(f"Using prompt file '{prompt_file}' for collection '{collection_name}'")
                 return prompt_file
 
         # 매핑에 없으면 default.md
         default_prompt = mapping.get("default_prompt", "default.md")
-        print(f"[INFO] Collection '{collection_name}' not in mapping, using default: '{default_prompt}'")
+        logger.info(f"Collection '{collection_name}' not in mapping, using default: '{default_prompt}'")
         return default_prompt
 
     def _load_mapping(self) -> Dict:
@@ -178,7 +181,7 @@ class PromptLoader:
 
         # 파일이 없으면 빈 설정 반환
         if not mapping_file.exists():
-            print(f"[WARNING] Mapping file not found: {mapping_file}")
+            logger.warning(f"Mapping file not found: {mapping_file}")
             return {
                 "collection_prompts": {},
                 "default_prompt": "default.md",
@@ -201,11 +204,11 @@ class PromptLoader:
             self.mapping = mapping
             self.mapping_mtime = current_mtime
 
-            print(f"[INFO] Loaded mapping.json (collections: {len(mapping.get('collection_prompts', {}))})")
+            logger.info(f"Loaded mapping.json (collections: {len(mapping.get('collection_prompts', {}))})")
             return mapping
 
         except Exception as e:
-            print(f"[ERROR] Failed to load mapping.json: {e}")
+            logger.error(f"Failed to load mapping.json: {e}")
             # 에러 시 기본 설정 반환
             return {
                 "collection_prompts": {},
@@ -231,13 +234,13 @@ class PromptLoader:
 
         # 파일이 없으면 default.md로 fallback
         if not file_path.exists():
-            print(f"[WARNING] Prompt file not found: {file_path}")
+            logger.warning(f"Prompt file not found: {file_path}")
             if filename != "default.md":
-                print(f"[WARNING] Falling back to default.md")
+                logger.warning("Falling back to default.md")
                 return self._read_prompt_file("default.md")
             else:
                 # default.md도 없으면 하드코딩된 기본 프롬프트 반환
-                print(f"[ERROR] default.md not found, using hardcoded fallback")
+                logger.error("default.md not found, using hardcoded fallback")
                 return self._get_hardcoded_default_prompt()
 
         try:
@@ -257,14 +260,14 @@ class PromptLoader:
             # 캐시 업데이트
             self.cache[filename] = (content, current_mtime)
 
-            print(f"[INFO] Loaded prompt file: {filename} ({len(content)} chars)")
+            logger.info(f"Loaded prompt file: {filename} ({len(content)} chars)")
             return content
 
         except Exception as e:
-            print(f"[ERROR] Failed to read prompt file {filename}: {e}")
+            logger.error(f"Failed to read prompt file {filename}: {e}")
             # 에러 시 default.md로 fallback
             if filename != "default.md":
-                print(f"[WARNING] Falling back to default.md")
+                logger.warning("Falling back to default.md")
                 return self._read_prompt_file("default.md")
             else:
                 # default.md 읽기도 실패하면 하드코딩된 기본 프롬프트 반환
@@ -294,4 +297,4 @@ class PromptLoader:
         self.cache.clear()
         self.mapping = None
         self.mapping_mtime = None
-        print(f"[INFO] All prompt caches cleared")
+        logger.info("All prompt caches cleared")

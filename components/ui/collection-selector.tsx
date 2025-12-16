@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { Globe, Lock, Users, Loader2, RefreshCw, Settings, Database, Layers, FileText, ChevronRight } from "lucide-react"
+import { Globe, Lock, Users, Loader2, RefreshCw, Settings, Database, Layers, FileText, ChevronRight, Search, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { getCollectionDisplayName, getVisibilityLabel } from "@/lib/collection-utils"
@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Badge } from "./badge"
 import { Button } from "./button"
 import { Label } from "./label"
+import { Input } from "./input"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./tooltip"
 import { ScrollArea } from "./scroll-area"
 import {
@@ -56,8 +57,8 @@ export interface CollectionSelectorProps {
   showUncategorized?: boolean
   /** 컬렉션 관리 링크 표시 여부 */
   showManageLink?: boolean
-  /** 표시 형식: grid(카드형), dropdown(드롭다운), modal(모달) */
-  variant?: "grid" | "dropdown" | "modal"
+  /** 표시 형식: grid(카드형), dropdown(드롭다운), modal(모달), inline(인라인 그리드) */
+  variant?: "grid" | "dropdown" | "modal" | "inline"
   /** grid/modal variant에서의 열 개수 (기본: 2, modal은 4) */
   columns?: 1 | 2 | 3 | 4
   /** 라벨 텍스트 */
@@ -68,6 +69,16 @@ export interface CollectionSelectorProps {
   emptyMessage?: string
   /** 모달 제목 (modal variant용) */
   modalTitle?: string
+  /** 검색 기능 활성화 */
+  searchable?: boolean
+  /** 최대 표시 행 수 (inline variant용) */
+  maxRows?: number
+  /** 전체 옵션 표시 여부 (통계용) */
+  showAllOption?: boolean
+  /** 일상대화 옵션 표시 여부 (통계용) */
+  showCasualOption?: boolean
+  /** 모달 트리거 스타일 (modal variant용): card(기본) 또는 select(드롭다운 스타일) */
+  triggerStyle?: "card" | "select"
 }
 
 /**
@@ -197,12 +208,31 @@ export function CollectionSelector({
   className,
   emptyMessage = "접근 가능한 컬렉션이 없습니다",
   modalTitle = "컬렉션 선택",
+  searchable = false,
+  maxRows = 2,
+  showAllOption = false,
+  showCasualOption = false,
+  triggerStyle = "card",
 }: CollectionSelectorProps) {
   // 모달 상태
   const [open, setOpen] = React.useState(false)
 
+  // 검색어 상태
+  const [searchQuery, setSearchQuery] = React.useState("")
+
   // 선택된 컬렉션 정보
   const selectedCollection = collections.find((col) => col.name === value)
+
+  // 검색 필터링된 컬렉션
+  const filteredCollections = React.useMemo(() => {
+    if (!searchQuery.trim()) return collections
+    const query = searchQuery.toLowerCase()
+    return collections.filter((col) => {
+      const displayName = getCollectionDisplayName(col).toLowerCase()
+      const name = col.name.toLowerCase()
+      return displayName.includes(query) || name.includes(query)
+    })
+  }, [collections, searchQuery])
 
   // Grid 열 클래스 결정
   const getGridColsClass = (cols?: number) => {
@@ -272,9 +302,37 @@ export function CollectionSelector({
     </div>
   )
 
+  // 검색 입력 렌더링
+  const renderSearchInput = () => {
+    if (!searchable) return null
+    return (
+      <div className="relative mb-3">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          type="text"
+          placeholder="컬렉션 검색..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-9 pr-9 h-9 bg-background/50 border-border/50 focus:border-[color:var(--chart-4)]/30"
+        />
+        {searchQuery && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+            onClick={() => setSearchQuery("")}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        )}
+      </div>
+    )
+  }
+
   // 컬렉션 그리드 렌더링 (grid/modal 공용)
-  const renderCollectionGrid = (onSelect?: (name: string) => void, overrideColumns?: number) => {
+  const renderCollectionGrid = (onSelect?: (name: string) => void, overrideColumns?: number, useFiltered = true) => {
     const colsClass = overrideColumns ? getGridColsClass(overrideColumns) : gridColsClass
+    const displayCollections = useFiltered ? filteredCollections : collections
 
     return (
       <>
@@ -282,10 +340,12 @@ export function CollectionSelector({
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-[color:var(--chart-4)]" />
           </div>
-        ) : collections.length === 0 && !showUncategorized ? (
+        ) : displayCollections.length === 0 && !showUncategorized && !showAllOption && !showCasualOption ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <Database className="h-8 w-8 text-muted-foreground/30 mb-2" />
-            <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+            <p className="text-sm text-muted-foreground">
+              {searchQuery ? "검색 결과가 없습니다" : emptyMessage}
+            </p>
           </div>
         ) : (
           <ScrollArea className="max-h-[400px]">
@@ -297,7 +357,65 @@ export function CollectionSelector({
               }}
               className={cn("grid gap-2 p-2 pr-5", colsClass)}
             >
-              {showUncategorized && (
+              {showAllOption && (!searchQuery || "전체".includes(searchQuery.toLowerCase())) && (
+                <div
+                  onClick={() => {
+                    onValueChange("ALL")
+                    onSelect?.("ALL")
+                  }}
+                  className={cn(
+                    "relative flex flex-col p-3 rounded-xl border-2 cursor-pointer transition-all",
+                    "hover:border-[color:var(--chart-1)]/50 hover:bg-[color:var(--chart-1)]/5",
+                    value === "ALL"
+                      ? "border-[color:var(--chart-1)] bg-[color:var(--chart-1)]/5 shadow-sm"
+                      : "border-border/50 bg-background/50"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="ALL" id="ALL" className="sr-only" />
+                    <div className={cn(
+                      "w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors",
+                      value === "ALL" ? "border-[color:var(--chart-1)] bg-[color:var(--chart-1)]" : "border-muted-foreground/30"
+                    )}>
+                      {value === "ALL" && <div className="w-2 h-2 rounded-full bg-white" />}
+                    </div>
+                    <span className="font-medium text-sm">전체</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground/70 mt-1 ml-6">
+                    모든 컬렉션 통합 조회
+                  </p>
+                </div>
+              )}
+              {showCasualOption && (!searchQuery || "일상대화".includes(searchQuery.toLowerCase())) && (
+                <div
+                  onClick={() => {
+                    onValueChange("casual")
+                    onSelect?.("casual")
+                  }}
+                  className={cn(
+                    "relative flex flex-col p-3 rounded-xl border-2 cursor-pointer transition-all",
+                    "hover:border-[color:var(--chart-2)]/50 hover:bg-[color:var(--chart-2)]/5",
+                    value === "casual"
+                      ? "border-[color:var(--chart-2)] bg-[color:var(--chart-2)]/5 shadow-sm"
+                      : "border-border/50 bg-background/50"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="casual" id="casual" className="sr-only" />
+                    <div className={cn(
+                      "w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors",
+                      value === "casual" ? "border-[color:var(--chart-2)] bg-[color:var(--chart-2)]" : "border-muted-foreground/30"
+                    )}>
+                      {value === "casual" && <div className="w-2 h-2 rounded-full bg-white" />}
+                    </div>
+                    <span className="font-medium text-sm">일상대화</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground/70 mt-1 ml-6">
+                    RAG 없이 일반 대화
+                  </p>
+                </div>
+              )}
+              {showUncategorized && (!searchQuery || "미분류".includes(searchQuery.toLowerCase())) && (
                 <CollectionCard
                   collection={{ name: "__uncategorized__", isUncategorized: true }}
                   isSelected={value === "__uncategorized__"}
@@ -307,7 +425,7 @@ export function CollectionSelector({
                   }}
                 />
               )}
-              {collections.map((collection) => (
+              {displayCollections.map((collection) => (
                 <CollectionCard
                   key={collection.name}
                   collection={collection}
@@ -329,9 +447,168 @@ export function CollectionSelector({
   const renderGridVariant = () => (
     <div className={cn("space-y-3", className)}>
       {renderHeader()}
+      {renderSearchInput()}
       {renderCollectionGrid()}
     </div>
   )
+
+  // Inline variant 렌더링 (2줄 그리드 + 검색)
+  const renderInlineVariant = () => {
+    // 선택된 컬렉션 표시명
+    const getSelectedDisplayForInline = () => {
+      if (value === "ALL") return "전체"
+      if (value === "casual") return "일상대화"
+      if (value === "__uncategorized__") return "미분류"
+      if (selectedCollection) return getCollectionDisplayName(selectedCollection)
+      return "선택하세요"
+    }
+
+    return (
+      <div className={cn("space-y-2", className)}>
+        {/* 검색 + 현재 선택 표시 */}
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="컬렉션 검색..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 pr-9 h-10 bg-background/50 border-border/50 focus:border-[color:var(--chart-4)]/30"
+            />
+            {searchQuery && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                onClick={() => setSearchQuery("")}
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
+          {onRefresh && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={onRefresh}
+                    disabled={loading}
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10 hover:bg-[color:var(--chart-4)]/10 hover:text-[color:var(--chart-4)] transition-colors"
+                  >
+                    {loading ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-[color:var(--chart-4)]" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs">새로고침</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </div>
+
+        {/* 2줄 그리드 */}
+        {loading ? (
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="h-5 w-5 animate-spin text-[color:var(--chart-4)]" />
+          </div>
+        ) : filteredCollections.length === 0 && !showAllOption && !showCasualOption ? (
+          <div className="flex items-center justify-center py-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              {searchQuery ? "검색 결과가 없습니다" : emptyMessage}
+            </p>
+          </div>
+        ) : (
+          <RadioGroup
+            value={value}
+            onValueChange={onValueChange}
+            className={cn("grid gap-2", gridColsClass)}
+          >
+            {/* 전체 옵션 */}
+            {showAllOption && (!searchQuery || "전체".includes(searchQuery.toLowerCase())) && (
+              <div
+                onClick={() => onValueChange("ALL")}
+                className={cn(
+                  "flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-all",
+                  "hover:border-[color:var(--chart-1)]/50 hover:bg-[color:var(--chart-1)]/5",
+                  value === "ALL"
+                    ? "border-[color:var(--chart-1)] bg-[color:var(--chart-1)]/10"
+                    : "border-border/50 bg-background/50"
+                )}
+              >
+                <RadioGroupItem value="ALL" id="inline-ALL" className="sr-only" />
+                <div className={cn(
+                  "w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center flex-shrink-0",
+                  value === "ALL" ? "border-[color:var(--chart-1)] bg-[color:var(--chart-1)]" : "border-muted-foreground/30"
+                )}>
+                  {value === "ALL" && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                </div>
+                <span className="text-sm font-medium truncate">전체</span>
+              </div>
+            )}
+
+            {/* 일상대화 옵션 */}
+            {showCasualOption && (!searchQuery || "일상대화".includes(searchQuery.toLowerCase())) && (
+              <div
+                onClick={() => onValueChange("casual")}
+                className={cn(
+                  "flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-all",
+                  "hover:border-[color:var(--chart-2)]/50 hover:bg-[color:var(--chart-2)]/5",
+                  value === "casual"
+                    ? "border-[color:var(--chart-2)] bg-[color:var(--chart-2)]/10"
+                    : "border-border/50 bg-background/50"
+                )}
+              >
+                <RadioGroupItem value="casual" id="inline-casual" className="sr-only" />
+                <div className={cn(
+                  "w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center flex-shrink-0",
+                  value === "casual" ? "border-[color:var(--chart-2)] bg-[color:var(--chart-2)]" : "border-muted-foreground/30"
+                )}>
+                  {value === "casual" && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                </div>
+                <span className="text-sm font-medium truncate">일상대화</span>
+              </div>
+            )}
+
+            {/* 컬렉션 목록 */}
+            {filteredCollections.map((collection) => {
+              const displayName = getCollectionDisplayName(collection)
+              const isSelected = value === collection.name
+              return (
+                <div
+                  key={collection.name}
+                  onClick={() => onValueChange(collection.name)}
+                  className={cn(
+                    "flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-all",
+                    "hover:border-[color:var(--chart-4)]/50 hover:bg-[color:var(--chart-4)]/5",
+                    isSelected
+                      ? "border-[color:var(--chart-4)] bg-[color:var(--chart-4)]/10"
+                      : "border-border/50 bg-background/50"
+                  )}
+                >
+                  <RadioGroupItem value={collection.name} id={`inline-${collection.name}`} className="sr-only" />
+                  <div className={cn(
+                    "w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center flex-shrink-0",
+                    isSelected ? "border-[color:var(--chart-4)] bg-[color:var(--chart-4)]" : "border-muted-foreground/30"
+                  )}>
+                    {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                  </div>
+                  <span className="text-sm font-medium truncate flex-1">{displayName}</span>
+                  <VisibilityIcon visibility={collection.visibility} className="text-muted-foreground flex-shrink-0" />
+                </div>
+              )
+            })}
+          </RadioGroup>
+        )}
+      </div>
+    )
+  }
 
   // Dropdown variant 렌더링
   const renderDropdownVariant = () => (
@@ -414,53 +691,86 @@ export function CollectionSelector({
   const renderModalVariant = () => {
     const selectedName = getSelectedDisplayName()
 
+    // Select 스타일 트리거 버튼
+    const renderSelectStyleTrigger = () => (
+      <Button
+        variant="outline"
+        onClick={() => setOpen(true)}
+        className={cn(
+          "h-9 gap-2 justify-between",
+          "bg-background/50 border-border/50 hover:bg-background/80",
+          "focus:border-[color:var(--chart-4)]/20",
+          "transition-all"
+        )}
+      >
+        <span className="truncate">
+          {loading ? (
+            <span className="flex items-center gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              로딩 중...
+            </span>
+          ) : selectedName ? (
+            selectedName
+          ) : (
+            <span className="text-muted-foreground">선택하세요</span>
+          )}
+        </span>
+        <ChevronRight className="h-4 w-4 opacity-50 rotate-90" />
+      </Button>
+    )
+
+    // Card 스타일 트리거 버튼 (기존)
+    const renderCardStyleTrigger = () => (
+      <Button
+        variant="outline"
+        onClick={() => setOpen(true)}
+        className={cn(
+          "w-full justify-between h-auto py-3 px-4",
+          "border-border/50 bg-background/50 hover:bg-[color:var(--chart-4)]/5 hover:border-[color:var(--chart-4)]/30",
+          "transition-all"
+        )}
+      >
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-[color:var(--chart-4)]/10">
+            <Database className="h-4 w-4 text-[color:var(--chart-4)]" />
+          </div>
+          <div className="text-left">
+            <p className="text-xs text-muted-foreground">{label}</p>
+            <p className="font-medium text-sm">
+              {loading ? (
+                <span className="flex items-center gap-1">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  로딩 중...
+                </span>
+              ) : selectedName ? (
+                selectedName
+              ) : (
+                <span className="text-muted-foreground">선택하세요</span>
+              )}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {selectedCollection && (
+            <div className="flex items-center gap-1.5">
+              <Badge variant="outline" className="text-[0.65rem] px-1.5 py-0 h-5 gap-1">
+                <FileText className="h-2.5 w-2.5" />
+                {selectedCollection.documents_count}
+              </Badge>
+              <Badge variant="secondary" className="text-[0.65rem] px-1.5 py-0 h-5 gap-1 bg-[color:var(--chart-4)]/10 text-[color:var(--chart-4)]">
+                {selectedCollection.points_count.toLocaleString()}c
+              </Badge>
+            </div>
+          )}
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        </div>
+      </Button>
+    )
+
     return (
       <div className={cn("space-y-2", className)}>
         {/* 트리거 버튼 */}
-        <Button
-          variant="outline"
-          onClick={() => setOpen(true)}
-          className={cn(
-            "w-full justify-between h-auto py-3 px-4",
-            "border-border/50 bg-background/50 hover:bg-[color:var(--chart-4)]/5 hover:border-[color:var(--chart-4)]/30",
-            "transition-all"
-          )}
-        >
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-[color:var(--chart-4)]/10">
-              <Database className="h-4 w-4 text-[color:var(--chart-4)]" />
-            </div>
-            <div className="text-left">
-              <p className="text-xs text-muted-foreground">{label}</p>
-              <p className="font-medium text-sm">
-                {loading ? (
-                  <span className="flex items-center gap-1">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    로딩 중...
-                  </span>
-                ) : selectedName ? (
-                  selectedName
-                ) : (
-                  <span className="text-muted-foreground">선택하세요</span>
-                )}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {selectedCollection && (
-              <div className="flex items-center gap-1.5">
-                <Badge variant="outline" className="text-[0.65rem] px-1.5 py-0 h-5 gap-1">
-                  <FileText className="h-2.5 w-2.5" />
-                  {selectedCollection.documents_count}
-                </Badge>
-                <Badge variant="secondary" className="text-[0.65rem] px-1.5 py-0 h-5 gap-1 bg-[color:var(--chart-4)]/10 text-[color:var(--chart-4)]">
-                  {selectedCollection.points_count.toLocaleString()}c
-                </Badge>
-              </div>
-            )}
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          </div>
-        </Button>
+        {triggerStyle === "select" ? renderSelectStyleTrigger() : renderCardStyleTrigger()}
 
         {/* 모달 */}
         <Dialog open={open} onOpenChange={setOpen}>
@@ -512,6 +822,9 @@ export function CollectionSelector({
               )}
             </div>
 
+            {/* 검색 입력 */}
+            {renderSearchInput()}
+
             {/* 컬렉션 그리드 */}
             {renderCollectionGrid(() => setOpen(false))}
           </DialogContent>
@@ -526,6 +839,8 @@ export function CollectionSelector({
       return renderDropdownVariant()
     case "modal":
       return renderModalVariant()
+    case "inline":
+      return renderInlineVariant()
     default:
       return renderGridVariant()
   }

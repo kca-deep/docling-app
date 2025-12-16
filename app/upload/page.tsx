@@ -54,7 +54,7 @@ function UploadPageContent() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalDocs, setTotalDocs] = useState(0)
-  const [pageSize] = useState(10)
+  const [pageSize] = useState(15)
   const [searchQuery, setSearchQuery] = useState("")
   const [searchInput, setSearchInput] = useState("")
   const [loadingDocuments, setLoadingDocuments] = useState(false)
@@ -680,30 +680,14 @@ function UploadPageContent() {
   const isQdrantUploadDisabled = uploadingQdrant || selectedDocs.size === 0 || !selectedQdrantCollection
 
   return (
-    <PageContainer maxWidth="wide" className="py-8 space-y-8">
-      {/* Background Noise & Gradient */}
-      <div className="absolute inset-0 bg-noise opacity-30 pointer-events-none -z-10" />
-      <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-[color:var(--chart-1)]/5 to-transparent -z-10" />
-
+    <PageContainer maxWidth="wide" className="space-y-4">
       {/* Page Header */}
-      <motion.div
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.5 }}
-        className="relative z-10"
-      >
-        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-gradient-to-br from-[color:var(--chart-1)] to-[color:var(--chart-2)] text-white shadow-lg shadow-[color:var(--chart-1)]/20">
-            <Upload className="h-5 w-5" />
-          </div>
-          <span className="bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
-            문서업로드
-          </span>
+      <div className="flex items-center">
+        <h1 className="text-lg font-semibold flex items-center gap-2">
+          <Upload className="h-5 w-5 text-muted-foreground" />
+          문서업로드
         </h1>
-        <p className="text-muted-foreground mt-3 text-lg max-w-2xl">
-          파싱된 문서를 벡터 데이터베이스 또는 Dify 지식베이스에 업로드하세요.
-        </p>
-      </motion.div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[7fr_3fr] gap-6">
         {/* 좌측: 문서 목록 (70%) */}
@@ -720,6 +704,7 @@ function UploadPageContent() {
             currentPage={currentPage}
             totalPages={totalPages}
             totalDocs={totalDocs}
+            pageSize={pageSize}
             searchInput={searchInput}
             searchQuery={searchQuery}
             loadingDocuments={loadingDocuments}

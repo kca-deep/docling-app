@@ -495,30 +495,14 @@ export default function ParsePage() {
   const pendingCount = files.filter(f => f.status === "pending").length;
 
   return (
-    <PageContainer maxWidth="wide" className="py-8 space-y-8">
-      {/* Background Noise & Gradient */}
-      <div className="absolute inset-0 bg-noise opacity-30 pointer-events-none -z-10" />
-      <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-[color:var(--chart-3)]/5 to-transparent -z-10" />
-
+    <PageContainer maxWidth="wide" className="space-y-4">
       {/* Page Header */}
-      <motion.div
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.5 }}
-        className="relative z-10"
-      >
-        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-gradient-to-br from-[color:var(--chart-3)] to-[color:var(--chart-4)] text-white shadow-lg shadow-[color:var(--chart-3)]/20">
-            <FileText className="h-5 w-5" />
-          </div>
-          <span className="bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
-            문서변환
-          </span>
+      <div className="flex items-center">
+        <h1 className="text-lg font-semibold flex items-center gap-2">
+          <FileText className="h-5 w-5 text-muted-foreground" />
+          문서변환
         </h1>
-        <p className="text-muted-foreground mt-3 text-lg max-w-2xl">
-          문서를 업로드하여 마크다운으로 변환하세요.
-        </p>
-      </motion.div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-6">
         {/* Left Column: File Upload (70%) */}

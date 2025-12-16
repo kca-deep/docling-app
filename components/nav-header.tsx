@@ -49,6 +49,7 @@ interface NavItem {
   icon: LucideIcon
   requiresAuth?: boolean
   adminOnly?: boolean
+  badge?: number
 }
 
 interface NavGroup {
@@ -63,6 +64,7 @@ export function NavHeader() {
   const { isAuthenticated, isLoading, logout, user } = useAuth()
   const [isScrolled, setIsScrolled] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [pendingCount, setPendingCount] = useState(0)
 
   // Scroll detection for immersive header
   useEffect(() => {
@@ -72,6 +74,24 @@ export function NavHeader() {
     window.addEventListener("scroll", handleScroll)
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
+
+  // 관리자일 때 승인 대기 사용자 수 조회
+  useEffect(() => {
+    if (user?.role === "admin") {
+      fetch("http://localhost:8000/api/auth/pending-count", {
+        credentials: "include"
+      })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data?.pending_count !== undefined) {
+            setPendingCount(data.pending_count)
+          }
+        })
+        .catch(() => {})
+    } else {
+      setPendingCount(0)
+    }
+  }, [user?.role, pathname])
 
   // 로그인/회원가입 페이지에서는 네비게이션 숨김
   if (pathname === "/login" || pathname === "/register") {
@@ -117,7 +137,7 @@ export function NavHeader() {
     items: [
       { href: "/collections", label: "컬렉션", icon: FolderCog, requiresAuth: true },
       { href: "/analytics", label: "통계", icon: BarChart3, requiresAuth: true },
-      { href: "/admin/users", label: "사용자 관리", icon: Users, requiresAuth: true, adminOnly: true },
+      { href: "/admin/users", label: "사용자 관리", icon: Users, requiresAuth: true, adminOnly: true, badge: pendingCount > 0 ? pendingCount : undefined },
     ],
   }
 
@@ -370,12 +390,17 @@ export function NavHeader() {
                         <Link
                           href={item.href}
                           className={cn(
-                            "flex items-center gap-2 cursor-pointer",
+                            "flex items-center gap-2 cursor-pointer w-full",
                             isActive && "bg-muted"
                           )}
                         >
                           <Icon className="h-4 w-4" />
                           <span>{item.label}</span>
+                          {item.badge && item.badge > 0 && (
+                            <span className="ml-auto px-1.5 py-0.5 text-xs font-medium bg-yellow-500 text-white rounded-full min-w-[1.25rem] text-center">
+                              {item.badge}
+                            </span>
+                          )}
                         </Link>
                       </DropdownMenuItem>
                     </div>
@@ -559,6 +584,11 @@ export function NavHeader() {
                         >
                           <Icon className="h-4 w-4" />
                           <span>{item.label}</span>
+                          {item.badge && item.badge > 0 && (
+                            <span className="ml-auto px-1.5 py-0.5 text-xs font-medium bg-yellow-500 text-white rounded-full min-w-[1.25rem] text-center">
+                              {item.badge}
+                            </span>
+                          )}
                         </Link>
                       )
                     })}

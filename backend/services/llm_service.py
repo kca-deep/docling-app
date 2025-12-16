@@ -5,7 +5,6 @@ OpenAI 호환 엔드포인트를 사용하는 LLM 서비스
 import json
 import logging
 import re
-import sys
 from typing import List, Dict, Any, Optional, AsyncGenerator
 from backend.services.prompt_loader import PromptLoader
 from backend.config.settings import settings
@@ -297,15 +296,6 @@ class LLMService:
                 "presence_penalty": presence_penalty,
                 "stream": True
             }
-
-            # 강제 출력 - 반드시 보여야 함
-            sys.stderr.write("\n" + "="*80 + "\n")
-            sys.stderr.write(f"[LLM STREAM] Requested Model Key: {model_key}\n")
-            sys.stderr.write(f"[LLM STREAM] Resolved Model: {llm_config['model']}\n")
-            sys.stderr.write(f"[LLM STREAM] Endpoint URL: {llm_config['base_url']}\n")
-            sys.stderr.write(f"[LLM STREAM] Full URL: {url}\n")
-            sys.stderr.write("="*80 + "\n\n")
-            sys.stderr.flush()
 
             logger.info("="*80)
             logger.info(f"[LLM STREAM] Requested Model Key: {model_key}")

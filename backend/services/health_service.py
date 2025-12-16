@@ -4,7 +4,7 @@ Health Check 서비스
 """
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
 import httpx
@@ -307,7 +307,7 @@ class HealthService:
 
         return {
             "status": overall,
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "version": settings.API_VERSION,
             "services": services
         }
@@ -316,7 +316,7 @@ class HealthService:
         """간단한 상태 확인 (Liveness probe용)"""
         return {
             "status": "ok",
-            "timestamp": datetime.utcnow().isoformat() + "Z"
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         }
 
 

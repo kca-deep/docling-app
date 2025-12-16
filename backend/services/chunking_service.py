@@ -2,8 +2,11 @@
 Docling Serve 청킹 서비스
 """
 import httpx
+import logging
 import time
 from typing import List, Dict, Any
+
+logger = logging.getLogger(__name__)
 
 
 class ChunkingService:
@@ -84,10 +87,10 @@ class ChunkingService:
                 }
             }
 
-            print(f"[INFO] Submitting chunking task for {filename}")
-            print(f"[DEBUG] Request URL: {async_url}")
-            print(f"[DEBUG] Request payload keys: {list(payload.keys())}")
-            print(f"[DEBUG] Chunking options: {payload['chunking_options']}")
+            logger.info(f"Submitting chunking task for {filename}")
+            logger.debug(f"Request URL: {async_url}")
+            logger.debug(f"Request payload keys: {list(payload.keys())}")
+            logger.debug(f"Chunking options: {payload['chunking_options']}")
 
             response = await self.client.post(
                 async_url,
@@ -97,14 +100,14 @@ class ChunkingService:
             response.raise_for_status()
 
             task_response = response.json()
-            print(f"[DEBUG] Task submission response: {task_response}")
+            logger.debug(f"Task submission response: {task_response}")
 
             task_id = task_response.get('task_id')
 
             if not task_id:
                 raise Exception(f"Task ID를 받지 못했습니다: {task_response}")
 
-            print(f"[INFO] Chunking task submitted. Task ID: {task_id}")
+            logger.info(f"Chunking task submitted. Task ID: {task_id}")
 
             # 2단계: Task 상태 폴링
             status_url = f"{self.base_url}/v1/status/poll/{task_id}"
@@ -122,28 +125,28 @@ class ChunkingService:
                 status_data = status_response.json()
                 task_status = status_data.get('task_status', 'unknown')
 
-                print(f"[INFO] Chunking task status: {task_status} (elapsed: {elapsed}s)")
-                print(f"[DEBUG] Full status response: {status_data}")
+                logger.info(f"Chunking task status: {task_status} (elapsed: {elapsed}s)")
+                logger.debug(f"Full status response: {status_data}")
 
                 if task_status == 'success':
-                    print(f"[INFO] Chunking task completed successfully")
+                    logger.info("Chunking task completed successfully")
                     break
                 elif task_status == 'failure':
                     # 실패 시 result 엔드포인트에서 상세 에러 확인
-                    print(f"[ERROR] Task failure detected. Fetching detailed error from result endpoint...")
+                    logger.error("Task failure detected. Fetching detailed error from result endpoint...")
                     result_url_error = f"{self.base_url}/v1/result/{task_id}"
                     try:
                         result_response_error = await self.client.get(result_url_error, timeout=30)
                         if result_response_error.status_code == 200:
                             error_result = result_response_error.json()
-                            print(f"[ERROR] Detailed error from result: {error_result}")
+                            logger.error(f"Detailed error from result: {error_result}")
                             error_msg = error_result.get('error', error_result.get('message', str(error_result)))
                         else:
                             error_msg = f"Status: {result_response_error.status_code}, Body: {result_response_error.text[:500]}"
                     except Exception as e:
                         error_msg = f"Failed to fetch error details: {str(e)}"
 
-                    print(f"[ERROR] Task failure details: {status_data}")
+                    logger.error(f"Task failure details: {status_data}")
                     raise Exception(f"Chunking task failed: {error_msg}")
 
                 await self._async_sleep(self.poll_interval)
@@ -154,7 +157,7 @@ class ChunkingService:
 
             # 3단계: 결과 조회
             result_url = f"{self.base_url}/v1/result/{task_id}"
-            print(f"[INFO] Retrieving chunking results...")
+            logger.info("Retrieving chunking results...")
 
             result_response = await self.client.get(result_url, timeout=30)
             result_response.raise_for_status()
@@ -167,20 +170,20 @@ class ChunkingService:
             if not chunks:
                 raise Exception("청킹 결과가 비어 있습니다")
 
-            print(f"[INFO] Successfully chunked document into {len(chunks)} chunks")
+            logger.info(f"Successfully chunked document into {len(chunks)} chunks")
 
             # overlap 후처리 적용 (Docling API가 overlap을 지원하지 않으므로)
             if overlap_tokens > 0 and len(chunks) > 1:
                 chunks = self._apply_overlap(chunks, overlap_tokens)
-                print(f"[INFO] Applied {overlap_tokens} tokens overlap to chunks")
+                logger.info(f"Applied {overlap_tokens} tokens overlap to chunks")
 
             return chunks
 
         except httpx.HTTPStatusError as e:
-            print(f"[ERROR] HTTP error during chunking: {e.response.status_code} - {e.response.text}")
+            logger.error(f"HTTP error during chunking: {e.response.status_code} - {e.response.text}")
             raise Exception(f"Markdown 청킹 실패: {e.response.status_code} {e.response.text}")
         except Exception as e:
-            print(f"[ERROR] Failed to chunk markdown: {e}")
+            logger.error(f"Failed to chunk markdown: {e}")
             raise Exception(f"Markdown 청킹 실패: {str(e)}")
 
     def _apply_overlap(

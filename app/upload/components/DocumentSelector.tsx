@@ -8,9 +8,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from "@/components/ui/pagination"
+import { Pagination, PaginationContent, PaginationItem, PaginationLink } from "@/components/ui/pagination"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Loader2, FileText, Search, X, FileQuestion, Database, FolderInput, Trash2 } from "lucide-react"
+import { Loader2, FileText, Search, X, FileQuestion, Database, FolderInput, Trash2, ChevronLeft, ChevronRight } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { QdrantCollection } from "../types"
 import { cn } from "@/lib/utils"
@@ -23,6 +23,7 @@ interface DocumentSelectorProps {
   currentPage: number
   totalPages: number
   totalDocs: number
+  pageSize: number
   searchInput: string
   searchQuery: string
   loadingDocuments: boolean
@@ -46,6 +47,9 @@ interface DocumentSelectorProps {
   deletingDocuments?: boolean
 }
 
+// Pagination constants
+const PAGES_PER_BLOCK = 10
+
 export function DocumentSelector({
   documents,
   selectedDocs,
@@ -53,6 +57,7 @@ export function DocumentSelector({
   currentPage,
   totalPages,
   totalDocs,
+  pageSize,
   searchInput,
   searchQuery,
   loadingDocuments,
@@ -74,6 +79,23 @@ export function DocumentSelector({
   onDeleteSelected,
   deletingDocuments = false,
 }: DocumentSelectorProps) {
+  // Pagination calculations
+  const currentBlock = Math.floor((currentPage - 1) / PAGES_PER_BLOCK)
+  const startPage = currentBlock * PAGES_PER_BLOCK + 1
+  const endPage = Math.min(startPage + PAGES_PER_BLOCK - 1, totalPages)
+
+  const goToPreviousBlock = () => {
+    if (currentBlock > 0) {
+      onPageChange((currentBlock - 1) * PAGES_PER_BLOCK + PAGES_PER_BLOCK)
+    }
+  }
+
+  const goToNextBlock = () => {
+    if (endPage < totalPages) {
+      onPageChange((currentBlock + 1) * PAGES_PER_BLOCK + 1)
+    }
+  }
+
   // 카테고리명을 한글명으로 변환하는 함수
   const getCategoryDisplayName = (categoryName: string | null): string => {
     if (!categoryName) return "미분류"
@@ -255,8 +277,19 @@ export function DocumentSelector({
             </p>
           </div>
         ) : (
-          <div className="border border-border/50 rounded-xl overflow-hidden">
-            <Table>
+          <>
+            {/* Page Info - Inline */}
+            <div className="flex items-center justify-end text-sm text-muted-foreground mb-2">
+              전체 {totalDocs}건 중{" "}
+              <span className="font-medium text-foreground mx-1">
+                {(currentPage - 1) * pageSize + 1}-
+                {Math.min(currentPage * pageSize, totalDocs)}
+              </span>
+              건
+            </div>
+
+            <div className="border border-border/50 rounded-xl overflow-hidden">
+              <Table>
               <colgroup>
                 <col className="w-12" />
                 <col />
@@ -341,44 +374,65 @@ export function DocumentSelector({
                 </TableBody>
               </Table>
             </ScrollArea>
-          </div>
-        )}
+            </div>
 
-        {/* 페이지네이션 */}
-        {!loadingDocuments && documents.length > 0 && totalPages > 1 && (
-          <div className="mt-4 flex items-center justify-center gap-4">
-            <Pagination>
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious
-                    onClick={() => onPageChange(currentPage - 1)}
-                    className={cn(
-                      "transition-all",
-                      currentPage === 1
-                        ? "pointer-events-none opacity-50"
-                        : "cursor-pointer hover:bg-[color:var(--chart-1)]/10"
-                    )}
-                  />
-                </PaginationItem>
-                <PaginationItem>
-                  <span className="px-4 py-2 text-sm text-muted-foreground">
-                    <span className="font-medium text-foreground">{currentPage}</span> / {totalPages}
-                  </span>
-                </PaginationItem>
-                <PaginationItem>
-                  <PaginationNext
-                    onClick={() => onPageChange(currentPage + 1)}
-                    className={cn(
-                      "transition-all",
-                      currentPage === totalPages
-                        ? "pointer-events-none opacity-50"
-                        : "cursor-pointer hover:bg-[color:var(--chart-1)]/10"
-                    )}
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          </div>
+            {/* 페이지네이션 */}
+            {totalPages > 1 && (
+              <div className="flex justify-center mt-4">
+                <Pagination>
+                  <PaginationContent>
+                    {/* Previous Block Button */}
+                    <PaginationItem>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1 h-8 px-2"
+                        onClick={goToPreviousBlock}
+                        disabled={currentBlock === 0}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        <span className="hidden sm:inline">이전</span>
+                      </Button>
+                    </PaginationItem>
+
+                    {/* Page Numbers */}
+                    {Array.from(
+                      { length: endPage - startPage + 1 },
+                      (_, i) => startPage + i
+                    ).map((page) => (
+                      <PaginationItem key={page}>
+                        <PaginationLink
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            onPageChange(page)
+                          }}
+                          isActive={page === currentPage}
+                          className="h-8 w-8 p-0"
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    ))}
+
+                    {/* Next Block Button */}
+                    <PaginationItem>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1 h-8 px-2"
+                        onClick={goToNextBlock}
+                        disabled={endPage >= totalPages}
+                      >
+                        <span className="hidden sm:inline">이후</span>
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>

@@ -190,7 +190,7 @@ class PromptGeneratorService:
             ]
 
             # LLM 호출 (설정값 사용)
-            print(f"[추천질문] LLM 호출 시작 - max_tokens: {settings.PROMPT_GEN_QUESTIONS_MAX_TOKENS}")
+            logger.debug(f"[추천질문] LLM 호출 시작 - max_tokens: {settings.PROMPT_GEN_QUESTIONS_MAX_TOKENS}")
 
             result = await self.llm_service.chat_completion(
                 messages=messages,
@@ -199,7 +199,7 @@ class PromptGeneratorService:
                 max_tokens=settings.PROMPT_GEN_QUESTIONS_MAX_TOKENS
             )
 
-            print(f"[추천질문] LLM 원본 응답: {json.dumps(result, ensure_ascii=False)[:1500]}")
+            logger.debug(f"[추천질문] LLM 원본 응답: {json.dumps(result, ensure_ascii=False)[:1500]}")
 
             # content 또는 reasoning_content에서 응답 추출
             message = result.get("choices", [{}])[0].get("message", {})
@@ -209,13 +209,13 @@ class PromptGeneratorService:
             if not content:
                 reasoning_content = message.get("reasoning_content", "")
                 if reasoning_content:
-                    print(f"[추천질문] reasoning_content 발견, content 대신 사용")
+                    logger.debug("[추천질문] reasoning_content 발견, content 대신 사용")
                     content = reasoning_content
 
             tokens_used = result.get("usage", {}).get("total_tokens", 0)
             finish_reason = result.get("choices", [{}])[0].get("finish_reason", "unknown")
-            print(f"[추천질문] tokens_used: {tokens_used}, content_length: {len(content)}, finish_reason: {finish_reason}")
-            print(f"[추천질문] LLM 응답 내용:\n{content[:1000] if content else '(빈 응답)'}")
+            logger.debug(f"[추천질문] tokens_used: {tokens_used}, content_length: {len(content)}, finish_reason: {finish_reason}")
+            logger.debug(f"[추천질문] LLM 응답 내용:\n{content[:1000] if content else '(빈 응답)'}")
 
             # JSON 파싱 (template_type 전달하여 실패 시 기본 질문 사용)
             questions = self._parse_questions_json(content, num_questions, template_type)

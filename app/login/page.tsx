@@ -211,8 +211,16 @@ function LoginForm() {
                     {/* Shine Effect */}
                     <motion.div
                       className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-transparent via-white/20 to-transparent"
-                      animate={{ x: ["-100%", "200%"] }}
-                      transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                      animate={{
+                        x: ["-100%", "200%"],
+                        opacity: [0, 1, 1, 0]
+                      }}
+                      transition={{
+                        duration: 1.5,
+                        repeat: Infinity,
+                        repeatDelay: 4,
+                        ease: "easeInOut"
+                      }}
                     />
                     <Sparkles className="h-10 w-10 text-[color:var(--chart-1)] relative z-10" />
                   </div>

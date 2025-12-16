@@ -5,8 +5,8 @@ import { useTheme } from "next-themes"
 import { PageContainer } from "@/components/page-container"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
+import { CollectionSelector } from "@/components/ui/collection-selector"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
@@ -20,6 +20,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
 import {
@@ -121,6 +122,11 @@ interface RecentQuery {
 interface CollectionInfo {
   name: string
   description?: string
+  visibility?: string
+  documents_count?: number
+  points_count?: number
+  vector_size?: number
+  distance?: string
 }
 
 // ============================================================
@@ -177,7 +183,15 @@ export default function AnalyticsPage() {
       if (!response.ok) throw new Error("컬렉션 조회 실패")
       const data = await response.json()
       const collectionInfos: CollectionInfo[] = (data.collections || [])
-        .map((c: any) => ({ name: c.name, description: c.description }))
+        .map((c: any) => ({
+          name: c.name,
+          description: c.description,
+          visibility: c.visibility || "public",
+          documents_count: c.documents_count || 0,
+          points_count: c.points_count || 0,
+          vector_size: c.vector_size || 1024,
+          distance: c.distance || "Cosine",
+        }))
         .sort((a: CollectionInfo, b: CollectionInfo) => a.name.localeCompare(b.name))
       setCollections(collectionInfos)
     } catch (error) {
@@ -390,28 +404,14 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <PageContainer maxWidth="wide" className="py-8 space-y-8">
-      {/* Background Noise & Gradient */}
-      <div className="absolute inset-0 bg-noise opacity-30 pointer-events-none -z-10" />
-      <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-[color:var(--chart-1)]/5 to-transparent -z-10" />
-
-      {/* 페이지 헤더 */}
-      <motion.div
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.5 }}
-        className="space-y-3"
-      >
-        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-gradient-to-br from-[color:var(--chart-1)] to-[color:var(--chart-2)] text-white shadow-lg shadow-[color:var(--chart-1)]/20">
-            <BarChart3 className="h-5 w-5" />
-          </div>
-          <span className="bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
-            통계
-          </span>
+    <PageContainer maxWidth="wide" className="space-y-4">
+      {/* Page Header */}
+      <div className="flex items-center">
+        <h1 className="text-lg font-semibold flex items-center gap-2">
+          <BarChart3 className="h-5 w-5 text-muted-foreground" />
+          통계
         </h1>
-        <p className="text-muted-foreground max-w-2xl">RAG 시스템 사용량 및 성능 분석</p>
-      </motion.div>
+      </div>
 
       {/* 필터 컨트롤 - 글래스모피즘 스타일 */}
       <motion.div
@@ -422,26 +422,30 @@ export default function AnalyticsPage() {
       >
         <div className="p-1.5 rounded-2xl bg-background/60 backdrop-blur-xl border border-border/50 shadow-lg supports-[backdrop-filter]:bg-background/40">
           <div className="flex flex-wrap items-center gap-2 p-2">
-            <Select value={selectedCollection} onValueChange={setSelectedCollection}>
-              <SelectTrigger className="w-[180px] h-10 rounded-xl border-border/50 bg-background/50 focus:bg-background">
-                <SelectValue placeholder="컬렉션 선택">
-                  {selectedCollection === "ALL" ? "전체" :
-                   selectedCollection === "casual" ? "일상대화" :
-                   getCollectionDisplayName(
-                     collections.find(c => c.name === selectedCollection) || { name: selectedCollection }
-                   )}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">전체</SelectItem>
-                <SelectItem value="casual">일상대화</SelectItem>
-                {collections.map((collection) => (
-                  <SelectItem key={collection.name} value={collection.name}>
-                    {getCollectionDisplayName(collection)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* 컬렉션 선택 (모달 방식) */}
+            <CollectionSelector
+              value={selectedCollection}
+              onValueChange={setSelectedCollection}
+              collections={collections.map(c => ({
+                name: c.name,
+                description: c.description,
+                visibility: c.visibility || "public",
+                documents_count: c.documents_count || 0,
+                points_count: c.points_count || 0,
+                vector_size: c.vector_size || 1024,
+                distance: c.distance || "Cosine",
+              }))}
+              loading={loading}
+              onRefresh={fetchCollections}
+              variant="modal"
+              triggerStyle="select"
+              columns={4}
+              showAllOption={true}
+              showCasualOption={true}
+              showManageLink={false}
+              searchable={true}
+              modalTitle="컬렉션 선택"
+            />
 
             <div className="flex gap-2 items-center">
               <Input

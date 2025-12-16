@@ -333,30 +333,14 @@ export default function ExcelEmbeddingPage() {
     (textColumns.length === 0 && (!useTemplate || !textTemplate))
 
   return (
-    <PageContainer maxWidth="wide" className="py-8 space-y-8">
-      {/* Background Noise & Gradient */}
-      <div className="absolute inset-0 bg-noise opacity-30 pointer-events-none -z-10" />
-      <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-[color:var(--chart-2)]/5 to-transparent -z-10" />
-
+    <PageContainer maxWidth="wide" className="space-y-4">
       {/* Page Header */}
-      <motion.div
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.5 }}
-        className="relative z-10"
-      >
-        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-gradient-to-br from-[color:var(--chart-2)] to-[color:var(--chart-3)] text-white shadow-lg shadow-[color:var(--chart-2)]/20">
-            <Sheet className="h-5 w-5" />
-          </div>
-          <span className="bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
-            엑셀업로드
-          </span>
+      <div className="flex items-center">
+        <h1 className="text-lg font-semibold flex items-center gap-2">
+          <Sheet className="h-5 w-5 text-muted-foreground" />
+          엑셀업로드
         </h1>
-        <p className="text-muted-foreground mt-3 text-lg max-w-2xl">
-          엑셀 데이터를 벡터 데이터베이스에 직접 업로드하세요.
-        </p>
-      </motion.div>
+      </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_24rem] gap-6">
         {/* 좌측: 파일 업로드 및 미리보기 */}

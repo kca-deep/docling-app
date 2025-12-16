@@ -46,6 +46,7 @@ export function QdrantSettingsPanel({
         columns={2}
         label="Collection"
         modalTitle="업로드할 컬렉션 선택"
+        searchable={true}
       />
 
       <Separator className="my-4" />

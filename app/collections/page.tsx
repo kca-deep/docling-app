@@ -384,45 +384,21 @@ export default function CollectionsPage() {
   }
 
   return (
-    <PageContainer maxWidth="wide" className="py-8 space-y-8">
-      {/* Background Noise & Gradient */}
-      <div className="absolute inset-0 bg-noise opacity-30 pointer-events-none -z-10" />
-      <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-[color:var(--chart-1)]/5 to-transparent -z-10" />
-
+    <PageContainer maxWidth="wide" className="space-y-4">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 relative z-10">
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5 }}
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-semibold flex items-center gap-2">
+          <FolderCog className="h-5 w-5 text-muted-foreground" />
+          컬렉션
+        </h1>
+        <Button
+          onClick={() => setCreateModalOpen(true)}
+          size="sm"
+          className="gap-1.5"
         >
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-[color:var(--chart-1)] to-[color:var(--chart-2)] text-white shadow-lg shadow-[color:var(--chart-1)]/20">
-              <FolderCog className="h-5 w-5" />
-            </div>
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
-              컬렉션
-            </span>
-          </h1>
-          <p className="text-muted-foreground mt-3 text-lg max-w-2xl">
-            벡터 데이터베이스 컬렉션을 효율적으로 관리하고 AI 지식베이스를 구축하세요.
-          </p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
-          <Button
-            onClick={() => setCreateModalOpen(true)}
-            size="lg"
-            className="gap-2 rounded-full shadow-lg shadow-[color:var(--chart-1)]/20 hover:shadow-[color:var(--chart-1)]/40 hover:scale-105 active:scale-95 transition-all bg-[color:var(--chart-1)] hover:bg-[color:var(--chart-1)]/90"
-          >
-            <Plus className="h-5 w-5" />
-            새 컬렉션
-          </Button>
-        </motion.div>
+          <Plus className="h-4 w-4" />
+          새 컬렉션
+        </Button>
       </div>
 
       {/* 필터 및 검색 영역 */}

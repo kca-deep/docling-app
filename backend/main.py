@@ -3,6 +3,7 @@ FastAPI 메인 애플리케이션
 """
 import logging
 import asyncio
+from contextlib import asynccontextmanager
 from datetime import date, timedelta
 from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +11,17 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from backend.config.settings import settings
+
+# 로깅 포맷 표준화
+LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+# 루트 로거 설정
+logging.basicConfig(
+    format=LOG_FORMAT,
+    datefmt=LOG_DATE_FORMAT,
+    level=logging.INFO
+)
 from backend.api.routes import document, dify, qdrant, chat, analytics, auth, prompts, selfcheck
 from backend.database import init_db, get_db, SessionLocal
 from backend.models import document as document_model  # Import to register models
@@ -27,15 +39,100 @@ from backend.middleware.rate_limit import limiter, rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from backend.services.health_service import health_service
 from backend.services.http_client import http_manager
+# Qdrant 서비스 인스턴스 import (연결 종료용)
+from backend.api.routes.qdrant import qdrant_service as qdrant_service_main
+from backend.api.routes.chat import qdrant_service as qdrant_service_chat
 
 # 로거 설정
 logger = logging.getLogger(__name__)
 
-# FastAPI 앱 생성
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    애플리케이션 수명 주기 관리 (FastAPI 권장 패턴)
+
+    - yield 전: startup 로직
+    - yield 후: shutdown 로직
+    """
+    # ========== STARTUP ==========
+    # 데이터베이스 초기화
+    init_db()
+    print("[OK] Database initialized successfully")
+
+    # 기본 관리자 계정 생성
+    db = SessionLocal()
+    try:
+        auth_service.ensure_admin_exists(db)
+        print("[OK] Admin user verified")
+    finally:
+        db.close()
+
+    # 기존 Qdrant 컬렉션 마이그레이션 (백그라운드에서 실행)
+    asyncio.create_task(migrate_qdrant_collections())
+
+    # SQLite 최적화 설정 적용
+    try:
+        from sqlalchemy import text
+        from backend.database import engine
+
+        with engine.connect() as conn:
+            # WAL 모드 활성화 (동시성 개선)
+            conn.execute(text("PRAGMA journal_mode = WAL"))
+            # 쓰기 성능 향상
+            conn.execute(text("PRAGMA synchronous = NORMAL"))
+            # 캐시 크기 증가 (128MB)
+            conn.execute(text("PRAGMA cache_size = -128000"))
+            # 메모리 매핑
+            conn.execute(text("PRAGMA mmap_size = 10737418240"))  # 10GB
+            # 임시 테이블 메모리 사용
+            conn.execute(text("PRAGMA temp_store = MEMORY"))
+            conn.commit()
+
+        print("[OK] SQLite optimizations applied successfully")
+    except Exception as e:
+        logger.error(f"Failed to apply SQLite optimizations: {e}")
+
+    # 로깅 서비스 시작
+    await hybrid_logging_service.start()
+    print("[OK] Hybrid logging service started successfully")
+
+    # 자동 통계 집계 (백그라운드에서 실행)
+    asyncio.create_task(aggregate_pending_statistics())
+
+    yield  # 애플리케이션 실행
+
+    # ========== SHUTDOWN ==========
+    # 로깅 서비스 중지 및 큐 플러시
+    try:
+        await hybrid_logging_service.flush()
+        await hybrid_logging_service.stop()
+        print("[OK] Hybrid logging service stopped successfully")
+    except Exception as e:
+        print(f"[WARN] Hybrid logging service shutdown error: {e}")
+
+    # Qdrant 클라이언트 연결 종료
+    try:
+        await qdrant_service_main.close()
+        await qdrant_service_chat.close()
+        print("[OK] Qdrant client connections closed successfully")
+    except Exception as e:
+        print(f"[WARN] Qdrant client shutdown error: {e}")
+
+    # HTTP 클라이언트 연결 정리
+    try:
+        await http_manager.close_all()
+        print("[OK] HTTP client connections closed successfully")
+    except Exception as e:
+        print(f"[WARN] HTTP client shutdown error: {e}")
+
+
+# FastAPI 앱 생성 (lifespan 컨텍스트 매니저 사용)
 app = FastAPI(
     title=settings.API_TITLE,
     version=settings.API_VERSION,
-    description="Docling Serve를 활용한 문서 파싱 API"
+    description="Docling Serve를 활용한 문서 파싱 API",
+    lifespan=lifespan
 )
 
 # Rate Limiting 설정
@@ -92,73 +189,6 @@ async def aggregate_pending_statistics():
         logger.error(f"Failed to aggregate pending statistics: {e}")
 
 
-# 앱 시작 시 DB 초기화
-@app.on_event("startup")
-async def startup_event():
-    """앱 시작 시 실행되는 이벤트 핸들러"""
-    # 데이터베이스 초기화
-    init_db()
-    print("[OK] Database initialized successfully")
-
-    # 기본 관리자 계정 생성
-    db = SessionLocal()
-    try:
-        auth_service.ensure_admin_exists(db)
-        print("[OK] Admin user verified")
-    finally:
-        db.close()
-
-    # 기존 Qdrant 컬렉션 마이그레이션 (백그라운드에서 실행)
-    asyncio.create_task(migrate_qdrant_collections())
-
-    # SQLite 최적화 설정 적용
-    try:
-        from sqlalchemy import text
-        from backend.database import engine
-
-        with engine.connect() as conn:
-            # WAL 모드 활성화 (동시성 개선)
-            conn.execute(text("PRAGMA journal_mode = WAL"))
-            # 쓰기 성능 향상
-            conn.execute(text("PRAGMA synchronous = NORMAL"))
-            # 캐시 크기 증가 (128MB)
-            conn.execute(text("PRAGMA cache_size = -128000"))
-            # 메모리 매핑
-            conn.execute(text("PRAGMA mmap_size = 10737418240"))  # 10GB
-            # 임시 테이블 메모리 사용
-            conn.execute(text("PRAGMA temp_store = MEMORY"))
-            conn.commit()
-
-        print("[OK] SQLite optimizations applied successfully")
-    except Exception as e:
-        logger.error(f"Failed to apply SQLite optimizations: {e}")
-
-    # 로깅 서비스 시작
-    await hybrid_logging_service.start()
-    print("[OK] Hybrid logging service started successfully")
-
-    # 자동 통계 집계 (백그라운드에서 실행)
-    asyncio.create_task(aggregate_pending_statistics())
-
-
-# 앱 종료 시 정리 작업
-@app.on_event("shutdown")
-async def shutdown_event():
-    """앱 종료 시 실행되는 이벤트 핸들러"""
-    # 로깅 서비스 중지 및 큐 플러시
-    try:
-        await hybrid_logging_service.flush()
-        await hybrid_logging_service.stop()
-        print("[OK] Hybrid logging service stopped successfully")
-    except Exception as e:
-        print(f"[WARN] Hybrid logging service shutdown error: {e}")
-
-    # HTTP 클라이언트 연결 정리
-    try:
-        await http_manager.close_all()
-        print("[OK] HTTP client connections closed successfully")
-    except Exception as e:
-        print(f"[WARN] HTTP client shutdown error: {e}")
 
 # 요청 추적 미들웨어 추가 (CORS보다 먼저 등록)
 app.add_middleware(RequestTrackingMiddleware)
@@ -172,6 +202,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# 보안 헤더 미들웨어
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """보안 헤더 추가 미들웨어"""
+    response = await call_next(request)
+
+    # XSS, Clickjacking, MIME 스니핑 방지
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+
+    # 추가 보안 헤더
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+
+    return response
+
 # 잘못된 요청 처리 미들웨어
 @app.middleware("http")
 async def catch_exceptions_middleware(request: Request, call_next):
@@ -180,11 +228,43 @@ async def catch_exceptions_middleware(request: Request, call_next):
         response = await call_next(request)
         return response
     except Exception as e:
-        logger.error(f"Unhandled exception for {request.method} {request.url.path}: {str(e)}")
+        logger.error(f"Unhandled exception for {request.method} {request.url.path}: {str(e)}", exc_info=True)
         return JSONResponse(
             status_code=500,
-            content={"detail": "Internal server error"}
+            content={
+                "error_code": "INTERNAL_ERROR",
+                "message": "서버 내부 오류가 발생했습니다."
+            }
         )
+
+
+# 전역 예외 핸들러: 내부 에러 메시지 숨김
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """모든 예외를 캐치하여 내부 정보 노출 방지"""
+    logger.error(f"Global exception for {request.method} {request.url.path}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error_code": "INTERNAL_ERROR",
+            "message": "서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+        }
+    )
+
+
+# ValidationError 핸들러
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """요청 검증 실패 처리 (내부 정보 최소화)"""
+    logger.warning(f"Validation error for {request.method} {request.url.path}: {exc.errors()}")
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error_code": "VALIDATION_ERROR",
+            "message": "요청 데이터가 올바르지 않습니다.",
+            "detail": [{"field": e.get("loc", [])[-1] if e.get("loc") else "unknown", "message": e.get("msg", "")} for e in exc.errors()]
+        }
+    )
 
 
 # 라우터 등록

@@ -294,7 +294,20 @@ async def delete_collection(
         # 1. Qdrant에서 Collection 삭제
         await qdrant_service.delete_collection(collection_name)
 
-        # 2. SQLite에서 해당 컬렉션의 업로드 이력 삭제
+        # 2. 해당 컬렉션에 속한 문서들의 category를 NULL(미분류)로 변경
+        try:
+            updated_docs = db.query(Document).filter(
+                Document.category == collection_name
+            ).update(
+                {"category": None},
+                synchronize_session=False
+            )
+            db.commit()
+            logger.info(f"Reset category to NULL for {updated_docs} documents (collection: {collection_name})")
+        except Exception as e:
+            logger.warning(f"Failed to reset document categories: {e}")
+
+        # 3. SQLite에서 해당 컬렉션의 업로드 이력 삭제
         try:
             deleted_count = db.query(QdrantUploadHistory).filter(
                 QdrantUploadHistory.collection_name == collection_name
@@ -304,7 +317,7 @@ async def delete_collection(
         except Exception as e:
             logger.warning(f"Failed to delete upload history for collection: {e}")
 
-        # 3. SQLite에서 메타데이터 삭제
+        # 4. SQLite에서 메타데이터 삭제
         try:
             collection_crud.delete_collection(db, collection_name)
             logger.info(f"Deleted collection metadata: {collection_name}")

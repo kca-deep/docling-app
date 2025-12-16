@@ -17,11 +17,12 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
-from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.cell import WriteOnlyCell
 
 from backend.database import get_db
 from backend.dependencies.auth import get_current_active_user
 from backend.models.chat_session import ChatSession
+from backend.utils.timezone import now_naive
 from backend.models.chat_statistics import ChatStatistics
 from backend.services.statistics_service import statistics_service
 from backend.services.conversation_service import conversation_service
@@ -537,7 +538,7 @@ async def get_conversation_stats(
         # ChatSession 테이블에서 조회
         query = db.query(ChatSession)
 
-        end_date = datetime.now()
+        end_date = now_naive()
         start_date = end_date - timedelta(days=days)
 
         query = query.filter(ChatSession.started_at >= start_date)
@@ -871,7 +872,7 @@ async def get_active_sessions(
         dict: 활성 세션 정보
     """
     try:
-        threshold = datetime.now() - timedelta(minutes=minutes)
+        threshold = now_naive() - timedelta(minutes=minutes)
 
         # 최근 N분 내에 시작된 세션만 활성으로 간주
         active_sessions = db.query(ChatSession).filter(
@@ -888,7 +889,7 @@ async def get_active_sessions(
             "active_count": len(active_sessions),
             "by_collection": collection_counts,
             "threshold_minutes": minutes,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": now_naive().isoformat()
         }
 
     except Exception as e:
@@ -951,7 +952,7 @@ async def get_recent_queries(
         return {
             "queries": queries,
             "total": len(user_messages),
-            "timestamp": datetime.now().isoformat()
+            "timestamp": now_naive().isoformat()
         }
 
     except Exception as e:
@@ -1110,71 +1111,45 @@ async def export_conversations_to_excel(
                     }
                     export_data.append(row)
 
-        # DataFrame 생성
-        df = pd.DataFrame(export_data)
+        # 헤더 정의
+        headers = [
+            "날짜/시간", "세션 ID", "사용자 질문", "AI 응답", "컬렉션",
+            "응답시간(ms)", "토큰수", "검색점수", "참조문서",
+            "에러여부", "재생성여부", "LLM모델", "추론레벨"
+        ]
 
-        if df.empty:
-            # 빈 데이터인 경우 헤더만 있는 DataFrame 생성
-            df = pd.DataFrame(columns=[
-                "날짜/시간", "세션 ID", "사용자 질문", "AI 응답", "컬렉션",
-                "응답시간(ms)", "토큰수", "검색점수", "참조문서",
-                "에러여부", "재생성여부", "LLM모델", "추론레벨"
-            ])
-
-        # Excel 워크북 생성
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "대화내역"
+        # Excel 워크북 생성 (write_only=True로 메모리 최적화)
+        wb = Workbook(write_only=True)
+        ws = wb.create_sheet(title="대화내역")
 
         # 스타일 정의
         header_font = Font(bold=True, color="FFFFFF")
         header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
         header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         cell_alignment = Alignment(vertical="top", wrap_text=True)
-        thin_border = Border(
-            left=Side(style='thin'),
-            right=Side(style='thin'),
-            top=Side(style='thin'),
-            bottom=Side(style='thin')
-        )
 
-        # 헤더 작성
-        for col_idx, column in enumerate(df.columns, 1):
-            cell = ws.cell(row=1, column=col_idx, value=column)
+        # 헤더 행 작성 (스타일 적용)
+        header_row = []
+        for header in headers:
+            cell = WriteOnlyCell(ws, value=header)
             cell.font = header_font
             cell.fill = header_fill
             cell.alignment = header_alignment
-            cell.border = thin_border
+            header_row.append(cell)
+        ws.append(header_row)
 
-        # 데이터 작성
-        for row_idx, row in enumerate(df.itertuples(index=False), 2):
-            for col_idx, value in enumerate(row, 1):
-                cell = ws.cell(row=row_idx, column=col_idx, value=value)
+        # 데이터 작성 (각 행을 순차적으로 쓰고 메모리 해제)
+        for row_data in export_data:
+            data_row = []
+            for header in headers:
+                value = row_data.get(header, "")
+                cell = WriteOnlyCell(ws, value=value)
                 cell.alignment = cell_alignment
-                cell.border = thin_border
+                data_row.append(cell)
+            ws.append(data_row)
 
-        # 열 너비 설정
-        column_widths = {
-            "A": 20,  # 날짜/시간
-            "B": 12,  # 세션 ID
-            "C": 50,  # 사용자 질문
-            "D": 70,  # AI 응답
-            "E": 20,  # 컬렉션
-            "F": 12,  # 응답시간
-            "G": 10,  # 토큰수
-            "H": 10,  # 검색점수
-            "I": 30,  # 참조문서
-            "J": 10,  # 에러여부
-            "K": 10,  # 재생성여부
-            "L": 15,  # LLM모델
-            "M": 10,  # 추론레벨
-        }
-
-        for col_letter, width in column_widths.items():
-            ws.column_dimensions[col_letter].width = width
-
-        # 첫 번째 행 고정
-        ws.freeze_panes = "A2"
+        # write_only 모드에서는 column_dimensions와 freeze_panes 설정 불가
+        # 대신 클라이언트 측에서 처리하거나 별도 후처리 필요
 
         # 메모리 스트림에 저장
         output = io.BytesIO()

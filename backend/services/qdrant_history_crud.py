@@ -3,7 +3,7 @@ Qdrant Upload History CRUD operations
 """
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 
 from backend.models.qdrant_upload_history import QdrantUploadHistory
@@ -44,7 +44,7 @@ def create_upload_history(
         qdrant_url=qdrant_url,
         upload_status=upload_status,
         error_message=error_message,
-        uploaded_at=datetime.utcnow()
+        uploaded_at=datetime.now(timezone.utc)
     )
 
     db.add(history)

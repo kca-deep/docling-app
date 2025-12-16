@@ -45,6 +45,84 @@ class RAGService:
         self.reranker_service = reranker_service
         self.hybrid_search_service = hybrid_search_service
 
+    async def _apply_reranking(
+        self,
+        query: str,
+        retrieved_docs: List[Dict[str, Any]],
+        top_k: int
+    ) -> List[Dict[str, Any]]:
+        """
+        검색 결과에 리랭킹 적용 (공통 로직)
+
+        Args:
+            query: 검색 쿼리
+            retrieved_docs: 검색된 문서 리스트
+            top_k: 최종 반환할 문서 수
+
+        Returns:
+            List[Dict[str, Any]]: 리랭킹된 문서 리스트
+        """
+        if not retrieved_docs:
+            return retrieved_docs
+
+        try:
+            logger.info(f"Reranking {len(retrieved_docs)} documents")
+
+            # 문서 텍스트 추출 (파일명/페이지 정보 포함)
+            documents = []
+            for doc in retrieved_docs:
+                payload = doc.get("payload", {})
+                text = payload.get("text", "")
+                filename = payload.get("filename", "")
+                headings = payload.get("headings", [])
+
+                # 파일명과 헤딩 정보가 있으면 앞에 추가
+                if filename and headings:
+                    header = f"[{filename}] [{headings[1] if len(headings) > 1 else ''}] "
+                    documents.append(header + text)
+                elif filename:
+                    documents.append(f"[{filename}] " + text)
+                else:
+                    documents.append(text)
+
+            # Reranker 호출
+            reranked_results = await self.reranker_service.rerank_with_fallback(
+                query=query,
+                documents=documents,
+                top_n=top_k,
+                return_documents=False
+            )
+
+            # Reranking 성공 시 재정렬
+            if reranked_results:
+                reordered_docs = []
+                filtered_docs = []
+
+                for r in reranked_results:
+                    doc = retrieved_docs[r.index].copy()
+                    doc["score"] = r.relevance_score
+                    reordered_docs.append(doc)
+
+                    if r.relevance_score >= settings.RERANK_SCORE_THRESHOLD:
+                        filtered_docs.append(doc)
+
+                # threshold 통과 문서가 있으면 사용, 없으면 리랭킹 순서만 유지
+                if filtered_docs:
+                    top_score = filtered_docs[0]["score"]
+                    logger.info(f"Reranking completed: {len(filtered_docs)} docs passed threshold (>={settings.RERANK_SCORE_THRESHOLD}), top score={top_score:.4f}")
+                    return filtered_docs
+                else:
+                    top_score = reordered_docs[0]["score"] if reordered_docs else 0
+                    logger.info(f"Reranking completed: no docs passed threshold, but using reranked order. top score={top_score:.4f}")
+                    return reordered_docs[:top_k]
+            else:
+                logger.warning("Reranking failed, using original vector search results")
+                return retrieved_docs[:top_k]
+
+        except Exception as e:
+            logger.warning(f"Reranking error: {e}, using original results")
+            return retrieved_docs[:top_k]
+
     async def retrieve(
         self,
         collection_name: str,
@@ -176,8 +254,8 @@ class RAGService:
             return response
 
         except Exception as e:
-            print(f"[ERROR] Generate failed: {e}")
-            raise Exception(f"답변 생성 실패: {str(e)}")
+            logger.error(f"Generate failed: {e}")
+            raise Exception(f"답변 생성 실패: {str(e)}") from e
 
     async def generate_stream(
         self,
@@ -239,8 +317,8 @@ class RAGService:
                 yield chunk
 
         except Exception as e:
-            print(f"[ERROR] Stream generate failed: {e}")
-            raise Exception(f"스트리밍 답변 생성 실패: {str(e)}")
+            logger.error(f"Stream generate failed: {e}")
+            raise Exception(f"스트리밍 답변 생성 실패: {str(e)}") from e
 
     async def chat(
         self,
@@ -300,7 +378,7 @@ class RAGService:
                 initial_top_k = top_k
                 if use_reranking and self.reranker_service:
                     initial_top_k = top_k * settings.RERANK_TOP_K_MULTIPLIER
-                    print(f"[INFO] Reranking enabled: expanding top_k from {top_k} to {initial_top_k}")
+                    logger.info(f"Reranking enabled: expanding top_k from {top_k} to {initial_top_k}")
 
                 retrieved_docs = await self.retrieve(
                     collection_name=collection_name,
@@ -319,65 +397,7 @@ class RAGService:
 
             # 1.5. Reranking (선택)
             if use_reranking and self.reranker_service and retrieved_docs:
-                try:
-                    print(f"[INFO] Reranking {len(retrieved_docs)} documents")
-
-                    # 문서 텍스트 추출 (파일명/페이지 정보 포함하여 리랭커에 더 많은 컨텍스트 제공)
-                    documents = []
-                    for doc in retrieved_docs:
-                        payload = doc.get("payload", {})
-                        text = payload.get("text", "")
-                        filename = payload.get("filename", "")
-                        headings = payload.get("headings", [])
-                        # 파일명과 페이지 정보가 있으면 앞에 추가
-                        if filename and headings:
-                            header = f"[{filename}] [{headings[1] if len(headings) > 1 else ''}] "
-                            documents.append(header + text)
-                        elif filename:
-                            documents.append(f"[{filename}] " + text)
-                        else:
-                            documents.append(text)
-
-                    # Reranker 호출 (사용자 설정값 top_k 사용)
-                    reranked_results = await self.reranker_service.rerank_with_fallback(
-                        query=query,
-                        documents=documents,
-                        top_n=top_k,
-                        return_documents=False
-                    )
-
-                    # Reranking 성공 시 재정렬
-                    if reranked_results:
-                        # 리랭킹 순서대로 재정렬 (threshold 필터링 전에 순서 유지)
-                        reordered_docs = []
-                        filtered_docs = []
-
-                        for r in reranked_results:
-                            doc = retrieved_docs[r.index].copy()
-                            doc["score"] = r.relevance_score  # Reranker score로 덮어쓰기
-                            reordered_docs.append(doc)
-                            # threshold 통과 문서는 별도로 수집
-                            if r.relevance_score >= settings.RERANK_SCORE_THRESHOLD:
-                                filtered_docs.append(doc)
-
-                        # threshold 통과 문서가 있으면 사용, 없으면 리랭킹 순서만 유지
-                        if filtered_docs:
-                            retrieved_docs = filtered_docs
-                            top_score = filtered_docs[0]["score"]
-                            print(f"[INFO] Reranking completed: {len(filtered_docs)} docs passed threshold (>={settings.RERANK_SCORE_THRESHOLD}), top score={top_score:.4f}")
-                        else:
-                            # threshold 미통과해도 리랭킹 순서는 유지 (개선된 로직)
-                            retrieved_docs = reordered_docs[:top_k]
-                            top_score = reordered_docs[0]["score"] if reordered_docs else 0
-                            print(f"[INFO] Reranking completed: no docs passed threshold, but using reranked order. top score={top_score:.4f}")
-                    else:
-                        print(f"[WARNING] Reranking failed, using original vector search results")
-                        # Fallback: 원본 결과를 top_k개만 사용
-                        retrieved_docs = retrieved_docs[:top_k]
-
-                except Exception as e:
-                    print(f"[WARNING] Reranking error: {e}, using original results")
-                    retrieved_docs = retrieved_docs[:top_k]
+                retrieved_docs = await self._apply_reranking(query, retrieved_docs, top_k)
 
             # 2. Generate: 답변 생성
             llm_response = await self.generate(
@@ -413,8 +433,8 @@ class RAGService:
             return result
 
         except Exception as e:
-            print(f"[ERROR] RAG chat failed: {e}")
-            raise Exception(f"RAG 채팅 실패: {str(e)}")
+            logger.error(f"RAG chat failed: {e}")
+            raise Exception(f"RAG 채팅 실패: {str(e)}") from e
 
     async def chat_stream(
         self,
@@ -471,7 +491,7 @@ class RAGService:
                 initial_top_k = top_k
                 if use_reranking and self.reranker_service:
                     initial_top_k = top_k * settings.RERANK_TOP_K_MULTIPLIER
-                    print(f"[INFO] Reranking enabled: expanding top_k from {top_k} to {initial_top_k}")
+                    logger.info(f"Reranking enabled: expanding top_k from {top_k} to {initial_top_k}")
 
                 retrieved_docs = await self.retrieve(
                     collection_name=collection_name,
@@ -488,65 +508,7 @@ class RAGService:
 
             # 1.5. Reranking (선택) - RAG 모드에서만 적용
             if not is_casual_mode and use_reranking and self.reranker_service and retrieved_docs:
-                try:
-                    print(f"[INFO] Reranking {len(retrieved_docs)} documents")
-
-                    # 문서 텍스트 추출 (파일명/페이지 정보 포함하여 리랭커에 더 많은 컨텍스트 제공)
-                    documents = []
-                    for doc in retrieved_docs:
-                        payload = doc.get("payload", {})
-                        text = payload.get("text", "")
-                        filename = payload.get("filename", "")
-                        headings = payload.get("headings", [])
-                        # 파일명과 페이지 정보가 있으면 앞에 추가
-                        if filename and headings:
-                            header = f"[{filename}] [{headings[1] if len(headings) > 1 else ''}] "
-                            documents.append(header + text)
-                        elif filename:
-                            documents.append(f"[{filename}] " + text)
-                        else:
-                            documents.append(text)
-
-                    # Reranker 호출 (사용자 설정값 top_k 사용)
-                    reranked_results = await self.reranker_service.rerank_with_fallback(
-                        query=query,
-                        documents=documents,
-                        top_n=top_k,
-                        return_documents=False
-                    )
-
-                    # Reranking 성공 시 재정렬
-                    if reranked_results:
-                        # 리랭킹 순서대로 재정렬 (threshold 필터링 전에 순서 유지)
-                        reordered_docs = []
-                        filtered_docs = []
-
-                        for r in reranked_results:
-                            doc = retrieved_docs[r.index].copy()
-                            doc["score"] = r.relevance_score  # Reranker score로 덮어쓰기
-                            reordered_docs.append(doc)
-                            # threshold 통과 문서는 별도로 수집
-                            if r.relevance_score >= settings.RERANK_SCORE_THRESHOLD:
-                                filtered_docs.append(doc)
-
-                        # threshold 통과 문서가 있으면 사용, 없으면 리랭킹 순서만 유지
-                        if filtered_docs:
-                            retrieved_docs = filtered_docs
-                            top_score = filtered_docs[0]["score"]
-                            print(f"[INFO] Reranking completed: {len(filtered_docs)} docs passed threshold (>={settings.RERANK_SCORE_THRESHOLD}), top score={top_score:.4f}")
-                        else:
-                            # threshold 미통과해도 리랭킹 순서는 유지 (개선된 로직)
-                            retrieved_docs = reordered_docs[:top_k]
-                            top_score = reordered_docs[0]["score"] if reordered_docs else 0
-                            print(f"[INFO] Reranking completed: no docs passed threshold, but using reranked order. top score={top_score:.4f}")
-                    else:
-                        print(f"[WARNING] Reranking failed, using original vector search results")
-                        # Fallback: 원본 결과를 top_k개만 사용
-                        retrieved_docs = retrieved_docs[:top_k]
-
-                except Exception as e:
-                    print(f"[WARNING] Reranking error: {e}, using original results")
-                    retrieved_docs = retrieved_docs[:top_k]
+                retrieved_docs = await self._apply_reranking(query, retrieved_docs, top_k)
 
             # 2. 검색된 문서를 먼저 전송 (스트리밍 시작 전)
             sources_data = []
@@ -577,5 +539,5 @@ class RAGService:
                 yield chunk
 
         except Exception as e:
-            print(f"[ERROR] RAG stream chat failed: {e}")
+            logger.error(f"RAG stream chat failed: {e}")
             yield f'data: {{"error": "스트리밍 실패: {str(e)}"}}\n\n'

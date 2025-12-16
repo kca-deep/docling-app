@@ -7,7 +7,7 @@ from datetime import timedelta
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -45,8 +45,7 @@ class UserResponse(BaseModel):
     status: str = "approved"
     is_active: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AuthStatusResponse(BaseModel):
@@ -110,8 +109,7 @@ class UserListResponse(BaseModel):
     created_at: Optional[str] = None
     last_login: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ApproveRequest(BaseModel):
@@ -131,6 +129,11 @@ class ApproveRejectResponse(BaseModel):
     user_id: int
     status: str
     message: str
+
+
+class PendingCountResponse(BaseModel):
+    """승인 대기 카운트 응답"""
+    pending_count: int
 
 
 # === 엔드포인트 ===
@@ -343,6 +346,23 @@ async def check_duplicate(
 # =========================================
 # 관리자 엔드포인트
 # =========================================
+
+@router.get("/pending-count", response_model=PendingCountResponse)
+async def get_pending_count(
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin)
+):
+    """
+    승인 대기 사용자 수 조회 (관리자 전용)
+
+    네비게이션 뱃지 표시용 간단한 카운트 API
+
+    Returns:
+        PendingCountResponse: 대기 중인 사용자 수
+    """
+    users = auth_service.get_pending_users(db)
+    return PendingCountResponse(pending_count=len(users))
+
 
 def _user_to_list_response(user: User) -> UserListResponse:
     """User 모델을 UserListResponse로 변환"""

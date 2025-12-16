@@ -7,7 +7,7 @@ from backend.models.schemas import DocumentSaveRequest
 from backend.models.qdrant_upload_history import QdrantUploadHistory
 from backend.models.dify_upload_history import DifyUploadHistory
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def create_document(db: Session, doc_request: DocumentSaveRequest) -> Document:
@@ -67,7 +67,7 @@ def get_document_by_id(db: Session, document_id: int) -> Optional[Document]:
 
     # 조회 시 last_accessed_at 업데이트
     if document:
-        document.last_accessed_at = datetime.utcnow()
+        document.last_accessed_at = datetime.now(timezone.utc)
         db.commit()
 
     return document
@@ -188,7 +188,7 @@ def increment_download_count(db: Session, document_id: int) -> Optional[Document
         return None
 
     document.download_count += 1
-    document.last_accessed_at = datetime.utcnow()
+    document.last_accessed_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(document)
 
@@ -234,7 +234,7 @@ def update_document_categories(
     updated = db.query(Document).filter(
         Document.id.in_(document_ids)
     ).update(
-        {"category": category, "updated_at": datetime.utcnow()},
+        {"category": category, "updated_at": datetime.now(timezone.utc)},
         synchronize_session=False
     )
     db.commit()

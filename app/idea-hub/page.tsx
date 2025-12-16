@@ -18,56 +18,49 @@ import {
 } from "lucide-react"
 import { motion } from "framer-motion"
 
+// Stagger animation variants
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1 }
+  }
+}
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.4 } }
+}
+
 export default function IdeaHubPage() {
   return (
-    <PageContainer maxWidth="wide" className="py-8 space-y-8">
-      {/* Background Noise & Gradient */}
-      <div className="absolute inset-0 bg-noise opacity-30 pointer-events-none -z-10" />
-      <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-amber-500/5 to-transparent -z-10" />
-
+    <PageContainer maxWidth="wide" className="space-y-4">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 relative z-10">
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/20">
-              <Lightbulb className="h-5 w-5" />
-            </div>
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
-              AI Idea Hub
-            </span>
-          </h1>
-          <p className="text-muted-foreground mt-3 text-lg max-w-2xl">
-            AI 과제 보안성 셀프진단으로 상위기관 검토 대상 여부를 사전에 확인하세요.
-          </p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
-          <Link href="/idea-hub/selfcheck">
-            <Button
-              size="lg"
-              className="gap-2 rounded-full shadow-lg shadow-amber-500/20 hover:shadow-amber-500/40 hover:scale-105 active:scale-95 transition-all bg-amber-500 hover:bg-amber-500/90"
-            >
-              <Plus className="h-5 w-5" />
-              새 진단 시작
-            </Button>
-          </Link>
-        </motion.div>
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-semibold flex items-center gap-2">
+          <Lightbulb className="h-5 w-5 text-muted-foreground" />
+          AI Idea Hub
+        </h1>
+        <Link href="/idea-hub/selfcheck">
+          <Button size="sm" className="gap-1.5">
+            <Plus className="h-4 w-4" />
+            새 진단
+          </Button>
+        </Link>
       </div>
 
       <div className="space-y-8">
 
         {/* Feature Cards */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <motion.div
+          className="grid gap-6 md:grid-cols-2 lg:grid-cols-3"
+          variants={containerVariants}
+          initial="hidden"
+          animate="show"
+        >
           {/* 셀프진단 카드 */}
-          <Card className="group hover:shadow-lg transition-all duration-300 hover:border-primary/50">
+          <motion.div variants={itemVariants}>
+          <Card className="group hover:shadow-lg transition-all duration-300 hover:border-primary/50 h-full">
             <CardHeader>
               <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
                 <ClipboardCheck className="w-6 h-6 text-primary" />
@@ -88,9 +81,11 @@ export default function IdeaHubPage() {
               </Link>
             </CardContent>
           </Card>
+          </motion.div>
 
           {/* 진단 이력 카드 */}
-          <Card className="group hover:shadow-lg transition-all duration-300 hover:border-primary/50">
+          <motion.div variants={itemVariants}>
+          <Card className="group hover:shadow-lg transition-all duration-300 hover:border-primary/50 h-full">
             <CardHeader>
               <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center mb-4 group-hover:bg-blue-500/20 transition-colors">
                 <History className="w-6 h-6 text-blue-500" />
@@ -111,9 +106,11 @@ export default function IdeaHubPage() {
               </Link>
             </CardContent>
           </Card>
+          </motion.div>
 
           {/* 검토 대상 안내 카드 */}
-          <Card className="group hover:shadow-lg transition-all duration-300 hover:border-primary/50">
+          <motion.div variants={itemVariants}>
+          <Card className="group hover:shadow-lg transition-all duration-300 hover:border-primary/50 h-full">
             <CardHeader>
               <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center mb-4 group-hover:bg-amber-500/20 transition-colors">
                 <FileText className="w-6 h-6 text-amber-500" />
@@ -138,9 +135,15 @@ export default function IdeaHubPage() {
               </div>
             </CardContent>
           </Card>
-        </div>
+          </motion.div>
+        </motion.div>
 
         {/* 체크리스트 항목 안내 */}
+        <motion.div
+          variants={itemVariants}
+          initial="hidden"
+          animate="show"
+        >
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -215,6 +218,7 @@ export default function IdeaHubPage() {
             </div>
           </CardContent>
         </Card>
+        </motion.div>
       </div>
     </PageContainer>
   )

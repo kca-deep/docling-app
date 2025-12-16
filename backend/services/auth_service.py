@@ -6,7 +6,7 @@ import logging
 import hashlib
 import secrets
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Tuple
 
 from jose import JWTError, jwt
@@ -19,6 +19,10 @@ logger = logging.getLogger(__name__)
 
 # JWT 설정
 ALGORITHM = "HS256"
+
+# 브루트포스 방어 설정
+MAX_LOGIN_ATTEMPTS = 5  # 최대 로그인 실패 횟수
+LOCKOUT_DURATION_MINUTES = 15  # 계정 잠금 시간 (분)
 
 
 class AuthenticationError(Exception):
@@ -83,9 +87,9 @@ class AuthService:
         to_encode = data.copy()
 
         if expires_delta:
-            expire = datetime.utcnow() + expires_delta
+            expire = datetime.now(timezone.utc) + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(hours=settings.SESSION_EXPIRE_HOURS)
+            expire = datetime.now(timezone.utc) + timedelta(hours=settings.SESSION_EXPIRE_HOURS)
 
         to_encode.update({"exp": expire})
         encoded_jwt = jwt.encode(
@@ -142,6 +146,16 @@ class AuthService:
             logger.warning(f"Authentication failed: user '{username}' not found")
             raise AuthenticationError("아이디 또는 비밀번호가 올바르지 않습니다.", "INVALID_CREDENTIALS")
 
+        # 계정 잠금 상태 확인 (브루트포스 방어)
+        if user.is_locked():
+            remaining_seconds = user.get_remaining_lockout_seconds()
+            remaining_minutes = (remaining_seconds // 60) + 1
+            logger.warning(f"Authentication failed: user '{username}' is locked for {remaining_minutes} more minutes")
+            raise AuthenticationError(
+                f"계정이 잠겼습니다. {remaining_minutes}분 후에 다시 시도해주세요.",
+                "ACCOUNT_LOCKED"
+            )
+
         # 승인 상태 확인
         if user.status == UserStatus.PENDING.value:
             logger.warning(f"Authentication failed: user '{username}' is pending approval")
@@ -156,15 +170,40 @@ class AuthService:
             raise AuthenticationError("비활성화된 계정입니다. 관리자에게 문의하세요.", "INACTIVE")
 
         if not self.verify_password(password, user.password_hash):
-            logger.warning(f"Authentication failed: invalid password for '{username}'")
+            # 로그인 실패 횟수 증가
+            self._increment_failed_attempts(db, user)
+            logger.warning(f"Authentication failed: invalid password for '{username}' (attempts: {user.failed_login_attempts})")
             raise AuthenticationError("아이디 또는 비밀번호가 올바르지 않습니다.", "INVALID_CREDENTIALS")
 
+        # 인증 성공: 실패 횟수 초기화
+        self._reset_failed_attempts(db, user)
+
         # 마지막 로그인 시간 업데이트
-        user.last_login = datetime.utcnow()
+        user.last_login = datetime.now(timezone.utc)
         db.commit()
 
         logger.info(f"User '{username}' authenticated successfully")
         return user
+
+    def _increment_failed_attempts(self, db: Session, user: User) -> None:
+        """로그인 실패 횟수 증가 및 계정 잠금 처리"""
+        user.failed_login_attempts += 1
+
+        if user.failed_login_attempts >= MAX_LOGIN_ATTEMPTS:
+            user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=LOCKOUT_DURATION_MINUTES)
+            logger.warning(
+                f"User '{user.username}' locked for {LOCKOUT_DURATION_MINUTES} minutes "
+                f"after {MAX_LOGIN_ATTEMPTS} failed attempts"
+            )
+
+        db.commit()
+
+    def _reset_failed_attempts(self, db: Session, user: User) -> None:
+        """로그인 성공 시 실패 횟수 및 잠금 상태 초기화"""
+        if user.failed_login_attempts > 0 or user.locked_until is not None:
+            user.failed_login_attempts = 0
+            user.locked_until = None
+            db.commit()
 
     def get_user_by_id(self, db: Session, user_id: int) -> Optional[User]:
         """사용자 ID로 조회"""
@@ -410,7 +449,7 @@ class AuthService:
 
         user.status = UserStatus.APPROVED.value
         user.is_active = True
-        user.approved_at = datetime.utcnow()
+        user.approved_at = datetime.now(timezone.utc)
         user.approved_by = admin_id
 
         db.commit()
