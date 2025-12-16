@@ -294,7 +294,17 @@ async def delete_collection(
         # 1. Qdrant에서 Collection 삭제
         await qdrant_service.delete_collection(collection_name)
 
-        # 2. SQLite에서 메타데이터 삭제
+        # 2. SQLite에서 해당 컬렉션의 업로드 이력 삭제
+        try:
+            deleted_count = db.query(QdrantUploadHistory).filter(
+                QdrantUploadHistory.collection_name == collection_name
+            ).delete(synchronize_session=False)
+            db.commit()
+            logger.info(f"Deleted {deleted_count} upload history records for collection: {collection_name}")
+        except Exception as e:
+            logger.warning(f"Failed to delete upload history for collection: {e}")
+
+        # 3. SQLite에서 메타데이터 삭제
         try:
             collection_crud.delete_collection(db, collection_name)
             logger.info(f"Deleted collection metadata: {collection_name}")
@@ -653,6 +663,7 @@ async def upload_documents(
                 chunks = await chunking_service.chunk_markdown(
                     markdown_content=document.md_content,
                     max_tokens=request.chunk_size,
+                    overlap_tokens=request.chunk_overlap,
                     filename=document.original_filename
                 )
 
@@ -852,6 +863,7 @@ async def upload_documents_stream(
                     chunks = await chunking_service.chunk_markdown(
                         markdown_content=document.md_content,
                         max_tokens=request.chunk_size,
+                        overlap_tokens=request.chunk_overlap,
                         filename=filename
                     )
 

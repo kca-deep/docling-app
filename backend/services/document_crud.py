@@ -4,6 +4,8 @@ Document CRUD operations
 from sqlalchemy.orm import Session
 from backend.models.document import Document
 from backend.models.schemas import DocumentSaveRequest
+from backend.models.qdrant_upload_history import QdrantUploadHistory
+from backend.models.dify_upload_history import DifyUploadHistory
 from typing import List, Optional
 from datetime import datetime
 
@@ -140,6 +142,8 @@ def delete_document(db: Session, document_id: int) -> bool:
     """
     문서 삭제
 
+    관련된 Qdrant/Dify 업로드 이력도 함께 삭제합니다.
+
     Args:
         db: DB 세션
         document_id: 문서 ID
@@ -151,6 +155,15 @@ def delete_document(db: Session, document_id: int) -> bool:
 
     if not document:
         return False
+
+    # 관련 업로드 이력 먼저 삭제 (FK 제약 회피)
+    db.query(QdrantUploadHistory).filter(
+        QdrantUploadHistory.document_id == document_id
+    ).delete(synchronize_session=False)
+
+    db.query(DifyUploadHistory).filter(
+        DifyUploadHistory.document_id == document_id
+    ).delete(synchronize_session=False)
 
     db.delete(document)
     db.commit()

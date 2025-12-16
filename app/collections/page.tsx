@@ -581,7 +581,7 @@ export default function CollectionsPage() {
 
       {/* 컬렉션 그리드 */}
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
             <Card key={i} className="border-border/50 bg-background/50">
               <CardContent className="p-3">
@@ -626,7 +626,7 @@ export default function CollectionsPage() {
           variants={container}
           initial="hidden"
           animate="show"
-          className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3"
+          className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3"
         >
           {filteredCollections.map((collection) => {
             const metadata = parseMetadata(collection.description)

@@ -4,12 +4,15 @@ Qdrant 검색 + LLM 생성을 통합하는 서비스
 """
 import json
 import logging
-from typing import List, Dict, Any, Optional, AsyncGenerator
+from typing import List, Dict, Any, Optional, AsyncGenerator, TYPE_CHECKING
 from backend.services.embedding_service import EmbeddingService
 from backend.services.qdrant_service import QdrantService
 from backend.services.llm_service import LLMService
 from backend.services.reranker_service import RerankerService
 from backend.config.settings import settings
+
+if TYPE_CHECKING:
+    from backend.services.hybrid_search_service import HybridSearchService
 
 # 로거 설정
 logger = logging.getLogger("uvicorn")
@@ -23,7 +26,8 @@ class RAGService:
         embedding_service: EmbeddingService,
         qdrant_service: QdrantService,
         llm_service: LLMService,
-        reranker_service: Optional[RerankerService] = None
+        reranker_service: Optional[RerankerService] = None,
+        hybrid_search_service: Optional["HybridSearchService"] = None
     ):
         """
         RAGService 초기화
@@ -33,27 +37,31 @@ class RAGService:
             qdrant_service: Qdrant 서비스
             llm_service: LLM 서비스
             reranker_service: Reranker 서비스 (선택)
+            hybrid_search_service: 하이브리드 검색 서비스 (선택)
         """
         self.embedding_service = embedding_service
         self.qdrant_service = qdrant_service
         self.llm_service = llm_service
         self.reranker_service = reranker_service
+        self.hybrid_search_service = hybrid_search_service
 
     async def retrieve(
         self,
         collection_name: str,
         query: str,
         top_k: int = 5,
-        score_threshold: Optional[float] = None
+        score_threshold: Optional[float] = None,
+        use_hybrid: bool = True
     ) -> List[Dict[str, Any]]:
         """
-        유사 문서 검색
+        유사 문서 검색 (하이브리드 검색 지원)
 
         Args:
             collection_name: Qdrant 컬렉션 이름
             query: 검색 쿼리
             top_k: 검색할 문서 수
             score_threshold: 최소 유사도 점수
+            use_hybrid: 하이브리드 검색 사용 여부 (기본값: True)
 
         Returns:
             List[Dict[str, Any]]: 검색된 문서 리스트
@@ -66,7 +74,7 @@ class RAGService:
         """
         try:
             # 1. 쿼리를 벡터로 임베딩
-            print(f"[INFO] Embedding query: {query[:100]}...")
+            logger.info(f"[RAG] Embedding query: {query[:100]}...")
             query_embeddings = await self.embedding_service.get_embeddings(query)
 
             if not query_embeddings or len(query_embeddings) == 0:
@@ -74,20 +82,34 @@ class RAGService:
 
             query_vector = query_embeddings[0]
 
-            # 2. Qdrant에서 유사 문서 검색
-            print(f"[INFO] Searching in collection '{collection_name}' with top_k={top_k}")
-            results = await self.qdrant_service.search(
-                collection_name=collection_name,
-                query_vector=query_vector,
-                limit=top_k,
-                score_threshold=score_threshold
-            )
+            # 2. 하이브리드 검색 또는 벡터 검색
+            if use_hybrid and self.hybrid_search_service and settings.USE_HYBRID_SEARCH:
+                # 하이브리드 검색 (벡터 + BM25)
+                logger.info(f"[RAG] Hybrid search in '{collection_name}' with top_k={top_k}")
+                results = await self.hybrid_search_service.hybrid_search(
+                    collection_name=collection_name,
+                    query=query,
+                    query_vector=query_vector,
+                    top_k=top_k,
+                    score_threshold=score_threshold,
+                    vector_weight=settings.HYBRID_VECTOR_WEIGHT,
+                    bm25_weight=settings.HYBRID_BM25_WEIGHT
+                )
+            else:
+                # 기존 벡터 검색
+                logger.info(f"[RAG] Vector search in '{collection_name}' with top_k={top_k}")
+                results = await self.qdrant_service.search(
+                    collection_name=collection_name,
+                    query_vector=query_vector,
+                    limit=top_k,
+                    score_threshold=score_threshold
+                )
 
-            print(f"[INFO] Retrieved {len(results)} documents")
+            logger.info(f"[RAG] Retrieved {len(results)} documents")
             return results
 
         except Exception as e:
-            print(f"[ERROR] Retrieve failed: {e}")
+            logger.error(f"[RAG] Retrieve failed: {e}")
             raise Exception(f"문서 검색 실패: {str(e)}")
 
     async def generate(
@@ -234,7 +256,8 @@ class RAGService:
         top_k: int = 5,
         score_threshold: Optional[float] = None,
         chat_history: Optional[List[Dict[str, str]]] = None,
-        use_reranking: bool = False
+        use_reranking: bool = False,
+        use_hybrid: bool = True
     ) -> Dict[str, Any]:
         """
         RAG 기반 채팅 (검색 + 생성 통합)
@@ -252,6 +275,7 @@ class RAGService:
             score_threshold: 최소 유사도 점수
             chat_history: 이전 대화 기록
             use_reranking: Reranking 사용 여부
+            use_hybrid: 하이브리드 검색 사용 여부 (기본값: True)
 
         Returns:
             Dict[str, Any]: 응답
@@ -282,7 +306,8 @@ class RAGService:
                     collection_name=collection_name,
                     query=query,
                     top_k=initial_top_k,
-                    score_threshold=score_threshold
+                    score_threshold=score_threshold,
+                    use_hybrid=use_hybrid
                 )
 
                 if not retrieved_docs:
@@ -297,8 +322,21 @@ class RAGService:
                 try:
                     print(f"[INFO] Reranking {len(retrieved_docs)} documents")
 
-                    # 문서 텍스트 추출
-                    documents = [doc["payload"]["text"] for doc in retrieved_docs]
+                    # 문서 텍스트 추출 (파일명/페이지 정보 포함하여 리랭커에 더 많은 컨텍스트 제공)
+                    documents = []
+                    for doc in retrieved_docs:
+                        payload = doc.get("payload", {})
+                        text = payload.get("text", "")
+                        filename = payload.get("filename", "")
+                        headings = payload.get("headings", [])
+                        # 파일명과 페이지 정보가 있으면 앞에 추가
+                        if filename and headings:
+                            header = f"[{filename}] [{headings[1] if len(headings) > 1 else ''}] "
+                            documents.append(header + text)
+                        elif filename:
+                            documents.append(f"[{filename}] " + text)
+                        else:
+                            documents.append(text)
 
                     # Reranker 호출 (사용자 설정값 top_k 사용)
                     reranked_results = await self.reranker_service.rerank_with_fallback(
@@ -308,24 +346,30 @@ class RAGService:
                         return_documents=False
                     )
 
-                    # Reranking 성공 시 재정렬 및 score threshold 필터링
+                    # Reranking 성공 시 재정렬
                     if reranked_results:
-                        # Reranker 순서로 재정렬하고 relevance_score를 score에 반영
-                        reranked_docs = []
-                        for r in reranked_results:
-                            # Score threshold 필터링 적용
-                            if r.relevance_score >= settings.RERANK_SCORE_THRESHOLD:
-                                doc = retrieved_docs[r.index].copy()
-                                doc["score"] = r.relevance_score  # Reranker score로 덮어쓰기
-                                reranked_docs.append(doc)
+                        # 리랭킹 순서대로 재정렬 (threshold 필터링 전에 순서 유지)
+                        reordered_docs = []
+                        filtered_docs = []
 
-                        if reranked_docs:
-                            retrieved_docs = reranked_docs
-                            top_score = reranked_docs[0]["score"]
-                            print(f"[INFO] Reranking completed: {len(retrieved_docs)} docs passed threshold, top score={top_score:.4f}")
+                        for r in reranked_results:
+                            doc = retrieved_docs[r.index].copy()
+                            doc["score"] = r.relevance_score  # Reranker score로 덮어쓰기
+                            reordered_docs.append(doc)
+                            # threshold 통과 문서는 별도로 수집
+                            if r.relevance_score >= settings.RERANK_SCORE_THRESHOLD:
+                                filtered_docs.append(doc)
+
+                        # threshold 통과 문서가 있으면 사용, 없으면 리랭킹 순서만 유지
+                        if filtered_docs:
+                            retrieved_docs = filtered_docs
+                            top_score = filtered_docs[0]["score"]
+                            print(f"[INFO] Reranking completed: {len(filtered_docs)} docs passed threshold (>={settings.RERANK_SCORE_THRESHOLD}), top score={top_score:.4f}")
                         else:
-                            print(f"[WARNING] No docs passed rerank threshold ({settings.RERANK_SCORE_THRESHOLD}), using original results")
-                            retrieved_docs = retrieved_docs[:top_k]
+                            # threshold 미통과해도 리랭킹 순서는 유지 (개선된 로직)
+                            retrieved_docs = reordered_docs[:top_k]
+                            top_score = reordered_docs[0]["score"] if reordered_docs else 0
+                            print(f"[INFO] Reranking completed: no docs passed threshold, but using reranked order. top score={top_score:.4f}")
                     else:
                         print(f"[WARNING] Reranking failed, using original vector search results")
                         # Fallback: 원본 결과를 top_k개만 사용
@@ -386,7 +430,8 @@ class RAGService:
         top_k: int = 5,
         score_threshold: Optional[float] = None,
         chat_history: Optional[List[Dict[str, str]]] = None,
-        use_reranking: bool = False
+        use_reranking: bool = False,
+        use_hybrid: bool = True
     ) -> AsyncGenerator[str, None]:
         """
         RAG 기반 스트리밍 채팅
@@ -404,6 +449,7 @@ class RAGService:
             score_threshold: 최소 유사도 점수
             chat_history: 이전 대화 기록
             use_reranking: Reranking 사용 여부
+            use_hybrid: 하이브리드 검색 사용 여부 (기본값: True)
 
         Yields:
             str: SSE 이벤트 라인
@@ -431,7 +477,8 @@ class RAGService:
                     collection_name=collection_name,
                     query=query,
                     top_k=initial_top_k,
-                    score_threshold=score_threshold
+                    score_threshold=score_threshold,
+                    use_hybrid=use_hybrid
                 )
 
                 if not retrieved_docs:
@@ -444,8 +491,21 @@ class RAGService:
                 try:
                     print(f"[INFO] Reranking {len(retrieved_docs)} documents")
 
-                    # 문서 텍스트 추출
-                    documents = [doc["payload"]["text"] for doc in retrieved_docs]
+                    # 문서 텍스트 추출 (파일명/페이지 정보 포함하여 리랭커에 더 많은 컨텍스트 제공)
+                    documents = []
+                    for doc in retrieved_docs:
+                        payload = doc.get("payload", {})
+                        text = payload.get("text", "")
+                        filename = payload.get("filename", "")
+                        headings = payload.get("headings", [])
+                        # 파일명과 페이지 정보가 있으면 앞에 추가
+                        if filename and headings:
+                            header = f"[{filename}] [{headings[1] if len(headings) > 1 else ''}] "
+                            documents.append(header + text)
+                        elif filename:
+                            documents.append(f"[{filename}] " + text)
+                        else:
+                            documents.append(text)
 
                     # Reranker 호출 (사용자 설정값 top_k 사용)
                     reranked_results = await self.reranker_service.rerank_with_fallback(
@@ -455,24 +515,30 @@ class RAGService:
                         return_documents=False
                     )
 
-                    # Reranking 성공 시 재정렬 및 score threshold 필터링
+                    # Reranking 성공 시 재정렬
                     if reranked_results:
-                        # Reranker 순서로 재정렬하고 relevance_score를 score에 반영
-                        reranked_docs = []
-                        for r in reranked_results:
-                            # Score threshold 필터링 적용
-                            if r.relevance_score >= settings.RERANK_SCORE_THRESHOLD:
-                                doc = retrieved_docs[r.index].copy()
-                                doc["score"] = r.relevance_score  # Reranker score로 덮어쓰기
-                                reranked_docs.append(doc)
+                        # 리랭킹 순서대로 재정렬 (threshold 필터링 전에 순서 유지)
+                        reordered_docs = []
+                        filtered_docs = []
 
-                        if reranked_docs:
-                            retrieved_docs = reranked_docs
-                            top_score = reranked_docs[0]["score"]
-                            print(f"[INFO] Reranking completed: {len(retrieved_docs)} docs passed threshold, top score={top_score:.4f}")
+                        for r in reranked_results:
+                            doc = retrieved_docs[r.index].copy()
+                            doc["score"] = r.relevance_score  # Reranker score로 덮어쓰기
+                            reordered_docs.append(doc)
+                            # threshold 통과 문서는 별도로 수집
+                            if r.relevance_score >= settings.RERANK_SCORE_THRESHOLD:
+                                filtered_docs.append(doc)
+
+                        # threshold 통과 문서가 있으면 사용, 없으면 리랭킹 순서만 유지
+                        if filtered_docs:
+                            retrieved_docs = filtered_docs
+                            top_score = filtered_docs[0]["score"]
+                            print(f"[INFO] Reranking completed: {len(filtered_docs)} docs passed threshold (>={settings.RERANK_SCORE_THRESHOLD}), top score={top_score:.4f}")
                         else:
-                            print(f"[WARNING] No docs passed rerank threshold ({settings.RERANK_SCORE_THRESHOLD}), using original results")
-                            retrieved_docs = retrieved_docs[:top_k]
+                            # threshold 미통과해도 리랭킹 순서는 유지 (개선된 로직)
+                            retrieved_docs = reordered_docs[:top_k]
+                            top_score = reordered_docs[0]["score"] if reordered_docs else 0
+                            print(f"[INFO] Reranking completed: no docs passed threshold, but using reranked order. top score={top_score:.4f}")
                     else:
                         print(f"[WARNING] Reranking failed, using original vector search results")
                         # Fallback: 원본 결과를 top_k개만 사용

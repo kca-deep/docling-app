@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from "@/components/ui/pagination"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Loader2, FileText, Search, X, FileQuestion, Database, FolderInput } from "lucide-react"
+import { Loader2, FileText, Search, X, FileQuestion, Database, FolderInput, Trash2 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { QdrantCollection } from "../types"
 import { cn } from "@/lib/utils"
@@ -41,6 +41,9 @@ interface DocumentSelectorProps {
   // 카테고리 이동 관련
   onMoveCategory?: (documentIds: number[], category: string | null) => void
   movingCategory?: boolean
+  // 문서 삭제 관련
+  onDeleteSelected?: () => void
+  deletingDocuments?: boolean
 }
 
 export function DocumentSelector({
@@ -67,6 +70,9 @@ export function DocumentSelector({
   onCategoryFilterChange,
   onMoveCategory,
   movingCategory = false,
+  // 문서 삭제 관련
+  onDeleteSelected,
+  deletingDocuments = false,
 }: DocumentSelectorProps) {
   // 카테고리명을 한글명으로 변환하는 함수
   const getCategoryDisplayName = (categoryName: string | null): string => {
@@ -180,7 +186,7 @@ export function DocumentSelector({
                 </div>
               )}
 
-              {/* 카테고리 이동 (50%) */}
+              {/* 카테고리 이동 */}
               {onMoveCategory && (
                 <div className="flex gap-2 items-center flex-1">
                   <FolderInput className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -204,6 +210,26 @@ export function DocumentSelector({
                     </SelectContent>
                   </Select>
                 </div>
+              )}
+
+              {/* 선택 삭제 버튼 */}
+              {onDeleteSelected && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onDeleteSelected}
+                  disabled={deletingDocuments || selectedDocs.size === 0}
+                  className="h-9 px-3 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30 flex-shrink-0"
+                >
+                  {deletingDocuments ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4 mr-1.5" />
+                      삭제
+                    </>
+                  )}
+                </Button>
               )}
             </div>
           )}

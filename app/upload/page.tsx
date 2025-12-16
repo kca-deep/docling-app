@@ -92,6 +92,7 @@ function UploadPageContent() {
   // 카테고리 필터 관련 상태
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
   const [movingCategory, setMovingCategory] = useState(false)
+  const [deletingDocuments, setDeletingDocuments] = useState(false)
 
   // 문서 목록 가져오기
   const fetchDocuments = async (page = 1, search = "", category = categoryFilter) => {
@@ -163,6 +164,53 @@ function UploadPageContent() {
       toast.error("카테고리 변경에 실패했습니다")
     } finally {
       setMovingCategory(false)
+    }
+  }
+
+  // 선택된 문서 삭제 핸들러
+  const handleDeleteSelectedDocuments = async () => {
+    if (selectedDocs.size === 0) return
+
+    const confirmed = window.confirm(`${selectedDocs.size}개 문서를 삭제하시겠습니까?\n\n삭제된 문서는 복구할 수 없습니다.`)
+    if (!confirmed) return
+
+    setDeletingDocuments(true)
+    let successCount = 0
+    let failCount = 0
+
+    try {
+      for (const docId of selectedDocs) {
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/documents/saved/${docId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+          })
+          if (response.ok) {
+            successCount++
+          } else {
+            failCount++
+          }
+        } catch {
+          failCount++
+        }
+      }
+
+      if (successCount > 0 && failCount === 0) {
+        toast.success(`${successCount}개 문서가 삭제되었습니다`)
+      } else if (successCount > 0) {
+        toast.warning(`${successCount}개 삭제, ${failCount}개 실패`)
+      } else {
+        toast.error('문서 삭제에 실패했습니다')
+      }
+
+      setSelectedDocs(new Set())
+      setSelectedDocsInfo(new Map())
+      fetchDocuments(currentPage, searchQuery, categoryFilter)
+    } catch (error) {
+      console.error("Failed to delete documents:", error)
+      toast.error('삭제 중 오류가 발생했습니다')
+    } finally {
+      setDeletingDocuments(false)
     }
   }
 
@@ -689,6 +737,8 @@ function UploadPageContent() {
             onCategoryFilterChange={handleCategoryFilterChange}
             onMoveCategory={handleMoveCategory}
             movingCategory={movingCategory}
+            onDeleteSelected={handleDeleteSelectedDocuments}
+            deletingDocuments={deletingDocuments}
           />
         </motion.div>
 

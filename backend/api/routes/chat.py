@@ -23,6 +23,7 @@ from backend.services.qdrant_service import QdrantService
 from backend.services.llm_service import LLMService
 from backend.services.rag_service import RAGService
 from backend.services.reranker_service import RerankerService
+from backend.services.hybrid_search_service import HybridSearchService
 from backend.config.settings import settings
 from backend.services.hybrid_logging_service import hybrid_logging_service
 from backend.services.conversation_service import conversation_service
@@ -54,11 +55,15 @@ llm_service = LLMService(
 # Reranker 서비스 초기화 (USE_RERANKING 설정에 따라)
 reranker_service = RerankerService() if settings.USE_RERANKING else None
 
+# 하이브리드 검색 서비스 초기화 (USE_HYBRID_SEARCH 설정에 따라)
+hybrid_search_service = HybridSearchService(qdrant_service=qdrant_service) if settings.USE_HYBRID_SEARCH else None
+
 rag_service = RAGService(
     embedding_service=embedding_service,
     qdrant_service=qdrant_service,
     llm_service=llm_service,
-    reranker_service=reranker_service
+    reranker_service=reranker_service,
+    hybrid_search_service=hybrid_search_service
 )
 
 
@@ -333,7 +338,8 @@ async def chat(
             top_k=chat_request.top_k,
             score_threshold=chat_request.score_threshold,
             chat_history=chat_history,
-            use_reranking=chat_request.use_reranking
+            use_reranking=chat_request.use_reranking,
+            use_hybrid=chat_request.use_hybrid
         )
 
         # 응답 포맷팅
@@ -537,7 +543,8 @@ async def chat_stream(
                         top_k=chat_request.top_k,
                         score_threshold=chat_request.score_threshold,
                         chat_history=chat_history,
-                        use_reranking=chat_request.use_reranking
+                        use_reranking=chat_request.use_reranking,
+                        use_hybrid=chat_request.use_hybrid
                     )
 
                     # 검색된 문서 전송
@@ -610,7 +617,8 @@ async def chat_stream(
                     top_k=chat_request.top_k,
                     score_threshold=chat_request.score_threshold,
                     chat_history=chat_history,
-                    use_reranking=chat_request.use_reranking
+                    use_reranking=chat_request.use_reranking,
+                    use_hybrid=chat_request.use_hybrid
                 ):
                     # SSE 포맷 파싱하여 응답 수집
                     if chunk.startswith('data: '):

@@ -168,9 +168,6 @@ export function CollectionSettingsModal({
   const [selectedDocs, setSelectedDocs] = useState<CollectionDocumentInfo[]>([])
   const [deleting, setDeleting] = useState(false)
 
-  // 삭제 확인용 상태
-  const [deleteConfirmName, setDeleteConfirmName] = useState("")
-
   // collection이 변경되면 폼 초기화
   useEffect(() => {
     if (collection) {
@@ -182,7 +179,6 @@ export function CollectionSettingsModal({
       setPlainDescription(metadata.plainDescription || "")
       setVisibility(collection.visibility || "public")
       setKeywordInput("")
-      setDeleteConfirmName("")
     }
   }, [collection])
 
@@ -922,33 +918,16 @@ export function CollectionSettingsModal({
                   </ul>
                 </div>
 
-                <Separator />
-
-                {/* 컬렉션명 입력 확인 */}
-                <div className="space-y-2">
-                  <Label htmlFor="delete-confirm" className="text-sm">
-                    삭제하려면 컬렉션명 <span className="font-mono font-bold text-destructive">{collection.name}</span>을(를) 입력하세요
-                  </Label>
-                  <Input
-                    id="delete-confirm"
-                    placeholder={collection.name}
-                    value={deleteConfirmName}
-                    onChange={(e) => setDeleteConfirmName(e.target.value)}
-                    className="font-mono text-sm h-9 border-destructive/30 focus:border-destructive"
-                  />
-                </div>
-
                 <Button
                   variant="destructive"
                   className="w-full"
-                  disabled={deleteConfirmName !== collection.name}
                   onClick={() => {
                     onOpenChange(false)
                     onDelete?.()
                   }}
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
-                  컬렉션 영구 삭제
+                  컬렉션 삭제
                 </Button>
               </div>
             </div>

@@ -205,12 +205,12 @@ export function CollectionSelector({
   const selectedCollection = collections.find((col) => col.name === value)
 
   // Grid 열 클래스 결정
-  const getGridColsClass = (cols: number) => {
+  const getGridColsClass = (cols?: number) => {
     switch (cols) {
       case 1: return "grid-cols-1"
       case 3: return "grid-cols-3"
       case 4: return "grid-cols-4"
-      default: return "grid-cols-2"
+      default: return "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"
     }
   }
   const gridColsClass = getGridColsClass(columns)
@@ -295,7 +295,7 @@ export function CollectionSelector({
                 onValueChange(newValue)
                 onSelect?.(newValue)
               }}
-              className={cn("grid gap-2 p-1", colsClass)}
+              className={cn("grid gap-2 p-2 pr-5", colsClass)}
             >
               {showUncategorized && (
                 <CollectionCard
@@ -513,7 +513,7 @@ export function CollectionSelector({
             </div>
 
             {/* 컬렉션 그리드 */}
-            {renderCollectionGrid(() => setOpen(false), 4)}
+            {renderCollectionGrid(() => setOpen(false))}
           </DialogContent>
         </Dialog>
       </div>

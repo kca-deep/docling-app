@@ -436,6 +436,7 @@ class ChatRequest(BaseModel):
     chat_history: Optional[List[ChatMessage]] = None
     stream: bool = False
     use_reranking: bool = False  # Reranking 사용 여부
+    use_hybrid: bool = True  # 하이브리드 검색 사용 여부 (벡터 + BM25)
 
 
 class RetrievedDocument(BaseModel):

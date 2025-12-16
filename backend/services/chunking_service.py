@@ -25,6 +25,7 @@ class ChunkingService:
         self,
         markdown_content: str,
         max_tokens: int = 500,
+        overlap_tokens: int = 0,
         filename: str = "document.md"
     ) -> List[Dict[str, Any]]:
         """
@@ -33,6 +34,7 @@ class ChunkingService:
         Args:
             markdown_content: 청킹할 markdown 텍스트
             max_tokens: 최대 토큰 수
+            overlap_tokens: 인접 청크간 오버랩 토큰 수 (후처리로 적용)
             filename: 파일명 (메타데이터용)
 
         Returns:
@@ -166,6 +168,12 @@ class ChunkingService:
                 raise Exception("청킹 결과가 비어 있습니다")
 
             print(f"[INFO] Successfully chunked document into {len(chunks)} chunks")
+
+            # overlap 후처리 적용 (Docling API가 overlap을 지원하지 않으므로)
+            if overlap_tokens > 0 and len(chunks) > 1:
+                chunks = self._apply_overlap(chunks, overlap_tokens)
+                print(f"[INFO] Applied {overlap_tokens} tokens overlap to chunks")
+
             return chunks
 
         except httpx.HTTPStatusError as e:
@@ -174,6 +182,53 @@ class ChunkingService:
         except Exception as e:
             print(f"[ERROR] Failed to chunk markdown: {e}")
             raise Exception(f"Markdown 청킹 실패: {str(e)}")
+
+    def _apply_overlap(
+        self,
+        chunks: List[Dict[str, Any]],
+        overlap_tokens: int
+    ) -> List[Dict[str, Any]]:
+        """
+        청크간 오버랩 후처리 적용
+
+        각 청크의 시작 부분에 이전 청크의 마지막 부분을 추가
+
+        Args:
+            chunks: 원본 청크 리스트
+            overlap_tokens: 오버랩 토큰 수
+
+        Returns:
+            List[Dict]: 오버랩이 적용된 청크 리스트
+        """
+        if len(chunks) <= 1:
+            return chunks
+
+        result_chunks = [chunks[0]]  # 첫 번째 청크는 그대로
+
+        for i in range(1, len(chunks)):
+            current_chunk = chunks[i].copy()
+            prev_chunk = chunks[i - 1]
+
+            # 이전 청크의 텍스트에서 마지막 부분 추출
+            prev_text = prev_chunk.get('text', '')
+
+            # 단어 단위로 분리하여 overlap_tokens개 추출
+            # (정확한 토큰 수는 아니지만 근사값으로 처리)
+            words = prev_text.split()
+            if len(words) > overlap_tokens:
+                overlap_text = ' '.join(words[-overlap_tokens:])
+
+                # 현재 청크 텍스트 앞에 오버랩 추가
+                current_text = current_chunk.get('text', '')
+                current_chunk['text'] = overlap_text + '\n...\n' + current_text
+
+                # 토큰 수 업데이트 (근사값)
+                if 'num_tokens' in current_chunk:
+                    current_chunk['num_tokens'] += overlap_tokens
+
+            result_chunks.append(current_chunk)
+
+        return result_chunks
 
     async def _async_sleep(self, seconds: int):
         """비동기 sleep 헬퍼 함수"""

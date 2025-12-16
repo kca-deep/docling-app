@@ -13,7 +13,7 @@ class DifyUploadHistory(Base):
 
     # 기본 정보
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    document_id = Column(Integer, ForeignKey("documents.id"), nullable=False, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # Dify 정보
     dify_dataset_id = Column(String(100), nullable=False, index=True)

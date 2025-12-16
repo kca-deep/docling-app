@@ -13,7 +13,7 @@ class QdrantUploadHistory(Base):
 
     # 기본 정보
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    document_id = Column(Integer, ForeignKey("documents.id"), nullable=False, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # Qdrant 정보
     collection_name = Column(String(255), nullable=False, index=True)

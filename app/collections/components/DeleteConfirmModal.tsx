@@ -63,7 +63,7 @@ export function DeleteConfirmModal({
           <AlertDialogDescription asChild>
             <div className="space-y-4">
               <p>
-                <strong className="text-foreground">{collectionName}</strong> 컬렉션을 삭제하시겠습니까?
+                <strong className="text-foreground select-all cursor-text">{collectionName}</strong> 컬렉션을 삭제하시겠습니까?
               </p>
               <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-3 text-sm">
                 <p className="text-destructive font-medium mb-1">주의:</p>

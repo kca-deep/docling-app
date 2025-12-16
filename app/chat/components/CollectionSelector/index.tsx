@@ -67,6 +67,11 @@ export function CollectionSelector({
       );
   }, [collectionsWithMetadata]);
 
+  // 전체 목록용 컬렉션 (추천 제외)
+  const nonRecommendedCollections = useMemo(() => {
+    return collectionsWithMetadata.filter((c) => c.metadata.priority !== 1);
+  }, [collectionsWithMetadata]);
+
   // 검색 필터링
   const { filteredCollections, hasSearchResults } = useCollectionSearch(
     collectionsWithMetadata,
@@ -122,8 +127,9 @@ export function CollectionSelector({
       </PopoverTrigger>
 
       <PopoverContent
-        className="w-[calc(100vw-1rem)] sm:w-[640px] md:w-[800px] max-w-[800px] p-0"
+        className="w-[calc(100vw-2rem)] sm:w-[640px] md:w-[800px] max-w-[800px] p-0"
         align="start"
+        collisionPadding={16}
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         {/* 헤더 */}
@@ -184,9 +190,9 @@ export function CollectionSelector({
                 />
               )}
 
-              {/* 전체 목록 */}
+              {/* 전체 목록 (추천 제외) */}
               <FullListSection
-                collections={collectionsWithMetadata}
+                collections={nonRecommendedCollections}
                 selectedCollection={selectedCollection}
                 onSelect={handleSelect}
                 expanded={showFullList}
