@@ -1507,9 +1507,14 @@ async def embed_excel_dynamic(
                     if mapping.heading_columns:
                         # 사용자가 지정한 컬럼들로 headings 생성
                         headings = []
+                        # 무의미한 값 목록 (참조문서 제목으로 부적합)
+                        invalid_heading_values = {'-', '--', '없음', 'N/A', 'n/a', 'NA', 'null', 'None', '해당없음', '해당 없음'}
                         for col in mapping.heading_columns:
                             if col in row.data and row.data[col]:
-                                headings.append(str(row.data[col]))
+                                val = str(row.data[col]).strip()
+                                # 무의미한 값은 제외하고 유효한 값만 추가
+                                if val and val not in invalid_heading_values:
+                                    headings.append(val)
                         metadata["headings"] = headings if headings else [request.file_name, f"행 {row.row_index + 1}"]
                     else:
                         # 기본값: [파일명, 행 번호]
