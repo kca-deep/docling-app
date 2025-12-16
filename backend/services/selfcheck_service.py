@@ -935,11 +935,43 @@ class SelfCheckService:
         # 7. 분석 시간 계산
         analysis_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
 
-        # 8. DB 저장 (로그인한 경우)
+        # 요약 메시지 생성
+        analyzed_count = len([i for i in result_items if i.llm_evidence and "분석하지 못했습니다" not in i.llm_evidence])
+        summary_msg = f"총 {len(result_items)}개 항목 중 {analyzed_count}개 항목 AI 분석 완료"
+
+        # 8. 유사 과제 검토 (DB 세션이 있는 경우에만, DB 저장 전에 수행)
+        similar_projects: List[SimilarProject] = []
+        if db and settings.SELFCHECK_SIMILARITY_ENABLED:
+            try:
+                # 현재 과제 텍스트 구성
+                current_project_text = f"{request.project_name}\n{request.project_description or ''}"
+
+                # 유사 과제 후보 검색
+                candidates = await self._find_similar_projects(
+                    db=db,
+                    current_project_text=current_project_text,
+                    exclude_submission_id=submission_id
+                )
+
+                # LLM으로 유사성 검증
+                if candidates:
+                    similar_projects = await self._verify_similarity_with_llm(
+                        url=url,
+                        model=model,
+                        current_project_name=request.project_name,
+                        current_project_desc=request.project_description or "",
+                        candidates=candidates
+                    )
+                    logger.info(f"[SelfCheck] Found {len(similar_projects)} similar projects")
+            except Exception as e:
+                logger.error(f"[SelfCheck] Similar project check failed: {e}")
+                # 유사과제 검토 실패해도 분석 결과는 반환
+
+        # 9. DB 저장 (로그인한 경우)
         is_saved = False
         if db and user_id:
             try:
-                # 분석 결과를 JSON으로 저장
+                # 분석 결과를 JSON으로 저장 (유사과제 포함)
                 analysis_result_json = {
                     "items": [
                         {
@@ -950,6 +982,18 @@ class SelfCheckService:
                             "llm_risk_level": item.llm_risk_level
                         }
                         for item in result_items
+                    ],
+                    "similar_projects": [
+                        {
+                            "submission_id": sp.submission_id,
+                            "project_name": sp.project_name,
+                            "department": sp.department,
+                            "manager_name": sp.manager_name,
+                            "similarity_score": sp.similarity_score,
+                            "similarity_reason": sp.similarity_reason,
+                            "created_at": sp.created_at
+                        }
+                        for sp in similar_projects
                     ]
                 }
                 submission = SelfCheckSubmission(
@@ -995,38 +1039,6 @@ class SelfCheckService:
                 logger.error(f"[SelfCheck] Failed to save submission: {e}")
                 # 저장 실패해도 분석 결과는 반환
 
-        # 요약 메시지 생성
-        analyzed_count = len([i for i in result_items if i.llm_evidence and "분석하지 못했습니다" not in i.llm_evidence])
-        summary_msg = f"총 {len(result_items)}개 항목 중 {analyzed_count}개 항목 AI 분석 완료"
-
-        # 9. 유사 과제 검토 (DB 세션이 있는 경우에만)
-        similar_projects: List[SimilarProject] = []
-        if db and settings.SELFCHECK_SIMILARITY_ENABLED:
-            try:
-                # 현재 과제 텍스트 구성
-                current_project_text = f"{request.project_name}\n{request.project_description or ''}"
-
-                # 유사 과제 후보 검색
-                candidates = await self._find_similar_projects(
-                    db=db,
-                    current_project_text=current_project_text,
-                    exclude_submission_id=submission_id
-                )
-
-                # LLM으로 유사성 검증
-                if candidates:
-                    similar_projects = await self._verify_similarity_with_llm(
-                        url=url,
-                        model=model,
-                        current_project_name=request.project_name,
-                        current_project_desc=request.project_description or "",
-                        candidates=candidates
-                    )
-                    logger.info(f"[SelfCheck] Found {len(similar_projects)} similar projects")
-            except Exception as e:
-                logger.error(f"[SelfCheck] Similar project check failed: {e}")
-                # 유사과제 검토 실패해도 분석 결과는 반환
-
         return SelfCheckAnalyzeResponse(
             submission_id=submission_id,
             requires_review=requires_review,
@@ -1045,12 +1057,24 @@ class SelfCheckService:
         db: Session,
         user_id: int,
         skip: int = 0,
-        limit: int = 20
+        limit: int = 20,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
     ) -> SelfCheckHistoryResponse:
-        """사용자의 진단 이력 조회"""
+        """사용자의 진단 이력 조회 (날짜 필터 지원)"""
         query = db.query(SelfCheckSubmission).filter(
             SelfCheckSubmission.user_id == user_id
-        ).order_by(SelfCheckSubmission.created_at.desc())
+        )
+
+        # 날짜 필터 적용
+        if start_date:
+            query = query.filter(SelfCheckSubmission.created_at >= start_date)
+        if end_date:
+            # end_date는 해당 일의 23:59:59까지 포함
+            end_date_inclusive = end_date.replace(hour=23, minute=59, second=59)
+            query = query.filter(SelfCheckSubmission.created_at <= end_date_inclusive)
+
+        query = query.order_by(SelfCheckSubmission.created_at.desc())
 
         total = query.count()
         submissions = query.offset(skip).limit(limit).all()
@@ -1071,6 +1095,24 @@ class SelfCheckService:
         ]
 
         return SelfCheckHistoryResponse(total=total, items=items)
+
+    def get_submissions_by_ids(
+        self,
+        db: Session,
+        submission_ids: List[str],
+        user_id: int
+    ) -> List[SelfCheckDetailResponse]:
+        """여러 submission을 ID로 조회"""
+        results = []
+        for submission_id in submission_ids:
+            try:
+                detail = self.get_submission(db, submission_id, user_id)
+                results.append(detail)
+            except HTTPException:
+                # 찾을 수 없는 항목은 건너뜀
+                logger.warning(f"[SelfCheck] Submission not found: {submission_id}")
+                continue
+        return results
 
     def get_submission(
         self,
@@ -1113,6 +1155,23 @@ class SelfCheckService:
             for item in db_items
         ]
 
+        # analysis_result에서 similar_projects 추출
+        similar_projects: List[SimilarProject] = []
+        if submission.analysis_result and isinstance(submission.analysis_result, dict):
+            similar_projects_data = submission.analysis_result.get("similar_projects", [])
+            similar_projects = [
+                SimilarProject(
+                    submission_id=sp.get("submission_id", ""),
+                    project_name=sp.get("project_name", ""),
+                    department=sp.get("department", ""),
+                    manager_name=sp.get("manager_name", ""),
+                    similarity_score=sp.get("similarity_score", 0),
+                    similarity_reason=sp.get("similarity_reason", ""),
+                    created_at=sp.get("created_at", "")
+                )
+                for sp in similar_projects_data
+            ]
+
         return SelfCheckDetailResponse(
             id=submission.id,
             submission_id=submission.submission_id,
@@ -1128,7 +1187,8 @@ class SelfCheckService:
             analysis_time_ms=submission.analysis_time_ms,
             status=submission.status,
             created_at=submission.created_at.isoformat() if submission.created_at else "",
-            items=items
+            items=items,
+            similar_projects=similar_projects
         )
 
 

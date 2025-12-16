@@ -4,8 +4,6 @@ import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Label } from "@/components/ui/label"
 import {
   Table,
   TableBody,
@@ -113,19 +111,6 @@ function formatAnswer(answer: string | null) {
 }
 
 export function ResultComparison({ result, projectInfo, onRestart }: ResultComparisonProps) {
-  const [finalAnswers, setFinalAnswers] = useState<Record<number, string>>(
-    Object.fromEntries(
-      result.items.map((item) => {
-        const status = getMatchStatus(item)
-        // Default: use user's answer for match/keep, AI's answer for reference, user's for mismatch
-        let defaultAnswer: string | null = item.userAnswer
-        if (status === "reference" && item.llmAnswer) {
-          defaultAnswer = item.llmAnswer
-        }
-        return [item.number, defaultAnswer || ""]
-      })
-    )
-  )
   // 기본적으로 모든 항목을 펼침
   const [expandedItems, setExpandedItems] = useState<Set<number>>(
     new Set(result.items.map(item => item.number))
@@ -146,12 +131,6 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
   const mismatchItems = result.items.filter(
     (item) => getMatchStatus(item) === "mismatch"
   )
-
-  const requiredYesCount = result.items.filter(
-    (item) =>
-      item.category === "required" &&
-      (finalAnswers[item.number] === "yes" || item.llmAnswer === "yes")
-  ).length
 
   const handleDownloadPdf = async () => {
     try {
@@ -231,7 +210,7 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
                       <p>
                         <span className="text-amber-600 dark:text-amber-400 font-medium">확인필요:</span>{" "}
                         {mismatchItems.length}개 항목에서 사용자 선택과 AI 분석 결과가 다릅니다.
-                        해당 항목을 펼쳐서 최종 선택을 확인해주세요.
+                        해당 항목의 AI 근거를 확인해주세요.
                       </p>
                     )}
                   </div>
@@ -365,7 +344,7 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
               불일치 항목 ({mismatchItems.length}건)
             </CardTitle>
             <CardDescription className="text-amber-600 dark:text-amber-400">
-              사용자 선택과 AI 분석 결과가 다른 항목입니다. 아래에서 최종 선택을 확인해주세요.
+              사용자 선택과 AI 분석 결과가 다른 항목입니다. 해당 항목의 AI 근거를 확인해주세요.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -379,7 +358,9 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
             필수 항목 (1~4번)
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-2 sm:px-6">
+          <div className="overflow-x-auto -mx-2 sm:mx-0">
+            <div className="min-w-[480px] px-2 sm:px-0">
           <Table>
             <TableHeader>
               <TableRow>
@@ -447,56 +428,13 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
                         <TableRow key={`${item.number}-detail`} className="bg-muted/30">
                           <TableCell colSpan={5} className="py-2 px-4">
                             <div className="space-y-2">
-                              <div className="flex items-center gap-3 flex-wrap">
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                                 <span className="text-xs text-muted-foreground shrink-0">AI 근거:</span>
                                 <span className="text-sm flex-1">{item.llmEvidence || "판단 근거 없음"}</span>
-                                <Badge variant="outline" className="shrink-0">
+                                <Badge variant="outline" className="shrink-0 w-fit">
                                   신뢰도 {Math.round(item.llmConfidence * 100)}%
                                 </Badge>
                               </div>
-                              {status === "mismatch" && (
-                                <div className="pt-2 border-t flex items-center gap-4">
-                                  <span className="text-sm font-medium shrink-0">최종 선택:</span>
-                                  <RadioGroup
-                                    value={finalAnswers[item.number]}
-                                    onValueChange={(v) =>
-                                      setFinalAnswers((prev) => ({
-                                        ...prev,
-                                        [item.number]: v,
-                                      }))
-                                    }
-                                    className="flex gap-4"
-                                  >
-                                    <div className="flex items-center space-x-2">
-                                      <RadioGroupItem
-                                        value="yes"
-                                        id={`final-${item.number}-yes`}
-                                      />
-                                      <Label htmlFor={`final-${item.number}-yes`}>
-                                        예
-                                      </Label>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                      <RadioGroupItem
-                                        value="no"
-                                        id={`final-${item.number}-no`}
-                                      />
-                                      <Label htmlFor={`final-${item.number}-no`}>
-                                        아니오
-                                      </Label>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                      <RadioGroupItem
-                                        value="need_check"
-                                        id={`final-${item.number}-check`}
-                                      />
-                                      <Label htmlFor={`final-${item.number}-check`}>
-                                        확인필요
-                                      </Label>
-                                    </div>
-                                  </RadioGroup>
-                                </div>
-                              )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -506,6 +444,8 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
                 })}
             </TableBody>
           </Table>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -517,7 +457,9 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
             선택 항목 (5~10번)
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-2 sm:px-6">
+          <div className="overflow-x-auto -mx-2 sm:mx-0">
+            <div className="min-w-[480px] px-2 sm:px-0">
           <Table>
             <TableHeader>
               <TableRow>
@@ -580,56 +522,13 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
                         <TableRow key={`${item.number}-detail`} className="bg-muted/30">
                           <TableCell colSpan={5} className="py-2 px-4">
                             <div className="space-y-2">
-                              <div className="flex items-center gap-3 flex-wrap">
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                                 <span className="text-xs text-muted-foreground shrink-0">AI 근거:</span>
                                 <span className="text-sm flex-1">{item.llmEvidence || "판단 근거 없음"}</span>
-                                <Badge variant="outline" className="shrink-0">
+                                <Badge variant="outline" className="shrink-0 w-fit">
                                   신뢰도 {Math.round(item.llmConfidence * 100)}%
                                 </Badge>
                               </div>
-                              {status === "mismatch" && (
-                                <div className="pt-2 border-t flex items-center gap-4">
-                                  <span className="text-sm font-medium shrink-0">최종 선택:</span>
-                                  <RadioGroup
-                                    value={finalAnswers[item.number]}
-                                    onValueChange={(v) =>
-                                      setFinalAnswers((prev) => ({
-                                        ...prev,
-                                        [item.number]: v,
-                                      }))
-                                    }
-                                    className="flex gap-4"
-                                  >
-                                    <div className="flex items-center space-x-2">
-                                      <RadioGroupItem
-                                        value="yes"
-                                        id={`final-${item.number}-yes`}
-                                      />
-                                      <Label htmlFor={`final-${item.number}-yes`}>
-                                        예
-                                      </Label>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                      <RadioGroupItem
-                                        value="no"
-                                        id={`final-${item.number}-no`}
-                                      />
-                                      <Label htmlFor={`final-${item.number}-no`}>
-                                        아니오
-                                      </Label>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                      <RadioGroupItem
-                                        value="need_check"
-                                        id={`final-${item.number}-check`}
-                                      />
-                                      <Label htmlFor={`final-${item.number}-check`}>
-                                        확인필요
-                                      </Label>
-                                    </div>
-                                  </RadioGroup>
-                                </div>
-                              )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -639,29 +538,106 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
                 })}
             </TableBody>
           </Table>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Next Steps */}
+      {/* Next Steps - Responsive Stepper */}
       {result.requiresReview && (
         <Card className="border-primary/30">
-          <CardHeader>
+          <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <FileText className="w-5 h-5" />
               다음 단계 안내
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ol className="space-y-3">
-              {result.nextSteps.map((step, index) => (
-                <li key={index} className="flex items-center gap-3">
-                  <span className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-medium">
-                    {index + 1}
-                  </span>
-                  <span className="text-sm">{step}</span>
-                </li>
-              ))}
-            </ol>
+            {/* Desktop: Horizontal Stepper */}
+            <div className="hidden sm:flex items-start justify-between relative py-4">
+              {/* Connector Line */}
+              <div className="absolute top-[calc(1rem+12px)] left-[calc(16.67%-12px)] right-[calc(16.67%-12px)] h-0.5 bg-muted-foreground/20" />
+
+              {result.nextSteps.map((step, index) => {
+                const isFirst = index === 0
+                return (
+                  <div
+                    key={index}
+                    className="flex flex-col items-center flex-1 relative z-10"
+                  >
+                    {/* Step Circle */}
+                    <div
+                      className={cn(
+                        "w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold border-2 transition-colors",
+                        isFirst
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-background text-muted-foreground border-muted-foreground/30"
+                      )}
+                    >
+                      {index + 1}
+                    </div>
+
+                    {/* Step Label */}
+                    <div className="mt-3 text-center px-2">
+                      <p className={cn(
+                        "text-sm font-medium",
+                        isFirst ? "text-foreground" : "text-muted-foreground"
+                      )}>
+                        {step.split(':')[0] || step}
+                      </p>
+                      {step.includes(':') && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {step.split(':').slice(1).join(':').trim()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Mobile: Vertical Timeline */}
+            <div className="sm:hidden space-y-0">
+              {result.nextSteps.map((step, index) => {
+                const isFirst = index === 0
+                const isLast = index === result.nextSteps.length - 1
+                return (
+                  <div key={index} className="flex gap-3">
+                    {/* Timeline */}
+                    <div className="flex flex-col items-center">
+                      <div
+                        className={cn(
+                          "w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold border-2 transition-colors shrink-0",
+                          isFirst
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-background text-muted-foreground border-muted-foreground/30"
+                        )}
+                      >
+                        {index + 1}
+                      </div>
+                      {!isLast && (
+                        <div className="w-0.5 flex-1 min-h-[24px] bg-muted-foreground/20" />
+                      )}
+                    </div>
+
+                    {/* Content */}
+                    <div className={cn("flex-1 pb-4", isLast && "pb-0")}>
+                      <p className={cn(
+                        "text-sm font-medium",
+                        isFirst ? "text-foreground" : "text-muted-foreground"
+                      )}>
+                        {step.split(':')[0] || step}
+                      </p>
+                      {step.includes(':') && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {step.split(':').slice(1).join(':').trim()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </CardContent>
         </Card>
       )}

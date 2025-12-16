@@ -3,6 +3,7 @@
 AI 과제 보안성 검토 셀프진단 API 엔드포인트
 """
 import logging
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -18,9 +19,13 @@ from backend.models.schemas import (
     LLMStatusResponse,
     SelfCheckHistoryResponse,
     SelfCheckDetailResponse,
+    SelfCheckExportRequest,
+    SelfCheckExportPdfRequest,
+    ExportPdfMode,
 )
 from backend.services.selfcheck_service import selfcheck_service, CHECKLIST_ITEMS
 from backend.services.pdf_service import pdf_service
+from backend.services.excel_export_service import excel_export_service
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +119,9 @@ async def analyze(
 @router.get("/history", response_model=SelfCheckHistoryResponse)
 async def get_history(
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(100, ge=1, le=500),
+    start_date: Optional[str] = Query(None, description="시작일 (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="종료일 (YYYY-MM-DD)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -124,15 +131,33 @@ async def get_history(
     Args:
         skip: 건너뛸 항목 수 (페이지네이션)
         limit: 조회할 항목 수
+        start_date: 시작일 (YYYY-MM-DD 형식)
+        end_date: 종료일 (YYYY-MM-DD 형식)
 
     Returns:
         SelfCheckHistoryResponse: 이력 목록
     """
+    # 날짜 문자열을 datetime으로 변환
+    start_dt = None
+    end_dt = None
+    if start_date:
+        try:
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="시작일 형식이 올바르지 않습니다. (YYYY-MM-DD)")
+    if end_date:
+        try:
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="종료일 형식이 올바르지 않습니다. (YYYY-MM-DD)")
+
     return selfcheck_service.get_history(
         db=db,
         user_id=current_user.id,
         skip=skip,
-        limit=limit
+        limit=limit,
+        start_date=start_dt,
+        end_date=end_dt
     )
 
 
@@ -203,3 +228,109 @@ async def download_pdf(
             "Content-Disposition": f"attachment; filename=\"{ascii_filename}\"; filename*=UTF-8''{encoded_filename}"
         }
     )
+
+
+@router.post("/export/excel")
+async def export_excel(
+    request: SelfCheckExportRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    선택한 진단 결과를 Excel로 내보내기 (로그인 필수)
+
+    Args:
+        request: 내보내기 요청 (submission_ids 목록)
+
+    Returns:
+        Excel 파일 응답
+    """
+    from urllib.parse import quote
+    from datetime import datetime as dt
+
+    if not request.submission_ids:
+        raise HTTPException(status_code=400, detail="내보낼 항목을 선택해주세요.")
+
+    # 선택한 submissions 조회
+    submissions = selfcheck_service.get_submissions_by_ids(
+        db=db,
+        submission_ids=request.submission_ids,
+        user_id=current_user.id
+    )
+
+    if not submissions:
+        raise HTTPException(status_code=404, detail="선택한 진단 결과를 찾을 수 없습니다.")
+
+    # Excel 생성
+    excel_bytes = await excel_export_service.export_selfcheck_excel(submissions)
+
+    # 파일명 생성
+    timestamp = dt.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"selfcheck_export_{timestamp}.xlsx"
+
+    return Response(
+        content=excel_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename=\"{filename}\""
+        }
+    )
+
+
+@router.post("/export/pdf")
+async def export_pdf(
+    request: SelfCheckExportPdfRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    선택한 진단 결과를 PDF로 내보내기 (로그인 필수)
+
+    Args:
+        request: 내보내기 요청 (submission_ids 목록, mode: individual/merged)
+
+    Returns:
+        PDF 파일 (merged) 또는 ZIP 파일 (individual)
+    """
+    from urllib.parse import quote
+    from datetime import datetime as dt
+
+    if not request.submission_ids:
+        raise HTTPException(status_code=400, detail="내보낼 항목을 선택해주세요.")
+
+    # 선택한 submissions 조회
+    submissions = selfcheck_service.get_submissions_by_ids(
+        db=db,
+        submission_ids=request.submission_ids,
+        user_id=current_user.id
+    )
+
+    if not submissions:
+        raise HTTPException(status_code=404, detail="선택한 진단 결과를 찾을 수 없습니다.")
+
+    timestamp = dt.now().strftime("%Y%m%d_%H%M%S")
+
+    if request.mode == ExportPdfMode.MERGED:
+        # 병합 PDF
+        pdf_bytes = await pdf_service.generate_merged_pdf(submissions)
+        filename = f"selfcheck_merged_{timestamp}.pdf"
+
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=\"{filename}\""
+            }
+        )
+    else:
+        # 개별 PDF (ZIP)
+        zip_bytes = await pdf_service.generate_individual_pdfs_zip(submissions)
+        filename = f"selfcheck_reports_{timestamp}.zip"
+
+        return Response(
+            content=zip_bytes,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f"attachment; filename=\"{filename}\""
+            }
+        )

@@ -12,8 +12,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "KCA-RAG 파이프라인 - 문서 파싱 플랫폼",
-  description: "PDF, DOCX, PPTX 파일을 마크다운으로 변환하고 Dify AI와 연동합니다",
+  title: "KCA-AI Hub",
+  description: "한국방송통신전파진흥원 AI 허브",
 };
 
 export default function RootLayout({

@@ -291,6 +291,47 @@ class PDFService:
             elements.append(self._create_items_table(optional_items, styles))
         elements.append(Spacer(1, 20))
 
+        # === 중복성 검토 결과 ===
+        if hasattr(submission, 'similar_projects') and submission.similar_projects:
+            section_num += 1
+            elements.append(Paragraph(f"{section_num}. 중복성 검토 결과", styles["heading1"]))
+
+            elements.append(Paragraph(
+                f"유사 과제 {len(submission.similar_projects)}건이 검출되었습니다. 중복 추진 여부를 확인하시기 바랍니다.",
+                styles["warning"]
+            ))
+            elements.append(Spacer(1, 10))
+
+            # 유사과제 테이블
+            similar_data = [["과제명", "부서", "담당자", "유사도", "유사 사유"]]
+            for sp in submission.similar_projects:
+                project_name = sp.project_name[:25] + "..." if len(sp.project_name) > 25 else sp.project_name
+                reason = sp.similarity_reason[:30] + "..." if len(sp.similarity_reason) > 30 else sp.similarity_reason
+                similar_data.append([
+                    Paragraph(project_name, styles["normal"]),
+                    sp.department,
+                    sp.manager_name,
+                    f"{sp.similarity_score}%",
+                    Paragraph(reason, styles["normal"])
+                ])
+
+            similar_table = Table(similar_data, colWidths=[120, 70, 50, 45, 135])
+            similar_table.setStyle(TableStyle([
+                ("FONTNAME", (0, 0), (-1, -1), self.font_name),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#c53030")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+                ("ALIGN", (3, 1), (3, -1), "CENTER"),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#fff5f5")])
+            ]))
+            elements.append(similar_table)
+            elements.append(Spacer(1, 20))
+
         # === 다음 단계 안내 ===
         section_num += 1
         elements.append(Paragraph(f"{section_num}. 다음 단계 안내", styles["heading1"]))
@@ -371,6 +412,70 @@ class PDFService:
         ]))
 
         return table
+
+    async def generate_merged_pdf(
+        self,
+        submissions: List[SelfCheckDetailResponse]
+    ) -> bytes:
+        """
+        여러 셀프진단 결과를 하나의 PDF로 병합
+
+        Args:
+            submissions: 셀프진단 상세 정보 목록
+
+        Returns:
+            bytes: 병합된 PDF 파일 바이트
+        """
+        from PyPDF2 import PdfMerger
+
+        merger = PdfMerger()
+
+        for submission in submissions:
+            # 각 submission의 PDF 생성
+            pdf_bytes = await self.generate_selfcheck_report(submission)
+            pdf_buffer = BytesIO(pdf_bytes)
+            merger.append(pdf_buffer)
+
+        # 병합된 PDF 출력
+        output_buffer = BytesIO()
+        merger.write(output_buffer)
+        merger.close()
+
+        return output_buffer.getvalue()
+
+    async def generate_individual_pdfs_zip(
+        self,
+        submissions: List[SelfCheckDetailResponse]
+    ) -> bytes:
+        """
+        여러 셀프진단 결과를 개별 PDF로 생성하여 ZIP 압축
+
+        Args:
+            submissions: 셀프진단 상세 정보 목록
+
+        Returns:
+            bytes: ZIP 파일 바이트
+        """
+        import zipfile
+
+        zip_buffer = BytesIO()
+
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for submission in submissions:
+                # 각 submission의 PDF 생성
+                pdf_bytes = await self.generate_selfcheck_report(submission)
+
+                # 파일명 생성 (안전한 문자만 사용)
+                safe_project_name = "".join(
+                    c for c in submission.project_name
+                    if c.isalnum() or c in " _-"
+                )[:30] or "project"
+                filename = f"{safe_project_name}_{submission.submission_id[:8]}.pdf"
+
+                # ZIP에 추가
+                zip_file.writestr(filename, pdf_bytes)
+
+        return zip_buffer.getvalue()
 
 
 # 싱글톤 인스턴스

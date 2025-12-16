@@ -46,58 +46,70 @@ export function ChecklistForm({ items, onChange }: ChecklistFormProps) {
       <div
         key={item.number}
         className={cn(
-          "flex items-center gap-3 py-2 px-3 rounded-lg border transition-all duration-200",
+          "flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 py-3 sm:py-2 px-3 rounded-lg border transition-all duration-200",
           isAnswered ? "border-primary/30 bg-primary/5" : "border-border",
           isRequired && "border-l-4 border-l-red-500"
         )}
       >
-        <Badge
-          variant={isRequired ? "destructive" : "secondary"}
-          className="shrink-0"
-        >
-          {item.number}
-        </Badge>
-        <div className="flex-1 text-sm">
-          {item.question}
+        {/* 질문 영역 */}
+        <div className="flex items-start sm:items-center gap-2 sm:gap-3 flex-1">
+          <Badge
+            variant={isRequired ? "destructive" : "secondary"}
+            className="shrink-0 mt-0.5 sm:mt-0"
+          >
+            {item.number}
+          </Badge>
+          <div className="flex-1 text-sm">
+            {item.question}
+          </div>
+          {/* 모바일에서만 체크 아이콘 표시 */}
+          {isAnswered && (
+            <CheckCircle2 className="sm:hidden w-4 h-4 text-green-500 shrink-0" />
+          )}
         </div>
-        <RadioGroup
-          value={item.userAnswer || ""}
-          onValueChange={(value) =>
-            handleAnswerChange(index, value as "yes" | "no" | "unknown")
-          }
-          className="flex items-center gap-3 shrink-0"
-        >
-          <div className="flex items-center space-x-1">
-            <RadioGroupItem value="yes" id={`item-${item.number}-yes`} />
-            <Label
-              htmlFor={`item-${item.number}-yes`}
-              className="cursor-pointer font-normal text-sm"
-            >
-              예
-            </Label>
-          </div>
-          <div className="flex items-center space-x-1">
-            <RadioGroupItem value="no" id={`item-${item.number}-no`} />
-            <Label
-              htmlFor={`item-${item.number}-no`}
-              className="cursor-pointer font-normal text-sm"
-            >
-              아니오
-            </Label>
-          </div>
-          <div className="flex items-center space-x-1">
-            <RadioGroupItem value="unknown" id={`item-${item.number}-unknown`} />
-            <Label
-              htmlFor={`item-${item.number}-unknown`}
-              className="cursor-pointer font-normal text-sm text-muted-foreground"
-            >
-              모름
-            </Label>
-          </div>
-        </RadioGroup>
-        {isAnswered && (
-          <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
-        )}
+
+        {/* 라디오 버튼 영역 */}
+        <div className="flex items-center justify-end gap-2 sm:gap-3 pl-7 sm:pl-0">
+          <RadioGroup
+            value={item.userAnswer || ""}
+            onValueChange={(value) =>
+              handleAnswerChange(index, value as "yes" | "no" | "unknown")
+            }
+            className="flex items-center gap-4 sm:gap-3"
+          >
+            <div className="flex items-center space-x-1.5 sm:space-x-1">
+              <RadioGroupItem value="yes" id={`item-${item.number}-yes`} className="h-5 w-5 sm:h-4 sm:w-4" />
+              <Label
+                htmlFor={`item-${item.number}-yes`}
+                className="cursor-pointer font-normal text-sm"
+              >
+                예
+              </Label>
+            </div>
+            <div className="flex items-center space-x-1.5 sm:space-x-1">
+              <RadioGroupItem value="no" id={`item-${item.number}-no`} className="h-5 w-5 sm:h-4 sm:w-4" />
+              <Label
+                htmlFor={`item-${item.number}-no`}
+                className="cursor-pointer font-normal text-sm"
+              >
+                아니오
+              </Label>
+            </div>
+            <div className="flex items-center space-x-1.5 sm:space-x-1">
+              <RadioGroupItem value="unknown" id={`item-${item.number}-unknown`} className="h-5 w-5 sm:h-4 sm:w-4" />
+              <Label
+                htmlFor={`item-${item.number}-unknown`}
+                className="cursor-pointer font-normal text-sm text-muted-foreground"
+              >
+                모름
+              </Label>
+            </div>
+          </RadioGroup>
+          {/* 데스크탑에서만 체크 아이콘 표시 */}
+          {isAnswered && (
+            <CheckCircle2 className="hidden sm:block w-4 h-4 text-green-500 shrink-0" />
+          )}
+        </div>
       </div>
     )
   }

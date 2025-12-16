@@ -764,6 +764,26 @@ class SelfCheckDetailResponse(BaseModel):
     status: str
     created_at: str
     items: List[SelfCheckItemResult]
+    similar_projects: List[SimilarProject] = []  # 중복성 검토 결과
 
     class Config:
         from_attributes = True
+
+
+# ==================== SelfCheck Export Schemas ====================
+
+class ExportPdfMode(str, Enum):
+    """PDF 내보내기 모드"""
+    INDIVIDUAL = "individual"  # 개별 PDF (ZIP)
+    MERGED = "merged"  # 병합 PDF (단일)
+
+
+class SelfCheckExportRequest(BaseModel):
+    """셀프진단 내보내기 요청 (Excel/PDF 공통)"""
+    submission_ids: List[str]  # submission_id 목록
+
+
+class SelfCheckExportPdfRequest(BaseModel):
+    """셀프진단 PDF 내보내기 요청"""
+    submission_ids: List[str]  # submission_id 목록
+    mode: ExportPdfMode = ExportPdfMode.INDIVIDUAL  # 내보내기 모드

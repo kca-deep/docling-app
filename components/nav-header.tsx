@@ -94,8 +94,8 @@ export function NavHeader() {
     ],
   }
 
-  // AI챗봇 아이템
-  const chatItem: NavItem = { href: "/chat?fullscreen=true", label: "AI챗봇", icon: MessageSquare, requiresAuth: false }
+  // KCA-i 챗봇 아이템
+  const chatItem: NavItem = { href: "/chat?fullscreen=true", label: "KCA-i", icon: MessageSquare, requiresAuth: false }
 
   // 문서 그룹
   const documentGroup: NavGroup = {
@@ -211,51 +211,34 @@ export function NavHeader() {
             )
           })}
 
-          {/* 문서 드롭다운 */}
-          {shouldShowGroup(documentGroup) && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className={cn(
-                    "relative inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-colors hover:text-foreground outline-none",
-                    isGroupActive(documentGroup) ? "text-foreground" : "text-muted-foreground"
-                  )}
-                >
-                  {isGroupActive(documentGroup) && (
-                    <motion.div
-                      layoutId="navbar-active"
-                      className="absolute inset-0 bg-muted rounded-full -z-10"
-                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                    />
-                  )}
-                  <documentGroup.icon className="h-4 w-4" />
-                  <span>{documentGroup.label}</span>
-                  <ChevronDown className="h-3 w-3 opacity-60" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-48">
-                {filterItems(documentGroup.items).map((item) => {
-                  const Icon = item.icon
-                  const itemPathname = item.href.split("?")[0]
-                  const isActive = pathname === itemPathname
-                  return (
-                    <DropdownMenuItem key={item.href} asChild>
-                      <Link
-                        href={item.href}
-                        className={cn(
-                          "flex items-center gap-2 cursor-pointer",
-                          isActive && "bg-muted"
-                        )}
-                      >
-                        <Icon className="h-4 w-4" />
-                        <span>{item.label}</span>
-                      </Link>
-                    </DropdownMenuItem>
-                  )
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+          {/* KCA-i 챗봇 - ChatHeader 스타일 적용 */}
+          {(() => {
+            const itemPathname = chatItem.href.split("?")[0]
+            const isActive = pathname === itemPathname || pathname.startsWith("/chat")
+            return (
+              <Link
+                href={chatItem.href}
+                className={cn(
+                  "relative inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-colors hover:text-foreground",
+                  isActive ? "text-foreground" : "text-muted-foreground"
+                )}
+              >
+                {isActive && (
+                  <motion.div
+                    layoutId="navbar-active"
+                    className="absolute inset-0 bg-muted rounded-full -z-10"
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                  />
+                )}
+                {/* KCA-i 로고 스타일 */}
+                <span className="font-extrabold tracking-tight">
+                  KCA
+                  <span className="text-primary">-</span>
+                  <span className="italic text-emerald-500">i</span>
+                </span>
+              </Link>
+            )
+          })()}
 
           {/* AI Idea Hub 드롭다운 */}
           {shouldShowGroup(ideaHubGroup) && (
@@ -303,31 +286,51 @@ export function NavHeader() {
             </DropdownMenu>
           )}
 
-          {/* AI챗봇 */}
-          {(() => {
-            const Icon = chatItem.icon
-            const itemPathname = chatItem.href.split("?")[0]
-            const isActive = pathname === itemPathname || pathname.startsWith("/chat")
-            return (
-              <Link
-                href={chatItem.href}
-                className={cn(
-                  "relative inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium transition-colors hover:text-foreground",
-                  isActive ? "text-foreground" : "text-muted-foreground"
-                )}
-              >
-                {isActive && (
-                  <motion.div
-                    layoutId="navbar-active"
-                    className="absolute inset-0 bg-muted rounded-full -z-10"
-                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                  />
-                )}
-                <Icon className="h-4 w-4" />
-                <span>{chatItem.label}</span>
-              </Link>
-            )
-          })()}
+          {/* 문서 드롭다운 */}
+          {shouldShowGroup(documentGroup) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className={cn(
+                    "relative inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-colors hover:text-foreground outline-none",
+                    isGroupActive(documentGroup) ? "text-foreground" : "text-muted-foreground"
+                  )}
+                >
+                  {isGroupActive(documentGroup) && (
+                    <motion.div
+                      layoutId="navbar-active"
+                      className="absolute inset-0 bg-muted rounded-full -z-10"
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                    />
+                  )}
+                  <documentGroup.icon className="h-4 w-4" />
+                  <span>{documentGroup.label}</span>
+                  <ChevronDown className="h-3 w-3 opacity-60" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-48">
+                {filterItems(documentGroup.items).map((item) => {
+                  const Icon = item.icon
+                  const itemPathname = item.href.split("?")[0]
+                  const isActive = pathname === itemPathname
+                  return (
+                    <DropdownMenuItem key={item.href} asChild>
+                      <Link
+                        href={item.href}
+                        className={cn(
+                          "flex items-center gap-2 cursor-pointer",
+                          isActive && "bg-muted"
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
+                        <span>{item.label}</span>
+                      </Link>
+                    </DropdownMenuItem>
+                  )
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
 
           {/* 설정 드롭다운 */}
           {shouldShowGroup(settingsGroup) && (
@@ -435,6 +438,31 @@ export function NavHeader() {
                   )
                 })}
 
+                {/* KCA-i 챗봇 - ChatHeader 스타일 적용 */}
+                {(() => {
+                  const itemPathname = chatItem.href.split("?")[0]
+                  const isActive = pathname === itemPathname || pathname.startsWith("/chat")
+                  return (
+                    <Link
+                      href={chatItem.href}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                        isActive
+                          ? "bg-muted text-foreground"
+                          : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                      )}
+                    >
+                      {/* KCA-i 로고 스타일 */}
+                      <span className="font-extrabold tracking-tight">
+                        KCA
+                        <span className="text-primary">-</span>
+                        <span className="italic text-emerald-500">i</span>
+                      </span>
+                    </Link>
+                  )
+                })()}
+
                 {/* AI Idea Hub 그룹 */}
                 {shouldShowGroup(ideaHubGroup) && (
                   <>
@@ -468,28 +496,6 @@ export function NavHeader() {
                     })}
                   </>
                 )}
-
-                {/* AI챗봇 */}
-                {(() => {
-                  const Icon = chatItem.icon
-                  const itemPathname = chatItem.href.split("?")[0]
-                  const isActive = pathname === itemPathname || pathname.startsWith("/chat")
-                  return (
-                    <Link
-                      href={chatItem.href}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className={cn(
-                        "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
-                        isActive
-                          ? "bg-muted text-foreground"
-                          : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                      )}
-                    >
-                      <Icon className="h-4 w-4" />
-                      <span>{chatItem.label}</span>
-                    </Link>
-                  )
-                })()}
 
                 {/* 문서 그룹 */}
                 {shouldShowGroup(documentGroup) && (

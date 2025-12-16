@@ -48,21 +48,21 @@ export function ProjectForm({ value, onChange, user }: ProjectFormProps) {
 
       <div className="grid gap-4">
         {/* 담당자 정보 (사용자 프로필에서 자동) */}
-        <div className="flex items-center gap-4 p-3 rounded-lg bg-muted/50 border">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 p-3 rounded-lg bg-muted/50 border">
           <div className="flex items-center gap-2 text-sm">
-            <Building2 className="w-4 h-4 text-muted-foreground" />
+            <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
             <span className="text-muted-foreground">부서:</span>
             <span className="font-medium">{user?.team_name || "-"}</span>
           </div>
           <div className="flex items-center gap-2 text-sm">
-            <User className="w-4 h-4 text-muted-foreground" />
+            <User className="w-4 h-4 text-muted-foreground shrink-0" />
             <span className="text-muted-foreground">담당자:</span>
             <span className="font-medium">{user?.name || user?.username || "-"}</span>
           </div>
-          <div className="flex items-center gap-2 text-sm">
-            <Mail className="w-4 h-4 text-muted-foreground" />
-            <span className="text-muted-foreground">이메일:</span>
-            <span className="font-medium">{user?.email || "-"}</span>
+          <div className="flex items-center gap-2 text-sm min-w-0">
+            <Mail className="w-4 h-4 text-muted-foreground shrink-0" />
+            <span className="text-muted-foreground shrink-0">이메일:</span>
+            <span className="font-medium truncate">{user?.email || "-"}</span>
           </div>
         </div>
 
@@ -83,7 +83,7 @@ export function ProjectForm({ value, onChange, user }: ProjectFormProps) {
 
         {/* 과제 내용 */}
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <Label htmlFor="projectDesc" className="flex items-center gap-2">
               <FileText className="w-4 h-4" />
               과제 내용 <span className="text-red-500">*</span>
