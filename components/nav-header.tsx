@@ -180,7 +180,7 @@ export function NavHeader() {
               className="h-7 w-auto brightness-0 invert"
             />
           </div>
-          <span className="text-xl font-black italic tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-[#0066cc] via-[#00a651] to-[#ed1c24]">AI-Hub</span>
+          <span className="text-xl font-black italic tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-[#0066cc] via-[#00a651] to-[#ed1c24] pr-0.5">AI-Hub</span>
         </Link>
 
         {/* Desktop Navigation - md 이상에서 표시 */}
@@ -246,7 +246,7 @@ export function NavHeader() {
               <DropdownMenuTrigger asChild>
                 <button
                   className={cn(
-                    "relative inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-colors hover:text-foreground outline-none",
+                    "relative inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-colors hover:text-foreground outline-none cursor-pointer",
                     isGroupActive(ideaHubGroup) ? "text-foreground" : "text-muted-foreground"
                   )}
                 >
@@ -292,7 +292,7 @@ export function NavHeader() {
               <DropdownMenuTrigger asChild>
                 <button
                   className={cn(
-                    "relative inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-colors hover:text-foreground outline-none",
+                    "relative inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-colors hover:text-foreground outline-none cursor-pointer",
                     isGroupActive(documentGroup) ? "text-foreground" : "text-muted-foreground"
                   )}
                 >
@@ -338,7 +338,7 @@ export function NavHeader() {
               <DropdownMenuTrigger asChild>
                 <button
                   className={cn(
-                    "relative inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-colors hover:text-foreground outline-none",
+                    "relative inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-colors hover:text-foreground outline-none cursor-pointer",
                     isGroupActive(settingsGroup) ? "text-foreground" : "text-muted-foreground"
                   )}
                 >
@@ -410,7 +410,7 @@ export function NavHeader() {
                       className="h-7 w-auto brightness-0 invert"
                     />
                   </div>
-                  <span className="text-xl font-black italic tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-[#0066cc] via-[#00a651] to-[#ed1c24]">AI-Hub</span>
+                  <span className="text-xl font-black italic tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-[#0066cc] via-[#00a651] to-[#ed1c24] pr-0.5">AI-Hub</span>
                 </SheetTitle>
               </SheetHeader>
               <nav className="flex flex-col gap-1">
@@ -607,7 +607,7 @@ export function NavHeader() {
                 variant="ghost"
                 size="sm"
                 onClick={() => logout()}
-                className="text-muted-foreground hover:text-foreground gap-1.5 rounded-full"
+                className="text-muted-foreground hover:text-foreground gap-1.5 rounded-full cursor-pointer"
                 title={`${user?.username} 로그아웃`}
               >
                 <LogOut className="h-4 w-4" />
@@ -618,7 +618,7 @@ export function NavHeader() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-muted-foreground hover:text-foreground rounded-full"
+                  className="text-muted-foreground hover:text-foreground rounded-full cursor-pointer"
                 >
                   로그인
                 </Button>

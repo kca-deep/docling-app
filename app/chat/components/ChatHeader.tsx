@@ -41,7 +41,7 @@ export function ChatHeader({
       />
 
       {/* 메인 콘텐츠 영역 */}
-      <div className="w-full px-4 py-3 flex items-center justify-center">
+      <div className="w-full px-4 py-2 flex items-center justify-center">
         {/* 중앙 텍스트 - 선명한 타이포그래피 */}
         <div className="flex items-center gap-3">
           {/* KCA-i 로고 */}
