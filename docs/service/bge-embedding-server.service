@@ -1,0 +1,41 @@
+[Unit]
+Description=BGE-M3-Korean Embedding Server v2.1
+After=network.target
+
+[Service]
+Type=simple
+User=kca
+WorkingDirectory=/models/embeddings
+
+# Environment variables
+Environment="HF_HOME=/models/huggingface"
+Environment="PATH=/models/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+# Embedding server configuration
+Environment="EMBEDDING_DEVICE=cuda"
+Environment="EMBEDDING_WORKERS=1"
+Environment="EMBEDDING_BATCH_SIZE=16"
+Environment="EMBEDDING_MODEL=upskyy/bge-m3-korean"
+
+# PyTorch CUDA memory management (VRAM leak prevention)
+Environment="PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:64,garbage_collection_threshold:0.5"
+Environment="PYTORCH_CUDA_MEMORY_FRACTION=0.15"
+
+# Start command with uvicorn
+ExecStart=/models/venv/bin/python3 /models/embeddings/bge_embedding_server_v2.py --host 0.0.0.0 --port 8083 --workers 1
+
+# Restart policy
+Restart=always
+RestartSec=5
+
+# Resource limits
+Nice=-5
+MemoryMax=4G
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bge-embedding
+
+[Install]
+WantedBy=multi-user.target

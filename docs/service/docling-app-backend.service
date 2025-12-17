@@ -1,0 +1,38 @@
+[Unit]
+Description=Docling App Backend (FastAPI)
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=kca
+Group=kca
+WorkingDirectory=/data/docling-app
+ExecStart=/data/docling-app/backend/venv/bin/python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=docling-backend
+
+# 환경 변수
+Environment=PYTHONUNBUFFERED=1
+
+# ===== 보안 강화 옵션 =====
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/data/docling-app
+
+NoNewPrivileges=true
+CapabilityBoundingSet=
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+ProtectClock=true
+
+[Install]
+WantedBy=multi-user.target

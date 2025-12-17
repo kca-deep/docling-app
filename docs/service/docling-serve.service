@@ -1,0 +1,60 @@
+[Unit]
+Description=Docling Document Conversion API Server (GitHub Source)
+After=network.target
+
+[Service]
+Type=simple
+User=kca
+WorkingDirectory=/data/docling-serve
+
+# UV and system path
+Environment="PATH=/home/kca/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+# Uvicorn settings
+Environment="UVICORN_HOST=0.0.0.0"
+Environment="UVICORN_PORT=8007"
+
+# UI disabled to prevent temp folder accumulation
+Environment="DOCLING_SERVE_ENABLE_UI=0"
+
+# Result cleanup settings (reduce memory usage)
+Environment="DOCLING_SERVE_SINGLE_USE_RESULTS=true"
+Environment="DOCLING_SERVE_RESULT_REMOVAL_DELAY=60"
+
+# GPU settings - strong memory limit
+Environment="DOCLING_DEVICE=cuda:0"
+Environment="DOCLING_SERVE_LOAD_MODELS_AT_BOOT=false"
+
+# PyTorch CUDA memory management - aggressive optimization (v2)
+# Changed: garbage_collection_threshold 0.7 -> 0.5 (more aggressive GC)
+# Changed: expandable_segments True -> False (prevent unbounded growth)
+Environment="PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128,expandable_segments:False,garbage_collection_threshold:0.5,roundup_power2_divisions:4"
+
+# PyTorch memory limit (~6.4GB, 20% of GPU)
+Environment="PYTORCH_CUDA_MEMORY_FRACTION=0.20"
+
+# Additional memory saving settings
+Environment="PYTORCH_JIT=0"
+Environment="CUDA_LAUNCH_BLOCKING=0"
+
+# CPU thread limit (memory and CPU savings)
+Environment="OMP_NUM_THREADS=2"
+Environment="MKL_NUM_THREADS=2"
+
+# Batch size minimization (minimum memory usage)
+Environment="DOCLING_SERVE_OCR_BATCH_SIZE=1"
+Environment="DOCLING_SERVE_LAYOUT_BATCH_SIZE=1"
+Environment="DOCLING_SERVE_TABLE_BATCH_SIZE=1"
+
+# Image processing optimization (lower resolution)
+Environment="DOCLING_SERVE_IMAGE_SCALE=0.75"
+Environment="DOCLING_SERVE_MAX_IMAGE_SIZE=2048"
+
+ExecStart=/home/kca/.local/bin/uv run docling-serve run --host 0.0.0.0 --port 8007
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

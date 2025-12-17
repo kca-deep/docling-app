@@ -1,0 +1,44 @@
+# /etc/systemd/system/llama-server-gpt-oss-min.service
+# GPT-OSS RAG Mode: ctx=16K, p=2, n=8K
+# VRAM: ~12GB
+# Use: ./ai_manage.sh mode-rag
+[Unit]
+Description=Llama.cpp Server - GPT-OSS 20B (RAG mode, ctx=16K p=2 n=8K)
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=kca
+WorkingDirectory=/models/llama.cpp
+Environment="CUDA_VISIBLE_DEVICES=0"
+ExecStart=/models/llama.cpp/build/bin/llama-server \
+  -m /models/gpt-oss/openai_gpt-oss-20b-Q4_K_M.gguf \
+  --host 0.0.0.0 \
+  --port 8080 \
+  --ctx-size 16384 \
+  --parallel 2 \
+  --cont-batching \
+  --defrag-thold 0.1 \
+  --jinja \
+  -fa auto \
+  -ngl 99 \
+  --temp 0.7 \
+  --top-p 0.9 \
+  --repeat-penalty 1.15 \
+  --repeat-last-n 256 \
+  --presence-penalty 0.4 \
+  --frequency-penalty 0.6 \
+  --n-predict 8192 \
+  --threads 4 \
+  --batch-size 1024 \
+  --ubatch-size 1024
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=llama-server-gpt-oss-min
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

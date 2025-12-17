@@ -1,0 +1,27 @@
+[Unit]
+Description=Docling App Frontend (Next.js)
+After=network.target docling-app-backend.service
+Wants=docling-app-backend.service
+
+[Service]
+Type=simple
+User=kca
+Group=kca
+WorkingDirectory=/data/docling-app
+ExecStart=/home/kca/.nvm/versions/node/v20.19.5/bin/node node_modules/next/dist/bin/next start -p 3000
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=docling-frontend
+
+# Graceful shutdown 설정
+TimeoutStopSec=10
+KillMode=mixed
+KillSignal=SIGTERM
+
+Environment=NODE_ENV=production
+Environment=PORT=3000
+
+[Install]
+WantedBy=multi-user.target

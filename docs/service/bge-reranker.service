@@ -1,0 +1,19 @@
+[Unit]
+Description=BGE Reranker v2-m3 API Server
+After=network.target
+
+[Service]
+Type=simple
+User=kca
+WorkingDirectory=/models/reranker/api
+Environment="PATH=/models/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="CUDA_VISIBLE_DEVICES=0"
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/models/venv/bin/python3 /models/reranker/api/reranker_server.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

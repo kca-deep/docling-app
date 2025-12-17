@@ -56,6 +56,7 @@ backend/venv/
 /test_*.py
 /*_results.json
 /*_test_results.json
+/test_results/
 
 # Scripts folder - test files and results
 scripts/test_*.py
@@ -63,13 +64,19 @@ scripts/test_*.json
 scripts/*_results.json
 
 # Docs folder - ignore test data, binaries, and plan documents
-docs/*/
 docs/*.pdf
 docs/*.xlsx
 docs/*.txt
 docs/*.jpg
 docs/*.png
 docs/*.md
+
+# Docs subfolders - ignore all except service
+docs/*/
+!docs/service/
+
+# docs/service - exclude server-specific files
+docs/service/*.py
 
 # IDE
 .vscode/
@@ -89,6 +96,8 @@ Thumbs.db
 # Server-specific security files (do not commit)
 *.service
 *.service.*
+!docs/service/*.service
+docs/service/qdrant.service
 fail2ban-*.conf
 fail2ban-*.local
 nginx-*.conf

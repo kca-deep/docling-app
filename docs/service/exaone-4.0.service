@@ -1,0 +1,45 @@
+# /etc/systemd/system/exaone-4.0.service
+[Unit]
+Description=Llama.cpp Server - EXAONE 4.0 32B (ctx=16K p=2 n=8K)
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=kca
+WorkingDirectory=/models/llama.cpp
+Environment="CUDA_VISIBLE_DEVICES=0"
+ExecStart=/models/llama.cpp/build/bin/llama-server \
+  -m /models/exaone-4.0/EXAONE-4.0-32B-Q4_K_M.gguf \
+  --host 0.0.0.0 \
+  --port 8081 \
+  --ctx-size 16384 \
+  --parallel 2 \
+  --cont-batching \
+  --defrag-thold 0.1 \
+  --jinja \
+  -fa auto \
+  -ngl 99 \
+  --cache-type-k q8_0 \
+  --cache-type-v q8_0 \
+  --temp 0.6 \
+  --top-p 0.95 \
+  --repeat-penalty 1.1 \
+  --repeat-last-n 256 \
+  --presence-penalty 0.3 \
+  --frequency-penalty 0.4 \
+  --n-predict 8192 \
+  --threads 8 \
+  --batch-size 2048 \
+  --ubatch-size 512 \
+  -a EXAONE-4.0-32B
+
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=exaone-4.0
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
