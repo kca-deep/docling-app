@@ -23,7 +23,7 @@ logging.basicConfig(
     datefmt=LOG_DATE_FORMAT,
     level=logging.INFO
 )
-from backend.api.routes import document, dify, qdrant, chat, analytics, auth, prompts, selfcheck
+from backend.api.routes import document, dify, qdrant, chat, analytics, auth, prompts, selfcheck, chat_documents
 from backend.database import init_db, get_db, SessionLocal
 from backend.models import document as document_model  # Import to register models
 from backend.models import dify_upload_history, dify_config  # Import Dify models
@@ -101,9 +101,19 @@ async def lifespan(app: FastAPI):
     # 자동 통계 집계 (백그라운드에서 실행)
     asyncio.create_task(aggregate_pending_statistics())
 
+    # 임시 컬렉션 정리 스케줄러 시작 (백그라운드에서 실행)
+    cleanup_task = asyncio.create_task(start_temp_collection_cleanup_scheduler())
+
     yield  # 애플리케이션 실행
 
     # ========== SHUTDOWN ==========
+    # 임시 컬렉션 정리 스케줄러 중지
+    try:
+        cleanup_task.cancel()
+        await asyncio.wait_for(asyncio.shield(cleanup_task), timeout=2.0)
+    except (asyncio.CancelledError, asyncio.TimeoutError):
+        pass
+    print("[OK] Temp collection cleanup scheduler stopped")
     # 로깅 서비스 중지 및 큐 플러시
     try:
         await hybrid_logging_service.flush()
@@ -188,6 +198,40 @@ async def aggregate_pending_statistics():
 
     except Exception as e:
         logger.error(f"Failed to aggregate pending statistics: {e}")
+
+
+async def start_temp_collection_cleanup_scheduler():
+    """임시 컬렉션 정리 스케줄러 시작"""
+    try:
+        # 잠시 대기 (서버 시작 완료 후 실행)
+        await asyncio.sleep(10)
+
+        from backend.services.temp_collection_manager import get_temp_collection_manager
+
+        temp_manager = get_temp_collection_manager()
+        ttl = settings.TEMP_COLLECTION_TTL_MINUTES
+        interval = settings.TEMP_COLLECTION_CLEANUP_INTERVAL
+
+        print(f"[OK] Temp collection cleanup scheduler started (TTL: {ttl}min, interval: {interval}s)")
+
+        while True:
+            try:
+                deleted = await temp_manager.cleanup_expired(ttl)
+                if deleted > 0:
+                    logger.info(f"Temp collection cleanup: deleted {deleted} collections")
+            except asyncio.CancelledError:
+                # 종료 요청 시 루프 탈출
+                raise
+            except Exception as e:
+                logger.error(f"Temp collection cleanup error: {e}")
+
+            await asyncio.sleep(interval)
+
+    except asyncio.CancelledError:
+        # 정상 종료
+        logger.info("Temp collection cleanup scheduler cancelled")
+    except Exception as e:
+        logger.error(f"Failed to start temp collection cleanup scheduler: {e}")
 
 
 
@@ -277,6 +321,7 @@ app.include_router(chat.router)
 app.include_router(analytics.router)
 app.include_router(prompts.router)  # 프롬프트 자동 생성
 app.include_router(selfcheck.router)  # 셀프진단
+app.include_router(chat_documents.router)  # 채팅 문서 업로드
 
 
 @app.get("/")

@@ -66,7 +66,7 @@ class Settings(BaseSettings):
 
     # 파일 업로드 설정
     MAX_UPLOAD_SIZE_MB: int = 50  # MB 단위
-    ALLOWED_EXTENSIONS: List[str] = [".pdf", ".docx", ".doc", ".pptx", ".ppt"]
+    ALLOWED_EXTENSIONS: List[str] = [".pdf", ".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls"]
 
     # 폴링 설정
     POLL_INTERVAL: int = 2  # 초
@@ -216,6 +216,12 @@ class Settings(BaseSettings):
     # ===========================================
     UPLOAD_BATCH_SIZE: int = 10  # Qdrant 업로드 배치 크기
     LOGGING_BATCH_SIZE: int = 20  # 로깅 배치 크기
+
+    # ===========================================
+    # 임시 컬렉션 설정 (채팅 문서 업로드용)
+    # ===========================================
+    TEMP_COLLECTION_TTL_MINUTES: int = 60  # 임시 컬렉션 TTL (분)
+    TEMP_COLLECTION_CLEANUP_INTERVAL: int = 300  # 정리 스케줄러 실행 간격 (초)
 
     # === Computed Properties ===
 

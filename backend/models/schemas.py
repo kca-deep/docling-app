@@ -439,6 +439,7 @@ class ChatRequest(BaseModel):
     """채팅 요청"""
     conversation_id: Optional[str] = None  # 대화 ID (선택적)
     collection_name: Optional[str] = None  # 컬렉션 이름 (None이면 일상대화 모드)
+    temp_collection_name: Optional[str] = None  # 임시 컬렉션명 (채팅 문서 업로드용)
     message: str
     model: str = "gpt-oss-20b"  # LLM 모델 선택
     reasoning_level: str = "medium"  # "low", "medium", "high"

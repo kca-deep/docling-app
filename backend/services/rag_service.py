@@ -192,6 +192,52 @@ class RAGService:
             logger.error(f"[RAG] Retrieve failed: {e}")
             raise Exception(f"문서 검색 실패: {str(e)}")
 
+    async def retrieve_from_multiple(
+        self,
+        collection_names: List[str],
+        query: str,
+        top_k: int = 5,
+        score_threshold: Optional[float] = None,
+        use_hybrid: bool = True
+    ) -> List[Dict[str, Any]]:
+        """
+        여러 컬렉션에서 문서 검색 후 병합
+
+        Args:
+            collection_names: Qdrant 컬렉션 이름 리스트
+            query: 검색 쿼리
+            top_k: 컬렉션당 검색할 문서 수
+            score_threshold: 최소 유사도 점수
+            use_hybrid: 하이브리드 검색 사용 여부
+
+        Returns:
+            List[Dict[str, Any]]: 병합된 검색 결과 (점수순 정렬)
+        """
+        all_results = []
+
+        for collection_name in collection_names:
+            try:
+                results = await self.retrieve(
+                    collection_name=collection_name,
+                    query=query,
+                    top_k=top_k,
+                    score_threshold=score_threshold,
+                    use_hybrid=use_hybrid
+                )
+                # 컬렉션 출처 추가
+                for doc in results:
+                    doc["source_collection"] = collection_name
+                all_results.extend(results)
+                logger.info(f"[RAG] Retrieved {len(results)} docs from '{collection_name}'")
+            except Exception as e:
+                logger.warning(f"[RAG] Failed to retrieve from '{collection_name}': {e}")
+                continue
+
+        # 점수순 정렬 후 반환
+        all_results.sort(key=lambda x: x.get("score", 0), reverse=True)
+        logger.info(f"[RAG] Total merged results: {len(all_results)} documents")
+        return all_results
+
     async def generate(
         self,
         query: str,
@@ -337,7 +383,8 @@ class RAGService:
         score_threshold: Optional[float] = None,
         chat_history: Optional[List[Dict[str, str]]] = None,
         use_reranking: bool = False,
-        use_hybrid: bool = True
+        use_hybrid: bool = True,
+        temp_collection_name: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         RAG 기반 채팅 (검색 + 생성 통합)
@@ -356,6 +403,7 @@ class RAGService:
             chat_history: 이전 대화 기록
             use_reranking: Reranking 사용 여부
             use_hybrid: 하이브리드 검색 사용 여부 (기본값: True)
+            temp_collection_name: 임시 컬렉션 이름 (채팅 문서 업로드용)
 
         Returns:
             Dict[str, Any]: 응답
@@ -367,8 +415,15 @@ class RAGService:
             Exception: 처리 실패 시
         """
         try:
-            # 일상대화 모드 체크 (collection_name이 None인 경우)
-            is_casual_mode = not collection_name
+            # 검색 대상 컬렉션 목록 구성
+            target_collections = []
+            if collection_name:
+                target_collections.append(collection_name)
+            if temp_collection_name:
+                target_collections.append(temp_collection_name)
+
+            # 일상대화 모드 체크 (컬렉션이 하나도 없는 경우)
+            is_casual_mode = len(target_collections) == 0
 
             if is_casual_mode:
                 # 일상대화 모드: 검색 없이 바로 LLM 생성
@@ -382,13 +437,25 @@ class RAGService:
                     initial_top_k = top_k * settings.RERANK_TOP_K_MULTIPLIER
                     logger.info(f"Reranking enabled: expanding top_k from {top_k} to {initial_top_k}")
 
-                retrieved_docs = await self.retrieve(
-                    collection_name=collection_name,
-                    query=query,
-                    top_k=initial_top_k,
-                    score_threshold=score_threshold,
-                    use_hybrid=use_hybrid
-                )
+                # 단일 컬렉션 또는 병합 검색
+                if len(target_collections) == 1:
+                    retrieved_docs = await self.retrieve(
+                        collection_name=target_collections[0],
+                        query=query,
+                        top_k=initial_top_k,
+                        score_threshold=score_threshold,
+                        use_hybrid=use_hybrid
+                    )
+                else:
+                    # 병합 검색: 여러 컬렉션에서 검색 후 합침
+                    logger.info(f"[RAG] Merged search across {len(target_collections)} collections: {target_collections}")
+                    retrieved_docs = await self.retrieve_from_multiple(
+                        collection_names=target_collections,
+                        query=query,
+                        top_k=initial_top_k,
+                        score_threshold=score_threshold,
+                        use_hybrid=use_hybrid
+                    )
 
                 if not retrieved_docs:
                     return {
@@ -453,7 +520,8 @@ class RAGService:
         score_threshold: Optional[float] = None,
         chat_history: Optional[List[Dict[str, str]]] = None,
         use_reranking: bool = False,
-        use_hybrid: bool = True
+        use_hybrid: bool = True,
+        temp_collection_name: Optional[str] = None
     ) -> AsyncGenerator[str, None]:
         """
         RAG 기반 스트리밍 채팅
@@ -472,6 +540,7 @@ class RAGService:
             chat_history: 이전 대화 기록
             use_reranking: Reranking 사용 여부
             use_hybrid: 하이브리드 검색 사용 여부 (기본값: True)
+            temp_collection_name: 임시 컬렉션 이름 (채팅 문서 업로드용)
 
         Yields:
             str: SSE 이벤트 라인
@@ -480,8 +549,15 @@ class RAGService:
             Exception: 처리 실패 시
         """
         try:
-            # 일상대화 모드 체크 (collection_name이 None인 경우)
-            is_casual_mode = not collection_name
+            # 검색 대상 컬렉션 목록 구성
+            target_collections = []
+            if collection_name:
+                target_collections.append(collection_name)
+            if temp_collection_name:
+                target_collections.append(temp_collection_name)
+
+            # 일상대화 모드 체크 (컬렉션이 하나도 없는 경우)
+            is_casual_mode = len(target_collections) == 0
 
             if is_casual_mode:
                 # 일상대화 모드: 검색 없이 바로 LLM 생성
@@ -503,13 +579,25 @@ class RAGService:
                 # 단계 이벤트: 검색 단계
                 yield f'data: {json.dumps({"type": "stage", "stage": "search"}, ensure_ascii=False)}\n\n'
 
-                retrieved_docs = await self.retrieve(
-                    collection_name=collection_name,
-                    query=query,
-                    top_k=initial_top_k,
-                    score_threshold=score_threshold,
-                    use_hybrid=use_hybrid
-                )
+                # 단일 컬렉션 또는 병합 검색
+                if len(target_collections) == 1:
+                    retrieved_docs = await self.retrieve(
+                        collection_name=target_collections[0],
+                        query=query,
+                        top_k=initial_top_k,
+                        score_threshold=score_threshold,
+                        use_hybrid=use_hybrid
+                    )
+                else:
+                    # 병합 검색: 여러 컬렉션에서 검색 후 합침
+                    logger.info(f"[RAG] Merged search across {len(target_collections)} collections: {target_collections}")
+                    retrieved_docs = await self.retrieve_from_multiple(
+                        collection_names=target_collections,
+                        query=query,
+                        top_k=initial_top_k,
+                        score_threshold=score_threshold,
+                        use_hybrid=use_hybrid
+                    )
 
                 if not retrieved_docs:
                     # 문서가 없을 경우 단일 메시지 전송

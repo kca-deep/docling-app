@@ -28,6 +28,8 @@ import type {
 } from "../types";
 import { mapRetrievedDocsToSources } from "../utils/source-mapper";
 import { parseSSEStream } from "../utils/sse-parser";
+import { useDocumentUpload } from "../hooks/useDocumentUpload";
+import { DocumentDropZone } from "./DocumentDropZone";
 
 export function ChatContainer() {
   const searchParams = useSearchParams();
@@ -45,7 +47,8 @@ export function ChatContainer() {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [currentSources, setCurrentSources] = useState<Source[]>([]);
-  const [sessionId] = useState(() => `session_${Date.now()}`);
+  // UUID 기반 세션 ID (충돌 방지)
+  const [sessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`);
   const [quotedMessage, setQuotedMessage] = useState<Message | null>(null);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [currentStage, setCurrentStage] = useState<string>(""); // 백엔드 단계 이벤트
@@ -84,6 +87,17 @@ export function ChatContainer() {
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [defaultReasoningLevel, setDefaultReasoningLevel] = useState<string>("medium"); // 백엔드에서 로드한 기본값
   const [deepThinkingEnabled, setDeepThinkingEnabled] = useState(false); // 심층사고 토글 상태
+
+  // 문서 업로드 훅 (다중 파일 지원)
+  const {
+    status: documentUploadStatus,
+    isUploading: isDocumentUploading,
+    isReady: isDocumentReady,
+    uploadDocuments,
+    clearDocument,
+    tempCollectionName,
+    uploadedFilenames,
+  } = useDocumentUpload();
 
   // Body 스크롤 제어 및 전체화면 클래스 추가
   useEffect(() => {
@@ -249,6 +263,7 @@ export function ChatContainer() {
         credentials: 'include',
         body: JSON.stringify({
           collection_name: selectedCollection || null,  // 빈 문자열이면 null로 전송 (일상대화 모드)
+          temp_collection_name: tempCollectionName || null,  // 임시 컬렉션 (문서 업로드용)
           message: userMessage.content,
           model: settings.model,
           reasoning_level: settings.reasoningLevel,
@@ -348,7 +363,7 @@ export function ChatContainer() {
     } finally {
       setIsLoading(false);
     }
-  }, [messages, selectedCollection, settings, artifactState.isOpen]);
+  }, [messages, selectedCollection, tempCollectionName, settings, artifactState.isOpen]);
 
   // 메시지 전송 (스트리밍)
   const handleStreamingSend = useCallback(async (userMessage: Message, quotedMsg: Message | null = null) => {
@@ -388,6 +403,7 @@ export function ChatContainer() {
         credentials: 'include',
         body: JSON.stringify({
           collection_name: selectedCollection || null,  // 빈 문자열이면 null로 전송 (일상대화 모드)
+          temp_collection_name: tempCollectionName || null,  // 임시 컬렉션 (문서 업로드용)
           message: userMessage.content,
           model: settings.model,
           reasoning_level: settings.reasoningLevel,
@@ -552,7 +568,7 @@ export function ChatContainer() {
       setCurrentStage(""); // 단계 상태 초기화
       setAbortController(null); // 에러 발생 시에도 AbortController 정리
     }
-  }, [messages, selectedCollection, settings, artifactState.isOpen]);
+  }, [messages, selectedCollection, tempCollectionName, settings, artifactState.isOpen]);
 
   const handleSend = useCallback(async () => {
     if (!input.trim()) {
@@ -812,6 +828,17 @@ export function ChatContainer() {
     }
   }, [abortController]);
 
+  // 파일 선택 핸들러 (다중 파일 지원)
+  const handleFileSelect = useCallback((files: File[]) => {
+    uploadDocuments(files, sessionId);
+  }, [uploadDocuments, sessionId]);
+
+  // 문서 제거 핸들러
+  const handleClearDocument = useCallback(async () => {
+    await clearDocument();
+    toast.info("업로드된 문서가 제거되었습니다");
+  }, [clearDocument]);
+
   // 컬렉션 변경 핸들러
   const handleCollectionChange = useCallback((newCollection: string) => {
     // 컬렉션이 실제로 변경된 경우에만 초기화
@@ -841,6 +868,11 @@ export function ChatContainer() {
   }, [selectedCollection]);
 
   const chatContent = (
+    <DocumentDropZone
+      onFileDrop={handleFileSelect}
+      disabled={isLoading || isDocumentUploading}
+      className="h-full"
+    >
     <div
       className={
         isFullscreen
@@ -952,6 +984,13 @@ export function ChatContainer() {
             onStopStreaming={handleStopStreaming}
             deepThinkingEnabled={deepThinkingEnabled}
             onDeepThinkingChange={setDeepThinkingEnabled}
+            // 문서 업로드 관련 (다중 파일 지원)
+            documentUploadStatus={documentUploadStatus}
+            isDocumentUploading={isDocumentUploading}
+            isDocumentReady={isDocumentReady}
+            uploadedFilenames={uploadedFilenames}
+            onFileSelect={handleFileSelect}
+            onClearDocument={handleClearDocument}
             />
           </div>
         </div>
@@ -972,6 +1011,7 @@ export function ChatContainer() {
         </div>
       </div>
     </div>
+    </DocumentDropZone>
   );
 
   return chatContent;

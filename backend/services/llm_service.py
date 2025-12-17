@@ -328,6 +328,54 @@ class LLMService:
             logger.error(f"[LLM STREAM] Streaming failed: {e}")
             raise Exception(f"LLM 스트리밍 실패: {str(e)}")
 
+    def _truncate_text(self, text: str, max_chars: int) -> str:
+        """
+        텍스트를 최대 문자 수로 truncate
+
+        Args:
+            text: 원본 텍스트
+            max_chars: 최대 문자 수
+
+        Returns:
+            str: truncate된 텍스트
+        """
+        if len(text) <= max_chars:
+            return text
+        return text[:max_chars] + "...(truncated)"
+
+    def _truncate_chat_history(
+        self,
+        chat_history: List[Dict[str, str]],
+        max_messages: int = 6,
+        max_chars_per_message: int = 500
+    ) -> List[Dict[str, str]]:
+        """
+        chat_history를 최대 메시지 수와 문자 수로 제한
+
+        Args:
+            chat_history: 이전 대화 기록
+            max_messages: 최대 메시지 수 (기본값: 6)
+            max_chars_per_message: 메시지당 최대 문자 수 (기본값: 500)
+
+        Returns:
+            List[Dict[str, str]]: truncate된 대화 기록
+        """
+        if not chat_history:
+            return []
+
+        # 최근 메시지만 유지
+        recent_history = chat_history[-max_messages:]
+
+        # 각 메시지 내용 truncate
+        truncated = []
+        for msg in recent_history:
+            truncated.append({
+                "role": msg["role"],
+                "content": self._truncate_text(msg["content"], max_chars_per_message)
+            })
+
+        return truncated
+
     def build_rag_messages(
         self,
         query: str,
@@ -358,6 +406,9 @@ class LLMService:
         Returns:
             List[Dict[str, str]]: 메시지 리스트
         """
+        # chat_history truncate (토큰 한도 초과 방지)
+        truncated_history = self._truncate_chat_history(chat_history) if chat_history else None
+
         # PromptLoader에서 동적으로 프롬프트 가져오기 (모델별 reasoning instruction 적용)
         system_content = self.prompt_loader.get_system_prompt(
             collection_name=collection_name,
@@ -368,16 +419,24 @@ class LLMService:
         # EXAONE Deep 모델 여부 확인
         is_exaone = model_key and "exaone" in model_key.lower()
 
-        # 일상대화 모드 체크
-        is_casual_mode = not collection_name or not retrieved_docs
+        # 일상대화 모드 체크: 검색된 문서가 없으면 일상대화 모드
+        is_casual_mode = not retrieved_docs
 
-        # 문서 컨텍스트 구성
+        # 문서 컨텍스트 구성 (컨텍스트 한도 설정)
+        MAX_CONTEXT_CHARS = 12000  # 약 4000~6000 토큰 (한국어 기준)
+        MAX_DOC_CHARS = 2000  # 개별 문서당 최대 문자 수
+
         context = ""
         if not is_casual_mode:
             context_parts = []
+            total_chars = 0
+
             for idx, doc in enumerate(retrieved_docs, 1):
                 text = doc.get("payload", {}).get("text", "")
                 score = doc.get("score", 0)
+
+                # 개별 문서 텍스트 truncate
+                text = self._truncate_text(text, MAX_DOC_CHARS)
 
                 payload = doc.get("payload", {})
                 headings = payload.get("headings") or []
@@ -391,9 +450,15 @@ class LLMService:
                 else:
                     reference = f"[문서 {idx}]"
 
-                context_parts.append(
-                    f"{reference} (유사도: {score:.3f})\n{text}"
-                )
+                doc_part = f"{reference} (유사도: {score:.3f})\n{text}"
+
+                # 총 컨텍스트 한도 체크
+                if total_chars + len(doc_part) > MAX_CONTEXT_CHARS:
+                    logger.warning(f"[LLM] Context limit reached at doc {idx}, truncating remaining docs")
+                    break
+
+                context_parts.append(doc_part)
+                total_chars += len(doc_part) + 2  # +2 for "\n\n"
 
             context = "\n\n".join(context_parts)
 
@@ -402,9 +467,9 @@ class LLMService:
             # 지시사항을 사용자 메시지에 포함
             messages = []
 
-            # 대화 기록 추가
-            if chat_history:
-                messages.extend(chat_history)
+            # 대화 기록 추가 (truncated)
+            if truncated_history:
+                messages.extend(truncated_history)
 
             if is_casual_mode:
                 # 일상대화 모드
@@ -435,8 +500,9 @@ class LLMService:
                 {"role": "system", "content": system_content}
             ]
 
-            if chat_history:
-                messages.extend(chat_history)
+            # 대화 기록 추가 (truncated)
+            if truncated_history:
+                messages.extend(truncated_history)
 
             if is_casual_mode:
                 messages.append({"role": "user", "content": query})

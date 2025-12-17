@@ -250,16 +250,18 @@ async def chat(
     tracking_ids = get_tracking_ids(request)
     client_info = extract_client_info(request)
 
-    # 일상대화 모드 체크
-    is_casual_mode = not chat_request.collection_name
-    collection_display = chat_request.collection_name or "(일상대화)"
+    # 컬렉션 결정: temp_collection_name > collection_name > None (일상대화)
+    effective_collection = chat_request.temp_collection_name or chat_request.collection_name
+    is_casual_mode = not effective_collection
+    is_temp_mode = bool(chat_request.temp_collection_name)
+    collection_display = effective_collection or "(일상대화)"
 
     logger.info("="*80)
     logger.info("[CHAT API] Non-streaming endpoint called")
     logger.info(f"[CHAT API] Request ID: {tracking_ids.get('request_id')}")
     logger.info(f"[CHAT API] Requested model: {chat_request.model}")
     logger.info(f"[CHAT API] Collection: {collection_display}")
-    logger.info(f"[CHAT API] Mode: {'Casual' if is_casual_mode else 'RAG'}")
+    logger.info(f"[CHAT API] Mode: {'Casual' if is_casual_mode else ('TempDoc' if is_temp_mode else 'RAG')}")
     logger.info(f"[CHAT API] Message: {chat_request.message[:50]}...")
     logger.info(f"[CHAT API] Client Type: {client_info.get('user_agent', 'unknown')[:50]}")
     logger.info("="*80)
@@ -274,7 +276,7 @@ async def chat(
     # 대화 시작 (일상대화 모드에서는 collection_name을 "casual"로 표시)
     conversation_id = conversation_service.start_conversation(
         conversation_id=chat_request.conversation_id,
-        collection_name=chat_request.collection_name or "casual"
+        collection_name=effective_collection or "casual"
     )
 
     # 시작 시간 기록
@@ -289,7 +291,7 @@ async def chat(
                 for msg in chat_request.chat_history
             ]
 
-        # RAG 채팅 수행 (collection_name이 None이면 일상대화 모드)
+        # RAG 채팅 수행 (두 컬렉션 모두 없으면 일상대화 모드)
         result = await rag_service.chat(
             collection_name=chat_request.collection_name,
             query=chat_request.message,
@@ -304,7 +306,8 @@ async def chat(
             score_threshold=chat_request.score_threshold,
             chat_history=chat_history,
             use_reranking=chat_request.use_reranking,
-            use_hybrid=chat_request.use_hybrid
+            use_hybrid=chat_request.use_hybrid,
+            temp_collection_name=chat_request.temp_collection_name
         )
 
         # 응답 포맷팅
@@ -340,7 +343,7 @@ async def chat(
             log_chat_interaction_task,
             session_id=session_id,
             conversation_id=conversation_id,
-            collection_name=chat_request.collection_name or "casual",
+            collection_name=effective_collection or "casual",
             message=chat_request.message,
             response_data={
                 "answer": result.get("answer", ""),
@@ -382,7 +385,7 @@ async def chat(
             log_chat_interaction_task,
             session_id=session_id,
             conversation_id=conversation_id,
-            collection_name=chat_request.collection_name or "casual",
+            collection_name=effective_collection or "casual",
             message=chat_request.message,
             response_data={},
             reasoning_level=chat_request.reasoning_level,
@@ -434,16 +437,18 @@ async def chat_stream(
     tracking_ids = get_tracking_ids(request)
     client_info = extract_client_info(request)
 
-    # 일상대화 모드 체크
-    is_casual_mode = not chat_request.collection_name
-    collection_display = chat_request.collection_name or "(일상대화)"
+    # 컬렉션 결정: temp_collection_name > collection_name > None (일상대화)
+    effective_collection = chat_request.temp_collection_name or chat_request.collection_name
+    is_casual_mode = not effective_collection
+    is_temp_mode = bool(chat_request.temp_collection_name)
+    collection_display = effective_collection or "(일상대화)"
 
     logger.info("="*80)
     logger.info("[CHAT API] Stream endpoint called")
     logger.info(f"[CHAT API] Request ID: {tracking_ids.get('request_id')}")
     logger.info(f"[CHAT API] Requested model: {chat_request.model}")
     logger.info(f"[CHAT API] Collection: {collection_display}")
-    logger.info(f"[CHAT API] Mode: {'Casual' if is_casual_mode else 'RAG'}")
+    logger.info(f"[CHAT API] Mode: {'Casual' if is_casual_mode else ('TempDoc' if is_temp_mode else 'RAG')}")
     logger.info(f"[CHAT API] Message: {chat_request.message[:50]}...")
     logger.info("="*80)
 
@@ -457,7 +462,7 @@ async def chat_stream(
     # 대화 시작 (일상대화 모드에서는 collection_name을 "casual"로 표시)
     conversation_id = conversation_service.start_conversation(
         conversation_id=chat_request.conversation_id,
-        collection_name=chat_request.collection_name or "casual"
+        collection_name=effective_collection or "casual"
     )
 
     # 시작 시간 기록
@@ -501,7 +506,8 @@ async def chat_stream(
                         score_threshold=chat_request.score_threshold,
                         chat_history=chat_history,
                         use_reranking=chat_request.use_reranking,
-                        use_hybrid=chat_request.use_hybrid
+                        use_hybrid=chat_request.use_hybrid,
+                        temp_collection_name=chat_request.temp_collection_name
                     )
 
                     # 검색된 문서 전송
@@ -575,7 +581,8 @@ async def chat_stream(
                     score_threshold=chat_request.score_threshold,
                     chat_history=chat_history,
                     use_reranking=chat_request.use_reranking,
-                    use_hybrid=chat_request.use_hybrid
+                    use_hybrid=chat_request.use_hybrid,
+                    temp_collection_name=chat_request.temp_collection_name
                 ):
                     # SSE 포맷 파싱하여 응답 수집
                     if chunk.startswith('data: '):
@@ -712,7 +719,7 @@ async def chat_stream(
                     await asyncio.shield(log_chat_interaction_task(
                         session_id=session_id,
                         conversation_id=conversation_id,
-                        collection_name=chat_request.collection_name or "casual",
+                        collection_name=effective_collection or "casual",
                         message=chat_request.message,
                         response_data=collected_response,
                         reasoning_level=chat_request.reasoning_level,
@@ -759,7 +766,7 @@ async def chat_stream(
             log_chat_interaction_task,
             session_id=session_id,
             conversation_id=conversation_id,
-            collection_name=chat_request.collection_name or "casual",
+            collection_name=effective_collection or "casual",
             message=chat_request.message,
             response_data={},
             reasoning_level=chat_request.reasoning_level,

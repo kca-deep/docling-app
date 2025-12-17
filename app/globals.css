@@ -252,6 +252,20 @@
   animation: gradient-x 3s ease infinite;
 }
 
+/* Drag & Drop shimmer animation */
+@keyframes shimmer-border {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.animate-shimmer-border {
+  animation: shimmer-border 2s linear infinite;
+}
+
 :root {
   /* Chat content max-width */
   --chat-content-max-width: 56rem;
