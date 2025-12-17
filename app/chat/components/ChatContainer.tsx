@@ -88,6 +88,7 @@ export function ChatContainer() {
   const [defaultReasoningLevel, setDefaultReasoningLevel] = useState<string>("medium"); // 백엔드에서 로드한 기본값
   const [deepThinkingEnabled, setDeepThinkingEnabled] = useState(false); // 심층사고 토글 상태
 
+
   // 문서 업로드 훅 (다중 파일 지원)
   const {
     status: documentUploadStatus,
@@ -907,6 +908,11 @@ export function ChatContainer() {
         theme={theme}
         onThemeToggle={() => setTheme(theme === "dark" ? "light" : "dark")}
         mounted={mounted}
+        selectedModel={settings.model}
+        onModelChange={(model) => {
+          setSettings(prev => ({ ...prev, model }));
+          toast.info(`LLM 모델이 자동으로 변경되었습니다: ${model}`);
+        }}
       />
 
       {/* 메인 콘텐츠 영역 (6:4 분할) */}
@@ -994,8 +1000,6 @@ export function ChatContainer() {
             disabled={false}  // 일상대화 모드에서는 컬렉션 없이도 전송 가능
             quotedMessage={quotedMessage && quotedMessage.role !== "system" ? { role: quotedMessage.role, content: quotedMessage.content } : null}
             onClearQuote={handleClearQuote}
-            selectedModel={settings.model}
-            onModelChange={(model) => setSettings(prev => ({ ...prev, model }))}
             onClearChat={handleClearChat}
             isFullscreen={isFullscreen}
             selectedCollection={selectedCollection}
