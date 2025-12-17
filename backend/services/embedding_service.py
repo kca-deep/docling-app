@@ -26,13 +26,40 @@ class EmbeddingService:
         # 싱글톤 HTTP 클라이언트 매니저 사용
         self.client = http_manager.get_client("embedding")
 
+    # 배치 크기 (VRAM 오버부킹 방지)
+    BATCH_SIZE = 32
+
     @async_retry(max_attempts=3, base_delay=1.0, max_delay=10.0)
+    async def _get_embeddings_batch(
+        self,
+        texts: List[str]
+    ) -> List[List[float]]:
+        """
+        단일 배치에 대한 임베딩 생성 (내부용)
+        """
+        url = f"{self.base_url}/v1/embeddings"
+        payload = {
+            "input": texts,
+            "model": self.model
+        }
+
+        response = await self.client.post(url, json=payload)
+        response.raise_for_status()
+
+        result = response.json()
+
+        embeddings = []
+        for item in result.get('data', []):
+            embeddings.append(item.get('embedding', []))
+
+        return embeddings
+
     async def get_embeddings(
         self,
         texts: Union[str, List[str]]
     ) -> List[List[float]]:
         """
-        텍스트를 벡터로 임베딩
+        텍스트를 벡터로 임베딩 (배치 처리 지원)
 
         Args:
             texts: 임베딩할 텍스트 (단일 문자열 또는 리스트)
@@ -48,24 +75,26 @@ class EmbeddingService:
             if isinstance(texts, str):
                 texts = [texts]
 
-            url = f"{self.base_url}/v1/embeddings"
-            payload = {
-                "input": texts,
-                "model": self.model
-            }
+            # 배치 크기 이하면 한번에 처리
+            if len(texts) <= self.BATCH_SIZE:
+                embeddings = await self._get_embeddings_batch(texts)
+                logger.info(f"Successfully generated {len(embeddings)} embeddings")
+                return embeddings
 
-            response = await self.client.post(url, json=payload)
-            response.raise_for_status()
+            # 배치 처리
+            all_embeddings = []
+            total_batches = (len(texts) + self.BATCH_SIZE - 1) // self.BATCH_SIZE
 
-            result = response.json()
+            for i in range(0, len(texts), self.BATCH_SIZE):
+                batch = texts[i:i + self.BATCH_SIZE]
+                batch_num = i // self.BATCH_SIZE + 1
+                logger.info(f"Processing embedding batch {batch_num}/{total_batches} ({len(batch)} texts)")
 
-            # 임베딩 벡터 추출
-            embeddings = []
-            for item in result.get('data', []):
-                embeddings.append(item.get('embedding', []))
+                batch_embeddings = await self._get_embeddings_batch(batch)
+                all_embeddings.extend(batch_embeddings)
 
-            logger.info(f"Successfully generated {len(embeddings)} embeddings")
-            return embeddings
+            logger.info(f"Successfully generated {len(all_embeddings)} embeddings in {total_batches} batches")
+            return all_embeddings
 
         except Exception as e:
             logger.error(f"Failed to generate embeddings: {e}")

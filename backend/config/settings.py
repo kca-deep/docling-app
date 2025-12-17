@@ -65,7 +65,7 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:3001"]
 
     # 파일 업로드 설정
-    MAX_UPLOAD_SIZE_MB: int = 50  # MB 단위
+    MAX_UPLOAD_SIZE_MB: int = 3  # MB 단위 (VRAM 오버부킹 방지)
     ALLOWED_EXTENSIONS: List[str] = [".pdf", ".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls"]
 
     # 폴링 설정
