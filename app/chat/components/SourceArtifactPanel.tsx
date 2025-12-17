@@ -25,22 +25,7 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { MarkdownMessage } from "@/components/markdown-message";
 import { cleanSourceContent } from "@/lib/content-sanitizer";
-
-interface Source {
-  id: string;
-  title: string;
-  content: string;
-  score: number;
-  metadata?: {
-    page?: number;
-    file?: string;
-    url?: string;
-    section?: string;
-    chunk_index?: number;
-    document_id?: number;
-    num_tokens?: number;
-  };
-}
+import type { Source } from "../types";
 
 interface SourceArtifactPanelProps {
   sources: Source[];

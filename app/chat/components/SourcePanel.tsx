@@ -24,22 +24,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { cleanSourceContent } from "@/lib/content-sanitizer";
 import { MarkdownMessage } from "@/components/markdown-message";
-
-interface Source {
-  id: string;
-  title: string;
-  content: string;
-  score: number;
-  metadata?: {
-    page?: number;
-    file?: string;
-    url?: string;
-    section?: string;
-    chunk_index?: number;
-    document_id?: number;
-    num_tokens?: number;
-  };
-}
+import type { Source } from "../types";
 
 interface SourcePanelProps {
   sources: Source[];

@@ -17,18 +17,7 @@ import {
 import { getIconComponent } from "../../data/icon-map";
 import { cn } from "@/lib/utils";
 import { Sparkles } from "lucide-react";
-
-interface Collection {
-  name: string;
-  documents_count: number;
-  points_count: number;
-  vector_size: number;
-  distance: string;
-  visibility?: string;
-  description?: string;
-  owner_id?: number;
-  is_owner?: boolean;
-}
+import type { Collection } from "../../types";
 
 interface CollectionSelectorProps {
   selectedCollection: string;

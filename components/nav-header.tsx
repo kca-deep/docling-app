@@ -21,6 +21,7 @@ import {
   Lightbulb,
   Shield,
   History,
+  User,
 } from "lucide-react"
 import {
   Sheet,
@@ -103,9 +104,9 @@ export function NavHeader() {
     { href: "/", label: "홈", icon: Home, requiresAuth: false },
   ]
 
-  // AI Idea Hub 그룹 (AI챗봇 앞에 위치)
+  // Idea Hub 그룹 (AI챗봇 앞에 위치)
   const ideaHubGroup: NavGroup = {
-    label: "AI Idea Hub",
+    label: "Idea Hub",
     icon: Lightbulb,
     requiresAuth: false,
     items: [
@@ -425,20 +426,20 @@ export function NavHeader() {
                 <span className="sr-only">메뉴 열기</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-[280px] sm:w-[320px]">
-              <SheetHeader className="border-b pb-4 mb-4">
-                <SheetTitle className="flex items-center gap-2.5">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-[#06b6d4] via-[#3b82f6] to-[#1e3a8a] shadow-lg shadow-cyan-500/30">
-                    <img
-                      src="/logo/kca_small.png"
-                      alt="KCA"
-                      className="h-7 w-auto brightness-0 invert"
-                    />
-                  </div>
-                  <span className="text-xl font-black italic tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-[#0066cc] via-[#00a651] to-[#ed1c24] pr-0.5">AI-Hub</span>
+            <SheetContent side="right" className="w-[280px] sm:w-[320px] flex flex-col">
+              <SheetHeader className="border-b pb-3 mb-2 flex-shrink-0">
+                <SheetTitle className="text-base font-semibold flex items-center gap-2">
+                  {isAuthenticated ? (
+                    <>
+                      <User className="h-4 w-4 text-muted-foreground" />
+                      <span>{user?.username}</span>
+                    </>
+                  ) : (
+                    "메뉴"
+                  )}
                 </SheetTitle>
               </SheetHeader>
-              <nav className="flex flex-col gap-1">
+              <nav className="flex-1 overflow-y-auto flex flex-col gap-1 pb-4">
                 {/* 홈 */}
                 {visibleSingleItems.map((item) => {
                   const Icon = item.icon
@@ -595,62 +596,33 @@ export function NavHeader() {
                   </>
                 )}
               </nav>
-              {/* 모바일 메뉴 하단 인증 버튼 */}
-              <div className="absolute bottom-6 left-4 right-4 border-t pt-4">
-                {!isLoading && (
-                  isAuthenticated ? (
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start gap-2"
-                      onClick={() => {
-                        logout()
-                        setMobileMenuOpen(false)
-                      }}
-                    >
-                      <LogOut className="h-4 w-4" />
-                      <span>로그아웃</span>
-                      {user?.username && (
-                        <span className="ml-auto text-xs text-muted-foreground">
-                          {user.username}
-                        </span>
-                      )}
-                    </Button>
-                  ) : (
-                    <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
-                      <Button variant="outline" className="w-full">
-                        로그인
-                      </Button>
-                    </Link>
-                  )
-                )}
-              </div>
             </SheetContent>
           </Sheet>
 
           {/* Theme Toggle */}
           <ThemeToggle />
 
-          {/* Auth: Login/Logout */}
+          {/* Auth: Login/Logout - 아이콘 버튼 */}
           {!isLoading && (
             isAuthenticated ? (
               <Button
                 variant="ghost"
-                size="sm"
+                size="icon"
                 onClick={() => logout()}
-                className="text-muted-foreground hover:text-foreground gap-1.5 rounded-full cursor-pointer"
+                className="h-9 w-9 text-muted-foreground hover:text-foreground rounded-full cursor-pointer"
                 title={`${user?.username} 로그아웃`}
               >
                 <LogOut className="h-4 w-4" />
-                <span className="hidden sm:inline">로그아웃</span>
               </Button>
             ) : (
               <Link href="/login">
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground hover:text-foreground rounded-full cursor-pointer"
+                  size="icon"
+                  className="h-9 w-9 text-muted-foreground hover:text-foreground rounded-full cursor-pointer"
+                  title="로그인"
                 >
-                  로그인
+                  <User className="h-4 w-4" />
                 </Button>
               </Link>
             )

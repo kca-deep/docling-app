@@ -401,33 +401,33 @@ export default function CollectionsPage() {
         </Button>
       </div>
 
-      {/* 필터 및 검색 영역 */}
+      {/* 필터 및 검색 영역 - 통일된 스타일 */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.3 }}
-        className="sticky top-20 z-30"
+        className="sticky top-16 z-30 mb-4"
       >
-        <div className="p-3 rounded-2xl bg-background/60 backdrop-blur-xl border border-border/50 shadow-lg supports-[backdrop-filter]:bg-background/40 space-y-3">
+        <div className="p-3 rounded-xl bg-background/60 backdrop-blur-xl border border-border/50 shadow-lg supports-[backdrop-filter]:bg-background/40 space-y-2.5">
           {/* 첫 번째 줄: 검색 + 정렬 + 새로고침 */}
           <div className="flex flex-col sm:flex-row gap-2">
             {/* 검색 */}
             <div className="relative flex-1 group">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-[color:var(--chart-1)] transition-colors" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-[color:var(--chart-1)] transition-colors" />
               <Input
                 ref={(el) => setSearchInputRef(el)}
                 placeholder="컬렉션 검색... (Ctrl+K)"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 pr-10 h-10 bg-background/50 border-transparent focus:bg-background focus:border-[color:var(--chart-1)]/20 rounded-xl transition-all"
+                className="pl-9 pr-9 h-9 bg-background/50 border-border/50 focus:bg-background focus:border-[color:var(--chart-1)]/20 rounded-lg transition-all text-sm"
               />
               {/* 검색어 클리어 버튼 */}
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-3.5 w-3.5" />
                 </button>
               )}
             </div>
@@ -435,8 +435,8 @@ export default function CollectionsPage() {
             <div className="flex gap-2">
               {/* 정렬 */}
               <Select value={sortOption} onValueChange={(v) => setSortOption(v as SortOption)}>
-                <SelectTrigger className="w-[150px] h-10 rounded-xl border-border/50 bg-background/50 focus:bg-background">
-                  <ArrowUpDown className="h-4 w-4 mr-2 text-muted-foreground" />
+                <SelectTrigger className="w-[140px] h-9 rounded-lg border-border/50 bg-background/50 focus:bg-background text-sm">
+                  <ArrowUpDown className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
                   <SelectValue placeholder="정렬" />
                 </SelectTrigger>
                 <SelectContent>
@@ -452,7 +452,7 @@ export default function CollectionsPage() {
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" onClick={fetchCollections} disabled={loading} className="h-10 w-10 rounded-xl hover:bg-background/80">
+                    <Button variant="ghost" size="icon" onClick={fetchCollections} disabled={loading} className="h-9 w-9 rounded-lg hover:bg-background/80">
                       <RefreshCw className={cn("h-4 w-4", loading && "animate-spin text-[color:var(--chart-1)]")} />
                     </Button>
                   </TooltipTrigger>
@@ -466,11 +466,11 @@ export default function CollectionsPage() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
             {/* 빠른 필터 칩 */}
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-xs text-muted-foreground mr-1">빠른 필터:</span>
+              <span className="text-xs text-muted-foreground mr-1">필터:</span>
               <button
                 onClick={() => toggleQuickFilter("recommended")}
                 className={cn(
-                  "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all",
+                  "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium transition-all",
                   quickFilters.includes("recommended")
                     ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30"
                     : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
@@ -482,19 +482,19 @@ export default function CollectionsPage() {
               <button
                 onClick={() => toggleQuickFilter("hasDocuments")}
                 className={cn(
-                  "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all",
+                  "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium transition-all",
                   quickFilters.includes("hasDocuments")
                     ? "bg-green-500/20 text-green-600 dark:text-green-400 border border-green-500/30"
                     : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
                 )}
               >
                 <FileCheck className="h-3 w-3" />
-                문서 있음
+                문서
               </button>
               <button
                 onClick={() => toggleQuickFilter("empty")}
                 className={cn(
-                  "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all",
+                  "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium transition-all",
                   quickFilters.includes("empty")
                     ? "bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30"
                     : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
@@ -507,7 +507,7 @@ export default function CollectionsPage() {
               <button
                 onClick={() => toggleQuickFilter("public")}
                 className={cn(
-                  "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all",
+                  "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium transition-all",
                   quickFilters.includes("public")
                     ? "bg-green-500/20 text-green-600 dark:text-green-400 border border-green-500/30"
                     : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
@@ -519,7 +519,7 @@ export default function CollectionsPage() {
               <button
                 onClick={() => toggleQuickFilter("private")}
                 className={cn(
-                  "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all",
+                  "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium transition-all",
                   quickFilters.includes("private")
                     ? "bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30"
                     : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
@@ -534,9 +534,9 @@ export default function CollectionsPage() {
             <div className="flex items-center gap-2 text-xs">
               <span className="text-muted-foreground">
                 {hasActiveFilters ? (
-                  <>전체 <span className="font-medium text-foreground">{collections.length}</span>개 중 <span className="font-medium text-[color:var(--chart-1)]">{filteredCollections.length}</span>개 표시</>
+                  <>전체 <span className="font-medium text-foreground">{collections.length}</span>개 중 <span className="font-medium text-[color:var(--chart-1)]">{filteredCollections.length}</span>개</>
                 ) : (
-                  <>총 <span className="font-medium text-foreground">{collections.length}</span>개 컬렉션</>
+                  <>총 <span className="font-medium text-foreground">{collections.length}</span>개</>
                 )}
               </span>
               {hasActiveFilters && (

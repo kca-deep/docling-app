@@ -39,11 +39,7 @@ import {
 import { cn } from "@/lib/utils";
 import { API_BASE_URL } from "@/lib/api-config";
 import { toast } from "sonner";
-
-interface QuotedMessage {
-  role: "user" | "assistant";
-  content: string;
-}
+import type { QuotedMessage, Collection, ChatSettings } from "../types";
 
 interface ModelOption {
   key: string;
@@ -52,31 +48,6 @@ interface ModelOption {
   status: "healthy" | "unhealthy" | "degraded" | "unconfigured" | "error";
   error?: string;
   latency_ms?: number;
-}
-
-interface Collection {
-  name: string;
-  documents_count: number;
-  points_count: number;
-  vector_size: number;
-  distance: string;
-  visibility?: string;
-  description?: string;
-  owner_id?: number;
-  is_owner?: boolean;
-}
-
-interface ChatSettings {
-  model: string;
-  reasoningLevel: string;
-  temperature: number;
-  maxTokens: number;
-  topP: number;
-  topK: number;
-  frequencyPenalty: number;
-  presencePenalty: number;
-  streamMode: boolean;
-  useReranking: boolean;
 }
 
 interface InputAreaProps {

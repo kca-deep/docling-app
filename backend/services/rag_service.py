@@ -484,14 +484,22 @@ class RAGService:
             if is_casual_mode:
                 # 일상대화 모드: 검색 없이 바로 LLM 생성
                 logger.info(f"[RAG] Casual mode stream - skipping retrieval")
+                # 단계 이벤트: 바로 생성 단계로
+                yield f'data: {json.dumps({"type": "stage", "stage": "generate"}, ensure_ascii=False)}\n\n'
                 retrieved_docs = []
             else:
+                # 단계 이벤트: 분석 단계
+                yield f'data: {json.dumps({"type": "stage", "stage": "analyze"}, ensure_ascii=False)}\n\n'
+
                 # 1. Retrieve: 관련 문서 검색
                 # Reranking 사용 시 top_k를 배수만큼 증가
                 initial_top_k = top_k
                 if use_reranking and self.reranker_service:
                     initial_top_k = top_k * settings.RERANK_TOP_K_MULTIPLIER
                     logger.info(f"Reranking enabled: expanding top_k from {top_k} to {initial_top_k}")
+
+                # 단계 이벤트: 검색 단계
+                yield f'data: {json.dumps({"type": "stage", "stage": "search"}, ensure_ascii=False)}\n\n'
 
                 retrieved_docs = await self.retrieve(
                     collection_name=collection_name,
@@ -508,6 +516,8 @@ class RAGService:
 
             # 1.5. Reranking (선택) - RAG 모드에서만 적용
             if not is_casual_mode and use_reranking and self.reranker_service and retrieved_docs:
+                # 단계 이벤트: 리랭킹 단계
+                yield f'data: {json.dumps({"type": "stage", "stage": "rerank"}, ensure_ascii=False)}\n\n'
                 retrieved_docs = await self._apply_reranking(query, retrieved_docs, top_k)
 
             # 2. 검색된 문서를 먼저 전송 (스트리밍 시작 전)
@@ -521,6 +531,9 @@ class RAGService:
                 })
 
             yield f'data: {json.dumps({"sources": sources_data}, ensure_ascii=False)}\n\n'
+
+            # 단계 이벤트: 생성 단계
+            yield f'data: {json.dumps({"type": "stage", "stage": "generate"}, ensure_ascii=False)}\n\n'
 
             # 3. Generate: 스트리밍 답변 생성
             async for chunk in self.generate_stream(

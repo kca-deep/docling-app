@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, memo } from "react";
-import { Wand2, Search, FileText, Sparkles } from "lucide-react";
+import { useEffect, useState, memo, useMemo } from "react";
+import { Wand2, Search, FileText, Sparkles, ArrowUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ThinkingStage {
@@ -36,6 +36,17 @@ const THINKING_STAGES: ThinkingStage[] = [
     ],
   },
   {
+    id: "rerank",
+    label: "재순위",
+    icon: ArrowUpDown,
+    colorVar: "var(--chart-4)",
+    hints: [
+      "검색 결과를 재정렬 중",
+      "관련도 순으로 정리 중",
+      "최적의 문서 선별 중",
+    ],
+  },
+  {
     id: "generate",
     label: "생성",
     icon: Sparkles,
@@ -48,33 +59,53 @@ const THINKING_STAGES: ThinkingStage[] = [
   },
 ];
 
-// 단계별 진행 시간 (ms)
+// 단계 ID -> 인덱스 매핑
+const STAGE_INDEX_MAP: Record<string, number> = {
+  analyze: 0,
+  search: 1,
+  rerank: 2,
+  generate: 3,
+};
+
+// 단계별 진행 시간 (ms) - fallback용
 const STAGE_DURATION = 2500;
 
 interface ThinkingIndicatorProps {
   className?: string;
   collectionName?: string;
+  currentStage?: string; // 백엔드에서 전송한 실제 단계
 }
 
 export const ThinkingIndicator = memo(function ThinkingIndicator({
   className,
   collectionName,
+  currentStage: externalStage,
 }: ThinkingIndicatorProps) {
-  const [currentStageIndex, setCurrentStageIndex] = useState(0);
+  const [fallbackStageIndex, setFallbackStageIndex] = useState(0);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [currentHint, setCurrentHint] = useState("");
 
-  // 단계 자동 진행
+  // 실제 단계 인덱스 계산 (외부 props 우선, 없으면 fallback)
+  const currentStageIndex = useMemo(() => {
+    if (externalStage && STAGE_INDEX_MAP[externalStage] !== undefined) {
+      return STAGE_INDEX_MAP[externalStage];
+    }
+    return fallbackStageIndex;
+  }, [externalStage, fallbackStageIndex]);
+
+  // 단계 자동 진행 (외부 단계가 없을 때만 작동)
   useEffect(() => {
+    if (externalStage) return; // 외부 단계가 있으면 자동 진행 비활성화
+
     const interval = setInterval(() => {
-      setCurrentStageIndex((prev) => {
+      setFallbackStageIndex((prev) => {
         if (prev >= THINKING_STAGES.length - 1) return prev;
         return prev + 1;
       });
     }, STAGE_DURATION);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [externalStage]);
 
   // 경과 시간 카운터
   useEffect(() => {
@@ -88,11 +119,13 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
   // 힌트 메시지 변경
   useEffect(() => {
     const stage = THINKING_STAGES[currentStageIndex];
-    const randomHint = stage.hints[Math.floor(Math.random() * stage.hints.length)];
-    setCurrentHint(randomHint);
+    if (stage) {
+      const randomHint = stage.hints[Math.floor(Math.random() * stage.hints.length)];
+      setCurrentHint(randomHint);
+    }
   }, [currentStageIndex]);
 
-  const currentStage = THINKING_STAGES[currentStageIndex];
+  const currentStage = THINKING_STAGES[currentStageIndex] || THINKING_STAGES[0];
 
   // 진행률 계산 (0-100)
   const progressPercent = ((currentStageIndex + 1) / THINKING_STAGES.length) * 100;

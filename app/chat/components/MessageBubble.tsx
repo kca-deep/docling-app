@@ -21,22 +21,7 @@ import {
 } from "@/components/ui/tooltip";
 import { ChevronDown, ChevronUp, ExternalLink, Link, Brain } from "lucide-react";
 import { SourceArtifactModal } from "./SourceArtifactModal";
-
-interface Source {
-  id: string;
-  title: string;
-  content: string;
-  score: number;
-  metadata?: {
-    page?: number;
-    file?: string;
-    url?: string;
-    section?: string;
-    chunk_index?: number;
-    document_id?: number;
-    num_tokens?: number;
-  };
-}
+import type { Source } from "../types";
 
 interface MessageBubbleProps {
   messageId: string;

@@ -234,13 +234,15 @@ export function CollectionSelector({
     })
   }, [collections, searchQuery])
 
-  // Grid 열 클래스 결정
+  // Grid 열 클래스 결정 (모바일 반응형 지원)
+  // Note: columns 4는 globals.css의 .grid-responsive-cols 클래스 사용 (순수 CSS로 반응형 보장)
   const getGridColsClass = (cols?: number) => {
     switch (cols) {
       case 1: return "grid-cols-1"
-      case 3: return "grid-cols-3"
-      case 4: return "grid-cols-4"
-      default: return "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"
+      case 2: return "grid-cols-2"
+      case 3: return "grid-cols-2 sm:grid-cols-3"
+      case 4: return "grid-responsive-cols" // 순수 CSS: 모바일 2열 → sm 3열 → lg 4열
+      default: return "grid-responsive-cols"
     }
   }
   const gridColsClass = getGridColsClass(columns)

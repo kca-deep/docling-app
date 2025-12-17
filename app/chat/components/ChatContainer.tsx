@@ -18,90 +18,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-
-interface Message {
-  id: string;
-  role: "user" | "assistant" | "system";
-  content: string;
-  timestamp: Date;
-  model?: string; // 메시지를 생성한 모델 정보
-  sources?: Source[];
-  reasoningContent?: string; // GPT-OSS 추론 과정
-  metadata?: {
-    tokens?: number;
-    processingTime?: number;
-    aborted?: boolean; // 중단 여부
-  };
-  regenerationContext?: {
-    originalQuery: string;
-    collectionName: string;
-    settings: ChatSettings;
-    retrievedDocs: RetrievedDocument[];
-  };
-}
-
-interface Source {
-  id: string;
-  title: string;
-  content: string;
-  score: number;
-  metadata?: {
-    page?: number;
-    file?: string;
-    url?: string;
-    section?: string;
-    chunk_index?: number;
-    document_id?: number;
-    num_tokens?: number;
-  };
-}
-
-interface RetrievedDocument {
-  id: string;
-  text: string;
-  score: number;
-  metadata?: {
-    filename?: string;
-    document_id?: number;
-    chunk_index?: number;
-    num_tokens?: number;
-    headings?: string[];
-    page?: number;
-    url?: string;
-  };
-}
-
-interface Collection {
-  name: string;
-  documents_count: number;
-  points_count: number;
-  vector_size: number;
-  distance: string;
-  visibility?: string;
-  description?: string;
-  owner_id?: number;
-  is_owner?: boolean;
-}
-
-interface ChatSettings {
-  model: string;
-  reasoningLevel: string;
-  temperature: number;
-  maxTokens: number;
-  topP: number;
-  topK: number;
-  frequencyPenalty: number;
-  presencePenalty: number;
-  streamMode: boolean;
-  useReranking: boolean;
-}
-
-interface ArtifactState {
-  isOpen: boolean;
-  sources: Source[];
-  activeSourceId: string | null;
-  messageId: string | null;
-}
+import type {
+  Message,
+  Source,
+  RetrievedDocument,
+  Collection,
+  ChatSettings,
+  ArtifactState,
+} from "../types";
+import { mapRetrievedDocsToSources } from "../utils/source-mapper";
 
 export function ChatContainer() {
   const searchParams = useSearchParams();
@@ -122,6 +47,7 @@ export function ChatContainer() {
   const [sessionId] = useState(() => `session_${Date.now()}`);
   const [quotedMessage, setQuotedMessage] = useState<Message | null>(null);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+  const [currentStage, setCurrentStage] = useState<string>(""); // 백엔드 단계 이벤트
 
   // 참조문서 아티팩트 패널 상태
   const [artifactState, setArtifactState] = useState<ArtifactState>({
@@ -161,7 +87,6 @@ export function ChatContainer() {
   // Body 스크롤 제어 및 전체화면 클래스 추가
   useEffect(() => {
     if (isFullscreen) {
-      console.log('[Fullscreen] Activating fullscreen mode');
       document.body.style.overflow = 'hidden';
       document.body.classList.add('chat-fullscreen-active');
 
@@ -181,7 +106,6 @@ export function ChatContainer() {
           document.querySelectorAll(selector).forEach(el => {
             const htmlEl = el as HTMLElement;
             htmlEl.style.zIndex = '9999';
-            console.log(`[Fullscreen] Set z-index for`, selector, htmlEl);
           });
         });
       };
@@ -197,7 +121,6 @@ export function ChatContainer() {
       observer.observe(document.body, { childList: true });
 
       return () => {
-        console.log('[Fullscreen] Deactivating fullscreen mode');
         document.body.style.overflow = '';
         document.body.classList.remove('chat-fullscreen-active');
         clearTimeout(timer1);
@@ -249,7 +172,6 @@ export function ChatContainer() {
             useReranking: data.use_reranking,
           }));
           setSettingsLoaded(true);
-          console.log('[Settings] Loaded from backend (.env):', data);
           toast.success(`설정 로드 완료 (max_tokens: ${data.max_tokens})`);
         } else {
           console.error('[Settings] Failed to load, using fallback defaults');
@@ -433,6 +355,9 @@ export function ChatContainer() {
     const controller = new AbortController();
     setAbortController(controller);
 
+    // 단계 상태 초기화
+    setCurrentStage("analyze");
+
     // aiMessageId를 try 블록 밖에서 선언 (catch 블록에서도 사용하기 위해)
     const aiMessageId = (Date.now() + 1).toString();
 
@@ -455,15 +380,6 @@ export function ChatContainer() {
 
       // 일상대화 모드 체크
       const isCasualMode = !selectedCollection;
-
-      console.log('='.repeat(80));
-      console.log('[FRONTEND] Making API call to streaming endpoint');
-      console.log(`[FRONTEND] API_BASE_URL: ${API_BASE_URL}`);
-      console.log(`[FRONTEND] Full URL: ${API_BASE_URL}/api/chat/stream`);
-      console.log(`[FRONTEND] Model: ${settings.model}`);
-      console.log(`[FRONTEND] Collection: ${selectedCollection || '(일상대화 모드)'}`);
-      console.log(`[FRONTEND] Mode: ${isCasualMode ? 'Casual' : 'RAG'}`);
-      console.log('='.repeat(80));
 
       const response = await fetch(`${API_BASE_URL}/api/chat/stream`, {
         method: "POST",
@@ -529,43 +445,21 @@ export function ChatContainer() {
             try {
               const parsed = JSON.parse(data);
 
+              // 단계 이벤트 처리 (백엔드에서 실제 진행 단계 전송)
+              if (parsed.type === "stage" && parsed.stage) {
+                setCurrentStage(parsed.stage);
+              }
+
               // 소스 문서 처리 (중복 항목 정리)
               if (parsed.sources) {
-                retrievedDocs = parsed.sources; // 원본 데이터 저장
-                sources = parsed.sources.map((doc: RetrievedDocument) => {
-                  const filename = doc.metadata?.filename;
-                  const headings = doc.metadata?.headings;
-                  const hasHeadings = headings && headings.length > 0;
-
-                  // title: headings가 있으면 사용, 없으면 filename
-                  const title = hasHeadings ? headings.join(' > ') : (filename || `문서 ${doc.id}`);
-
-                  // section: headings가 있고 filename과 다를 때만 설정 (중복 방지)
-                  const section = hasHeadings && headings.join(' > ') !== filename ? headings.join(' > ') : undefined;
-
-                  return {
-                    id: doc.id,
-                    title,
-                    content: doc.text,
-                    score: doc.score,
-                    metadata: {
-                      file: filename,
-                      section,  // title과 중복되지 않도록 조건부 설정
-                      chunk_index: doc.metadata?.chunk_index,
-                      document_id: doc.metadata?.document_id,
-                      num_tokens: doc.metadata?.num_tokens,
-                      page: doc.metadata?.page,
-                      url: doc.metadata?.url,
-                    },
-                  };
-                });
+                retrievedDocs = parsed.sources;
+                sources = mapRetrievedDocsToSources(parsed.sources);
                 setCurrentSources(sources);
               }
 
               // reasoning_chunk 이벤트 처리 (실시간 스트리밍)
               if (parsed.type === "reasoning_chunk" && parsed.content) {
                 aiReasoningContent += parsed.content;
-                console.log('[DEBUG] Received reasoning_chunk, total length:', aiReasoningContent.length);
 
                 // 추론 청크가 먼저 도착하면 메시지를 미리 생성 (추론 탭 표시)
                 if (!messageCreated) {
@@ -625,12 +519,8 @@ export function ChatContainer() {
                   );
                 }
               }
-            } catch (e) {
+            } catch {
               // SSE 버퍼링으로 인해 이 에러는 거의 발생하지 않아야 함
-              console.warn("[SSE] JSON parse failed:", {
-                data: data.substring(0, 200),
-                error: e instanceof Error ? e.message : e
-              });
             }
           }
         }
@@ -643,26 +533,12 @@ export function ChatContainer() {
           try {
             const parsed = JSON.parse(data);
             if (parsed.sources && !sources.length) {
-              console.log("[SSE] Processing buffered sources data");
               retrievedDocs = parsed.sources;
-              sources = parsed.sources.map((doc: RetrievedDocument) => ({
-                id: doc.id,
-                title: doc.metadata?.headings?.join(' > ') || doc.metadata?.filename || `문서 ${doc.id}`,
-                content: doc.text,
-                score: doc.score,
-                metadata: {
-                  file: doc.metadata?.filename,
-                  chunk_index: doc.metadata?.chunk_index,
-                  document_id: doc.metadata?.document_id,
-                  num_tokens: doc.metadata?.num_tokens,
-                  page: doc.metadata?.page,
-                  url: doc.metadata?.url,
-                },
-              }));
+              sources = mapRetrievedDocsToSources(parsed.sources);
               setCurrentSources(sources);
             }
-          } catch (e) {
-            console.warn("[SSE] Final buffer parse failed:", { data: data.substring(0, 100) });
+          } catch {
+            // SSE 버퍼 파싱 실패 - 무시
           }
         }
       }
@@ -696,11 +572,11 @@ export function ChatContainer() {
       }
 
       setIsLoading(false);
+      setCurrentStage(""); // 단계 상태 초기화
       setAbortController(null); // 스트리밍 완료 후 AbortController 정리
     } catch (error) {
       // AbortError는 사용자가 의도적으로 중단한 것이므로 에러로 처리하지 않음
       if (error instanceof Error && error.name === 'AbortError') {
-        console.log('[FRONTEND] Streaming aborted by user');
         toast.info("응답 생성이 중단되었습니다");
 
         // 부분 응답에 중단 표시 추가
@@ -725,6 +601,7 @@ export function ChatContainer() {
       }
 
       setIsLoading(false);
+      setCurrentStage(""); // 단계 상태 초기화
       setAbortController(null); // 에러 발생 시에도 AbortController 정리
     }
   }, [messages, selectedCollection, settings, artifactState.isOpen]);
@@ -785,6 +662,7 @@ export function ChatContainer() {
       // 이전 AI 답변 제거
       setMessages((prev) => prev.slice(0, messageIndex));
       setIsLoading(true);
+      setCurrentStage("generate"); // 재생성은 검색 없이 바로 생성 단계
       toast.info("답변을 다시 생성하고 있습니다");
 
       // 현재 고급설정의 temperature 사용 (다양성을 위해 약간 증가)
@@ -851,31 +729,14 @@ export function ChatContainer() {
             try {
               const parsed = JSON.parse(data);
 
+              // 단계 이벤트 처리
+              if (parsed.type === "stage" && parsed.stage) {
+                setCurrentStage(parsed.stage);
+              }
+
               // sources 처리
               if (parsed.sources) {
-                sources = parsed.sources.map((doc: RetrievedDocument) => {
-                  const filename = doc.metadata?.filename;
-                  const headings = doc.metadata?.headings;
-                  const hasHeadings = headings && headings.length > 0;
-                  const title = hasHeadings ? headings.join(' > ') : (filename || `문서 ${doc.id}`);
-                  const section = hasHeadings && headings.join(' > ') !== filename ? headings.join(' > ') : undefined;
-
-                  return {
-                    id: doc.id,
-                    title,
-                    content: doc.text,
-                    score: doc.score,
-                    metadata: {
-                      file: filename,
-                      section,
-                      chunk_index: doc.metadata?.chunk_index,
-                      document_id: doc.metadata?.document_id,
-                      num_tokens: doc.metadata?.num_tokens,
-                      page: doc.metadata?.page,
-                      url: doc.metadata?.url,
-                    },
-                  };
-                });
+                sources = mapRetrievedDocsToSources(parsed.sources);
                 setCurrentSources(sources);
               }
 
@@ -937,11 +798,8 @@ export function ChatContainer() {
                   );
                 }
               }
-            } catch (e) {
-              console.warn("[SSE Regenerate] JSON parse failed:", {
-                data: data.substring(0, 200),
-                error: e instanceof Error ? e.message : e
-              });
+            } catch {
+              // SSE 파싱 실패 - 무시
             }
           }
         }
@@ -953,25 +811,11 @@ export function ChatContainer() {
             try {
               const parsed = JSON.parse(data);
               if (parsed.sources && !sources.length) {
-                console.log("[SSE Regenerate] Processing buffered sources data");
-                sources = parsed.sources.map((doc: RetrievedDocument) => ({
-                  id: doc.id,
-                  title: doc.metadata?.headings?.join(' > ') || doc.metadata?.filename || `문서 ${doc.id}`,
-                  content: doc.text,
-                  score: doc.score,
-                  metadata: {
-                    file: doc.metadata?.filename,
-                    chunk_index: doc.metadata?.chunk_index,
-                    document_id: doc.metadata?.document_id,
-                    num_tokens: doc.metadata?.num_tokens,
-                    page: doc.metadata?.page,
-                    url: doc.metadata?.url,
-                  },
-                }));
+                sources = mapRetrievedDocsToSources(parsed.sources);
                 setCurrentSources(sources);
               }
-            } catch (e) {
-              console.warn("[SSE Regenerate] Final buffer parse failed:", { data: data.substring(0, 100) });
+            } catch {
+              // SSE 버퍼 파싱 실패 - 무시
             }
           }
         }
@@ -1001,6 +845,7 @@ export function ChatContainer() {
       toast.error("재생성에 실패했습니다");
     } finally {
       setIsLoading(false);
+      setCurrentStage(""); // 단계 상태 초기화
     }
   }, [messages, settings, setCurrentSources]);
 
@@ -1058,7 +903,6 @@ export function ChatContainer() {
   // 스트리밍 중단 핸들러
   const handleStopStreaming = useCallback(() => {
     if (abortController) {
-      console.log('[FRONTEND] User requested to stop streaming');
       abortController.abort();
       setAbortController(null);
     }
@@ -1103,10 +947,7 @@ export function ChatContainer() {
       {/* 상단 헤더 - 웨이브 애니메이션 */}
       <ChatHeader
         isFullscreen={isFullscreen}
-        onFullscreenToggle={() => {
-          console.log('[Fullscreen Button] Clicked, current state:', isFullscreen);
-          setIsFullscreen(!isFullscreen);
-        }}
+        onFullscreenToggle={() => setIsFullscreen(!isFullscreen)}
         theme={theme}
         onThemeToggle={() => setTheme(theme === "dark" ? "light" : "dark")}
         mounted={mounted}
@@ -1178,6 +1019,7 @@ export function ChatContainer() {
               collectionName={selectedCollection}
               onPromptSelect={handlePromptSelect}
               onOpenArtifact={handleOpenArtifact}
+              currentStage={currentStage}
             />
           </div>
 
@@ -1192,13 +1034,7 @@ export function ChatContainer() {
             quotedMessage={quotedMessage && quotedMessage.role !== "system" ? { role: quotedMessage.role, content: quotedMessage.content } : null}
             onClearQuote={handleClearQuote}
             selectedModel={settings.model}
-            onModelChange={(model) => {
-              console.log('[MODEL CHANGE] User selected model:', model);
-              setSettings(prev => {
-                console.log('[MODEL CHANGE] Previous model:', prev.model, '→ New model:', model);
-                return { ...prev, model };
-              });
-            }}
+            onModelChange={(model) => setSettings(prev => ({ ...prev, model }))}
             onClearChat={handleClearChat}
             isFullscreen={isFullscreen}
             selectedCollection={selectedCollection}

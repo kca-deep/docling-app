@@ -6,36 +6,7 @@ import { MessageBubble } from "./MessageBubble";
 import { SuggestedPrompts } from "./SuggestedPrompts";
 import { ThinkingIndicator } from "./ThinkingIndicator";
 import { toast } from "sonner";
-
-interface Message {
-  id: string;
-  role: "user" | "assistant" | "system";
-  content: string;
-  timestamp: Date;
-  model?: string; // 메시지를 생성한 모델 정보
-  sources?: Source[];
-  reasoningContent?: string; // GPT-OSS 추론 과정
-  metadata?: {
-    tokens?: number;
-    processingTime?: number;
-  };
-}
-
-interface Source {
-  id: string;
-  title: string;
-  content: string;
-  score: number;
-  metadata?: {
-    page?: number;
-    file?: string;
-    url?: string;
-    section?: string;
-    chunk_index?: number;
-    document_id?: number;
-    num_tokens?: number;
-  };
-}
+import type { Message, Source } from "../types";
 
 interface MessageListProps {
   messages: Message[];
@@ -46,6 +17,7 @@ interface MessageListProps {
   collectionName?: string;
   onPromptSelect?: (prompt: string) => void;
   onOpenArtifact?: (sources: Source[], messageId: string) => void;
+  currentStage?: string;
 }
 
 export const MessageList = memo(function MessageList({
@@ -56,7 +28,8 @@ export const MessageList = memo(function MessageList({
   onQuote,
   collectionName,
   onPromptSelect,
-  onOpenArtifact
+  onOpenArtifact,
+  currentStage
 }: MessageListProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -172,7 +145,7 @@ export const MessageList = memo(function MessageList({
             !isStreaming ||
             (isStreaming && (messages.length === 0 || messages[messages.length - 1].role !== 'assistant'))
           ) && (
-            <ThinkingIndicator collectionName={collectionName} />
+            <ThinkingIndicator collectionName={collectionName} currentStage={currentStage} />
           )}
 
           {/* 새 메시지 알림 (사용자가 스크롤했을 때만) */}
