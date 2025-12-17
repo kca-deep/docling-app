@@ -99,6 +99,26 @@ export function ChatContainer() {
     uploadedFilenames,
   } = useDocumentUpload();
 
+  // 문서 업로드 완료 시 toast 표시
+  useEffect(() => {
+    if (isDocumentReady && uploadedFilenames.length > 0) {
+      const fileCount = uploadedFilenames.length;
+      const pageCount = documentUploadStatus?.pageCount || 0;
+
+      toast.success(
+        fileCount === 1
+          ? `"${uploadedFilenames[0]}" 준비 완료`
+          : `${fileCount}개 파일 준비 완료`,
+        {
+          description: pageCount > 0
+            ? `${pageCount}페이지 임베딩 완료 - 질문을 입력하세요`
+            : "임베딩 완료 - 질문을 입력하세요",
+          duration: 4000,
+        }
+      );
+    }
+  }, [isDocumentReady]); // isDocumentReady가 true로 변경될 때만 실행
+
   // Body 스크롤 제어 및 전체화면 클래스 추가
   useEffect(() => {
     if (isFullscreen) {
@@ -956,6 +976,11 @@ export function ChatContainer() {
               onPromptSelect={handlePromptSelect}
               onOpenArtifact={handleOpenArtifact}
               currentStage={currentStage}
+              // 문서 업로드 상태 표시
+              documentUploadStatus={documentUploadStatus}
+              isDocumentReady={isDocumentReady}
+              uploadedFilenames={uploadedFilenames}
+              onClearDocument={handleClearDocument}
             />
           </div>
 
@@ -984,13 +1009,10 @@ export function ChatContainer() {
             onStopStreaming={handleStopStreaming}
             deepThinkingEnabled={deepThinkingEnabled}
             onDeepThinkingChange={setDeepThinkingEnabled}
-            // 문서 업로드 관련 (다중 파일 지원)
-            documentUploadStatus={documentUploadStatus}
+            // 문서 업로드 버튼
             isDocumentUploading={isDocumentUploading}
             isDocumentReady={isDocumentReady}
-            uploadedFilenames={uploadedFilenames}
             onFileSelect={handleFileSelect}
-            onClearDocument={handleClearDocument}
             />
           </div>
         </div>

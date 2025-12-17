@@ -5,8 +5,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageBubble } from "./MessageBubble";
 import { SuggestedPrompts } from "./SuggestedPrompts";
 import { ThinkingIndicator } from "./ThinkingIndicator";
+import { DocumentUploadStatus } from "./DocumentUploadStatus";
+import { DocumentActiveCard } from "./DocumentActiveCard";
 import { toast } from "sonner";
 import type { Message, Source } from "../types";
+import type { UploadStatus } from "../hooks/useDocumentUpload";
 
 interface MessageListProps {
   messages: Message[];
@@ -18,6 +21,11 @@ interface MessageListProps {
   onPromptSelect?: (prompt: string) => void;
   onOpenArtifact?: (sources: Source[], messageId: string) => void;
   currentStage?: string;
+  // 문서 업로드 관련
+  documentUploadStatus?: UploadStatus | null;
+  isDocumentReady?: boolean;
+  uploadedFilenames?: string[];
+  onClearDocument?: () => void;
 }
 
 export const MessageList = memo(function MessageList({
@@ -29,7 +37,12 @@ export const MessageList = memo(function MessageList({
   collectionName,
   onPromptSelect,
   onOpenArtifact,
-  currentStage
+  currentStage,
+  // 문서 업로드 관련
+  documentUploadStatus,
+  isDocumentReady = false,
+  uploadedFilenames = [],
+  onClearDocument,
 }: MessageListProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -133,10 +146,27 @@ export const MessageList = memo(function MessageList({
           ))}
 
           {/* 초기 화면 추천 질문 (일상대화 모드에서도 표시) */}
-          {messages.length === 0 && !isLoading && onPromptSelect && (
+          {messages.length === 0 && !isLoading && !documentUploadStatus && onPromptSelect && (
             <SuggestedPrompts
               collectionName={collectionName || ""}
               onSelect={onPromptSelect}
+            />
+          )}
+
+          {/* 문서 업로드 상태 (우측 정렬, 사용자 메시지 스타일) */}
+          {documentUploadStatus && !isDocumentReady && onClearDocument && (
+            <DocumentUploadStatus
+              status={documentUploadStatus}
+              onClear={onClearDocument}
+            />
+          )}
+
+          {/* 문서 준비 완료 카드 (우측 정렬, 사용자 메시지 스타일) */}
+          {isDocumentReady && uploadedFilenames.length > 0 && onClearDocument && (
+            <DocumentActiveCard
+              filenames={uploadedFilenames}
+              pageCount={documentUploadStatus?.pageCount}
+              onRemove={onClearDocument}
             />
           )}
 

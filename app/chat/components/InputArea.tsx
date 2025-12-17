@@ -37,9 +37,6 @@ import {
   Cpu,
 } from "lucide-react";
 import { DocumentUploadButton } from "./DocumentUploadButton";
-import { DocumentUploadStatus } from "./DocumentUploadStatus";
-import { ActiveDocumentBadge } from "./ActiveDocumentBadge";
-import type { UploadStatus } from "../hooks/useDocumentUpload";
 import { cn } from "@/lib/utils";
 import { API_BASE_URL } from "@/lib/api-config";
 import { toast } from "sonner";
@@ -77,13 +74,10 @@ interface InputAreaProps {
   onStopStreaming?: () => void;
   deepThinkingEnabled: boolean;
   onDeepThinkingChange: (enabled: boolean) => void;
-  // 문서 업로드 관련 (다중 파일 지원)
-  documentUploadStatus?: UploadStatus | null;
+  // 문서 업로드 관련 (버튼만)
   isDocumentUploading?: boolean;
   isDocumentReady?: boolean;
-  uploadedFilenames?: string[];
   onFileSelect?: (files: File[]) => void;
-  onClearDocument?: () => void;
 }
 
 // 모델별 아이콘 매핑
@@ -139,13 +133,10 @@ export const InputArea = memo(function InputArea({
   onSettingsPanelChange,
   deepThinkingEnabled,
   onDeepThinkingChange,
-  // 문서 업로드 관련 (다중 파일 지원)
-  documentUploadStatus,
+  // 문서 업로드 관련 (버튼만)
   isDocumentUploading = false,
   isDocumentReady = false,
-  uploadedFilenames = [],
   onFileSelect,
-  onClearDocument,
 }: InputAreaProps) {
   const [isComposing, setIsComposing] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -256,16 +247,6 @@ export const InputArea = memo(function InputArea({
           </div>
         )}
 
-        {/* 문서 업로드 상태 표시 */}
-        {documentUploadStatus && !isDocumentReady && onClearDocument && (
-          <div className="mb-3 animate-in slide-in-from-bottom-2 duration-300">
-            <DocumentUploadStatus
-              status={documentUploadStatus}
-              onClear={onClearDocument}
-            />
-          </div>
-        )}
-
         {/* ChatGPT 스타일 입력 카드 - Glassmorphism Floating Style */}
         <div className="bg-background/40 backdrop-blur-xl border border-white/10 rounded-[2rem] shadow-2xl transition-all duration-300 hover:shadow-primary/10 group relative overflow-hidden ring-1 ring-white/20 hover:ring-white/30">
           {/* Background Gradient Blend */}
@@ -349,15 +330,6 @@ export const InputArea = memo(function InputArea({
                   isReady={isDocumentReady}
                   onFileSelect={onFileSelect}
                   disabled={isLoading}
-                />
-              )}
-
-              {/* 활성 문서 배지 */}
-              {isDocumentReady && uploadedFilenames.length > 0 && onClearDocument && (
-                <ActiveDocumentBadge
-                  filenames={uploadedFilenames}
-                  pageCount={documentUploadStatus?.pageCount}
-                  onRemove={onClearDocument}
                 />
               )}
 
