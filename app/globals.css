@@ -138,26 +138,45 @@
 
 .animate-aurora-1 {
   animation: aurora-1 12s ease-in-out infinite;
+  will-change: transform, opacity;
 }
 
 .animate-aurora-2 {
   animation: aurora-2 15s ease-in-out infinite;
+  will-change: transform, opacity;
 }
 
 .animate-aurora-3 {
   animation: aurora-3 18s ease-in-out infinite;
+  will-change: transform, opacity;
 }
 
 .animate-aurora-4 {
   animation: aurora-4 14s ease-in-out infinite;
+  will-change: transform, opacity;
 }
 
 .animate-aurora-5 {
   animation: aurora-5 20s ease-in-out infinite;
+  will-change: transform, opacity;
 }
 
 .animate-aurora-pulse {
   animation: aurora-pulse 4s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/* Reduced motion preference - disable heavy animations */
+@media (prefers-reduced-motion: reduce) {
+  .animate-aurora-1,
+  .animate-aurora-2,
+  .animate-aurora-3,
+  .animate-aurora-4,
+  .animate-aurora-5,
+  .animate-aurora-pulse {
+    animation: none;
+    will-change: auto;
+  }
 }
 
 /* Wave Header Animations */
@@ -237,6 +256,20 @@
   /* Chat content max-width */
   --chat-content-max-width: 56rem;
 
+  /* Aurora background colors - Light mode */
+  --aurora-1: oklch(0.65 0.22 230);
+  --aurora-1-end: oklch(0.55 0.18 210);
+  --aurora-2: oklch(0.72 0.2 160);
+  --aurora-2-end: oklch(0.6 0.15 140);
+  --aurora-3: oklch(0.6 0.22 300);
+  --aurora-3-end: oklch(0.5 0.18 320);
+  --aurora-4: oklch(0.75 0.18 80);
+  --aurora-4-end: oklch(0.65 0.15 60);
+  --aurora-5: oklch(0.55 0.2 260);
+  --aurora-5-end: oklch(0.45 0.18 280);
+  --aurora-6: oklch(0.7 0.15 350);
+  --aurora-6-end: oklch(0.6 0.12 330);
+
   --background: oklch(0.985 0 0);
   --foreground: oklch(0.20 0 0);
   --card: oklch(1.0000 0 0);
@@ -292,6 +325,20 @@
 }
 
 .dark {
+  /* Aurora background colors - Dark mode (higher lightness for visibility) */
+  --aurora-1: oklch(0.75 0.25 230);
+  --aurora-1-end: oklch(0.65 0.21 210);
+  --aurora-2: oklch(0.82 0.23 160);
+  --aurora-2-end: oklch(0.70 0.18 140);
+  --aurora-3: oklch(0.70 0.25 300);
+  --aurora-3-end: oklch(0.60 0.21 320);
+  --aurora-4: oklch(0.85 0.21 80);
+  --aurora-4-end: oklch(0.75 0.18 60);
+  --aurora-5: oklch(0.65 0.23 260);
+  --aurora-5-end: oklch(0.55 0.21 280);
+  --aurora-6: oklch(0.80 0.18 350);
+  --aurora-6-end: oklch(0.70 0.15 330);
+
   --background: oklch(0.10 0 0);
   --foreground: oklch(0.93 0 0);
   --card: oklch(0.22 0 0);

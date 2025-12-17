@@ -8,7 +8,8 @@ from datetime import date, timedelta
 from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+import json
 
 from backend.config.settings import settings
 
@@ -325,6 +326,63 @@ async def health_llm_models():
     """
     result = await health_service.check_llm_models()
     return result
+
+
+@app.get("/api/health/llm-models/stream")
+async def health_llm_models_stream():
+    """
+    LLM 모델 상태 실시간 스트리밍 (SSE)
+
+    Server-Sent Events로 모델 상태 변경을 실시간 전송합니다.
+    - 연결 시 즉시 현재 상태 전송
+    - 상태 변경 시에만 이벤트 전송
+    - 30초마다 heartbeat로 연결 유지
+    """
+    async def event_generator():
+        previous_status = None
+        check_interval = 5  # 5초마다 상태 체크
+        heartbeat_counter = 0
+
+        try:
+            while True:
+                try:
+                    # 현재 상태 확인
+                    current = await health_service.check_llm_models()
+                    current_json = json.dumps(current, ensure_ascii=False)
+
+                    # 상태 변경 시 또는 첫 연결 시 전송
+                    if current_json != previous_status:
+                        yield f"data: {current_json}\n\n"
+                        previous_status = current_json
+                        heartbeat_counter = 0
+                    else:
+                        heartbeat_counter += 1
+                        # 6번 체크 (30초)마다 heartbeat 전송
+                        if heartbeat_counter >= 6:
+                            yield ": heartbeat\n\n"
+                            heartbeat_counter = 0
+
+                    await asyncio.sleep(check_interval)
+
+                except asyncio.CancelledError:
+                    logger.debug("LLM models SSE stream cancelled by client")
+                    break
+                except Exception as e:
+                    logger.error(f"LLM models SSE error: {e}")
+                    yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                    await asyncio.sleep(check_interval)
+        finally:
+            logger.debug("LLM models SSE stream closed")
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # nginx 버퍼링 비활성화
+        }
+    )
 
 
 @app.get("/favicon.ico")

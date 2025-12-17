@@ -108,6 +108,15 @@
         "temperature": 0.3,
         "reasoning_level": "medium"
       }
+    },
+    "kca-audit": {
+      "prompt_file": "kca-audit_prompt.md",
+      "description": "kca-audit 컬렉션 프롬프트",
+      "recommended_params": {
+        "top_k": 10,
+        "temperature": 0.3,
+        "reasoning_level": "medium"
+      }
     }
   },
   "default_prompt": "default.md",

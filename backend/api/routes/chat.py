@@ -31,6 +31,8 @@ from backend.services import collection_crud
 from backend.dependencies.auth import get_current_user_optional
 from backend.models.user import User
 from backend.utils.exaone_utils import clean_thought_tags_simple, is_exaone_model
+from backend.utils.error_handler import get_http_error_detail, get_sse_error_response
+from backend.utils.source_converter import extract_sources_info, convert_docs_to_sources
 
 # 로거 설정
 logger = logging.getLogger("uvicorn")
@@ -82,7 +84,8 @@ async def log_chat_interaction_task(
     db: Optional[Session] = None,
     request_id: Optional[str] = None,
     trace_id: Optional[str] = None,
-    client_info: Optional[Dict] = None
+    client_info: Optional[Dict] = None,
+    use_reranking: bool = False
 ):
     """채팅 상호작용 로깅 백그라운드 태스크"""
     try:
@@ -107,53 +110,14 @@ async def log_chat_interaction_task(
         retrieval_info = {}
         if "retrieved_docs" in response_data and response_data["retrieved_docs"]:
             docs = response_data["retrieved_docs"]
-            # sources 정보 추출 (문서명, 페이지 번호 등)
-            sources = []
-            for doc in docs:
-                # 비스트리밍: payload 키, 스트리밍: metadata 키
-                payload = doc.get("payload") or {}
-                metadata = doc.get("metadata") or {}
-                # 두 소스 병합 (payload 우선)
-                merged = {**metadata, **payload}
-
-                # 문서명 추출: filename > document_name > source > "Unknown"
-                document_name = (
-                    merged.get("filename") or
-                    merged.get("document_name") or
-                    merged.get("source") or
-                    "Unknown"
-                )
-
-                # 페이지 번호 추출: headings에서 추출 > page_number > page > 0
-                page_number = 0
-                headings = merged.get("headings") or []
-                if len(headings) >= 2:
-                    # headings[1]이 "페이지 4" 형식인 경우 숫자 추출
-                    page_str = headings[1]
-                    if isinstance(page_str, str) and "페이지" in page_str:
-                        try:
-                            page_number = int(page_str.replace("페이지", "").strip())
-                        except ValueError:
-                            page_number = 0
-                    elif isinstance(page_str, (int, float)):
-                        page_number = int(page_str)
-
-                # headings에서 추출 실패시 다른 필드 시도
-                if page_number == 0:
-                    page_number = merged.get("page_number") or merged.get("page", 0)
-
-                source_info = {
-                    "document_name": document_name,
-                    "page_number": page_number,
-                    "score": doc.get("score", 0)
-                }
-                sources.append(source_info)
+            # sources 정보 추출 (공통 유틸리티 사용)
+            sources = extract_sources_info(docs)
 
             retrieval_info = {
                 "retrieved_count": len(docs),
                 "top_scores": [doc.get("score", 0) for doc in docs[:5]],
                 "sources": sources,
-                "reranking_used": False  # TODO: RAG 서비스에서 전달 필요
+                "reranking_used": use_reranking
             }
 
         await hybrid_logging_service.log_chat_interaction(
@@ -438,7 +402,10 @@ async def chat(
             client_info=client_info
         )
 
-        raise HTTPException(status_code=500, detail=f"채팅 처리 실패: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=get_http_error_detail(e, "chat", "채팅 처리 실패")
+        )
 
 
 @router.post("/stream")
@@ -586,7 +553,7 @@ async def chat_stream(
                         "error_type": type(e).__name__,
                         "error_message": str(e)
                     }
-                    yield f'data: {{"error": "처리 실패: {str(e)}"}}\n\n'
+                    yield get_sse_error_response(e, "stream")
                     return
 
             # 일반 스트리밍 모드
@@ -695,20 +662,20 @@ async def chat_stream(
                     "error_message": "Client disconnected"
                 }
                 raise  # 예외 재발생하여 정상적인 정리 진행
-            except asyncio.TimeoutError:
+            except asyncio.TimeoutError as e:
                 logger.error(f"[CHAT API] Stream timeout after {settings.STREAMING_TIMEOUT_SECONDS}s")
                 stream_error_info = {
                     "error_type": "TimeoutError",
                     "error_message": f"Stream timeout ({settings.STREAMING_TIMEOUT_SECONDS}s)"
                 }
-                yield f'data: {{"error": "응답 시간 초과"}}\n\n'
+                yield get_sse_error_response(e, "timeout")
             except Exception as e:
                 logger.error(f"[CHAT API] Stream generation failed: {e}")
                 stream_error_info = {
                     "error_type": type(e).__name__,
                     "error_message": str(e)
                 }
-                yield f'data: {{"error": "스트리밍 실패: {str(e)}"}}\n\n'
+                yield get_sse_error_response(e, "stream")
             finally:
                 # 스트리밍 완료 후 로깅 (asyncio.shield로 취소 방지)
                 final_response_time_ms = int((time.time() - start_time) * 1000)
@@ -756,7 +723,8 @@ async def chat_stream(
                         db=db,
                         request_id=tracking_ids.get("request_id"),
                         trace_id=tracking_ids.get("trace_id"),
-                        client_info=client_info
+                        client_info=client_info,
+                        use_reranking=chat_request.use_reranking
                     ))
                 except asyncio.CancelledError:
                     # shield 내부에서도 취소될 수 있으므로 무시
@@ -811,7 +779,10 @@ async def chat_stream(
             client_info=client_info
         )
 
-        raise HTTPException(status_code=500, detail=f"스트리밍 채팅 실패: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=get_http_error_detail(e, "stream", "스트리밍 채팅 실패")
+        )
 
 
 @router.post("/regenerate", response_model=ChatResponse)
@@ -890,7 +861,10 @@ async def regenerate(request: RegenerateRequest):
 
     except Exception as e:
         logger.error(f"Regenerate failed: {e}")
-        raise HTTPException(status_code=500, detail=f"응답 재생성 실패: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=get_http_error_detail(e, "regenerate", "응답 재생성 실패")
+        )
 
 
 @router.post("/regenerate/stream")
@@ -1032,7 +1006,7 @@ async def regenerate_stream(request: RegenerateRequest):
 
             except Exception as e:
                 logger.error(f"[REGENERATE STREAM] Generation failed: {e}")
-                yield f'data: {{"error": "재생성 스트리밍 실패: {str(e)}"}}\n\n'
+                yield get_sse_error_response(e, "regenerate")
 
         return StreamingResponse(
             generate(),
@@ -1046,7 +1020,10 @@ async def regenerate_stream(request: RegenerateRequest):
 
     except Exception as e:
         logger.error(f"[REGENERATE STREAM] Failed: {e}")
-        raise HTTPException(status_code=500, detail=f"재생성 스트리밍 실패: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=get_http_error_detail(e, "regenerate", "재생성 스트리밍 실패")
+        )
 
 
 @router.get("/collections")
@@ -1105,7 +1082,10 @@ async def get_collections(
 
     except Exception as e:
         logger.error(f"[ERROR] Get collections failed: {e}")
-        raise HTTPException(status_code=500, detail=f"컬렉션 조회 실패: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=get_http_error_detail(e, "collection", "컬렉션 조회 실패")
+        )
 
 
 @router.get("/suggested-prompts/{collection_name}")
@@ -1154,7 +1134,10 @@ async def get_suggested_prompts(collection_name: str):
 
     except Exception as e:
         logger.error(f"Get suggested prompts failed: {e}")
-        raise HTTPException(status_code=500, detail=f"추천 질문 조회 실패: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=get_http_error_detail(e, "prompts", "추천 질문 조회 실패")
+        )
 
 
 @router.get("/default-settings", response_model=DefaultSettingsResponse)
@@ -1187,4 +1170,7 @@ async def get_default_settings():
         )
     except Exception as e:
         logger.error(f"[GET DEFAULT SETTINGS] Failed: {e}")
-        raise HTTPException(status_code=500, detail=f"기본 설정 조회 실패: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=get_http_error_detail(e, "settings", "기본 설정 조회 실패")
+        )

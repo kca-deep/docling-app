@@ -27,6 +27,7 @@ import type {
   ArtifactState,
 } from "../types";
 import { mapRetrievedDocsToSources } from "../utils/source-mapper";
+import { parseSSEStream } from "../utils/sse-parser";
 
 export function ChatContainer() {
   const searchParams = useSearchParams();
@@ -408,138 +409,85 @@ export function ChatContainer() {
       }
 
       const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
 
       if (!reader) {
         throw new Error("스트리밍을 지원하지 않습니다");
       }
 
       let aiContent = "";
-      let aiReasoningContent = ""; // GPT-OSS 추론 과정
+      let aiReasoningContent = "";
       let sources: Source[] = [];
       let retrievedDocs: RetrievedDocument[] = [];
       let messageCreated = false;
-      let sseBuffer = ""; // SSE 버퍼링: 불완전한 라인 보관
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      // SSE 스트림 파싱 (공통 유틸리티 사용)
+      for await (const event of parseSSEStream(reader)) {
+        switch (event.type) {
+          case "stage":
+            setCurrentStage(event.stage!);
+            break;
 
-        // SSE 버퍼링: 기존 버퍼에 새 청크 추가 (stream: true로 멀티바이트 문자 처리)
-        sseBuffer += decoder.decode(value, { stream: true });
+          case "sources":
+            retrievedDocs = event.sources!;
+            sources = mapRetrievedDocsToSources(event.sources!);
+            setCurrentSources(sources);
+            break;
 
-        // 완전한 라인들만 분리
-        const lines = sseBuffer.split("\n");
-
-        // 마지막 요소는 불완전할 수 있으므로 버퍼에 보관
-        sseBuffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const data = line.slice(6);
-
-            if (data === "[DONE]") {
-              continue;
+          case "reasoning":
+            aiReasoningContent += event.reasoning!;
+            if (!messageCreated) {
+              messageCreated = true;
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id: aiMessageId,
+                  role: "assistant",
+                  content: "",
+                  timestamp: new Date(),
+                  model: settings.model,
+                  sources,
+                  reasoningContent: aiReasoningContent,
+                },
+              ]);
+            } else {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === aiMessageId
+                    ? { ...msg, reasoningContent: aiReasoningContent, sources: sources.length > 0 ? sources : msg.sources }
+                    : msg
+                )
+              );
             }
+            break;
 
-            try {
-              const parsed = JSON.parse(data);
-
-              // 단계 이벤트 처리 (백엔드에서 실제 진행 단계 전송)
-              if (parsed.type === "stage" && parsed.stage) {
-                setCurrentStage(parsed.stage);
-              }
-
-              // 소스 문서 처리 (중복 항목 정리)
-              if (parsed.sources) {
-                retrievedDocs = parsed.sources;
-                sources = mapRetrievedDocsToSources(parsed.sources);
-                setCurrentSources(sources);
-              }
-
-              // reasoning_chunk 이벤트 처리 (실시간 스트리밍)
-              if (parsed.type === "reasoning_chunk" && parsed.content) {
-                aiReasoningContent += parsed.content;
-
-                // 추론 청크가 먼저 도착하면 메시지를 미리 생성 (추론 탭 표시)
-                if (!messageCreated) {
-                  messageCreated = true;
-                  setMessages((prev) => [
-                    ...prev,
-                    {
-                      id: aiMessageId,
-                      role: "assistant",
-                      content: "", // 아직 답변 없음
-                      timestamp: new Date(),
-                      model: settings.model,
-                      sources,
-                      reasoningContent: aiReasoningContent,
-                    },
-                  ]);
-                } else {
-                  // 메시지가 이미 있으면 reasoningContent와 sources 업데이트
-                  setMessages((prev) =>
-                    prev.map((msg) =>
-                      msg.id === aiMessageId
-                        ? { ...msg, reasoningContent: aiReasoningContent, sources: sources.length > 0 ? sources : msg.sources }
-                        : msg
-                    )
-                  );
-                }
-                continue;
-              }
-
-              // 컨텐츠 추출
-              const delta = parsed.choices?.[0]?.delta;
-              if (delta?.content) {
-                aiContent += delta.content;
-
-                // 첫 컨텐츠가 도착했을 때만 메시지 생성
-                if (!messageCreated) {
-                  messageCreated = true;
-                  setMessages((prev) => [
-                    ...prev,
-                    {
-                      id: aiMessageId,
-                      role: "assistant",
-                      content: aiContent,
-                      timestamp: new Date(),
-                      model: settings.model, // 현재 사용 중인 모델 정보 저장
-                      sources,
-                    },
-                  ]);
-                } else {
-                  // 이후에는 업데이트 (reasoningContent 유지)
-                  setMessages((prev) =>
-                    prev.map((msg) =>
-                      msg.id === aiMessageId
-                        ? { ...msg, content: aiContent, sources, reasoningContent: aiReasoningContent || msg.reasoningContent }
-                        : msg
-                    )
-                  );
-                }
-              }
-            } catch {
-              // SSE 버퍼링으로 인해 이 에러는 거의 발생하지 않아야 함
+          case "content":
+            aiContent += event.content!;
+            if (!messageCreated) {
+              messageCreated = true;
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id: aiMessageId,
+                  role: "assistant",
+                  content: aiContent,
+                  timestamp: new Date(),
+                  model: settings.model,
+                  sources,
+                },
+              ]);
+            } else {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === aiMessageId
+                    ? { ...msg, content: aiContent, sources, reasoningContent: aiReasoningContent || msg.reasoningContent }
+                    : msg
+                )
+              );
             }
-          }
-        }
-      }
+            break;
 
-      // SSE 버퍼에 남은 데이터 처리 (마지막 라인이 \n으로 끝나지 않은 경우)
-      if (sseBuffer.trim() && sseBuffer.startsWith("data: ")) {
-        const data = sseBuffer.slice(6);
-        if (data !== "[DONE]") {
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.sources && !sources.length) {
-              retrievedDocs = parsed.sources;
-              sources = mapRetrievedDocsToSources(parsed.sources);
-              setCurrentSources(sources);
-            }
-          } catch {
-            // SSE 버퍼 파싱 실패 - 무시
-          }
+          case "done":
+            break;
         }
       }
 
@@ -698,125 +646,81 @@ export function ChatContainer() {
 
       // 스트리밍 응답 처리
       const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
       const aiMessageId = (Date.now() + 1).toString();
 
       let aiContent = "";
       let aiReasoningContent = "";
       let messageCreated = false;
       let sources: Source[] = [];
-      let sseBuffer = ""; // SSE 버퍼링: 불완전한 라인 보관
 
       if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        // SSE 스트림 파싱 (공통 유틸리티 사용)
+        for await (const event of parseSSEStream(reader)) {
+          switch (event.type) {
+            case "stage":
+              setCurrentStage(event.stage!);
+              break;
 
-          // SSE 버퍼링: 기존 버퍼에 새 청크 추가
-          sseBuffer += decoder.decode(value, { stream: true });
+            case "sources":
+              sources = mapRetrievedDocsToSources(event.sources!);
+              setCurrentSources(sources);
+              break;
 
-          // 완전한 라인들만 분리
-          const lines = sseBuffer.split("\n");
-
-          // 마지막 요소는 불완전할 수 있으므로 버퍼에 보관
-          sseBuffer = lines.pop() || "";
-
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            const data = line.slice(6);
-            if (data === "[DONE]") continue;
-
-            try {
-              const parsed = JSON.parse(data);
-
-              // 단계 이벤트 처리
-              if (parsed.type === "stage" && parsed.stage) {
-                setCurrentStage(parsed.stage);
+            case "reasoning":
+              aiReasoningContent += event.reasoning!;
+              if (!messageCreated) {
+                messageCreated = true;
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    id: aiMessageId,
+                    role: "assistant",
+                    content: "",
+                    timestamp: new Date(),
+                    model: settings.model,
+                    sources,
+                    reasoningContent: aiReasoningContent,
+                  },
+                ]);
+              } else {
+                setMessages((prev) =>
+                  prev.map((msg) =>
+                    msg.id === aiMessageId
+                      ? { ...msg, reasoningContent: aiReasoningContent }
+                      : msg
+                  )
+                );
               }
+              break;
 
-              // sources 처리
-              if (parsed.sources) {
-                sources = mapRetrievedDocsToSources(parsed.sources);
-                setCurrentSources(sources);
+            case "content":
+              aiContent += event.content!;
+              if (!messageCreated) {
+                messageCreated = true;
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    id: aiMessageId,
+                    role: "assistant",
+                    content: aiContent,
+                    timestamp: new Date(),
+                    model: settings.model,
+                    sources,
+                  },
+                ]);
+              } else {
+                setMessages((prev) =>
+                  prev.map((msg) =>
+                    msg.id === aiMessageId
+                      ? { ...msg, content: aiContent, sources, reasoningContent: aiReasoningContent || msg.reasoningContent }
+                      : msg
+                  )
+                );
               }
+              break;
 
-              // reasoning_chunk 처리 (실시간 스트리밍)
-              if (parsed.type === "reasoning_chunk" && parsed.content) {
-                aiReasoningContent += parsed.content;
-
-                if (!messageCreated) {
-                  messageCreated = true;
-                  setMessages((prev) => [
-                    ...prev,
-                    {
-                      id: aiMessageId,
-                      role: "assistant",
-                      content: "",
-                      timestamp: new Date(),
-                      model: settings.model,
-                      sources,
-                      reasoningContent: aiReasoningContent,
-                    },
-                  ]);
-                } else {
-                  setMessages((prev) =>
-                    prev.map((msg) =>
-                      msg.id === aiMessageId
-                        ? { ...msg, reasoningContent: aiReasoningContent }
-                        : msg
-                    )
-                  );
-                }
-                continue;
-              }
-
-              // 컨텐츠 추출
-              const delta = parsed.choices?.[0]?.delta;
-              if (delta?.content) {
-                aiContent += delta.content;
-
-                if (!messageCreated) {
-                  messageCreated = true;
-                  setMessages((prev) => [
-                    ...prev,
-                    {
-                      id: aiMessageId,
-                      role: "assistant",
-                      content: aiContent,
-                      timestamp: new Date(),
-                      model: settings.model,
-                      sources,
-                    },
-                  ]);
-                } else {
-                  setMessages((prev) =>
-                    prev.map((msg) =>
-                      msg.id === aiMessageId
-                        ? { ...msg, content: aiContent, sources, reasoningContent: aiReasoningContent || msg.reasoningContent }
-                        : msg
-                    )
-                  );
-                }
-              }
-            } catch {
-              // SSE 파싱 실패 - 무시
-            }
-          }
-        }
-
-        // SSE 버퍼에 남은 데이터 처리
-        if (sseBuffer.trim() && sseBuffer.startsWith("data: ")) {
-          const data = sseBuffer.slice(6);
-          if (data !== "[DONE]") {
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.sources && !sources.length) {
-                sources = mapRetrievedDocsToSources(parsed.sources);
-                setCurrentSources(sources);
-              }
-            } catch {
-              // SSE 버퍼 파싱 실패 - 무시
-            }
+            case "done":
+              break;
           }
         }
       }
@@ -967,42 +871,42 @@ export function ChatContainer() {
               <div
                 className="absolute -top-[10%] -left-[10%] w-[60%] h-[60%] rounded-full blur-[80px] opacity-40 dark:opacity-50 animate-aurora-1"
                 style={{
-                  background: `radial-gradient(ellipse 70% 50% at center, oklch(0.65 0.22 230) 0%, oklch(0.55 0.18 210) 30%, transparent 60%)`,
+                  background: `radial-gradient(ellipse 70% 50% at center, var(--aurora-1) 0%, var(--aurora-1-end) 30%, transparent 60%)`,
                 }}
               />
               {/* Aurora Blob 2 - Green/Teal (top-right) */}
               <div
                 className="absolute -top-[5%] -right-[15%] w-[55%] h-[55%] rounded-full blur-[70px] opacity-35 dark:opacity-45 animate-aurora-2"
                 style={{
-                  background: `radial-gradient(ellipse 60% 70% at center, oklch(0.72 0.2 160) 0%, oklch(0.6 0.15 140) 35%, transparent 60%)`,
+                  background: `radial-gradient(ellipse 60% 70% at center, var(--aurora-2) 0%, var(--aurora-2-end) 35%, transparent 60%)`,
                 }}
               />
               {/* Aurora Blob 3 - Purple/Magenta (center-left) */}
               <div
                 className="absolute top-[20%] -left-[5%] w-[50%] h-[50%] rounded-full blur-[75px] opacity-30 dark:opacity-40 animate-aurora-3"
                 style={{
-                  background: `radial-gradient(ellipse 55% 65% at center, oklch(0.6 0.22 300) 0%, oklch(0.5 0.18 320) 30%, transparent 55%)`,
+                  background: `radial-gradient(ellipse 55% 65% at center, var(--aurora-3) 0%, var(--aurora-3-end) 30%, transparent 55%)`,
                 }}
               />
               {/* Aurora Blob 4 - Orange/Yellow (center-right) */}
               <div
                 className="absolute top-[15%] -right-[10%] w-[45%] h-[45%] rounded-full blur-[65px] opacity-25 dark:opacity-35 animate-aurora-4"
                 style={{
-                  background: `radial-gradient(ellipse 50% 60% at center, oklch(0.75 0.18 80) 0%, oklch(0.65 0.15 60) 35%, transparent 55%)`,
+                  background: `radial-gradient(ellipse 50% 60% at center, var(--aurora-4) 0%, var(--aurora-4-end) 35%, transparent 55%)`,
                 }}
               />
               {/* Aurora Blob 5 - Indigo/Deep Blue (bottom-left) */}
               <div
                 className="absolute bottom-[10%] -left-[15%] w-[50%] h-[50%] rounded-full blur-[70px] opacity-30 dark:opacity-40 animate-aurora-5"
                 style={{
-                  background: `radial-gradient(ellipse 65% 55% at center, oklch(0.55 0.2 260) 0%, oklch(0.45 0.18 280) 30%, transparent 55%)`,
+                  background: `radial-gradient(ellipse 65% 55% at center, var(--aurora-5) 0%, var(--aurora-5-end) 30%, transparent 55%)`,
                 }}
               />
               {/* Aurora Blob 6 - Pink/Rose (bottom-right) */}
               <div
                 className="absolute bottom-[5%] -right-[10%] w-[45%] h-[45%] rounded-full blur-[60px] opacity-25 dark:opacity-35 animate-aurora-pulse"
                 style={{
-                  background: `radial-gradient(circle, oklch(0.7 0.15 350) 0%, oklch(0.6 0.12 330) 40%, transparent 60%)`,
+                  background: `radial-gradient(circle, var(--aurora-6) 0%, var(--aurora-6-end) 40%, transparent 60%)`,
                 }}
               />
             </div>

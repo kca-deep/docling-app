@@ -43,6 +43,7 @@ import { useAuth } from "@/components/auth/auth-provider"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { motion } from "framer-motion"
+import { API_BASE_URL } from "@/lib/api-config"
 
 interface NavItem {
   href: string
@@ -50,7 +51,6 @@ interface NavItem {
   icon: LucideIcon
   requiresAuth?: boolean
   adminOnly?: boolean
-  badge?: number
 }
 
 interface NavGroup {
@@ -76,10 +76,31 @@ export function NavHeader() {
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
 
-  // 관리자일 때 승인 대기 사용자 수 조회
+  // 관리자일 때 승인 대기 사용자 수 실시간 조회 (SSE)
   useEffect(() => {
-    if (user?.role === "admin") {
-      fetch("http://localhost:8000/api/auth/pending-count", {
+    if (user?.role !== "admin") {
+      setPendingCount(0)
+      return
+    }
+
+    // SSE 연결
+    const eventSource = new EventSource(`${API_BASE_URL}/api/auth/pending-count/stream`)
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        if (data?.pending_count !== undefined) {
+          setPendingCount(data.pending_count)
+        }
+      } catch (e) {
+        console.warn("Pending count SSE parse error:", e)
+      }
+    }
+
+    eventSource.onerror = () => {
+      // 연결 실패 시 폴백으로 일반 API 호출
+      console.warn("Pending count SSE error, falling back to fetch")
+      fetch(`${API_BASE_URL}/api/auth/pending-count`, {
         credentials: "include"
       })
         .then(res => res.ok ? res.json() : null)
@@ -88,11 +109,13 @@ export function NavHeader() {
             setPendingCount(data.pending_count)
           }
         })
-        .catch(() => {})
-    } else {
-      setPendingCount(0)
+        .catch(err => console.warn("Pending count fetch error:", err))
     }
-  }, [user?.role, pathname])
+
+    return () => {
+      eventSource.close()
+    }
+  }, [user?.role])
 
   // 로그인/회원가입 페이지에서는 네비게이션 숨김
   if (pathname === "/login" || pathname === "/register") {
@@ -138,7 +161,7 @@ export function NavHeader() {
     items: [
       { href: "/collections", label: "컬렉션", icon: FolderCog, requiresAuth: true },
       { href: "/analytics", label: "통계", icon: BarChart3, requiresAuth: true },
-      { href: "/admin/users", label: "사용자 관리", icon: Users, requiresAuth: true, adminOnly: true, badge: pendingCount > 0 ? pendingCount : undefined },
+      { href: "/admin/users", label: "사용자 관리", icon: Users, requiresAuth: true, adminOnly: true },
     ],
   }
 
@@ -397,11 +420,6 @@ export function NavHeader() {
                         >
                           <Icon className="h-4 w-4" />
                           <span>{item.label}</span>
-                          {item.badge && item.badge > 0 && (
-                            <span className="ml-auto px-1.5 py-0.5 text-xs font-medium bg-yellow-500 text-white rounded-full min-w-[1.25rem] text-center">
-                              {item.badge}
-                            </span>
-                          )}
                         </Link>
                       </DropdownMenuItem>
                     </div>
@@ -585,11 +603,6 @@ export function NavHeader() {
                         >
                           <Icon className="h-4 w-4" />
                           <span>{item.label}</span>
-                          {item.badge && item.badge > 0 && (
-                            <span className="ml-auto px-1.5 py-0.5 text-xs font-medium bg-yellow-500 text-white rounded-full min-w-[1.25rem] text-center">
-                              {item.badge}
-                            </span>
-                          )}
                         </Link>
                       )
                     })}
@@ -601,6 +614,22 @@ export function NavHeader() {
 
           {/* Theme Toggle */}
           <ThemeToggle />
+
+          {/* 관리자 승인 대기 배지 */}
+          {user?.role === "admin" && pendingCount > 0 && (
+            <Link href="/admin/users" title="승인 대기 사용자">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 relative text-muted-foreground hover:text-foreground rounded-full"
+              >
+                <Users className="h-4 w-4" />
+                <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-yellow-500 text-[10px] font-bold text-white shadow-sm">
+                  {pendingCount > 9 ? "9+" : pendingCount}
+                </span>
+              </Button>
+            </Link>
+          )}
 
           {/* Auth: Login/Logout - 아이콘 버튼 */}
           {!isLoading && (

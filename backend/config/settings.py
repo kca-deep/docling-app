@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     # 타임존 설정
     TIMEZONE: str = "Asia/Seoul"
 
+    # 디버그 모드 (True: 상세 에러 메시지 노출, False: 일반화된 메시지만)
+    DEBUG: bool = False
+
     # ===========================================
     # 인증 설정 (Authentication)
     # ===========================================

@@ -10,6 +10,8 @@ from backend.services.qdrant_service import QdrantService
 from backend.services.llm_service import LLMService
 from backend.services.reranker_service import RerankerService
 from backend.config.settings import settings
+from backend.utils.error_handler import get_sse_error_response
+from backend.utils.source_converter import convert_docs_to_sources
 
 if TYPE_CHECKING:
     from backend.services.hybrid_search_service import HybridSearchService
@@ -521,15 +523,7 @@ class RAGService:
                 retrieved_docs = await self._apply_reranking(query, retrieved_docs, top_k)
 
             # 2. 검색된 문서를 먼저 전송 (스트리밍 시작 전)
-            sources_data = []
-            for doc in retrieved_docs:
-                sources_data.append({
-                    "id": str(doc.get("id", "")),
-                    "score": doc.get("score", 0.0),
-                    "text": doc.get("payload", {}).get("text", ""),
-                    "metadata": {k: v for k, v in doc.get("payload", {}).items() if k != "text"}
-                })
-
+            sources_data = convert_docs_to_sources(retrieved_docs)
             yield f'data: {json.dumps({"sources": sources_data}, ensure_ascii=False)}\n\n'
 
             # 단계 이벤트: 생성 단계
@@ -553,4 +547,4 @@ class RAGService:
 
         except Exception as e:
             logger.error(f"RAG stream chat failed: {e}")
-            yield f'data: {{"error": "스트리밍 실패: {str(e)}"}}\n\n'
+            yield get_sse_error_response(e, "stream")

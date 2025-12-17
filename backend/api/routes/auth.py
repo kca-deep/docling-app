@@ -3,10 +3,13 @@
 로그인, 로그아웃, 사용자 정보 조회, 회원가입, 사용자 관리
 """
 import logging
+import asyncio
+import json
 from datetime import timedelta
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from sqlalchemy.orm import Session
 
@@ -362,6 +365,71 @@ async def get_pending_count(
     """
     users = auth_service.get_pending_users(db)
     return PendingCountResponse(pending_count=len(users))
+
+
+@router.get("/pending-count/stream")
+async def get_pending_count_stream(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    승인 대기 사용자 수 실시간 스트리밍 (SSE)
+
+    관리자 네비게이션 배지 실시간 업데이트용
+    - 5초마다 상태 체크
+    - 변경 시에만 이벤트 전송
+    - 30초마다 heartbeat
+    """
+    async def event_generator():
+        previous_count = None
+        check_interval = 5
+        heartbeat_counter = 0
+
+        try:
+            while True:
+                try:
+                    # DB 세션 새로 생성 (long-running connection)
+                    from backend.database import SessionLocal
+                    local_db = SessionLocal()
+                    try:
+                        users = auth_service.get_pending_users(local_db)
+                        current_count = len(users)
+                    finally:
+                        local_db.close()
+
+                    # 변경 시 또는 첫 연결 시 전송
+                    if current_count != previous_count:
+                        data = json.dumps({"pending_count": current_count})
+                        yield f"data: {data}\n\n"
+                        previous_count = current_count
+                        heartbeat_counter = 0
+                    else:
+                        heartbeat_counter += 1
+                        if heartbeat_counter >= 6:
+                            yield ": heartbeat\n\n"
+                            heartbeat_counter = 0
+
+                    await asyncio.sleep(check_interval)
+
+                except asyncio.CancelledError:
+                    logger.debug("Pending count SSE stream cancelled")
+                    break
+                except Exception as e:
+                    logger.error(f"Pending count SSE error: {e}")
+                    yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                    await asyncio.sleep(check_interval)
+        finally:
+            logger.debug("Pending count SSE stream closed")
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
+    )
 
 
 def _user_to_list_response(user: User) -> UserListResponse:

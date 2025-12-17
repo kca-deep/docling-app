@@ -140,39 +140,47 @@ export const InputArea = memo(function InputArea({
   const [modelOptions, setModelOptions] = useState<ModelOption[]>(fallbackModels);
   const [isLoadingModels, setIsLoadingModels] = useState(true);
 
-  // LLM 모델 상태 가져오기
-  const fetchLLMModels = useCallback(async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/health/llm-models`, {
-        credentials: 'include'
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setModelOptions(data.models || []);
+  // 모델 상태 업데이트 처리 (SSE 이벤트 또는 fallback fetch에서 호출)
+  const handleModelStatusUpdate = useCallback((models: ModelOption[]) => {
+    setModelOptions(models);
+    setIsLoadingModels(false);
 
-        // 현재 선택된 모델이 unhealthy면 healthy한 모델로 전환
-        const currentModel = data.models?.find((m: ModelOption) => m.key === selectedModel);
-        if (currentModel && currentModel.status !== "healthy") {
-          const healthyModel = data.models?.find((m: ModelOption) => m.status === "healthy");
-          if (healthyModel) {
-            onModelChange(healthyModel.key);
-            toast.info(`${currentModel.label} 서버가 오프라인입니다. ${healthyModel.label}로 전환되었습니다.`);
-          }
-        }
+    // 현재 선택된 모델이 unhealthy면 healthy한 모델로 전환
+    const currentModel = models.find((m: ModelOption) => m.key === selectedModel);
+    if (currentModel && currentModel.status !== "healthy") {
+      const healthyModel = models.find((m: ModelOption) => m.status === "healthy");
+      if (healthyModel) {
+        onModelChange(healthyModel.key);
+        toast.info(`${currentModel.label} 서버가 오프라인입니다. ${healthyModel.label}로 전환되었습니다.`);
       }
-    } catch (error) {
-      console.error("Failed to fetch LLM models:", error);
-    } finally {
-      setIsLoadingModels(false);
     }
   }, [selectedModel, onModelChange]);
 
-  // 마운트 시 + 30초 간격 polling
+  // SSE로 LLM 모델 상태 실시간 구독
   useEffect(() => {
-    fetchLLMModels();
-    const interval = setInterval(fetchLLMModels, 30000);
-    return () => clearInterval(interval);
-  }, [fetchLLMModels]);
+    const eventSource = new EventSource(`${API_BASE_URL}/api/health/llm-models/stream`);
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.models) {
+          handleModelStatusUpdate(data.models);
+        }
+      } catch (e) {
+        console.error("LLM models SSE parse error:", e);
+      }
+    };
+
+    eventSource.onerror = () => {
+      // EventSource는 연결 끊김 시 자동 재연결 시도
+      // 에러 로그만 남기고 재연결은 브라우저가 처리
+      console.warn("LLM models SSE connection error, will retry automatically");
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, [handleModelStatusUpdate]);
 
   // 자동 포커스 제거 - 모바일에서 키보드가 자동으로 올라오는 문제 방지
   // useEffect(() => {

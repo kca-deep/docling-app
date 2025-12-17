@@ -4,12 +4,6 @@ import { useEffect, useState, memo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
   Sparkles,
   Database,
   FileText,
@@ -316,8 +310,6 @@ export const SuggestedPrompts = memo(function SuggestedPrompts({
         {/* 질문 그리드 - 모바일 1열, 데스크탑 2열 */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {prompts.slice(0, 4).map((prompt, index) => {
-            const isLongText = prompt.length > 40;
-
             // 카드 내용 컴포넌트
             const CardContent = (
               <button
@@ -374,35 +366,6 @@ export const SuggestedPrompts = memo(function SuggestedPrompts({
                 </div>
               </button>
             );
-
-            // 긴 텍스트인 경우 툴팁으로 감싸기
-            if (isLongText) {
-              return (
-                <TooltipProvider key={index} delayDuration={500}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div
-                        className="animate-in fade-in slide-in-from-bottom-2"
-                        style={{
-                          animationDelay: `${index * 100}ms`,
-                          animationDuration: "400ms",
-                          animationFillMode: "backwards",
-                        }}
-                      >
-                        {CardContent}
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent
-                      side="top"
-                      className="max-w-xs text-sm p-3"
-                      sideOffset={8}
-                    >
-                      {prompt}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              );
-            }
 
             return (
               <div
