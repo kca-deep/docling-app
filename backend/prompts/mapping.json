@@ -117,6 +117,78 @@
         "temperature": 0.3,
         "reasoning_level": "medium"
       }
+    },
+    "kca-employment": {
+      "prompt_file": "kca-employment_prompt.md",
+      "description": "kca-employment 컬렉션 프롬프트",
+      "recommended_params": {
+        "top_k": 10,
+        "temperature": 0.3,
+        "reasoning_level": "medium"
+      }
+    },
+    "kca-foundation": {
+      "prompt_file": "kca-foundation_prompt.md",
+      "description": "kca-foundation 컬렉션 프롬프트",
+      "recommended_params": {
+        "top_k": 10,
+        "temperature": 0.3,
+        "reasoning_level": "medium"
+      }
+    },
+    "kca-document": {
+      "prompt_file": "kca-document_prompt.md",
+      "description": "kca-document 컬렉션 프롬프트",
+      "recommended_params": {
+        "top_k": 10,
+        "temperature": 0.3,
+        "reasoning_level": "medium"
+      }
+    },
+    "kca-finance": {
+      "prompt_file": "kca-finance_prompt.md",
+      "description": "kca-finance 컬렉션 프롬프트",
+      "recommended_params": {
+        "top_k": 10,
+        "temperature": 0.3,
+        "reasoning_level": "medium"
+      }
+    },
+    "kca-research": {
+      "prompt_file": "kca-research_prompt.md",
+      "description": "kca-research 컬렉션 프롬프트",
+      "recommended_params": {
+        "top_k": 10,
+        "temperature": 0.3,
+        "reasoning_level": "medium"
+      }
+    },
+    "kca-discipline": {
+      "prompt_file": "kca-discipline_prompt.md",
+      "description": "kca-discipline 컬렉션 프롬프트",
+      "recommended_params": {
+        "top_k": 10,
+        "temperature": 0.3,
+        "reasoning_level": "medium"
+      }
+    },
+    "kca-facilities": {
+      "prompt_file": "kca-facilities_prompt.md",
+      "description": "kca-facilities 컬렉션 프롬프트",
+      "recommended_params": {
+        "top_k": 10,
+        "temperature": 0.3,
+        "reasoning_level": "medium"
+      }
+    },
+    "kca-certification": {
+      "prompt_file": "kca-certification_prompt.md",
+      "description": "kca-certification 컬렉션 프롬프트",
+      "recommended_params": {
+        "top_k": 10,
+        "temperature": 0.3,
+        "reasoning_level": "medium"
+      }
     }
   },
   "default_prompt": "default.md",

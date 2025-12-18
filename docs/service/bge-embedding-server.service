@@ -1,5 +1,5 @@
 [Unit]
-Description=BGE-M3-Korean Embedding Server v2.1
+Description=BGE-M3-Korean Embedding Server v2.2 (VRAM Optimized)
 After=network.target
 
 [Service]
@@ -16,6 +16,11 @@ Environment="EMBEDDING_DEVICE=cuda"
 Environment="EMBEDDING_WORKERS=1"
 Environment="EMBEDDING_BATCH_SIZE=16"
 Environment="EMBEDDING_MODEL=upskyy/bge-m3-korean"
+
+# VRAM optimization settings (v2.2)
+Environment="EMBEDDING_CONCURRENCY=1"
+Environment="EMBEDDING_CACHE_CLEAR_INTERVAL=10"
+Environment="EMBEDDING_MAX_TEXTS=30"
 
 # PyTorch CUDA memory management (VRAM leak prevention)
 Environment="PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:64,garbage_collection_threshold:0.5"

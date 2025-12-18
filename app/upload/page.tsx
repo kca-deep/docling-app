@@ -685,7 +685,7 @@ function UploadPageContent() {
       <div className="flex items-center">
         <h1 className="text-lg font-semibold flex items-center gap-2">
           <Upload className="h-5 w-5 text-muted-foreground" />
-          문서업로드
+          벡터임베딩
         </h1>
       </div>
 

@@ -708,7 +708,7 @@ export default function ParsePage() {
                   <ScrollArea className={cn(
                     "w-full rounded-xl border border-border/50 transition-all duration-300",
                     processing
-                      ? "flex-1 min-h-0 max-h-[calc(100vh-400px)]"
+                      ? "h-[calc(100vh-520px)]"
                       : files.length <= 3
                         ? "h-auto max-h-64"
                         : "h-64"

@@ -23,7 +23,11 @@ Environment="DOCLING_SERVE_RESULT_REMOVAL_DELAY=60"
 
 # GPU settings - strong memory limit
 Environment="DOCLING_DEVICE=cuda:0"
-Environment="DOCLING_SERVE_LOAD_MODELS_AT_BOOT=false"
+Environment="DOCLING_SERVE_LOAD_MODELS_AT_BOOT=true"
+
+# Model sharing and cache optimization (P1 VRAM optimization)
+Environment="DOCLING_SERVE_ENG_LOC_SHARE_MODELS=true"
+Environment="DOCLING_SERVE_OPTIONS_CACHE_SIZE=1"
 
 # PyTorch CUDA memory management - aggressive optimization (v2)
 # Changed: garbage_collection_threshold 0.7 -> 0.5 (more aggressive GC)

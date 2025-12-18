@@ -338,7 +338,7 @@ export default function ExcelEmbeddingPage() {
       <div className="flex items-center">
         <h1 className="text-lg font-semibold flex items-center gap-2">
           <Sheet className="h-5 w-5 text-muted-foreground" />
-          엑셀업로드
+          엑셀임베딩
         </h1>
       </div>
 

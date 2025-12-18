@@ -76,7 +76,7 @@ export default function HomePage() {
       {/* Hero Section */}
       <div className="relative w-full text-center min-h-[calc(100vh-4rem)] lg:min-h-[85vh] flex flex-col justify-center overflow-hidden">
         {/* Background layers */}
-        <div className="absolute inset-0 z-0">
+        <div className="absolute inset-0 z-0 pointer-events-none">
           <div className="absolute inset-0 bg-background" />
           {/* Dynamic Mesh Gradient */}
           <motion.div
@@ -98,7 +98,7 @@ export default function HomePage() {
                 repeatType: "reverse",
                 ease: "easeInOut"
               }}
-              className="absolute -top-[50%] -left-[50%] w-[200%] h-[200%] bg-[radial-gradient(circle_farthest-corner_at_center,var(--chart-1)_0%,transparent_50%)] opacity-20 dark:opacity-30 blur-[100px]"
+              className="absolute -top-[50%] -left-[50%] w-[200%] h-[200%] bg-[radial-gradient(circle_farthest-corner_at_center,var(--chart-1)_0%,transparent_50%)] opacity-40 dark:opacity-50 blur-[100px] will-change-transform"
             />
             <motion.div
               animate={{
@@ -114,7 +114,7 @@ export default function HomePage() {
                 ease: "easeInOut",
                 delay: 2
               }}
-              className="absolute -bottom-[50%] -right-[50%] w-[200%] h-[200%] bg-[radial-gradient(circle_farthest-corner_at_center,var(--chart-3)_0%,transparent_50%)] opacity-20 dark:opacity-30 blur-[100px]"
+              className="absolute -bottom-[50%] -right-[50%] w-[200%] h-[200%] bg-[radial-gradient(circle_farthest-corner_at_center,var(--chart-3)_0%,transparent_50%)] opacity-40 dark:opacity-50 blur-[100px] will-change-transform"
             />
           </motion.div>
           {/* Dot pattern overlay */}

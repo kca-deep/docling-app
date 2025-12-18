@@ -141,15 +141,15 @@ export function NavHeader() {
   // KCA-i 챗봇 아이템
   const chatItem: NavItem = { href: "/chat?fullscreen=true", label: "KCA-i", icon: MessageSquare, requiresAuth: false }
 
-  // 문서 그룹
+  // 임베딩 그룹
   const documentGroup: NavGroup = {
-    label: "문서",
+    label: "임베딩",
     icon: FileStack,
     requiresAuth: true,
     items: [
       { href: "/parse", label: "문서변환", icon: FileText, requiresAuth: true },
-      { href: "/upload", label: "문서업로드", icon: Database, requiresAuth: true },
-      { href: "/excel-embedding", label: "엑셀업로드", icon: SheetIcon, requiresAuth: true },
+      { href: "/upload", label: "벡터임베딩", icon: Database, requiresAuth: true },
+      { href: "/excel-embedding", label: "엑셀임베딩", icon: SheetIcon, requiresAuth: true },
     ],
   }
 
