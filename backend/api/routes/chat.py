@@ -33,6 +33,7 @@ from backend.models.user import User
 from backend.utils.exaone_utils import clean_thought_tags_simple, is_exaone_model
 from backend.utils.error_handler import get_http_error_detail, get_sse_error_response
 from backend.utils.source_converter import extract_sources_info, convert_docs_to_sources
+from backend.utils.token_counter import count_chat_tokens
 
 # 로거 설정
 logger = logging.getLogger("uvicorn")
@@ -688,19 +689,14 @@ async def chat_stream(
                 final_response_time_ms = int((time.time() - start_time) * 1000)
                 final_token_count = collected_response.get("usage", {}).get("total_tokens", 0)
 
-                # 스트리밍에서 usage가 없는 경우 토큰 수 추정
-                # 한국어/영어 혼합 텍스트의 경우 문자 수 기반 추정 (대략 2~3자당 1토큰)
+                # 스트리밍에서 usage가 없는 경우 tiktoken으로 정확한 토큰 수 계산
                 if final_token_count == 0 and collected_response.get("answer"):
-                    answer_text = collected_response["answer"]
-                    # 간단한 추정: 문자 수 / 2 (한국어 기준, 영어는 더 적음)
-                    estimated_output_tokens = max(1, len(answer_text) // 2)
-                    # 입력 토큰 추정: 질문 + 검색된 문서 (대략적 추정)
-                    input_text = chat_request.message
-                    for doc in collected_response.get("retrieved_docs", []):
-                        if isinstance(doc, dict):
-                            input_text += doc.get("text", "")
-                    estimated_input_tokens = max(1, len(input_text) // 2)
-                    final_token_count = estimated_input_tokens + estimated_output_tokens
+                    token_stats = count_chat_tokens(
+                        message=chat_request.message,
+                        retrieved_docs=collected_response.get("retrieved_docs"),
+                        answer=collected_response["answer"]
+                    )
+                    final_token_count = token_stats["total_tokens"]
 
                 final_performance_metrics = {
                     "response_time_ms": final_response_time_ms,

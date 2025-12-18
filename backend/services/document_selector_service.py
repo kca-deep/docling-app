@@ -29,8 +29,10 @@ class DocumentSelectorService:
         "middle": 0.40,  # 중간 40% (본문)
         "end": 0.20,     # 끝 20% (부칙, 별표)
     }
-    # 대략적인 토큰 추정: 한글 1글자 ≈ 0.5~1 토큰
-    CHARS_PER_TOKEN = 2
+    # 토큰-문자 변환 비율 (한글 기준)
+    # - 한글: 약 0.8 토큰/글자 → 1.25 글자/토큰
+    # - tiktoken cl100k_base 인코딩 기준 측정값
+    CHARS_PER_TOKEN = 1.25
 
     def get_documents_for_collection(
         self,
