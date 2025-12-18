@@ -1013,10 +1013,17 @@ export function ChatContainer() {
             onStopStreaming={handleStopStreaming}
             deepThinkingEnabled={deepThinkingEnabled}
             onDeepThinkingChange={setDeepThinkingEnabled}
-            // 문서 업로드 버튼
+            // 문서 업로드 관련
             isDocumentUploading={isDocumentUploading}
             isDocumentReady={isDocumentReady}
             onFileSelect={handleFileSelect}
+            // 문서 컨텍스트 바용
+            uploadedFilenames={uploadedFilenames}
+            documentPageCount={documentUploadStatus?.pageCount}
+            documentProgress={documentUploadStatus?.progress}
+            documentStage={documentUploadStatus?.stage}
+            documentError={documentUploadStatus?.error}
+            onClearDocument={handleClearDocument}
             />
           </div>
         </div>

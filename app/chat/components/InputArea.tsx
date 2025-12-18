@@ -27,8 +27,10 @@ import {
   Brain,
 } from "lucide-react";
 import { DocumentUploadButton } from "./DocumentUploadButton";
+import { DocumentContextBar } from "./DocumentContextBar";
 import { cn } from "@/lib/utils";
 import type { QuotedMessage, Collection, ChatSettings } from "../types";
+import type { ProcessingStage } from "../hooks/useDocumentUpload";
 
 
 interface InputAreaProps {
@@ -52,10 +54,17 @@ interface InputAreaProps {
   onStopStreaming?: () => void;
   deepThinkingEnabled: boolean;
   onDeepThinkingChange: (enabled: boolean) => void;
-  // 문서 업로드 관련 (버튼만)
+  // 문서 업로드 관련
   isDocumentUploading?: boolean;
   isDocumentReady?: boolean;
   onFileSelect?: (files: File[]) => void;
+  // 문서 컨텍스트 바용
+  uploadedFilenames?: string[];
+  documentPageCount?: number;
+  documentProgress?: number;
+  documentStage?: ProcessingStage;
+  documentError?: string | null;
+  onClearDocument?: () => void;
 }
 
 
@@ -80,10 +89,17 @@ export const InputArea = memo(function InputArea({
   onSettingsPanelChange,
   deepThinkingEnabled,
   onDeepThinkingChange,
-  // 문서 업로드 관련 (버튼만)
+  // 문서 업로드 관련
   isDocumentUploading = false,
   isDocumentReady = false,
   onFileSelect,
+  // 문서 컨텍스트 바용
+  uploadedFilenames = [],
+  documentPageCount,
+  documentProgress = 0,
+  documentStage,
+  documentError,
+  onClearDocument,
 }: InputAreaProps) {
   const [isComposing, setIsComposing] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -139,6 +155,21 @@ export const InputArea = memo(function InputArea({
                 <X className="h-3.5 w-3.5" />
               </Button>
             </div>
+          </div>
+        )}
+
+        {/* 문서 컨텍스트 바 - 업로드 중이거나 파일이 있을 때 표시 */}
+        {(isDocumentUploading || uploadedFilenames.length > 0) && onClearDocument && (
+          <div className="mb-2 rounded-xl overflow-hidden border border-border/40">
+            <DocumentContextBar
+              filenames={uploadedFilenames}
+              pageCount={documentPageCount}
+              isProcessing={isDocumentUploading}
+              progress={documentProgress}
+              stage={documentStage}
+              error={documentError}
+              onRemove={onClearDocument}
+            />
           </div>
         )}
 

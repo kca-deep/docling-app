@@ -1,15 +1,15 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Upload, FileText, Loader2, CheckCircle2, XCircle, Download, Trash2, FolderOpen, Save, Settings, Zap, Sparkles, Eye, ChevronDown, MoreVertical } from "lucide-react";
+import { Upload, FileText, Loader2, CheckCircle2, XCircle, Download, Trash2, FolderOpen, Save, Settings, Zap, Sparkles, Eye, ChevronDown, StopCircle, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { API_BASE_URL } from "@/lib/api-config";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -19,8 +19,6 @@ import { MarkdownMessage } from "@/components/markdown-message";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Skeleton } from "@/components/ui/skeleton";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { CollectionSelector } from "@/components/ui/collection-selector";
 import { QdrantCollection } from "@/app/upload/types";
@@ -106,6 +104,19 @@ export default function ParsePage() {
   // 폴링 인터벌 추적 (메모리 누수 방지)
   const pollingIntervalsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
+  // 파싱 중지 관련 상태
+  const [isStopRequested, setIsStopRequested] = useState(false);
+  const stopRequestedRef = useRef(false);
+
+  // 폴링 Promise resolve 함수 추적 (중지 시 resolve 호출용)
+  const pollingResolversRef = useRef<Map<string, () => void>>(new Map());
+
+  // 파일 상태 ref (handleProcess에서 최신 상태 참조용)
+  const filesRef = useRef<FileStatus[]>(files);
+  useEffect(() => {
+    filesRef.current = files;
+  }, [files]);
+
   // 컬렉션 목록 로드
   const fetchCollections = async () => {
     setCollectionsLoading(true);
@@ -133,13 +144,18 @@ export default function ParsePage() {
     fetchCollections();
   }, []);
 
-  // 컴포넌트 언마운트 시 모든 폴링 인터벌 정리
+  // 컴포넌트 언마운트 시 모든 폴링 정리
   useEffect(() => {
     return () => {
       pollingIntervalsRef.current.forEach((interval) => {
         clearInterval(interval);
       });
       pollingIntervalsRef.current.clear();
+      // Promise resolve 함수도 정리
+      pollingResolversRef.current.forEach((resolve) => {
+        resolve();
+      });
+      pollingResolversRef.current.clear();
     };
   }, []);
 
@@ -295,12 +311,23 @@ export default function ParsePage() {
   const clearPollingInterval = (taskId: string, pollInterval: NodeJS.Timeout) => {
     clearInterval(pollInterval);
     pollingIntervalsRef.current.delete(taskId);
+    pollingResolversRef.current.delete(taskId);
   };
 
   // 일괄 파싱용 진행률 polling
   const pollBatchProgress = async (taskId: string, index: number): Promise<void> => {
     return new Promise((resolve) => {
+      // resolve 함수 저장 (중지 시 외부에서 호출 가능하도록)
+      pollingResolversRef.current.set(taskId, resolve);
+
       const pollInterval = setInterval(async () => {
+        // 중지 요청 체크
+        if (stopRequestedRef.current) {
+          clearPollingInterval(taskId, pollInterval);
+          resolve();
+          return;
+        }
+
         try {
           const response = await fetch(`${API_BASE_URL}/api/documents/progress/${taskId}`, {
             credentials: 'include'
@@ -371,17 +398,83 @@ export default function ParsePage() {
     });
   };
 
+  // 파싱 중지 핸들러
+  const handleStopParsing = () => {
+    stopRequestedRef.current = true;
+    setIsStopRequested(true);
+
+    // 진행 중인 폴링 모두 정리
+    pollingIntervalsRef.current.forEach((interval) => {
+      clearInterval(interval);
+    });
+    pollingIntervalsRef.current.clear();
+
+    // 대기 중인 모든 Promise resolve (await 해제)
+    pollingResolversRef.current.forEach((resolve) => {
+      resolve();
+    });
+    pollingResolversRef.current.clear();
+
+    // "processing" 상태 파일을 "pending"으로 리셋 (재시작 시 처음부터)
+    setFiles(prev => prev.map(f =>
+      f.status === "processing"
+        ? { ...f, status: "pending" as const, progress: 0, progressInfo: undefined, result: undefined }
+        : f
+    ));
+
+    toast.info("파싱이 중지되었습니다.");
+  };
+
+  // 미변환/실패 파일 재시작 핸들러
+  const handleRestartFailed = () => {
+    // 중지 상태 초기화
+    stopRequestedRef.current = false;
+    setIsStopRequested(false);
+    // "processing", "error" 상태 파일을 "pending"으로 리셋
+    setFiles(prev => {
+      const updatedFiles = prev.map(f =>
+        (f.status === "error" || f.status === "processing")
+          ? { ...f, status: "pending" as const, progress: 0, progressInfo: undefined, result: undefined }
+          : f
+      );
+      // 상태 업데이트 후 자동으로 파싱 시작 (다음 이벤트 루프에서)
+      setTimeout(() => {
+        const hasPending = updatedFiles.some(f => f.status === "pending");
+        if (hasPending) {
+          handleProcess();
+        }
+      }, 0);
+      return updatedFiles;
+    });
+  };
+
   const handleProcess = async () => {
     setProcessing(true);
+    stopRequestedRef.current = false;
+    setIsStopRequested(false);
 
-    for (let i = 0; i < files.length; i++) {
-      if (files[i].status === "pending") {
-        await processFile(files[i], i);
+    // filesRef를 사용하여 항상 최신 파일 상태 참조
+    const currentFiles = filesRef.current;
+    for (let i = 0; i < currentFiles.length; i++) {
+      // 중지 요청 체크
+      if (stopRequestedRef.current) {
+        toast.info("파싱이 중지되었습니다. 완료된 문서까지 저장할 수 있습니다.");
+        break;
+      }
+
+      // 최신 상태를 다시 확인 (재시작 시 상태가 변경될 수 있음)
+      const latestFiles = filesRef.current;
+      if (latestFiles[i]?.status === "pending") {
+        await processFile(latestFiles[i], i);
       }
     }
 
     setProcessing(false);
-    toast.success("일괄 파싱이 완료되었습니다!");
+
+    // 완료 메시지 (중지되지 않은 경우에만)
+    if (!stopRequestedRef.current) {
+      toast.success("일괄 파싱이 완료되었습니다!");
+    }
   };
 
   const handleReset = () => {
@@ -513,7 +606,10 @@ export default function ParsePage() {
           className="space-y-4"
         >
           {/* File Upload Card */}
-          <Card className="min-w-0 overflow-hidden border-border/50 bg-background/60 backdrop-blur-sm">
+          <Card className={cn(
+            "min-w-0 overflow-hidden border-border/50 bg-background/60 backdrop-blur-sm",
+            processing && files.length > 0 && "flex flex-col max-h-[calc(100vh-180px)]"
+          )}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <div className="p-1.5 rounded-lg bg-[color:var(--chart-3)]/10">
@@ -523,13 +619,18 @@ export default function ParsePage() {
               </CardTitle>
               <CardDescription>변환할 문서 파일을 선택하세요 (다중 선택 가능)</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className={cn(
+              "space-y-4",
+              processing && files.length > 0 && "flex-1 flex flex-col min-h-0 overflow-hidden"
+            )}>
               <div
-                className={`relative border-2 border-dashed rounded-2xl h-52 text-center transition-all duration-300 overflow-hidden group ${
+                className={cn(
+                  "relative border-2 border-dashed rounded-2xl text-center transition-all duration-300 overflow-hidden group",
+                  processing ? "h-16" : "h-52",
                   isDragging
                     ? "border-[color:var(--chart-3)] bg-[color:var(--chart-3)]/5 scale-[1.01]"
                     : "border-border/50 hover:border-[color:var(--chart-3)]/50 hover:bg-muted/30"
-                }`}
+                )}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
@@ -545,32 +646,47 @@ export default function ParsePage() {
                 />
                 <label
                   htmlFor="file-upload"
-                  className="cursor-pointer h-full flex flex-col items-center justify-center space-y-4 relative z-10"
+                  className={cn(
+                    "cursor-pointer h-full flex items-center justify-center relative z-10",
+                    processing ? "flex-row gap-3 px-4" : "flex-col space-y-4"
+                  )}
                 >
-                  <div className={`p-4 rounded-full transition-colors ${
+                  <div className={cn(
+                    "rounded-full transition-colors",
+                    processing ? "p-2" : "p-4",
                     isDragging ? "bg-[color:var(--chart-3)]/20" : "bg-muted/50"
-                  }`}>
+                  )}>
                     <FolderOpen
-                      className={`w-12 h-12 transition-all ${
+                      className={cn(
+                        "transition-all",
+                        processing ? "w-5 h-5" : "w-12 h-12",
                         isDragging ? "text-[color:var(--chart-3)] scale-110" : "text-muted-foreground group-hover:scale-105"
-                      }`}
+                      )}
                     />
                   </div>
-                  <div>
-                    <p className="text-base font-medium">
-                      파일 선택 또는{" "}
-                      <span className="text-[color:var(--chart-3)]">드래그 앤 드롭</span>
+                  <div className={processing ? "text-left" : "text-center"}>
+                    <p className={cn("font-medium", processing ? "text-sm" : "text-base")}>
+                      {processing ? "파일 추가" : (
+                        <>
+                          파일 선택 또는{" "}
+                          <span className="text-[color:var(--chart-3)]">드래그 앤 드롭</span>
+                        </>
+                      )}
                     </p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      PDF, DOCX, PPTX (다중 선택 가능)
-                    </p>
+                    {!processing && (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        PDF, DOCX, PPTX (다중 선택 가능)
+                      </p>
+                    )}
                   </div>
                 </label>
               </div>
 
               {files.length > 0 && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
+                <div className={cn(
+                  processing ? "flex-1 flex flex-col min-h-0 gap-3" : "space-y-3"
+                )}>
+                  <div className="flex items-center justify-between flex-shrink-0">
                     <h3 className="text-sm font-medium flex items-center gap-2">
                       선택된 파일
                       <Badge variant="secondary" className="bg-[color:var(--chart-3)]/10 text-[color:var(--chart-3)]">
@@ -589,7 +705,14 @@ export default function ParsePage() {
                     </Button>
                   </div>
 
-                  <ScrollArea className={`w-full rounded-xl border border-border/50 ${files.length <= 3 ? 'h-auto max-h-64' : 'h-64'}`}>
+                  <ScrollArea className={cn(
+                    "w-full rounded-xl border border-border/50 transition-all duration-300",
+                    processing
+                      ? "flex-1 min-h-0 max-h-[calc(100vh-400px)]"
+                      : files.length <= 3
+                        ? "h-auto max-h-64"
+                        : "h-64"
+                  )}>
                     <div className="p-3 space-y-1.5">
                       {files.map((fileStatus, index) => (
                         <div
@@ -664,31 +787,6 @@ export default function ParsePage() {
                   </div>
                 </ScrollArea>
 
-                {processing && (
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">전체 진행률</span>
-                      <span className="font-medium">
-                        {successCount + errorCount} / {files.length}
-                      </span>
-                    </div>
-                    <div className="space-y-2">
-                      <Progress
-                        value={((successCount + errorCount) / files.length) * 100}
-                        className="h-2"
-                      />
-                      <div className="space-y-1.5">
-                        {files.filter(f => f.status === "processing").map((f, idx) => (
-                          <div key={idx} className="flex items-center gap-2">
-                            <Skeleton className="h-3 w-3 rounded-full flex-shrink-0" />
-                            <Skeleton className="h-3 flex-1" />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
                   {!processing && (successCount > 0 || errorCount > 0) && (
                     <div className="flex gap-4 text-sm p-3 rounded-xl bg-muted/30 border border-border/50">
                       {successCount > 0 && (
@@ -706,17 +804,18 @@ export default function ParsePage() {
                     </div>
                   )}
 
-                  <div className="flex gap-3">
+                  <div className="flex flex-wrap gap-2 flex-shrink-0">
+                    {/* 메인 파싱 버튼 */}
                     <Button
                       onClick={handleProcess}
                       disabled={files.length === 0 || processing || pendingCount === 0}
-                      className="flex-1 shadow-lg shadow-[color:var(--chart-3)]/20 hover:shadow-[color:var(--chart-3)]/40 hover:scale-[1.02] active:scale-[0.98] transition-all bg-[color:var(--chart-3)] hover:bg-[color:var(--chart-3)]/90"
+                      className={`shadow-lg shadow-[color:var(--chart-3)]/20 hover:shadow-[color:var(--chart-3)]/40 hover:scale-[1.02] active:scale-[0.98] transition-all bg-[color:var(--chart-3)] hover:bg-[color:var(--chart-3)]/90 ${!processing && pendingCount > 0 ? 'flex-1' : ''}`}
                       size="lg"
                     >
                       {processing ? (
                         <>
                           <Loader2 className="w-5 h-5 animate-spin" />
-                          <span>파싱 중... ({successCount + errorCount}/{files.length})</span>
+                          <span>{successCount + errorCount}/{files.length}</span>
                         </>
                       ) : (
                         <>
@@ -725,25 +824,65 @@ export default function ParsePage() {
                         </>
                       )}
                     </Button>
+
+                    {/* 파싱 중지 버튼 - processing 중일 때만 */}
+                    {processing && !isStopRequested && (
+                      <Button
+                        variant="outline"
+                        size="lg"
+                        onClick={handleStopParsing}
+                        className="border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <StopCircle className="w-5 h-5" />
+                        <span>중지</span>
+                      </Button>
+                    )}
+
+                    {/* 중지 요청됨 표시 */}
+                    {processing && isStopRequested && (
+                      <Button variant="outline" size="lg" disabled className="border-amber-500/50 text-amber-600">
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>중지 중...</span>
+                      </Button>
+                    )}
+
+                    {/* 미변환 파일 재시작 버튼 */}
+                    {!processing && (errorCount > 0 || (isStopRequested && pendingCount > 0)) && (
+                      <Button
+                        variant="outline"
+                        size="lg"
+                        onClick={handleRestartFailed}
+                        className="border-[color:var(--chart-3)]/50 text-[color:var(--chart-3)] hover:bg-[color:var(--chart-3)]/10"
+                      >
+                        <RotateCcw className="w-5 h-5" />
+                        <span>재시작</span>
+                      </Button>
+                    )}
+
+                    {/* 완료된 문서 저장 버튼 */}
                     {successCount > 0 && !processing && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="outline" size="lg" className="border-border/50 hover:bg-muted/50">
-                            <MoreVertical className="w-5 h-5" />
-                            <span>작업</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={handleSaveAllDocuments}>
-                            <Save className="w-4 h-4 mr-2" />
-                            전체 저장
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={downloadAll}>
-                            <Download className="w-4 h-4 mr-2" />
-                            전체 다운로드
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <Button
+                        variant="outline"
+                        size="lg"
+                        onClick={handleSaveAllDocuments}
+                        className="border-[color:var(--chart-2)]/50 text-[color:var(--chart-2)] hover:bg-[color:var(--chart-2)]/10"
+                      >
+                        <Save className="w-5 h-5" />
+                        <span>저장</span>
+                      </Button>
+                    )}
+
+                    {/* 다운로드 버튼 */}
+                    {successCount > 0 && !processing && (
+                      <Button
+                        variant="outline"
+                        size="lg"
+                        onClick={downloadAll}
+                        className="border-border/50 hover:bg-muted/50"
+                      >
+                        <Download className="w-5 h-5" />
+                        <span>다운로드</span>
+                      </Button>
                     )}
                   </div>
                 </div>

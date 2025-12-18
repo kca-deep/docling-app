@@ -3,6 +3,7 @@
 import { useRef, useCallback } from "react";
 import { Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import {
   Tooltip,
   TooltipContent,
@@ -68,9 +69,22 @@ export function DocumentUploadButton({
         }
       }
 
-      // 유효하지 않은 파일이 있으면 경고
+      // 유효하지 않은 파일이 있으면 toast 경고
       if (invalidFiles.length > 0) {
-        alert(`지원하지 않는 파일 형식입니다:\n${invalidFiles.join(", ")}\n\n지원 형식: ${ALLOWED_EXTENSIONS.join(", ")}`);
+        toast.error("지원하지 않는 파일 형식", {
+          description: invalidFiles.length === 1
+            ? `"${invalidFiles[0]}"은(는) 업로드할 수 없습니다.`
+            : `${invalidFiles.slice(0, 3).join(", ")}${invalidFiles.length > 3 ? ` 외 ${invalidFiles.length - 3}개` : ""} 파일`,
+          action: {
+            label: "지원 형식 보기",
+            onClick: () => {
+              toast.info("지원되는 파일 형식", {
+                description: ALLOWED_EXTENSIONS.join(", "),
+                duration: 5000,
+              });
+            },
+          },
+        });
       }
 
       // 유효한 파일만 전달

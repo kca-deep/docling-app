@@ -43,6 +43,8 @@ from backend.services.http_client import http_manager
 # Qdrant 서비스 인스턴스 import (연결 종료용)
 from backend.api.routes.qdrant import qdrant_service as qdrant_service_main
 from backend.api.routes.chat import qdrant_service as qdrant_service_chat
+# DoclingService 인스턴스 import (VRAM 최적화 - 연결 종료용)
+from backend.services.docling_service import DoclingService
 
 # 로거 설정
 logger = logging.getLogger(__name__)
@@ -129,6 +131,14 @@ async def lifespan(app: FastAPI):
         print("[OK] Qdrant client connections closed successfully")
     except Exception as e:
         print(f"[WARN] Qdrant client shutdown error: {e}")
+
+    # DoclingService HTTP 클라이언트 연결 종료 (VRAM 최적화)
+    try:
+        docling_service = DoclingService()
+        await docling_service.close()
+        print("[OK] DoclingService client closed successfully")
+    except Exception as e:
+        print(f"[WARN] DoclingService shutdown error: {e}")
 
     # HTTP 클라이언트 연결 정리
     try:

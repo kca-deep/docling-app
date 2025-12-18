@@ -198,12 +198,12 @@ export function DocumentUploadStatus({
         <div
           className={cn(
             "w-auto max-w-[calc(100%-1rem)] sm:max-w-[85%] md:max-w-[70%]",
-            "bg-primary/10 rounded-2xl rounded-br-md border border-primary/20 overflow-hidden",
+            "bg-muted/50 dark:bg-muted/30 rounded-2xl rounded-br-md border border-border/50 overflow-hidden",
             "animate-in fade-in slide-in-from-right-2 duration-300"
           )}
         >
           {/* 상단: 파일 정보 + 닫기 버튼 */}
-          <div className="flex items-center gap-2 sm:gap-3 px-2.5 sm:px-3 py-2 border-b border-primary/10">
+          <div className="flex items-center gap-2 sm:gap-3 px-2.5 sm:px-3 py-2 border-b border-border/30">
             {/* 파일 아이콘 - 모바일에서 숨김 */}
             <div className="hidden sm:block">
               <FileIconBadge

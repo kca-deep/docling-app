@@ -57,6 +57,18 @@ class Settings(BaseSettings):
     # [개발 기본값] 프로덕션에서는 .env에서 실제 서버 URL로 변경
     DOCLING_BASE_URL: str = "http://localhost:8007"
 
+    # ===========================================
+    # Docling 동시성 제어 설정 (VRAM 최적화)
+    # ===========================================
+    # 동시 Docling 요청 수 (VRAM 관리)
+    DOCLING_CONCURRENCY: int = 2
+    # 동시성 제어 활성화 (false면 무제한)
+    DOCLING_USE_SEMAPHORE: bool = True
+    # 변환 완료 후 캐시 정리 여부
+    DOCLING_CLEAR_CACHE_AFTER_CONVERT: bool = True
+    # 캐시 정리 주기 (요청 수 기준, 0이면 매번)
+    DOCLING_CLEAR_CACHE_INTERVAL: int = 5
+
     # API 설정
     API_TITLE: str = "Docling Parse API"
     API_VERSION: str = "1.0.0"
@@ -65,7 +77,8 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:3001"]
 
     # 파일 업로드 설정
-    MAX_UPLOAD_SIZE_MB: int = 3  # MB 단위 (VRAM 오버부킹 방지)
+    MAX_UPLOAD_SIZE_MB: int = 50  # MB 단위 (문서변환용)
+    CHAT_MAX_UPLOAD_SIZE_MB: int = 3  # MB 단위 (AI챗봇용, VRAM 오버부킹 방지)
     ALLOWED_EXTENSIONS: List[str] = [".pdf", ".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls"]
 
     # 폴링 설정
@@ -227,8 +240,13 @@ class Settings(BaseSettings):
 
     @property
     def MAX_UPLOAD_SIZE(self) -> int:
-        """바이트 단위로 변환된 최대 업로드 크기"""
+        """바이트 단위로 변환된 최대 업로드 크기 (문서변환용)"""
         return self.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+
+    @property
+    def CHAT_MAX_UPLOAD_SIZE(self) -> int:
+        """바이트 단위로 변환된 최대 업로드 크기 (AI챗봇용)"""
+        return self.CHAT_MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
     @property
     def ALLOWED_EXTENSIONS_SET(self) -> set:

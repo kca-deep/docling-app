@@ -828,7 +828,7 @@ export function CollectionSelector({
             {renderSearchInput()}
 
             {/* 컬렉션 그리드 */}
-            {renderCollectionGrid(() => setOpen(false))}
+            {renderCollectionGrid(() => setOpen(false), 4)}
           </DialogContent>
         </Dialog>
       </div>

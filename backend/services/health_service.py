@@ -12,6 +12,7 @@ from sqlalchemy import text
 
 from backend.database import SessionLocal
 from backend.config.settings import settings
+from backend.utils.gpu_monitor import get_gpu_memory_info, get_gpu_utilization
 
 logger = logging.getLogger(__name__)
 
@@ -305,12 +306,30 @@ class HealthService:
         else:
             overall = "healthy"
 
-        return {
+        # GPU 정보 추가 (선택적)
+        gpu_info = None
+        try:
+            memory = get_gpu_memory_info()
+            utilization = get_gpu_utilization()
+            if memory:
+                gpu_info = {
+                    "memory": memory,
+                    "utilization": utilization
+                }
+        except Exception as e:
+            logger.debug(f"GPU info retrieval skipped: {e}")
+
+        result = {
             "status": overall,
             "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "version": settings.API_VERSION,
             "services": services
         }
+
+        if gpu_info:
+            result["gpu"] = gpu_info
+
+        return result
 
     async def get_simple_health(self) -> Dict[str, Any]:
         """간단한 상태 확인 (Liveness probe용)"""

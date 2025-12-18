@@ -185,14 +185,15 @@ async def login(
         expires_delta=timedelta(hours=settings.SESSION_EXPIRE_HOURS)
     )
 
-    # 쿠키에 토큰 설정
+    # 쿠키에 토큰 설정 (path="/"로 전체 경로에서 유효하도록 설정)
     response.set_cookie(
         key=ACCESS_TOKEN_COOKIE_KEY,
         value=access_token,
         httponly=True,
         secure=False,  # 프로덕션에서는 True로 변경 (HTTPS 필수)
         samesite="lax",
-        max_age=settings.SESSION_EXPIRE_HOURS * 3600
+        max_age=settings.SESSION_EXPIRE_HOURS * 3600,
+        path="/"  # 전체 경로에서 쿠키 유효
     )
 
     logger.info(f"User '{user.username}' logged in successfully")
@@ -211,7 +212,8 @@ async def logout(response: Response):
         key=ACCESS_TOKEN_COOKIE_KEY,
         httponly=True,
         secure=False,  # 프로덕션에서는 True로 변경
-        samesite="lax"
+        samesite="lax",
+        path="/"  # 설정 시와 동일한 path 사용
     )
 
     logger.info("User logged out")

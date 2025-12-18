@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Upload, FileText, Sheet, Presentation } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { ALLOWED_EXTENSIONS } from "./DocumentUploadButton";
 
 interface DocumentDropZoneProps {
@@ -96,9 +97,20 @@ export function DocumentDropZone({
       }
 
       if (invalidFiles.length > 0) {
-        alert(
-          `지원하지 않는 파일 형식입니다:\n${invalidFiles.join(", ")}\n\n지원 형식: ${ALLOWED_EXTENSIONS.join(", ")}`
-        );
+        toast.error("지원하지 않는 파일 형식", {
+          description: invalidFiles.length === 1
+            ? `"${invalidFiles[0]}"은(는) 업로드할 수 없습니다.`
+            : `${invalidFiles.slice(0, 3).join(", ")}${invalidFiles.length > 3 ? ` 외 ${invalidFiles.length - 3}개` : ""} 파일`,
+          action: {
+            label: "지원 형식 보기",
+            onClick: () => {
+              toast.info("지원되는 파일 형식", {
+                description: ALLOWED_EXTENSIONS.join(", "),
+                duration: 5000,
+              });
+            },
+          },
+        });
       }
 
       if (validFiles.length > 0) {

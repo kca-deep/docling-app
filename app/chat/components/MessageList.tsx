@@ -5,9 +5,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageBubble } from "./MessageBubble";
 import { SuggestedPrompts } from "./SuggestedPrompts";
 import { ThinkingIndicator } from "./ThinkingIndicator";
-import { DocumentUploadStatus } from "./DocumentUploadStatus";
-import { DocumentActiveCard } from "./DocumentActiveCard";
+import { ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+// DocumentUploadStatus, DocumentActiveCard는 InputArea 상단의 DocumentContextBar로 대체됨
 import type { Message, Source } from "../types";
 import type { UploadStatus } from "../hooks/useDocumentUpload";
 
@@ -116,91 +117,102 @@ export const MessageList = memo(function MessageList({
     onRegenerate?.(index);
   };
 
+  // 스크롤 하단으로 이동 핸들러
+  const handleScrollToBottom = () => {
+    const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+    if (scrollContainer) {
+      scrollContainer.scrollTo({
+        top: scrollContainer.scrollHeight,
+        behavior: 'smooth'
+      });
+      setUserScrolled(false);
+    }
+  };
+
   return (
-    <ScrollArea
-      ref={scrollAreaRef}
-      className="h-full w-full"
-      type="always"
-    >
-      <div className="py-4 md:py-6 px-4 md:px-8 lg:px-12 pb-20">
-        {/* Claude 스타일: 메시지 사이 구분선 */}
-        <div className="divide-y divide-border/20 max-w-4xl mx-auto">
-          {messages.map((message, index) => (
-            <MessageBubble
-              key={message.id}
-              messageId={message.id}
-              role={message.role}
-              content={message.content}
-              timestamp={message.timestamp}
-              model={message.model}
-              sources={message.sources}
-              reasoningContent={message.reasoningContent}
-              metadata={message.metadata}
-              onCopy={() => handleCopy(message.content)}
-              onRegenerate={() => handleRegenerate(index)}
-              onQuote={() => onQuote?.(message)}
-              onOpenArtifact={onOpenArtifact}
-              isLast={index === messages.length - 1}
-              isStreaming={isLoading && index === messages.length - 1}
-            />
-          ))}
+    <div className="relative h-full">
+      <ScrollArea
+        ref={scrollAreaRef}
+        className="h-full w-full"
+        type="always"
+      >
+        <div className="py-4 md:py-6 px-4 md:px-8 lg:px-12 pb-20">
+          {/* Claude 스타일: 메시지 사이 구분선 */}
+          <div className="divide-y divide-border/20 max-w-4xl mx-auto">
+            {messages.map((message, index) => (
+              <MessageBubble
+                key={message.id}
+                messageId={message.id}
+                role={message.role}
+                content={message.content}
+                timestamp={message.timestamp}
+                model={message.model}
+                sources={message.sources}
+                reasoningContent={message.reasoningContent}
+                metadata={message.metadata}
+                onCopy={() => handleCopy(message.content)}
+                onRegenerate={() => handleRegenerate(index)}
+                onQuote={() => onQuote?.(message)}
+                onOpenArtifact={onOpenArtifact}
+                isLast={index === messages.length - 1}
+                isStreaming={isLoading && index === messages.length - 1}
+              />
+            ))}
 
-          {/* 초기 화면 추천 질문 (일상대화 모드에서도 표시) */}
-          {messages.length === 0 && !isLoading && !documentUploadStatus && onPromptSelect && (
-            <SuggestedPrompts
-              collectionName={collectionName || ""}
-              onSelect={onPromptSelect}
-            />
-          )}
+            {/* 초기 화면 추천 질문 (일상대화 모드에서도 표시) */}
+            {messages.length === 0 && !isLoading && !documentUploadStatus && onPromptSelect && (
+              <SuggestedPrompts
+                collectionName={collectionName || ""}
+                onSelect={onPromptSelect}
+              />
+            )}
 
-          {/* 문서 업로드 상태 (우측 정렬, 사용자 메시지 스타일) */}
-          {documentUploadStatus && !isDocumentReady && onClearDocument && (
-            <DocumentUploadStatus
-              status={documentUploadStatus}
-              onClear={onClearDocument}
-            />
-          )}
+            {/* 문서 업로드 상태는 InputArea 상단의 DocumentContextBar로 이동됨 */}
 
-          {/* 문서 준비 완료 카드 (우측 정렬, 사용자 메시지 스타일) */}
-          {isDocumentReady && uploadedFilenames.length > 0 && onClearDocument && (
-            <DocumentActiveCard
-              filenames={uploadedFilenames}
-              pageCount={documentUploadStatus?.pageCount}
-              onRemove={onClearDocument}
-            />
-          )}
+            {/* 로딩 인디케이터 (스트리밍 중 메시지가 없을 때 또는 비스트리밍 모드) */}
+            {isLoading && (
+              !isStreaming ||
+              (isStreaming && (messages.length === 0 || messages[messages.length - 1].role !== 'assistant'))
+            ) && (
+              <ThinkingIndicator collectionName={collectionName} currentStage={currentStage} />
+            )}
 
-          {/* 로딩 인디케이터 (스트리밍 중 메시지가 없을 때 또는 비스트리밍 모드) */}
-          {isLoading && (
-            !isStreaming ||
-            (isStreaming && (messages.length === 0 || messages[messages.length - 1].role !== 'assistant'))
-          ) && (
-            <ThinkingIndicator collectionName={collectionName} currentStage={currentStage} />
-          )}
-
-          {/* 새 메시지 알림 (사용자가 스크롤했을 때만) */}
-          {userScrolled && messages.length > 0 && (
-            <button
-              onClick={() => {
-                const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
-                if (scrollContainer) {
-                  scrollContainer.scrollTo({
-                    top: scrollContainer.scrollHeight,
-                    behavior: 'smooth'
-                  });
-                  setUserScrolled(false);
-                }
-              }}
-              className="fixed bottom-[160px] left-1/2 -translate-x-1/2 z-50 bg-primary text-primary-foreground rounded-full w-10 h-10 flex items-center justify-center shadow-lg hover:shadow-xl transition-all hover:scale-105 active:scale-95 text-base"
-            >
-              ↓
-            </button>
-          )}
-
-          {/* 스크롤 앵커 */}
-          <div ref={messagesEndRef} />
+            {/* 스크롤 앵커 */}
+            <div ref={messagesEndRef} />
+          </div>
         </div>
-      </div>
-    </ScrollArea>
+      </ScrollArea>
+
+      {/* Jump to Latest 버튼 - Glassmorphism 스타일 */}
+      {userScrolled && messages.length > 0 && (
+        <button
+          onClick={handleScrollToBottom}
+          className={cn(
+            // 위치 - 메시지 영역 하단
+            "absolute bottom-4 left-1/2 -translate-x-1/2 z-40",
+            // Glassmorphism 스타일
+            "bg-background/70 backdrop-blur-xl",
+            "border border-white/20",
+            "rounded-full",
+            // 크기
+            "w-10 h-10",
+            "flex items-center justify-center",
+            // 그림자 및 링
+            "shadow-lg ring-1 ring-white/10",
+            // 호버/액티브 상태
+            "hover:bg-background/90 hover:ring-white/20",
+            "hover:shadow-xl hover:scale-105",
+            "active:scale-95",
+            // 트랜지션
+            "transition-all duration-200",
+            // 진입 애니메이션
+            "animate-in fade-in slide-in-from-bottom-2 duration-300"
+          )}
+          aria-label="최신 메시지로 이동"
+        >
+          <ChevronDown className="h-5 w-5 text-muted-foreground" />
+        </button>
+      )}
+    </div>
   );
 });

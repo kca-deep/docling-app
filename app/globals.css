@@ -488,19 +488,13 @@
   }
 
   /* Responsive grid for collection selector modal */
-  /* Mobile: 2 columns, Tablet(640px+): 3 columns, Desktop(1024px+): 4 columns */
+  /* Mobile: 2 columns, PC(640px+): 4 columns */
   .grid-responsive-cols {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (min-width: 640px) {
-  .grid-responsive-cols {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 1024px) {
   .grid-responsive-cols {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }

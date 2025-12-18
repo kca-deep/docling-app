@@ -95,13 +95,13 @@ async def upload_document(
             detail=f"지원하지 않는 파일 형식입니다: {ext}. 지원 형식: {', '.join(allowed_extensions)}"
         )
 
-    # 파일 크기 검증
+    # 파일 크기 검증 (AI챗봇용 제한 적용)
     content = await file.read()
-    max_size = settings.MAX_UPLOAD_SIZE
+    max_size = settings.CHAT_MAX_UPLOAD_SIZE
     if len(content) > max_size:
         raise HTTPException(
             status_code=400,
-            detail=f"파일 크기가 {settings.MAX_UPLOAD_SIZE_MB}MB를 초과합니다"
+            detail=f"파일 크기가 {settings.CHAT_MAX_UPLOAD_SIZE_MB}MB를 초과합니다"
         )
 
     # 작업 ID 및 세션 ID 생성

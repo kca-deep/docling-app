@@ -6,6 +6,32 @@
 
 # set -e 제거: 서비스 중지 실패 시에도 스크립트 계속 실행
 
+# ============================================================================
+# sudo 권한 미리 확보 (비밀번호 입력 문제 방지)
+# ============================================================================
+ensure_sudo() {
+    # sudo 권한이 없으면 미리 확보
+    if ! sudo -n true 2>/dev/null; then
+        echo -e "${YELLOW}sudo 권한이 필요합니다. 비밀번호를 입력하세요.${NC}"
+        sudo -v
+        if [ $? -ne 0 ]; then
+            echo -e "${RED}sudo 권한을 얻지 못했습니다. 종료합니다.${NC}"
+            exit 1
+        fi
+    fi
+
+    # sudo 권한 유지를 위한 백그라운드 프로세스 (5분마다 갱신)
+    (while true; do sudo -v; sleep 300; done) &
+    SUDO_KEEPALIVE_PID=$!
+}
+
+# 종료 시 백그라운드 프로세스 정리
+cleanup() {
+    [ -n "$SUDO_KEEPALIVE_PID" ] && kill $SUDO_KEEPALIVE_PID 2>/dev/null
+    tput cnorm 2>/dev/null  # 커서 복원
+}
+trap cleanup EXIT INT TERM
+
 # 색상 정의
 RED=$'\033[0;31m'
 GREEN=$'\033[0;32m'
@@ -25,6 +51,22 @@ CLEAR_LINE=$'\033[K'
 
 # ============================================================================
 # 서비스 정의
+# ============================================================================
+#
+# Docling Serve 권장 환경변수 (systemd 서비스 파일에 추가)
+# ------------------------------------------------------
+# VRAM 최적화 및 안정성 향상을 위한 권장 설정:
+#   UVICORN_WORKERS=1                          # 싱글 워커 (GPU 경합 방지)
+#   DOCLING_SERVE_ENG_LOC_SHARE_MODELS=true    # 스레드 간 모델 공유
+#   DOCLING_SERVE_OPTIONS_CACHE_SIZE=1         # 변환기 캐시 최소화
+#   DOCLING_SERVE_LOAD_MODELS_AT_BOOT=true     # 시작 시 모델 로드
+#   DOCLING_SERVE_MAX_SYNC_WAIT=300            # 최대 동기 대기 시간
+#
+# systemd 서비스 파일 예시 (/etc/systemd/system/docling-serve.service):
+#   [Service]
+#   Environment="UVICORN_WORKERS=1"
+#   Environment="DOCLING_SERVE_ENG_LOC_SHARE_MODELS=true"
+#   Environment="DOCLING_SERVE_OPTIONS_CACHE_SIZE=1"
 # ============================================================================
 
 declare -A SERVICES=(
@@ -1165,18 +1207,19 @@ show_menu() {
 handle_menu_choice() {
     local choice=$1
 
+    # sudo가 필요한 작업 전에 커서 복원 (비밀번호 입력 시 필요)
     case $choice in
-        1) toggle_llm "gpt"; sleep 2 ;;
-        2) toggle_service "qwen3vl"; sleep 2 ;;
-        3) toggle_service "docling"; sleep 2 ;;
-        4) toggle_docling_app; sleep 2 ;;
-        5) toggle_service "embedding"; sleep 2 ;;
-        6) toggle_service "reranker"; sleep 2 ;;
-        7) toggle_qdrant; sleep 2 ;;
-        8) toggle_llm "exaone"; sleep 2 ;;
-        9) toggle_llm "exaone-4.0-32b"; sleep 2 ;;
-        a|A) stop_all_llm; sleep 2 ;;
-        b|B) stop_all; sleep 2 ;;
+        1) tput cnorm; toggle_llm "gpt"; sleep 2; tput civis ;;
+        2) tput cnorm; toggle_service "qwen3vl"; sleep 2; tput civis ;;
+        3) tput cnorm; toggle_service "docling"; sleep 2; tput civis ;;
+        4) tput cnorm; toggle_docling_app; sleep 2; tput civis ;;
+        5) tput cnorm; toggle_service "embedding"; sleep 2; tput civis ;;
+        6) tput cnorm; toggle_service "reranker"; sleep 2; tput civis ;;
+        7) tput cnorm; toggle_qdrant; sleep 2; tput civis ;;
+        8) tput cnorm; toggle_llm "exaone"; sleep 2; tput civis ;;
+        9) tput cnorm; toggle_llm "exaone-4.0-32b"; sleep 2; tput civis ;;
+        a|A) tput cnorm; stop_all_llm; sleep 2; tput civis ;;
+        b|B) tput cnorm; stop_all; sleep 2; tput civis ;;
         l|L) tput cnorm; show_logs_menu ;;
         m|M) tput cnorm; start_monitor 1 ;;
         r) tput cnorm; mode_rag; sleep 3; tput civis ;;
@@ -1521,6 +1564,9 @@ mode_exaone() {
 # ============================================================================
 # 메인
 # ============================================================================
+
+# sudo 권한 미리 확보 (커서 숨김 상태에서 비밀번호 입력 문제 방지)
+ensure_sudo
 
 if [ $# -eq 0 ]; then
     show_menu
