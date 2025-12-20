@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, memo } from "react";
+import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -8,17 +9,183 @@ import {
   Database,
   FileText,
   MessageSquare,
-  Scale,
-  Code,
-  BookOpen,
-  Briefcase,
-  Heart,
-  Cpu,
-  Globe,
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { API_BASE_URL } from "@/lib/api-config";
+
+// 색상 테마 정의 (생동감 있는 직접 색상값)
+const colorThemes = {
+  casual: {
+    primary: "#8B5CF6",     // violet-500
+    secondary: "#06B6D4",   // cyan-500
+    gradient: "conic-gradient(from 0deg, #8B5CF6, #06B6D4, #10B981, #F59E0B, #8B5CF6)",
+  },
+  rag: {
+    primary: "#3B82F6",     // blue-500
+    secondary: "#8B5CF6",   // violet-500
+    gradient: "conic-gradient(from 0deg, #3B82F6, #8B5CF6, #EC4899, #3B82F6)",
+  },
+};
+
+// stagger 애니메이션 variants
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1 },
+  },
+} as const;
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" as const } },
+};
+
+// AnimatedLogo 컴포넌트 - 셀프진단 SpinningCircle 패턴 적용 + KCA-i 그라디언트 텍스트
+interface AnimatedLogoProps {
+  mode: "casual" | "rag";
+}
+
+function AnimatedLogo({ mode }: AnimatedLogoProps) {
+  const theme = colorThemes[mode];
+
+  return (
+    <div className="relative w-24 h-24">
+      {/* 1. 회전하는 conic-gradient 테두리 */}
+      <motion.div
+        className="absolute inset-0 rounded-full"
+        style={{ background: theme.gradient, padding: "3px" }}
+        animate={{ rotate: 360 }}
+        transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+      >
+        <div className="w-full h-full rounded-full bg-background" />
+      </motion.div>
+
+      {/* 2. 펄스 링 1 (느린 파동) - 다크모드 글로우 효과 강화 */}
+      <motion.div
+        className="absolute inset-0 rounded-full border-2"
+        style={{
+          borderColor: `${theme.primary}90`,
+          boxShadow: `0 0 20px ${theme.primary}60, 0 0 40px ${theme.primary}30`,
+        }}
+        animate={{ scale: [1, 1.25, 1], opacity: [0.8, 0, 0.8] }}
+        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+      />
+
+      {/* 3. 펄스 링 2 (빠른 파동, 딜레이) - 글로우 효과 추가 */}
+      <motion.div
+        className="absolute inset-0 rounded-full border-2"
+        style={{
+          borderColor: `${theme.secondary}80`,
+          boxShadow: `0 0 15px ${theme.secondary}50, 0 0 30px ${theme.secondary}25`,
+        }}
+        animate={{ scale: [1, 1.4, 1], opacity: [0.7, 0, 0.7] }}
+        transition={{ duration: 2, repeat: Infinity, delay: 0.5, ease: "easeInOut" }}
+      />
+
+      {/* 4. 내부 배경 원 + KCA-i 텍스트 */}
+      <motion.div
+        className="absolute inset-[6px] rounded-full flex items-center justify-center"
+        style={{
+          background: `linear-gradient(135deg, ${theme.primary}30, ${theme.secondary}25)`,
+          backdropFilter: "blur(12px)",
+          boxShadow: `inset 0 0 20px ${theme.primary}20, 0 4px 20px ${theme.primary}15`,
+        }}
+        animate={{ scale: [1, 1.02, 1] }}
+        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+      >
+        <span
+          className="text-lg font-bold"
+          style={{
+            background: `linear-gradient(135deg, ${theme.primary}, ${theme.secondary})`,
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+          }}
+        >
+          KCA-i
+        </span>
+      </motion.div>
+    </div>
+  );
+}
+
+// PromptCard 컴포넌트 - 글래스모피즘 + 호흡 애니메이션
+interface PromptCardProps {
+  prompt: string;
+  index: number;
+  themeColors: { primary: string; secondary: string };
+  onSelect: (prompt: string) => void;
+}
+
+function PromptCard({ prompt, index, themeColors, onSelect }: PromptCardProps) {
+  return (
+    <motion.button
+      onClick={() => onSelect(prompt)}
+      className={cn(
+        "group relative overflow-hidden text-left w-full",
+        // 글래스모피즘 강화
+        "rounded-2xl",
+        "bg-white/10 dark:bg-white/5 backdrop-blur-xl",
+        "border border-white/20 dark:border-white/10",
+        // 그림자
+        "shadow-lg shadow-black/5",
+        // 호버 효과
+        "hover:bg-white/20 dark:hover:bg-white/10",
+        "hover:border-white/30",
+        "hover:shadow-xl hover:scale-[1.02]",
+        "active:scale-[0.98]",
+        "transition-all duration-300 ease-out",
+        "min-h-[88px]"
+      )}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: index * 0.1, ease: "easeOut" }}
+    >
+      {/* 호버 시 그라디언트 오버레이 */}
+      <div
+        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-2xl"
+        style={{
+          background: `linear-gradient(135deg, ${themeColors.primary}15 0%, transparent 60%)`,
+        }}
+      />
+
+      {/* 좌측 그라디언트 악센트 바 */}
+      <div
+        className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl opacity-70 group-hover:opacity-100 transition-opacity"
+        style={{
+          background: `linear-gradient(180deg, ${themeColors.primary}, ${themeColors.secondary})`,
+        }}
+      />
+
+      {/* 콘텐츠 */}
+      <div className="flex items-start gap-4 p-5 pl-5">
+        {/* 번호 아이콘 - 호흡 애니메이션 */}
+        <motion.div
+          className="flex-shrink-0 h-11 w-11 rounded-xl shadow-lg flex items-center justify-center"
+          style={{
+            background: `linear-gradient(135deg, ${themeColors.primary}, ${themeColors.secondary})`,
+          }}
+          animate={{ scale: [1, 1.05, 1] }}
+          transition={{ duration: 2, repeat: Infinity, delay: index * 0.2 }}
+        >
+          <span className="text-white font-bold">{index + 1}</span>
+        </motion.div>
+
+        {/* 텍스트 영역 */}
+        <div className="flex-1 min-w-0 pt-1">
+          <p className="text-sm font-medium leading-relaxed text-foreground/80 group-hover:text-foreground transition-colors line-clamp-2">
+            {highlightKeywords(prompt, themeColors.primary)}
+          </p>
+        </div>
+
+        {/* 화살표 */}
+        <ChevronRight className="flex-shrink-0 h-5 w-5 mt-2 text-muted-foreground/40 group-hover:text-foreground group-hover:translate-x-1 transition-all duration-300" />
+      </div>
+    </motion.button>
+  );
+}
 
 interface CollectionMetadata {
   name: string;
@@ -42,36 +209,6 @@ const getKoreanName = (description?: string, fallback?: string): string => {
     // JSON이 아니면 description 자체를 반환
     return description || fallback || "";
   }
-};
-
-// 컬렉션 이름에 따른 아이콘 매핑
-const getCollectionIcon = (name: string) => {
-  const lowerName = name.toLowerCase();
-  if (lowerName.includes("법") || lowerName.includes("law") || lowerName.includes("legal")) {
-    return Scale;
-  }
-  if (lowerName.includes("코드") || lowerName.includes("code") || lowerName.includes("개발")) {
-    return Code;
-  }
-  if (lowerName.includes("문서") || lowerName.includes("doc")) {
-    return FileText;
-  }
-  if (lowerName.includes("책") || lowerName.includes("book") || lowerName.includes("교육")) {
-    return BookOpen;
-  }
-  if (lowerName.includes("비즈") || lowerName.includes("business") || lowerName.includes("사업")) {
-    return Briefcase;
-  }
-  if (lowerName.includes("건강") || lowerName.includes("health") || lowerName.includes("의료")) {
-    return Heart;
-  }
-  if (lowerName.includes("기술") || lowerName.includes("tech") || lowerName.includes("ai")) {
-    return Cpu;
-  }
-  if (lowerName.includes("글로벌") || lowerName.includes("global") || lowerName.includes("국제")) {
-    return Globe;
-  }
-  return Database;
 };
 
 // 키워드 하이라이팅 함수
@@ -131,29 +268,33 @@ function highlightKeywords(text: string, themeColor: string): React.ReactNode {
   return parts.length > 0 ? parts : text;
 }
 
-// 스켈레톤 로딩 UI
+// 스켈레톤 로딩 UI (개선된 크기)
 function WelcomeSkeleton() {
   return (
-    <div className="py-4 space-y-4 animate-in fade-in duration-300">
+    <div className="py-8 space-y-8 animate-in fade-in duration-300">
       {/* 헤더 스켈레톤 - 가운데 정렬 */}
-      <div className="flex flex-col items-center gap-2">
-        <Skeleton className="h-12 w-12 rounded-xl" />
-        <div className="flex items-center gap-2">
-          <Skeleton className="h-5 w-32" />
-          <Skeleton className="h-5 w-14 rounded-full" />
-          <Skeleton className="h-5 w-14 rounded-full" />
+      <div className="flex flex-col items-center gap-6 py-8 -my-4">
+        {/* 로고 스켈레톤 */}
+        <Skeleton className="h-24 w-24 rounded-full" />
+        <div className="space-y-3 flex flex-col items-center">
+          <Skeleton className="h-7 w-64" />
+          <Skeleton className="h-4 w-48" />
+          <div className="flex items-center gap-2 pt-1">
+            <Skeleton className="h-6 w-24 rounded-full" />
+            <Skeleton className="h-6 w-24 rounded-full" />
+          </div>
         </div>
-        <Skeleton className="h-4 w-56" />
       </div>
 
       {/* 추천 질문 스켈레톤 - 개선된 카드형 */}
-      <div className="space-y-3">
-        <div className="flex justify-center">
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-4 w-4 rounded" />
           <Skeleton className="h-4 w-20" />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-20 rounded-xl" />
+            <Skeleton key={i} className="h-[88px] rounded-2xl" />
           ))}
         </div>
       </div>
@@ -172,13 +313,9 @@ export const SuggestedPrompts = memo(function SuggestedPrompts({
   // 일상대화 모드 체크
   const isCasualMode = !collectionName;
 
-  // 테마 색상 설정
-  const themeColors = isCasualMode
-    ? { primary: "var(--chart-5)", secondary: "var(--chart-2)" }
-    : { primary: "var(--chart-1)", secondary: "var(--chart-3)" };
-
-  // 컬렉션 아이콘 가져오기
-  const CollectionIcon = isCasualMode ? Sparkles : getCollectionIcon(collectionName);
+  // 테마 색상 설정 (새로운 생동감 있는 색상)
+  const mode = isCasualMode ? "casual" : "rag";
+  const themeColors = colorThemes[mode];
 
   useEffect(() => {
     const fetchData = async () => {
@@ -236,70 +373,74 @@ export const SuggestedPrompts = memo(function SuggestedPrompts({
   }
 
   return (
-    <div className="py-8 space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-      {/* 로고 + 환영 메시지 섹션 - 세로 중앙 정렬 (오로라는 MessageList에서 전체 배경으로 표시) */}
-      <div className="flex flex-col items-center text-center space-y-6 relative py-8 -my-4">
-        {/* 로고 컨테이너 - 큰 원형으로 배경과 분리 */}
-        <div className="relative z-10">
-          {/* 외곽 글로우 효과 */}
-          <div
-            className="absolute inset-0 rounded-full blur-xl opacity-30"
-            style={{
-              background: `linear-gradient(135deg, ${themeColors.primary}, ${themeColors.secondary})`,
-              transform: "scale(1.2)",
-            }}
-          />
-          {/* 메인 로고 원형 */}
-          <div
-            className="relative h-24 w-24 rounded-full flex items-center justify-center shadow-xl"
-            style={{
-              background: `linear-gradient(135deg, ${themeColors.primary}, ${themeColors.secondary})`,
-            }}
-          >
-            <CollectionIcon className="h-12 w-12 text-white" strokeWidth={1.5} />
-          </div>
-        </div>
+    <motion.div
+      className="py-8 space-y-8"
+      variants={containerVariants}
+      initial="hidden"
+      animate="show"
+    >
+      {/* 로고 + 환영 메시지 섹션 */}
+      <motion.div
+        className="flex flex-col items-center text-center space-y-6 relative py-8 -my-4"
+        variants={itemVariants}
+      >
+        {/* AnimatedLogo - 동적 애니메이션 적용 */}
+        <AnimatedLogo mode={mode} />
 
         {/* 환영 메시지 영역 */}
-        <div className="space-y-3 relative z-10">
-          <h2
-            className="text-xl md:text-2xl font-bold"
-          >
+        <motion.div
+          className="space-y-3 relative z-10"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <h2 className="text-xl md:text-2xl font-bold">
             {isCasualMode
               ? "AI 어시스턴트에 오신걸 환영합니다."
               : `${getKoreanName(collectionMeta?.description, collectionName)} AI 챗봇에 오신걸 환영합니다.`}
           </h2>
-          <p className="text-sm text-muted-foreground max-w-md mx-auto">
+          <motion.p
+            className="text-sm text-muted-foreground max-w-md mx-auto"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3 }}
+          >
             {isCasualMode
               ? "RAG 검색 없이 자유롭게 대화해보세요"
               : "문서 기반으로 정확한 답변을 찾아드립니다"}
-          </p>
-          {/* 메타데이터 배지 - 환영 메시지 아래 */}
-          {!isCasualMode && collectionMeta && (
-            <div className="flex items-center justify-center gap-2 pt-1">
-              <Badge variant="secondary" className="text-xs px-2.5 py-1 gap-1.5">
-                <FileText className="h-3.5 w-3.5" style={{ color: themeColors.primary }} />
-                <span className="font-mono">{collectionMeta.documents_count} 문서</span>
-              </Badge>
-              <Badge variant="secondary" className="text-xs px-2.5 py-1 gap-1.5">
-                <Database className="h-3.5 w-3.5" style={{ color: themeColors.secondary }} />
-                <span className="font-mono">{collectionMeta.points_count} 벡터</span>
-              </Badge>
-            </div>
-          )}
-          {isCasualMode && (
-            <div className="flex items-center justify-center gap-2 pt-1">
-              <Badge variant="secondary" className="text-xs px-2.5 py-1 gap-1.5">
+          </motion.p>
+
+          {/* 메타데이터 배지 */}
+          <motion.div
+            className="flex items-center justify-center gap-2 pt-2"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.4 }}
+          >
+            {!isCasualMode && collectionMeta ? (
+              <>
+                <Badge variant="secondary" className="text-xs px-2.5 py-1.5 gap-1.5">
+                  <FileText className="h-3.5 w-3.5" style={{ color: themeColors.primary }} />
+                  <span className="font-mono">{collectionMeta.documents_count} 문서</span>
+                </Badge>
+                <Badge variant="secondary" className="text-xs px-2.5 py-1.5 gap-1.5">
+                  <Database className="h-3.5 w-3.5" style={{ color: themeColors.secondary }} />
+                  <span className="font-mono">{collectionMeta.points_count} 벡터</span>
+                </Badge>
+              </>
+            ) : (
+              <Badge variant="secondary" className="text-xs px-2.5 py-1.5 gap-1.5">
                 <MessageSquare className="h-3.5 w-3.5" style={{ color: themeColors.primary }} />
                 <span>자유 대화 모드</span>
               </Badge>
-            </div>
-          )}
-        </div>
-      </div>
+            )}
+          </motion.div>
+        </motion.div>
+      </motion.div>
 
-      {/* 추천 질문 */}
-      <div className="space-y-3">
+      {/* 추천 질문 섹션 */}
+      <motion.div className="space-y-4" variants={itemVariants}>
+        {/* 섹션 헤더 */}
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4" style={{ color: themeColors.primary }} />
           <span className="text-sm font-medium text-muted-foreground">
@@ -307,82 +448,19 @@ export const SuggestedPrompts = memo(function SuggestedPrompts({
           </span>
         </div>
 
-        {/* 질문 그리드 - 모바일 1열, 데스크탑 2열 */}
+        {/* 질문 그리드 - PromptCard 사용 */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {prompts.slice(0, 4).map((prompt, index) => {
-            // 카드 내용 컴포넌트
-            const CardContent = (
-              <button
-                key={index}
-                onClick={() => onSelect(prompt)}
-                className={cn(
-                  "group relative overflow-hidden rounded-xl text-left w-full",
-                  "border border-border/50 bg-background/40 backdrop-blur-sm",
-                  "hover:bg-background/80 hover:border-border hover:shadow-lg",
-                  "hover:scale-[1.02] active:scale-[0.98]",
-                  "transition-all duration-300 ease-out",
-                  "min-h-[80px]"
-                )}
-                style={{
-                  animationDelay: `${index * 100}ms`,
-                  animationFillMode: "backwards",
-                }}
-              >
-                {/* 하단 컬러 악센트 바 */}
-                <div
-                  className="absolute bottom-0 left-0 right-0 h-1 opacity-60 group-hover:opacity-100 transition-opacity duration-300"
-                  style={{
-                    background: `linear-gradient(90deg, ${themeColors.primary}, ${themeColors.secondary})`,
-                  }}
-                />
-
-                {/* 콘텐츠 영역 */}
-                <div className="flex items-start gap-3 p-4">
-                  {/* 번호 아이콘 박스 */}
-                  <div
-                    className="flex-shrink-0 h-10 w-10 rounded-xl flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow duration-300"
-                    style={{
-                      background: `linear-gradient(135deg, ${themeColors.primary}, ${themeColors.secondary})`,
-                    }}
-                  >
-                    <span className="text-white font-bold text-sm">
-                      {index + 1}
-                    </span>
-                  </div>
-
-                  {/* 텍스트 영역 */}
-                  <div className="flex-1 min-w-0 pt-0.5">
-                    <p className="text-sm font-medium leading-relaxed text-foreground/80 group-hover:text-foreground transition-colors line-clamp-2">
-                      {highlightKeywords(prompt, themeColors.primary)}
-                    </p>
-                  </div>
-
-                  {/* 화살표 */}
-                  <div className="flex-shrink-0 pt-2">
-                    <ChevronRight
-                      className="h-5 w-5 text-muted-foreground/50 group-hover:text-foreground group-hover:translate-x-0.5 transition-all duration-300"
-                    />
-                  </div>
-                </div>
-              </button>
-            );
-
-            return (
-              <div
-                key={index}
-                className="animate-in fade-in slide-in-from-bottom-2"
-                style={{
-                  animationDelay: `${index * 100}ms`,
-                  animationDuration: "400ms",
-                  animationFillMode: "backwards",
-                }}
-              >
-                {CardContent}
-              </div>
-            );
-          })}
+          {prompts.slice(0, 4).map((prompt, index) => (
+            <PromptCard
+              key={index}
+              prompt={prompt}
+              index={index}
+              themeColors={themeColors}
+              onSelect={onSelect}
+            />
+          ))}
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 });

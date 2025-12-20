@@ -82,61 +82,76 @@ function TypingDots() {
   )
 }
 
-// 회전하는 원형 로더
-function SpinningCircle({ children }: { children: React.ReactNode }) {
+// 셀프진단 테마 색상
+const selfcheckTheme = {
+  primary: "#3B82F6",     // blue-500
+  secondary: "#10B981",   // emerald-500
+  accent: "#EF4444",      // red-500
+  gradient: "conic-gradient(from 0deg, #3B82F6, #10B981, #EF4444, #3B82F6)",
+}
+
+// 개선된 AnimatedLogo 컴포넌트 (챗봇과 동일한 스타일)
+function AnimatedLogo() {
+  const theme = selfcheckTheme
+
   return (
-    <div className="relative w-28 h-28">
-      {/* 회전하는 그라디언트 테두리 */}
+    <div className="relative w-24 h-24">
+      {/* 1. 회전하는 conic-gradient 테두리 */}
       <motion.div
         className="absolute inset-0 rounded-full"
-        style={{
-          background: "conic-gradient(from 0deg, rgb(37, 99, 235), rgb(16, 185, 129), rgb(239, 68, 68), rgb(37, 99, 235))",
-          padding: "3px",
-        }}
+        style={{ background: theme.gradient, padding: "3px" }}
         animate={{ rotate: 360 }}
-        transition={{
-          duration: 3,
-          repeat: Infinity,
-          ease: "linear",
-        }}
+        transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
       >
         <div className="w-full h-full rounded-full bg-background" />
       </motion.div>
 
-      {/* 내부 콘텐츠 (로고) */}
-      <div className="absolute inset-0 flex items-center justify-center">
-        {children}
-      </div>
-
-      {/* 펄스 효과 링 */}
+      {/* 2. 펄스 링 1 (느린 파동) - 다크모드 글로우 효과 강화 */}
       <motion.div
-        className="absolute inset-0 rounded-full border-2 border-primary/20"
-        animate={{
-          scale: [1, 1.15, 1],
-          opacity: [0.5, 0, 0.5],
+        className="absolute inset-0 rounded-full border-2"
+        style={{
+          borderColor: `${theme.primary}90`,
+          boxShadow: `0 0 20px ${theme.primary}60, 0 0 40px ${theme.primary}30`,
         }}
-        transition={{
-          duration: 2,
-          repeat: Infinity,
-          ease: "easeInOut",
-        }}
+        animate={{ scale: [1, 1.25, 1], opacity: [0.8, 0, 0.8] }}
+        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
       />
-    </div>
-  )
-}
 
-// KCA-i 텍스트 (원형 안에 표시)
-function KCAiText() {
-  return (
-    <motion.div
-      className="flex items-center justify-center"
-      animate={{ scale: [1, 1.03, 1] }}
-      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-    >
-      <span className="text-xl font-bold bg-gradient-to-r from-blue-600 via-emerald-500 to-red-500 bg-clip-text text-transparent">
-        KCA-i
-      </span>
-    </motion.div>
+      {/* 3. 펄스 링 2 (빠른 파동, 딜레이) - 글로우 효과 추가 */}
+      <motion.div
+        className="absolute inset-0 rounded-full border-2"
+        style={{
+          borderColor: `${theme.secondary}80`,
+          boxShadow: `0 0 15px ${theme.secondary}50, 0 0 30px ${theme.secondary}25`,
+        }}
+        animate={{ scale: [1, 1.4, 1], opacity: [0.7, 0, 0.7] }}
+        transition={{ duration: 2, repeat: Infinity, delay: 0.5, ease: "easeInOut" }}
+      />
+
+      {/* 4. 내부 배경 원 + KCA-i 텍스트 */}
+      <motion.div
+        className="absolute inset-[6px] rounded-full flex items-center justify-center"
+        style={{
+          background: `linear-gradient(135deg, ${theme.primary}30, ${theme.secondary}25)`,
+          backdropFilter: "blur(12px)",
+          boxShadow: `inset 0 0 20px ${theme.primary}20, 0 4px 20px ${theme.primary}15`,
+        }}
+        animate={{ scale: [1, 1.02, 1] }}
+        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+      >
+        <span
+          className="text-lg font-bold"
+          style={{
+            background: `linear-gradient(135deg, ${theme.primary}, ${theme.secondary}, ${theme.accent})`,
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+          }}
+        >
+          KCA-i
+        </span>
+      </motion.div>
+    </div>
   )
 }
 
@@ -215,10 +230,8 @@ export function AnalysisProgress({
       exit={{ opacity: 0, y: -20 }}
       className="flex flex-col items-center justify-center py-12 px-4"
     >
-      {/* KCA-i 텍스트 + 회전 원형 */}
-      <SpinningCircle>
-        <KCAiText />
-      </SpinningCircle>
+      {/* 개선된 AnimatedLogo */}
+      <AnimatedLogo />
 
       {/* 보안성검토 AI Agent 텍스트 */}
       <motion.p
