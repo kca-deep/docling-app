@@ -56,10 +56,8 @@ class SelfCheckService:
 
     def __init__(self):
         self.prompts_dir = Path(__file__).parent.parent / "prompts"
-        self._prompt_1_5 = None
-        self._prompt_6_10 = None
         self._similarity_prompt = None
-        self._individual_prompt = None  # 개별 항목 분석용 프롬프트
+        self._individual_prompt = None
         self.client = http_manager.get_client("llm")
         # 임베딩 서비스 (유사과제 검토용)
         self.embedding_service = EmbeddingService(
@@ -76,31 +74,17 @@ class SelfCheckService:
         return ""
 
     @property
-    def prompt_1_5(self) -> str:
-        """항목 1-5 프롬프트"""
-        if self._prompt_1_5 is None:
-            self._prompt_1_5 = self._load_prompt("selfcheck_prompt_1_5.txt")
-        return self._prompt_1_5
-
-    @property
-    def prompt_6_10(self) -> str:
-        """항목 6-10 프롬프트"""
-        if self._prompt_6_10 is None:
-            self._prompt_6_10 = self._load_prompt("selfcheck_prompt_6_10.txt")
-        return self._prompt_6_10
-
-    @property
     def similarity_prompt(self) -> str:
         """유사과제 판단 프롬프트"""
         if self._similarity_prompt is None:
-            self._similarity_prompt = self._load_prompt("selfcheck_similarity.txt")
+            self._similarity_prompt = self._load_prompt("selfcheck_similarity.md")
         return self._similarity_prompt
 
     @property
     def individual_prompt(self) -> str:
         """개별 항목 분석용 프롬프트"""
         if self._individual_prompt is None:
-            self._individual_prompt = self._load_prompt("selfcheck_individual.txt")
+            self._individual_prompt = self._load_prompt("selfcheck_individual.md")
         return self._individual_prompt
 
     def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
