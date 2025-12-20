@@ -148,10 +148,11 @@ class Settings(BaseSettings):
 
     # 셀프진단 설정
     SELFCHECK_MAX_TOKENS: int = 4000  # 셀프진단 LLM 분석 최대 토큰
-    SELFCHECK_BATCH_MAX_TOKENS: int = 2000  # 배치 호출 최대 토큰
+    SELFCHECK_BATCH_MAX_TOKENS: int = 2000  # 배치 호출 최대 토큰 (레거시)
+    SELFCHECK_INDIVIDUAL_MAX_TOKENS: int = 1000  # 개별 항목 분석 최대 토큰 (방안 C)
     SELFCHECK_RECOVERY_MAX_TOKENS: int = 300  # 복구 호출 최대 토큰
     SELFCHECK_TEMPERATURE: float = 0.3  # 셀프진단 LLM 온도
-    SELFCHECK_TIMEOUT: int = 60  # 배치 호출 타임아웃 (초)
+    SELFCHECK_TIMEOUT: int = 60  # 개별 호출 타임아웃 (초)
     SELFCHECK_RECOVERY_TIMEOUT: int = 30  # 복구 호출 타임아웃 (초)
 
     # 셀프진단 유사과제 검토 설정

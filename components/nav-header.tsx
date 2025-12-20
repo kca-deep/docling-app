@@ -22,6 +22,7 @@ import {
   Shield,
   History,
   User,
+  Workflow,
 } from "lucide-react"
 import {
   Sheet,
@@ -138,29 +139,32 @@ export function NavHeader() {
     ],
   }
 
+  // 워크플로우 아이템
+  const workflowItem: NavItem = { href: "/workflow", label: "워크플로우", icon: Workflow, requiresAuth: false }
+
   // KCA-i 챗봇 아이템
   const chatItem: NavItem = { href: "/chat?fullscreen=true", label: "KCA-i", icon: MessageSquare, requiresAuth: false }
 
-  // 임베딩 그룹
+  // 임베딩 그룹 (관리자 전용)
   const documentGroup: NavGroup = {
     label: "임베딩",
     icon: FileStack,
     requiresAuth: true,
     items: [
-      { href: "/parse", label: "문서변환", icon: FileText, requiresAuth: true },
-      { href: "/upload", label: "벡터임베딩", icon: Database, requiresAuth: true },
-      { href: "/excel-embedding", label: "엑셀임베딩", icon: SheetIcon, requiresAuth: true },
+      { href: "/parse", label: "문서변환", icon: FileText, requiresAuth: true, adminOnly: true },
+      { href: "/upload", label: "벡터임베딩", icon: Database, requiresAuth: true, adminOnly: true },
+      { href: "/excel-embedding", label: "엑셀임베딩", icon: SheetIcon, requiresAuth: true, adminOnly: true },
     ],
   }
 
-  // 설정 그룹
+  // 설정 그룹 (관리자 전용)
   const settingsGroup: NavGroup = {
     label: "설정",
     icon: Settings,
     requiresAuth: true,
     items: [
-      { href: "/collections", label: "컬렉션", icon: FolderCog, requiresAuth: true },
-      { href: "/analytics", label: "통계", icon: BarChart3, requiresAuth: true },
+      { href: "/collections", label: "컬렉션", icon: FolderCog, requiresAuth: true, adminOnly: true },
+      { href: "/analytics", label: "통계", icon: BarChart3, requiresAuth: true, adminOnly: true },
       { href: "/admin/users", label: "사용자 관리", icon: Users, requiresAuth: true, adminOnly: true },
     ],
   }
@@ -329,6 +333,31 @@ export function NavHeader() {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
+
+          {/* 워크플로우 */}
+          {(() => {
+            const itemPathname = workflowItem.href.split("?")[0]
+            const isActive = pathname === itemPathname || pathname.startsWith(`${itemPathname}/`)
+            return (
+              <Link
+                href={workflowItem.href}
+                className={cn(
+                  "relative inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-colors hover:text-foreground",
+                  isActive ? "text-foreground" : "text-muted-foreground"
+                )}
+              >
+                {isActive && (
+                  <motion.div
+                    layoutId="navbar-active"
+                    className="absolute inset-0 bg-muted rounded-full -z-10"
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                  />
+                )}
+                <workflowItem.icon className="h-4 w-4" />
+                <span>{workflowItem.label}</span>
+              </Link>
+            )
+          })()}
 
           {/* 문서 드롭다운 */}
           {shouldShowGroup(documentGroup) && (
@@ -503,6 +532,27 @@ export function NavHeader() {
                         <span className="text-primary">-</span>
                         <span className="italic text-emerald-500">i</span>
                       </span>
+                    </Link>
+                  )
+                })()}
+
+                {/* 워크플로우 */}
+                {(() => {
+                  const itemPathname = workflowItem.href.split("?")[0]
+                  const isActive = pathname === itemPathname || pathname.startsWith(`${itemPathname}/`)
+                  return (
+                    <Link
+                      href={workflowItem.href}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                        isActive
+                          ? "bg-muted text-foreground"
+                          : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                      )}
+                    >
+                      <workflowItem.icon className="h-4 w-4" />
+                      <span>{workflowItem.label}</span>
                     </Link>
                   )
                 })()}

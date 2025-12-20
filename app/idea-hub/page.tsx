@@ -17,6 +17,7 @@ import {
   Plus,
 } from "lucide-react"
 import { motion } from "framer-motion"
+import { AIVerificationWorkflow } from "@/components/idea-hub/ai-verification-workflow"
 
 // Stagger animation variants
 const containerVariants = {
@@ -50,6 +51,14 @@ export default function IdeaHubPage() {
       </div>
 
       <div className="space-y-8">
+        {/* AI 검증 프로세스 워크플로우 */}
+        <motion.div
+          variants={itemVariants}
+          initial="hidden"
+          animate="show"
+        >
+          <AIVerificationWorkflow />
+        </motion.div>
 
         {/* Feature Cards */}
         <motion.div

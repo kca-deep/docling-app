@@ -115,6 +115,16 @@ class UserListResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ShareableUserResponse(BaseModel):
+    """공유 가능 사용자 응답 (컬렉션 공유용)"""
+    id: int
+    username: str
+    name: Optional[str] = None
+    team_name: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class ApproveRequest(BaseModel):
     """승인 요청"""
     user_id: int
@@ -477,6 +487,37 @@ async def list_users(
     )
 
     return [_user_to_list_response(user) for user in users]
+
+
+@router.get("/users/shareable", response_model=List[ShareableUserResponse])
+async def list_shareable_users(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    공유 가능한 사용자 목록 조회 (컬렉션 공유용)
+
+    - 승인된(approved) 활성 사용자만 반환
+    - 본인은 목록에서 제외
+    - 민감 정보 제외 (id, username, name, team_name만)
+
+    Returns:
+        List[ShareableUserResponse]: 공유 가능한 사용자 목록
+    """
+    users = auth_service.get_shareable_users(
+        db=db,
+        exclude_user_id=current_user.id
+    )
+
+    return [
+        ShareableUserResponse(
+            id=user.id,
+            username=user.username,
+            name=user.name,
+            team_name=user.team_name
+        )
+        for user in users
+    ]
 
 
 @router.get("/users/pending", response_model=List[UserListResponse])

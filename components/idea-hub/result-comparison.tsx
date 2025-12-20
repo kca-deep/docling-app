@@ -313,7 +313,7 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
               )}
               <div className="text-left">
                 <p className="text-lg font-bold">
-                  상위기관 보안성 검토 대상:{" "}
+                  검토 대상:{" "}
                   <span
                     className={
                       result.requiresReview
@@ -323,10 +323,15 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
                   >
                     {result.requiresReview ? "예" : "아니오"}
                   </span>
+                  <span className="font-normal text-base ml-2">
+                    {result.requiresReview
+                      ? "(상위기관 보안성 검토 필요)"
+                      : "(과제 추진 가능)"}
+                  </span>
                 </p>
-                {result.requiresReview && (
-                  <p className="text-sm text-amber-700 dark:text-amber-300">
-                    {result.reviewReason}
+                {result.requiresReview && result.reviewReason && (
+                  <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                    <span className="font-medium">사유:</span> {result.reviewReason}
                   </p>
                 )}
               </div>
@@ -359,8 +364,6 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
           </CardTitle>
         </CardHeader>
         <CardContent className="px-2 sm:px-6">
-          <div className="overflow-x-auto -mx-2 sm:mx-0">
-            <div className="min-w-[480px] px-2 sm:px-0">
           <Table>
             <TableHeader>
               <TableRow>
@@ -426,16 +429,51 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
                       </TableRow>
                       {isExpanded && (
                         <TableRow key={`${item.number}-detail`} className="bg-muted/30">
-                          <TableCell colSpan={5} className="py-2 px-4">
-                            <div className="space-y-2">
-                              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-                                <span className="text-xs text-muted-foreground shrink-0">AI 근거:</span>
-                                <span className="text-sm flex-1">{item.llmEvidence || "판단 근거 없음"}</span>
-                                <Badge variant="outline" className="shrink-0 w-fit">
-                                  신뢰도 {Math.round(item.llmConfidence * 100)}%
-                                </Badge>
+                          <TableCell colSpan={5} className="py-3 px-4">
+                            {/* 확장 필드가 있으면 구조화된 UI, 없으면 기존 방식 */}
+                            {item.llmJudgment || item.llmQuote || item.llmReasoning ? (
+                              <div className="space-y-3">
+                                {/* 판단 결과 */}
+                                <div className="flex flex-wrap items-start gap-2">
+                                  <span className="text-xs font-medium text-primary shrink-0 mt-0.5">📌 판단:</span>
+                                  <span className="text-sm font-medium break-words flex-1 min-w-0">{item.llmJudgment || "판단 결과 없음"}</span>
+                                  <Badge variant="outline" className="shrink-0">
+                                    신뢰도 {Math.round(item.llmConfidence * 100)}%
+                                  </Badge>
+                                </div>
+                                {/* 인용문 */}
+                                {item.llmQuote && item.llmQuote !== "관련 언급 없음" && (
+                                  <div className="flex items-start gap-2">
+                                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400 shrink-0 mt-0.5">📝 인용:</span>
+                                    <span className="text-sm italic text-muted-foreground break-words min-w-0">&quot;{item.llmQuote}&quot;</span>
+                                  </div>
+                                )}
+                                {/* 상세 분석 */}
+                                {item.llmReasoning && (
+                                  <div className="flex items-start gap-2">
+                                    <span className="text-xs font-medium text-green-600 dark:text-green-400 shrink-0 mt-0.5">💡 분석:</span>
+                                    <span className="text-sm break-words min-w-0">{item.llmReasoning}</span>
+                                  </div>
+                                )}
+                                {/* 교차검증 비교 (불일치 시) */}
+                                {item.llmUserComparison && (
+                                  <div className="flex items-start gap-2 p-2 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                                    <span className="text-xs font-medium text-amber-600 dark:text-amber-400 shrink-0 mt-0.5">⚠️ 비교:</span>
+                                    <span className="text-sm text-amber-700 dark:text-amber-300 break-words min-w-0">{item.llmUserComparison}</span>
+                                  </div>
+                                )}
                               </div>
-                            </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3">
+                                  <span className="text-xs text-muted-foreground shrink-0">AI 근거:</span>
+                                  <span className="text-sm flex-1 break-words min-w-0">{item.llmEvidence || "판단 근거 없음"}</span>
+                                  <Badge variant="outline" className="shrink-0 w-fit">
+                                    신뢰도 {Math.round(item.llmConfidence * 100)}%
+                                  </Badge>
+                                </div>
+                              </div>
+                            )}
                           </TableCell>
                         </TableRow>
                       )}
@@ -444,8 +482,6 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
                 })}
             </TableBody>
           </Table>
-            </div>
-          </div>
         </CardContent>
       </Card>
 
@@ -458,8 +494,6 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
           </CardTitle>
         </CardHeader>
         <CardContent className="px-2 sm:px-6">
-          <div className="overflow-x-auto -mx-2 sm:mx-0">
-            <div className="min-w-[480px] px-2 sm:px-0">
           <Table>
             <TableHeader>
               <TableRow>
@@ -520,16 +554,51 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
                       </TableRow>
                       {isExpanded && (
                         <TableRow key={`${item.number}-detail`} className="bg-muted/30">
-                          <TableCell colSpan={5} className="py-2 px-4">
-                            <div className="space-y-2">
-                              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-                                <span className="text-xs text-muted-foreground shrink-0">AI 근거:</span>
-                                <span className="text-sm flex-1">{item.llmEvidence || "판단 근거 없음"}</span>
-                                <Badge variant="outline" className="shrink-0 w-fit">
-                                  신뢰도 {Math.round(item.llmConfidence * 100)}%
-                                </Badge>
+                          <TableCell colSpan={5} className="py-3 px-4">
+                            {/* 확장 필드가 있으면 구조화된 UI, 없으면 기존 방식 */}
+                            {item.llmJudgment || item.llmQuote || item.llmReasoning ? (
+                              <div className="space-y-3">
+                                {/* 판단 결과 */}
+                                <div className="flex flex-wrap items-start gap-2">
+                                  <span className="text-xs font-medium text-primary shrink-0 mt-0.5">📌 판단:</span>
+                                  <span className="text-sm font-medium break-words flex-1 min-w-0">{item.llmJudgment || "판단 결과 없음"}</span>
+                                  <Badge variant="outline" className="shrink-0">
+                                    신뢰도 {Math.round(item.llmConfidence * 100)}%
+                                  </Badge>
+                                </div>
+                                {/* 인용문 */}
+                                {item.llmQuote && item.llmQuote !== "관련 언급 없음" && (
+                                  <div className="flex items-start gap-2">
+                                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400 shrink-0 mt-0.5">📝 인용:</span>
+                                    <span className="text-sm italic text-muted-foreground break-words min-w-0">&quot;{item.llmQuote}&quot;</span>
+                                  </div>
+                                )}
+                                {/* 상세 분석 */}
+                                {item.llmReasoning && (
+                                  <div className="flex items-start gap-2">
+                                    <span className="text-xs font-medium text-green-600 dark:text-green-400 shrink-0 mt-0.5">💡 분석:</span>
+                                    <span className="text-sm break-words min-w-0">{item.llmReasoning}</span>
+                                  </div>
+                                )}
+                                {/* 교차검증 비교 (불일치 시) */}
+                                {item.llmUserComparison && (
+                                  <div className="flex items-start gap-2 p-2 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                                    <span className="text-xs font-medium text-amber-600 dark:text-amber-400 shrink-0 mt-0.5">⚠️ 비교:</span>
+                                    <span className="text-sm text-amber-700 dark:text-amber-300 break-words min-w-0">{item.llmUserComparison}</span>
+                                  </div>
+                                )}
                               </div>
-                            </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3">
+                                  <span className="text-xs text-muted-foreground shrink-0">AI 근거:</span>
+                                  <span className="text-sm flex-1 break-words min-w-0">{item.llmEvidence || "판단 근거 없음"}</span>
+                                  <Badge variant="outline" className="shrink-0 w-fit">
+                                    신뢰도 {Math.round(item.llmConfidence * 100)}%
+                                  </Badge>
+                                </div>
+                              </div>
+                            )}
                           </TableCell>
                         </TableRow>
                       )}
@@ -538,8 +607,6 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
                 })}
             </TableBody>
           </Table>
-            </div>
-          </div>
         </CardContent>
       </Card>
 

@@ -233,6 +233,11 @@ export default function SelfCheckPage() {
               llm_risk_level: string
               match_status: string
               final_answer: string | null
+              // 확장 필드 (방안 C)
+              llm_judgment?: string | null
+              llm_quote?: string | null
+              llm_reasoning?: string | null
+              llm_user_comparison?: string | null
             }) => ({
               number: item.item_number,
               category: item.item_category as "required" | "optional",
@@ -244,6 +249,11 @@ export default function SelfCheckPage() {
               llmConfidence: item.llm_confidence,
               llmEvidence: item.llm_evidence,
               llmRiskLevel: item.llm_risk_level as "high" | "medium" | "low",
+              // 확장 필드 (방안 C: 교차검증 통합)
+              llmJudgment: item.llm_judgment || null,
+              llmQuote: item.llm_quote || null,
+              llmReasoning: item.llm_reasoning || null,
+              llmUserComparison: item.llm_user_comparison || null,
             })),
             summary: data.summary,
             nextSteps: data.next_steps,

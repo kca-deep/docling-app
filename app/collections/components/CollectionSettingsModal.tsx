@@ -124,6 +124,15 @@ interface Collection {
   owner_id?: number
   is_owner?: boolean
   created_at?: string
+  allowed_users?: number[]
+}
+
+// 공유 가능 사용자 정보
+interface ShareableUser {
+  id: number
+  username: string
+  name: string | null
+  team_name: string | null
 }
 
 // 컬렉션 내 문서 정보 (API 응답)
@@ -162,6 +171,12 @@ export function CollectionSettingsModal({
   const [visibility, setVisibility] = useState<Visibility>("public")
   const [saving, setSaving] = useState(false)
 
+  // 공유 사용자 선택 상태
+  const [allowedUsers, setAllowedUsers] = useState<number[]>([])
+  const [availableUsers, setAvailableUsers] = useState<ShareableUser[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [userSearchQuery, setUserSearchQuery] = useState("")
+
   // 문서 관리 탭 상태
   const [documents, setDocuments] = useState<CollectionDocumentInfo[]>([])
   const [loadingDocs, setLoadingDocs] = useState(false)
@@ -178,7 +193,9 @@ export function CollectionSettingsModal({
       setIsPriority(metadata.priority === 1)
       setPlainDescription(metadata.plainDescription || "")
       setVisibility(collection.visibility || "public")
+      setAllowedUsers(collection.allowed_users || [])
       setKeywordInput("")
+      setUserSearchQuery("")
     }
   }, [collection])
 
@@ -230,6 +247,83 @@ export function CollectionSettingsModal({
     }
 
     return JSON.stringify(metadata)
+  }
+
+  // 공유 가능 사용자 목록 조회
+  const fetchShareableUsers = async () => {
+    setLoadingUsers(true)
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/auth/users/shareable`,
+        { credentials: 'include' }
+      )
+      if (response.ok) {
+        const data = await response.json()
+        setAvailableUsers(data)
+      } else {
+        console.error("Failed to fetch shareable users")
+      }
+    } catch (error) {
+      console.error("Failed to fetch shareable users:", error)
+    } finally {
+      setLoadingUsers(false)
+    }
+  }
+
+  // visibility가 shared로 변경되면 사용자 목록 조회
+  useEffect(() => {
+    if (visibility === "shared" && availableUsers.length === 0) {
+      fetchShareableUsers()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibility])
+
+  // 사용자 선택/해제 토글
+  const toggleUserSelection = (userId: number) => {
+    setAllowedUsers((prev) =>
+      prev.includes(userId)
+        ? prev.filter((id) => id !== userId)
+        : [...prev, userId]
+    )
+  }
+
+  // 전체 선택/해제
+  const toggleSelectAllUsers = () => {
+    const filteredUsers = getFilteredUsers()
+    const allSelected = filteredUsers.every((u) => allowedUsers.includes(u.id))
+    if (allSelected) {
+      // 필터된 사용자 모두 해제
+      setAllowedUsers((prev) =>
+        prev.filter((id) => !filteredUsers.some((u) => u.id === id))
+      )
+    } else {
+      // 필터된 사용자 모두 선택
+      const newIds = filteredUsers.map((u) => u.id)
+      setAllowedUsers((prev) => [...new Set([...prev, ...newIds])])
+    }
+  }
+
+  // 검색 필터 적용
+  const getFilteredUsers = () => {
+    if (!userSearchQuery.trim()) return availableUsers
+    const query = userSearchQuery.toLowerCase()
+    return availableUsers.filter(
+      (user) =>
+        user.username.toLowerCase().includes(query) ||
+        user.name?.toLowerCase().includes(query) ||
+        user.team_name?.toLowerCase().includes(query)
+    )
+  }
+
+  // 팀별 그룹핑
+  const groupUsersByTeam = (users: ShareableUser[]) => {
+    const groups: Record<string, ShareableUser[]> = {}
+    users.forEach((user) => {
+      const team = user.team_name || "팀 미지정"
+      if (!groups[team]) groups[team] = []
+      groups[team].push(user)
+    })
+    return groups
   }
 
   // 문서 목록 조회
@@ -407,6 +501,7 @@ export function CollectionSettingsModal({
           body: JSON.stringify({
             visibility,
             description: buildDescriptionJson(),
+            allowed_users: visibility === "shared" ? allowedUsers : null,
           }),
         }
       )
@@ -752,11 +847,112 @@ export function CollectionSettingsModal({
 
               {/* 공유 사용자 선택 (shared일 때만) */}
               {visibility === "shared" && (
-                <div className="rounded-lg border border-dashed bg-muted/20 p-4 mt-2">
-                  <div className="text-center">
-                    <Users className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
-                    <p className="text-sm text-muted-foreground">사용자 선택 기능은 준비 중입니다</p>
+                <div className="rounded-lg border bg-card p-4 mt-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Users className="h-4 w-4 text-blue-500" />
+                      공유 대상 선택
+                    </div>
+                    {allowedUsers.length > 0 && (
+                      <Badge variant="secondary" className="text-xs">
+                        {allowedUsers.length}명 선택
+                      </Badge>
+                    )}
                   </div>
+
+                  {/* 검색 입력 */}
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="이름, 아이디, 팀으로 검색..."
+                      value={userSearchQuery}
+                      onChange={(e) => setUserSearchQuery(e.target.value)}
+                      className="pl-8 h-9"
+                    />
+                  </div>
+
+                  {/* 사용자 목록 */}
+                  {loadingUsers ? (
+                    <div className="space-y-2">
+                      {[1, 2, 3].map((i) => (
+                        <Skeleton key={i} className="h-10 w-full" />
+                      ))}
+                    </div>
+                  ) : availableUsers.length === 0 ? (
+                    <div className="text-center py-6 text-muted-foreground">
+                      <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">공유 가능한 사용자가 없습니다</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* 전체 선택 */}
+                      <div className="flex items-center gap-2 pb-2 border-b">
+                        <Checkbox
+                          id="select-all-users"
+                          checked={
+                            getFilteredUsers().length > 0 &&
+                            getFilteredUsers().every((u) => allowedUsers.includes(u.id))
+                          }
+                          onCheckedChange={toggleSelectAllUsers}
+                        />
+                        <label
+                          htmlFor="select-all-users"
+                          className="text-sm font-medium cursor-pointer"
+                        >
+                          전체 선택
+                        </label>
+                      </div>
+
+                      {/* 팀별 사용자 목록 */}
+                      <div className="max-h-[200px] overflow-y-auto space-y-3 pr-1">
+                        {Object.entries(groupUsersByTeam(getFilteredUsers())).map(
+                          ([team, users]) => (
+                            <div key={team} className="space-y-1">
+                              <div className="text-xs font-medium text-muted-foreground px-1">
+                                {team}
+                              </div>
+                              <div className="space-y-0.5">
+                                {users.map((user) => (
+                                  <div
+                                    key={user.id}
+                                    className={cn(
+                                      "flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors",
+                                      allowedUsers.includes(user.id)
+                                        ? "bg-blue-500/10"
+                                        : "hover:bg-muted/50"
+                                    )}
+                                    onClick={() => toggleUserSelection(user.id)}
+                                  >
+                                    <Checkbox
+                                      checked={allowedUsers.includes(user.id)}
+                                      onCheckedChange={() => toggleUserSelection(user.id)}
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-sm font-medium truncate">
+                                        {user.name || user.username}
+                                      </div>
+                                      {user.name && (
+                                        <div className="text-xs text-muted-foreground truncate">
+                                          @{user.username}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </div>
+
+                      {/* 선택된 사용자가 없을 때 안내 */}
+                      {allowedUsers.length === 0 && (
+                        <div className="text-center py-2 text-xs text-amber-600 bg-amber-500/10 rounded-md">
+                          공유할 사용자를 선택해주세요
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               )}
             </div>

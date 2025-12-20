@@ -3,8 +3,8 @@ Dify Upload History SQLAlchemy Model
 """
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
-from datetime import datetime
 from backend.database import Base
+from backend.utils.timezone import now_naive
 
 
 class DifyUploadHistory(Base):
@@ -26,7 +26,7 @@ class DifyUploadHistory(Base):
     error_message = Column(Text, nullable=True)  # 실패 시 오류 메시지
 
     # 타임스탬프
-    uploaded_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    uploaded_at = Column(DateTime, default=now_naive, nullable=False, index=True)
 
     # Relationship
     document = relationship("Document", backref="dify_uploads")

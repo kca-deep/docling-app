@@ -3,8 +3,8 @@ Dify Configuration SQLAlchemy Model (Optional)
 사용자별 Dify 설정을 저장하기 위한 테이블
 """
 from sqlalchemy import Column, Integer, String, DateTime, Boolean
-from datetime import datetime
 from backend.database import Base
+from backend.utils.timezone import now_naive
 
 
 class DifyConfig(Base):
@@ -34,8 +34,8 @@ class DifyConfig(Base):
     description = Column(String(500), nullable=True)
 
     # 타임스탬프
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=now_naive, nullable=False, index=True)
+    updated_at = Column(DateTime, default=now_naive, onupdate=now_naive, nullable=False)
     last_used_at = Column(DateTime, nullable=True)
 
     def __repr__(self):

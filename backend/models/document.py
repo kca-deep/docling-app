@@ -2,8 +2,8 @@
 Document SQLAlchemy Model
 """
 from sqlalchemy import Column, Integer, String, Text, Float, DateTime, JSON
-from datetime import datetime
 from backend.database import Base
+from backend.utils.timezone import now_naive
 
 
 class Document(Base):
@@ -38,8 +38,8 @@ class Document(Base):
     last_accessed_at = Column(DateTime, nullable=True)
 
     # 타임스탬프
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=now_naive, nullable=False, index=True)
+    updated_at = Column(DateTime, default=now_naive, onupdate=now_naive, nullable=False)
 
     def __repr__(self):
         return f"<Document(id={self.id}, task_id={self.task_id}, filename={self.original_filename})>"

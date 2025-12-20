@@ -329,6 +329,7 @@ class QdrantCollectionInfo(BaseModel):
     description: Optional[str] = None
     owner_id: Optional[int] = None
     is_owner: bool = False  # 현재 사용자가 소유자인지 여부
+    allowed_users: Optional[List[int]] = None  # 공유 허용 사용자 ID 목록 (visibility=shared일 때)
 
 
 class QdrantCollectionCreateRequest(BaseModel):
@@ -688,10 +689,15 @@ class SelfCheckItemResult(BaseModel):
     user_details: Optional[str] = None  # 사용자 입력 세부내용
     llm_answer: str  # yes, no, need_check (AI 분석)
     llm_confidence: float  # 0.0 ~ 1.0
-    llm_evidence: str  # 판단 근거
+    llm_evidence: str  # 판단 근거 (기존 호환용, judgment + reasoning 조합)
     llm_risk_level: str  # high, medium, low
     match_status: str  # match, mismatch, reference, keep (일치 상태)
     final_answer: Optional[str] = None  # 최종 확정값
+    # 확장 필드 (방안 C: 교차검증 통합)
+    llm_judgment: Optional[str] = None  # 판단 결과 요약 (20자 이내)
+    llm_quote: Optional[str] = None  # 과제내용에서 인용한 근거 문장
+    llm_reasoning: Optional[str] = None  # AI의 상세 판단 로직 설명
+    llm_user_comparison: Optional[str] = None  # 사용자 답변과 AI 판단 비교 설명 (불일치 시)
 
 
 class LLMModelStatus(BaseModel):

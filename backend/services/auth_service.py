@@ -538,6 +538,31 @@ class AuthService:
 
         return query.order_by(User.created_at.desc()).offset(skip).limit(limit).all()
 
+    def get_shareable_users(
+        self,
+        db: Session,
+        exclude_user_id: Optional[int] = None
+    ) -> List[User]:
+        """
+        공유 가능한 사용자 목록 조회 (컬렉션 공유용)
+
+        Args:
+            db: 데이터베이스 세션
+            exclude_user_id: 제외할 사용자 ID (현재 로그인 사용자)
+
+        Returns:
+            List[User]: 공유 가능한 사용자 목록
+        """
+        query = db.query(User).filter(
+            User.status == UserStatus.APPROVED.value,
+            User.is_active == True
+        )
+
+        if exclude_user_id:
+            query = query.filter(User.id != exclude_user_id)
+
+        return query.order_by(User.name, User.username).all()
+
     def delete_user(self, db: Session, user_id: int) -> bool:
         """
         사용자 삭제

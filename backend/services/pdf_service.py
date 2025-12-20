@@ -6,6 +6,7 @@ import logging
 from io import BytesIO
 from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 from typing import Dict, Any, List, Optional
 
 from reportlab.lib import colors
@@ -85,19 +86,21 @@ class PDFService:
                 "heading1",
                 parent=base_styles["Heading1"],
                 fontName=self.font_name,
-                fontSize=14,
-                spaceBefore=20,
+                fontSize=13,
+                spaceBefore=18,
                 spaceAfter=10,
-                textColor=colors.HexColor("#1a365d")
+                textColor=colors.HexColor("#0f172a"),
+                borderPadding=(0, 0, 0, 8),
+                leftIndent=0
             ),
             "heading2": ParagraphStyle(
                 "heading2",
                 parent=base_styles["Heading2"],
                 fontName=self.font_name,
-                fontSize=12,
-                spaceBefore=15,
+                fontSize=11,
+                spaceBefore=12,
                 spaceAfter=8,
-                textColor=colors.HexColor("#2c5282")
+                textColor=colors.HexColor("#334155")
             ),
             "normal": ParagraphStyle(
                 "normal",
@@ -117,19 +120,21 @@ class PDFService:
                 "warning",
                 parent=base_styles["Normal"],
                 fontName=self.font_name,
-                fontSize=11,
-                textColor=colors.HexColor("#c53030"),
-                spaceBefore=10,
-                spaceAfter=10
+                fontSize=10,
+                textColor=colors.HexColor("#b45309"),
+                spaceBefore=8,
+                spaceAfter=8,
+                leftIndent=5
             ),
             "success": ParagraphStyle(
                 "success",
                 parent=base_styles["Normal"],
                 fontName=self.font_name,
-                fontSize=11,
-                textColor=colors.HexColor("#276749"),
-                spaceBefore=10,
-                spaceAfter=10
+                fontSize=10,
+                textColor=colors.HexColor("#059669"),
+                spaceBefore=8,
+                spaceAfter=8,
+                leftIndent=5
             )
         }
 
@@ -189,16 +194,53 @@ class PDFService:
         styles = self._get_styles()
         elements = []
 
-        # === 1. 제목 ===
-        elements.append(Paragraph(
-            "AI 과제 보안성 검토 셀프진단 결과",
-            styles["title"]
-        ))
-        elements.append(Paragraph(
-            "한국방송통신전파진흥원",
-            styles["subtitle"]
-        ))
-        elements.append(Spacer(1, 10))
+        # === 1. 제목 (디자인 적용) ===
+        # 타이틀 박스 스타일
+        title_style = ParagraphStyle(
+            "title_box",
+            parent=styles["title"],
+            fontName=self.font_name,
+            fontSize=20,
+            textColor=colors.white,
+            alignment=1,
+            spaceAfter=0
+        )
+        sub_info_style = ParagraphStyle(
+            "sub_info",
+            fontName=self.font_name,
+            fontSize=9,
+            textColor=colors.HexColor("#e2e8f0"),
+            alignment=1,
+            spaceBefore=8
+        )
+
+        # 타이틀 박스 내용
+        title_content = Paragraph("AI활용 아이디어 셀프진단 결과서", title_style)
+        korea_time = datetime.now(ZoneInfo("Asia/Seoul")).strftime('%Y-%m-%d %H:%M:%S')
+        sub_info_text = (
+            f"본 문서는 AI가 자동 분석한 결과이며, 최종 판단은 정보보호팀의 검토를 거쳐야 합니다.<br/>"
+            f"생성일시: {korea_time} | "
+            f"분석모델: {submission.used_model or 'N/A'}"
+        )
+        sub_info_content = Paragraph(sub_info_text, sub_info_style)
+
+        # 타이틀 테이블 (박스 디자인)
+        title_data = [[title_content], [sub_info_content]]
+        title_table = Table(title_data, colWidths=[450])
+        title_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#1e40af")),  # 진한 파란색 배경
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING", (0, 0), (0, 0), 20),
+            ("BOTTOMPADDING", (0, 0), (0, 0), 5),
+            ("TOPPADDING", (0, 1), (0, 1), 0),
+            ("BOTTOMPADDING", (0, 1), (0, 1), 15),
+            ("LEFTPADDING", (0, 0), (-1, -1), 20),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 20),
+            ("BOX", (0, 0), (-1, -1), 2, colors.HexColor("#1e3a8a")),  # 테두리
+        ]))
+        elements.append(title_table)
+        elements.append(Spacer(1, 20))
 
         # === 2. 과제 기본정보 ===
         elements.append(Paragraph("1. 과제 기본정보", styles["heading1"]))
@@ -230,45 +272,111 @@ class PDFService:
         elements.append(info_table)
         elements.append(Spacer(1, 15))
 
-        # === 2. 사용자 입력 과제 내용 ===
+        # === 2. 사용자 입력 과제 내용 (박스 스타일) ===
         if submission.project_description:
             elements.append(Paragraph("2. 사용자 입력 과제 내용", styles["heading1"]))
 
-            # 과제 내용을 줄바꿈 처리하여 표시
-            desc_lines = submission.project_description.split('\n')
-            for line in desc_lines:
-                if line.strip():
-                    # 특수문자 이스케이프 처리
-                    safe_line = line.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                    elements.append(Paragraph(safe_line, styles["normal"]))
-                else:
-                    elements.append(Spacer(1, 4))
+            # 과제 내용을 박스 안에 표시
+            safe_desc = submission.project_description.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            safe_desc = safe_desc.replace('\n', '<br/>')
 
+            desc_box_style = ParagraphStyle(
+                "desc_box",
+                parent=styles["normal"],
+                fontName=self.font_name,
+                fontSize=9,
+                leading=14,
+                leftIndent=5,
+                rightIndent=5,
+            )
+
+            desc_data = [[Paragraph(safe_desc, desc_box_style)]]
+            desc_table = Table(desc_data, colWidths=[430])
+            desc_table.setStyle(TableStyle([
+                ("FONTNAME", (0, 0), (-1, -1), self.font_name),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
+                ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#cbd5e1")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 15),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 15),
+                ("TOPPADDING", (0, 0), (-1, -1), 12),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+            ]))
+            elements.append(desc_table)
             elements.append(Spacer(1, 15))
 
         # 섹션 번호 (project_description 유무에 따라 조정)
         section_num = 2 if submission.project_description else 2
 
-        # === 상위기관 검토 대상 여부 ===
+        # === 상위기관 검토 대상 여부 (카드 박스 스타일) ===
         if submission.project_description:
             section_num = 3
         elements.append(Paragraph(f"{section_num}. 상위기관 보안성 검토 대상 여부", styles["heading1"]))
 
+        # 카드 박스 스타일 적용
         if submission.requires_review:
-            elements.append(Paragraph(
-                "검토 대상: 예 (상위기관 보안성 검토 필요)",
-                styles["warning"]
-            ))
+            # 주황색/노란색 경고 카드
+            review_bg = colors.HexColor("#fef3c7")  # amber-100
+            review_border = colors.HexColor("#f59e0b")  # amber-500
+            review_text_color = colors.HexColor("#b45309")  # amber-700
+
+            review_title_style = ParagraphStyle(
+                "review_title",
+                fontName=self.font_name,
+                fontSize=14,
+                textColor=review_text_color,
+                alignment=1,
+                spaceAfter=5
+            )
+            review_reason_style = ParagraphStyle(
+                "review_reason",
+                fontName=self.font_name,
+                fontSize=10,
+                textColor=colors.HexColor("#92400e"),
+                alignment=1
+            )
+
+            card_content = [[Paragraph("<b>검토 대상: 예</b>", review_title_style)],
+                           [Paragraph("(상위기관 보안성 검토 필요)", review_reason_style)]]
             if submission.review_reason:
-                elements.append(Paragraph(
-                    f"사유: {submission.review_reason}",
-                    styles["normal"]
-                ))
+                card_content.append([Paragraph(f"<b>사유:</b> {submission.review_reason}", review_reason_style)])
         else:
-            elements.append(Paragraph(
-                "검토 대상: 아니오 (과제 추진 가능)",
-                styles["success"]
-            ))
+            # 녹색 성공 카드
+            review_bg = colors.HexColor("#dcfce7")  # green-100
+            review_border = colors.HexColor("#22c55e")  # green-500
+            review_text_color = colors.HexColor("#166534")  # green-700
+
+            review_title_style = ParagraphStyle(
+                "review_title",
+                fontName=self.font_name,
+                fontSize=14,
+                textColor=review_text_color,
+                alignment=1,
+                spaceAfter=5
+            )
+            review_reason_style = ParagraphStyle(
+                "review_reason",
+                fontName=self.font_name,
+                fontSize=10,
+                textColor=colors.HexColor("#15803d"),
+                alignment=1
+            )
+
+            card_content = [[Paragraph("<b>검토 대상: 아니오</b>", review_title_style)],
+                           [Paragraph("(과제 추진 가능)", review_reason_style)]]
+
+        # 카드 테이블 생성
+        review_card = Table(card_content, colWidths=[430])
+        review_card.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), review_bg),
+            ("BOX", (0, 0), (-1, -1), 2, review_border),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING", (0, 0), (0, 0), 15),
+            ("BOTTOMPADDING", (0, -1), (0, -1), 15),
+            ("LEFTPADDING", (0, 0), (-1, -1), 20),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 20),
+        ]))
+        elements.append(review_card)
         elements.append(Spacer(1, 15))
 
         # === 점검 항목 상세 ===
@@ -280,7 +388,7 @@ class PDFService:
 
         required_items = [item for item in submission.items if item.item_category == "required"]
         if required_items:
-            elements.append(self._create_items_table(required_items, styles))
+            elements.extend(self._create_items_table(required_items, styles))
         elements.append(Spacer(1, 15))
 
         # 선택 항목
@@ -288,7 +396,7 @@ class PDFService:
 
         optional_items = [item for item in submission.items if item.item_category == "optional"]
         if optional_items:
-            elements.append(self._create_items_table(optional_items, styles))
+            elements.extend(self._create_items_table(optional_items, styles))
         elements.append(Spacer(1, 20))
 
         # === 중복성 검토 결과 ===
@@ -351,18 +459,7 @@ class PDFService:
         for step in steps:
             elements.append(Paragraph(f"  {step}", styles["normal"]))
 
-        elements.append(Spacer(1, 30))
-
-        # === 6. 푸터 ===
-        elements.append(HRFlowable(width="100%", color=colors.HexColor("#e2e8f0")))
-        elements.append(Spacer(1, 10))
-
-        footer_text = (
-            f"본 문서는 AI가 자동 분석한 결과이며, 최종 판단은 정보보호팀의 검토를 거쳐야 합니다.\n"
-            f"생성일시: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
-            f"분석모델: {submission.used_model or 'N/A'}"
-        )
-        elements.append(Paragraph(footer_text, styles["small"]))
+        elements.append(Spacer(1, 20))
 
         # PDF 생성
         doc.build(elements)
@@ -372,46 +469,160 @@ class PDFService:
         self,
         items: List[SelfCheckItemResult],
         styles: Dict[str, ParagraphStyle]
-    ) -> Table:
-        """체크리스트 항목 테이블 생성"""
-        # 헤더
-        data = [["#", "점검 항목", "내 선택", "AI 분석", "신뢰도", "상태"]]
+    ) -> List:
+        """체크리스트 항목 테이블 및 상세 정보 생성 (웹 UI 스타일)"""
+        elements = []
+
+        # 스타일 정의
+        item_header_style = ParagraphStyle(
+            "item_header",
+            fontName=self.font_name,
+            fontSize=10,
+            textColor=colors.HexColor("#1e293b"),
+            spaceAfter=2
+        )
+        detail_label_style = ParagraphStyle(
+            "detail_label",
+            fontName=self.font_name,
+            fontSize=8,
+            textColor=colors.HexColor("#2563eb"),
+            leftIndent=5
+        )
+        detail_text_style = ParagraphStyle(
+            "detail_text",
+            fontName=self.font_name,
+            fontSize=9,
+            textColor=colors.HexColor("#334155"),
+            leftIndent=5,
+            rightIndent=5
+        )
+        quote_text_style = ParagraphStyle(
+            "quote_text",
+            fontName=self.font_name,
+            fontSize=9,
+            textColor=colors.HexColor("#64748b"),
+            leftIndent=5,
+            rightIndent=5
+        )
+        warning_text_style = ParagraphStyle(
+            "warning_text",
+            fontName=self.font_name,
+            fontSize=9,
+            textColor=colors.HexColor("#b45309"),
+            leftIndent=5,
+            rightIndent=5
+        )
 
         for item in items:
-            # 상태에 따른 색상 표시를 위해 Paragraph 사용
-            status_style = ParagraphStyle(
-                "status",
-                fontName=self.font_name,
-                fontSize=9,
-                textColor=self._get_match_status_color(item.match_status)
-            )
+            # 상태에 따른 색상
+            status_color = self._get_match_status_color(item.match_status)
+            status_text = self._get_match_status_text(item.match_status)
+            status_bg = {
+                "match": colors.HexColor("#dcfce7"),      # green-100
+                "mismatch": colors.HexColor("#fef3c7"),   # amber-100
+                "reference": colors.HexColor("#dbeafe"),  # blue-100
+                "keep": colors.HexColor("#f1f5f9")        # slate-100
+            }.get(item.match_status, colors.HexColor("#f1f5f9"))
 
-            data.append([
-                str(item.item_number),
-                Paragraph(item.short_label, styles["normal"]),
-                self._answer_to_korean(item.user_answer),
-                self._answer_to_korean(item.llm_answer),
-                f"{int(item.llm_confidence * 100)}%",
-                Paragraph(self._get_match_status_text(item.match_status), status_style)
-            ])
+            # === 항목 카드 헤더 ===
+            header_data = [[
+                Paragraph(f"<b>[{item.item_number}] {item.short_label}</b>", item_header_style),
+                Paragraph(f"<b>{status_text}</b>", ParagraphStyle(
+                    "status_badge",
+                    fontName=self.font_name,
+                    fontSize=9,
+                    textColor=status_color,
+                    alignment=2  # Right align
+                ))
+            ]]
+            header_table = Table(header_data, colWidths=[350, 80])
+            header_table.setStyle(TableStyle([
+                ("FONTNAME", (0, 0), (-1, -1), self.font_name),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f1f5f9")),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ("LEFTPADDING", (0, 0), (0, -1), 10),
+                ("RIGHTPADDING", (-1, 0), (-1, -1), 10),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LINEBELOW", (0, 0), (-1, -1), 1, colors.HexColor("#e2e8f0")),
+            ]))
+            elements.append(header_table)
 
-        table = Table(data, colWidths=[25, 140, 55, 55, 45, 50])
-        table.setStyle(TableStyle([
-            ("FONTNAME", (0, 0), (-1, -1), self.font_name),
-            ("FONTSIZE", (0, 0), (-1, -1), 9),
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2c5282")),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("ALIGN", (0, 0), (-1, 0), "CENTER"),
-            ("ALIGN", (0, 1), (0, -1), "CENTER"),
-            ("ALIGN", (2, 1), (-1, -1), "CENTER"),
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("TOPPADDING", (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f7fafc")])
-        ]))
+            # === 사용자/AI 비교 행 ===
+            user_answer = self._answer_to_korean(item.user_answer)
+            llm_answer = self._answer_to_korean(item.llm_answer)
+            confidence = f"{int(item.llm_confidence * 100)}%"
 
-        return table
+            # 답변 색상
+            user_color = colors.HexColor("#dc2626") if item.user_answer == "yes" else colors.HexColor("#16a34a") if item.user_answer == "no" else colors.gray
+            llm_color = colors.HexColor("#dc2626") if item.llm_answer == "yes" else colors.HexColor("#16a34a") if item.llm_answer == "no" else colors.gray
+
+            compare_data = [[
+                Paragraph("내 선택:", ParagraphStyle("lbl", fontName=self.font_name, fontSize=8, textColor=colors.gray)),
+                Paragraph(f"<b>{user_answer}</b>", ParagraphStyle("val", fontName=self.font_name, fontSize=9, textColor=user_color)),
+                Paragraph("AI 분석:", ParagraphStyle("lbl", fontName=self.font_name, fontSize=8, textColor=colors.gray)),
+                Paragraph(f"<b>{llm_answer}</b>", ParagraphStyle("val", fontName=self.font_name, fontSize=9, textColor=llm_color)),
+                Paragraph(f"신뢰도: {confidence}", ParagraphStyle("conf", fontName=self.font_name, fontSize=8, textColor=colors.HexColor("#64748b")))
+            ]]
+            compare_table = Table(compare_data, colWidths=[50, 50, 50, 50, 80])
+            compare_table.setStyle(TableStyle([
+                ("FONTNAME", (0, 0), (-1, -1), self.font_name),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("LEFTPADDING", (0, 0), (0, -1), 10),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ]))
+            elements.append(compare_table)
+
+            # === AI 상세 분석 (있는 경우) ===
+            detail_elements = []
+
+            if item.llm_judgment:
+                safe_judgment = item.llm_judgment.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                detail_elements.append([
+                    Paragraph("📌 판단:", detail_label_style),
+                    Paragraph(safe_judgment, detail_text_style)
+                ])
+
+            if item.llm_quote and item.llm_quote != "관련 언급 없음":
+                safe_quote = item.llm_quote.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                detail_elements.append([
+                    Paragraph("📝 인용:", ParagraphStyle("q_lbl", fontName=self.font_name, fontSize=8, textColor=colors.HexColor("#2563eb"), leftIndent=5)),
+                    Paragraph(f'"{safe_quote}"', quote_text_style)
+                ])
+
+            if item.llm_reasoning:
+                safe_reasoning = item.llm_reasoning.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                detail_elements.append([
+                    Paragraph("💡 분석:", ParagraphStyle("a_lbl", fontName=self.font_name, fontSize=8, textColor=colors.HexColor("#16a34a"), leftIndent=5)),
+                    Paragraph(safe_reasoning, detail_text_style)
+                ])
+
+            if item.llm_user_comparison:
+                safe_comparison = item.llm_user_comparison.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                detail_elements.append([
+                    Paragraph("⚠️ 비교:", ParagraphStyle("w_lbl", fontName=self.font_name, fontSize=8, textColor=colors.HexColor("#d97706"), leftIndent=5)),
+                    Paragraph(safe_comparison, warning_text_style)
+                ])
+
+            if detail_elements:
+                detail_table = Table(detail_elements, colWidths=[55, 375])
+                detail_table.setStyle(TableStyle([
+                    ("FONTNAME", (0, 0), (-1, -1), self.font_name),
+                    ("BACKGROUND", (0, 0), (-1, -1), status_bg),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ]))
+                elements.append(detail_table)
+
+            # 항목 간 간격
+            elements.append(Spacer(1, 8))
+
+        return elements
 
     async def generate_merged_pdf(
         self,

@@ -59,6 +59,7 @@ class SelfCheckService:
         self._prompt_1_5 = None
         self._prompt_6_10 = None
         self._similarity_prompt = None
+        self._individual_prompt = None  # 개별 항목 분석용 프롬프트
         self.client = http_manager.get_client("llm")
         # 임베딩 서비스 (유사과제 검토용)
         self.embedding_service = EmbeddingService(
@@ -94,6 +95,13 @@ class SelfCheckService:
         if self._similarity_prompt is None:
             self._similarity_prompt = self._load_prompt("selfcheck_similarity.txt")
         return self._similarity_prompt
+
+    @property
+    def individual_prompt(self) -> str:
+        """개별 항목 분석용 프롬프트"""
+        if self._individual_prompt is None:
+            self._individual_prompt = self._load_prompt("selfcheck_individual.txt")
+        return self._individual_prompt
 
     def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
         """코사인 유사도 계산"""
@@ -150,16 +158,29 @@ class SelfCheckService:
                 return []
             current_embedding = current_embeddings[0]
 
-            # 기존 과제들 텍스트 준비 및 임베딩 생성
+            # 기존 과제들 텍스트 준비 (유효한 텍스트만 포함)
+            valid_projects = []
             project_texts = []
             for proj in existing_projects:
-                text = f"{proj.project_name}\n{proj.project_description or ''}"
-                project_texts.append(text)
+                name = (proj.project_name or "").strip()
+                desc = (proj.project_description or "").strip()
+                text = f"{name}\n{desc}".strip()
+                if text:  # 빈 텍스트가 아닌 경우만 포함
+                    valid_projects.append(proj)
+                    project_texts.append(text)
 
-            existing_embeddings = await self.embedding_service.get_embeddings(project_texts)
-            if len(existing_embeddings) != len(existing_projects):
-                logger.warning("[SelfCheck] Embedding count mismatch")
+            if not project_texts:
+                logger.info("[SelfCheck] No valid project texts for similarity check")
                 return []
+
+            # 임베딩 생성
+            existing_embeddings = await self.embedding_service.get_embeddings(project_texts)
+            if len(existing_embeddings) != len(valid_projects):
+                logger.warning(f"[SelfCheck] Embedding count mismatch: {len(existing_embeddings)} vs {len(valid_projects)}")
+                return []
+
+            # valid_projects 사용 (existing_projects 대신)
+            existing_projects = valid_projects
 
             # 유사도 계산
             candidates = []
@@ -262,7 +283,14 @@ class SelfCheckService:
             message = result["choices"][0]["message"]
             content = (message.get("content") or message.get("reasoning_content") or "").strip()
 
-            logger.info(f"[SelfCheck] Similarity LLM response: {content[:300]}")
+            logger.info(f"[SelfCheck] Similarity LLM response: {content[:500]}")
+
+            # JSON 파싱 전 오류 수정
+            # 패턴 1: "idx":5", -> "idx":5, (숫자 뒤 불필요한 따옴표 제거)
+            content = re.sub(r'("idx"\s*:\s*\d+)"([,\}\]])', r'\1\2', content)
+            # 패턴 2: "idx":5"} -> "idx":5} (끝부분 따옴표 제거)
+            content = re.sub(r'("idx"\s*:\s*\d+)"(\s*[,\}\]])', r'\1\2', content)
+            logger.info(f"[SelfCheck] Similarity JSON after repair: {content[:500]}")
 
             # JSON 파싱
             json_match = re.search(r'\{[^{}]*"similar"[^{}]*\[.*?\][^{}]*\}', content, re.DOTALL)
@@ -271,7 +299,11 @@ class SelfCheckService:
                 # LLM 검증 실패 시 임베딩 유사도만으로 결과 반환
                 return self._fallback_similar_projects(candidates)
 
-            parsed = json.loads(json_match.group(0))
+            try:
+                parsed = json.loads(json_match.group(0))
+            except json.JSONDecodeError as je:
+                logger.warning(f"[SelfCheck] Similarity JSON parse error: {je}, using fallback")
+                return self._fallback_similar_projects(candidates)
             similar_items = parsed.get("similar", [])
 
             # 검증된 유사 과제 목록 생성
@@ -735,6 +767,442 @@ class SelfCheckService:
             return "need_check"
         return "need_check"
 
+    def _format_user_answer(self, answer: Optional[str]) -> str:
+        """사용자 답변을 한국어로 변환"""
+        if answer == "yes":
+            return "예"
+        elif answer == "no":
+            return "아니오"
+        elif answer == "unknown" or answer is None:
+            return "모름"
+        return "모름"
+
+    def _sanitize_llm_response(self, content: str) -> str:
+        """
+        LLM 응답에서 이상 문자 및 불필요한 텍스트 제거
+
+        Args:
+            content: LLM 원본 응답
+
+        Returns:
+            정제된 응답 문자열
+        """
+        if not content:
+            return ""
+
+        # 1. 연속된 물음표/이상 문자 제거
+        content = re.sub(r'\?{2,}', '', content)
+        content = re.sub(r'0x[0-9a-fA-F]+', '', content)
+
+        # 2. 제어 문자 제거 (탭, 줄바꿈 제외)
+        content = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', content)
+
+        # 3. JSON 시작 전 텍스트 제거
+        json_start = content.find('{')
+        if json_start > 0:
+            # JSON 시작 전에 있는 설명 텍스트 제거
+            prefix = content[:json_start].lower()
+            if any(kw in prefix for kw in ['task', 'need', 'let', 'we ', 'the ', 'i ']):
+                content = content[json_start:]
+
+        # 4. JSON 끝 이후 텍스트 제거
+        # 마지막 } 찾기
+        json_end = content.rfind('}')
+        if json_end > 0 and json_end < len(content) - 1:
+            suffix = content[json_end + 1:].strip().lower()
+            if suffix and any(kw in suffix for kw in ['the ', 'we ', 'note', 'this']):
+                content = content[:json_end + 1]
+
+        return content.strip()
+
+    async def _call_llm_individual(
+        self,
+        url: str,
+        model: str,
+        item_number: int,
+        question: str,
+        project_content: str,
+        user_answer: Optional[str] = None,
+        user_details: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        개별 항목 LLM 분석 (방안 C: 교차검증 통합)
+
+        Args:
+            url: LLM API URL
+            model: 모델명
+            item_number: 항목 번호 (1-10)
+            question: 체크리스트 질문
+            project_content: 과제 내용
+            user_answer: 사용자가 선택한 답변 (yes/no/unknown)
+            user_details: 사용자가 입력한 세부내용
+
+        Returns:
+            파싱된 분석 결과 딕셔너리 또는 None
+        """
+        # 사용자 답변 정보 구성
+        user_info = ""
+        if user_answer:
+            user_info = f"\n\nUSER'S ANSWER: \"{self._format_user_answer(user_answer)}\""
+            if user_details:
+                user_info += f"\nUSER'S REASON: \"{user_details}\""
+            user_info += "\n\n주의: 사용자 답변과 AI 분석이 다를 경우 반드시 user_comparison 필드를 작성하세요."
+
+        # 사용자 프롬프트 구성 (축약형 필드명 사용)
+        user_prompt = f"""Analyze and respond with JSON ONLY.
+
+ITEM: {item_number}
+QUESTION: {question}
+{user_info}
+
+PROJECT:
+{project_content[:2000]}
+
+RESPOND WITH THIS EXACT JSON FORMAT (use short field names):
+{{"n":{item_number},"a":"yes","c":0.9,"j":"판단요약","q":"인용문","r":"분석이유","uc":""}}
+
+RULES:
+- a: "yes", "no", or "unknown"
+- j: 판단 요약 (한국어, 15-25자)
+- q: 과제내용에서 인용 또는 "관련 언급 없음"
+- r: 분석 이유 (한국어, 50-150자)
+- uc: 사용자와 다르면 비교 설명, 같으면 ""
+- Start with {{ end with }}"""
+
+        messages = [
+            {"role": "system", "content": self.individual_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+
+        payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": 0.3,  # 더 결정적인 출력을 위해 낮춤
+            "max_tokens": settings.SELFCHECK_INDIVIDUAL_MAX_TOKENS,
+            "top_p": 0.9,
+        }
+
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            try:
+                response = await self.client.post(url, json=payload, timeout=float(settings.SELFCHECK_TIMEOUT))
+                response.raise_for_status()
+                result = response.json()
+                message = result["choices"][0]["message"]
+                raw_content = (message.get("content") or message.get("reasoning_content") or "").strip()
+
+                # 응답 정제: 이상 문자 제거
+                content = self._sanitize_llm_response(raw_content)
+
+                # 빈 응답 또는 불완전 응답 감지
+                if len(content) < 15 or content == "{" or not content.startswith("{"):
+                    if attempt < max_retries:
+                        logger.warning(f"[SelfCheck] Item {item_number} empty/invalid response, retry {attempt + 1}/{max_retries}")
+                        import asyncio
+                        await asyncio.sleep(0.5)  # 짧은 딜레이 후 재시도
+                        continue
+                    else:
+                        logger.error(f"[SelfCheck] Item {item_number} failed after {max_retries} retries: empty response")
+                        return None
+
+                logger.info(f"[SelfCheck] Item {item_number} raw response: {content[:300]}")
+
+                # JSON 파싱
+                parsed = self._parse_individual_response(content, item_number, user_answer)
+                if parsed:
+                    # 응답 잘림 감지: judgment 또는 reasoning이 비어있으면 불완전 응답
+                    is_truncated = (
+                        not parsed.get("judgment") or
+                        not parsed.get("reasoning") or
+                        (parsed.get("judgment", "").endswith(("...", "…")) if parsed.get("judgment") else False)
+                    )
+
+                    if is_truncated and attempt < max_retries:
+                        logger.warning(f"[SelfCheck] Item {item_number} truncated response detected (missing judgment/reasoning), retry {attempt + 1}/{max_retries}")
+                        import asyncio
+                        await asyncio.sleep(0.5)
+                        continue
+
+                    return parsed
+
+                # 파싱 실패 시 재시도
+                if attempt < max_retries:
+                    logger.warning(f"[SelfCheck] Item {item_number} parse failed, retry {attempt + 1}/{max_retries}")
+                    import asyncio
+                    await asyncio.sleep(0.5)
+                    continue
+
+            except Exception as e:
+                if attempt < max_retries:
+                    logger.warning(f"[SelfCheck] Item {item_number} request error, retry {attempt + 1}/{max_retries}: {e}")
+                    import asyncio
+                    await asyncio.sleep(0.5)
+                    continue
+                logger.error(f"[SelfCheck] Item {item_number} request failed after {max_retries} retries: {e}")
+
+        return None
+
+    def _repair_truncated_json(self, truncated: str) -> str:
+        """
+        잘린 JSON 문자열 복구 시도
+
+        Args:
+            truncated: 불완전한 JSON 문자열 (예: '{"n":1,"a":"yes","c":0.9,"judgment":"테스트)
+
+        Returns:
+            복구된 JSON 문자열 또는 원본
+        """
+        if not truncated.startswith("{"):
+            return truncated
+
+        # 이미 완전한 JSON인지 확인
+        if truncated.rstrip().endswith("}"):
+            return truncated
+
+        # 마지막으로 완전히 닫힌 필드 위치 찾기
+        # 패턴: "key":"value" 또는 "key":number 형태의 완전한 필드
+        complete_field_pattern = r'"[^"]+"\s*:\s*(?:"[^"]*"|[0-9.]+)'
+        matches = list(re.finditer(complete_field_pattern, truncated))
+
+        if matches:
+            # 마지막 완전한 필드 이후로 자르고 } 추가
+            last_match = matches[-1]
+            repaired = truncated[:last_match.end()]
+
+            # 쉼표로 끝나면 제거
+            repaired = repaired.rstrip().rstrip(",")
+
+            # 닫는 중괄호 추가
+            repaired += "}"
+
+            logger.info(f"[SelfCheck] Repaired truncated JSON: {repaired[:100]}...")
+            return repaired
+
+        # 복구 불가능한 경우 원본 반환
+        return truncated
+
+    def _parse_individual_response(
+        self,
+        content: str,
+        item_number: int,
+        user_answer: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        개별 항목 응답 파싱 (확장된 필드 지원, 잘린 JSON 복구 포함)
+
+        Returns:
+            {
+                "item_number": int,
+                "answer": str,
+                "confidence": float,
+                "evidence": str,  # 하위 호환용 (judgment + reasoning)
+                "risk_level": str,
+                "judgment": str,
+                "quote": str,
+                "reasoning": str,
+                "user_comparison": str or None
+            }
+        """
+        try:
+            # 1. JSON 블록 추출 시도
+            json_str = None
+
+            # 1-1. 완전한 JSON 객체 찾기
+            json_match = re.search(r'\{[^{}]*\}', content, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(0)
+            else:
+                # 1-2. 중첩 객체가 있을 수 있으므로 더 넓게 매칭
+                json_match = re.search(r'\{[\s\S]*\}', content)
+                if json_match:
+                    json_str = json_match.group(0)
+
+            # 1-3. JSON 시작은 있지만 끝이 없는 경우 (잘린 JSON)
+            if not json_str:
+                truncated_match = re.search(r'\{[\s\S]*', content)
+                if truncated_match:
+                    json_str = self._repair_truncated_json(truncated_match.group(0))
+                    logger.info(f"[SelfCheck] Item {item_number}: Attempted to repair truncated JSON")
+
+            if not json_str:
+                logger.warning(f"[SelfCheck] Item {item_number}: No JSON found in response")
+                return None
+
+            parsed = json.loads(json_str)
+
+            # 필드 추출 (축약형과 정식 필드명 모두 지원)
+            n = parsed.get("n") or parsed.get("item_number") or item_number
+            answer = self._normalize_answer(parsed.get("a") or parsed.get("answer") or "")
+            confidence = self._safe_float(parsed.get("c") or parsed.get("confidence"), 0.8)
+
+            # 확장 필드 (축약형 j,q,r,uc 또는 정식 필드명, "ing"는 "reasoning"이 잘린 형태)
+            judgment = parsed.get("j", "") or parsed.get("judgment", "")
+            quote = parsed.get("q", "") or parsed.get("quote", "")
+            reasoning = parsed.get("r", "") or parsed.get("reasoning", "") or parsed.get("ing", "")
+            user_comparison = parsed.get("uc", "") or parsed.get("user_comparison", "")
+
+            # 기존 e 필드 (하위 호환)
+            legacy_evidence = parsed.get("e") or parsed.get("evidence") or ""
+
+            # evidence 생성 (하위 호환용: judgment + reasoning 조합)
+            if judgment and reasoning:
+                evidence = f"{judgment}. {reasoning}"
+            elif legacy_evidence:
+                evidence = legacy_evidence
+            elif judgment:
+                evidence = judgment
+            elif reasoning:
+                evidence = reasoning
+            else:
+                evidence = "분석 완료"
+
+            # risk_level 결정
+            risk_level = parsed.get("r") or parsed.get("risk_level") or "medium"
+            if answer == "yes":
+                # 필수항목(1-4)이면 high, 선택항목(5-10)이면 medium
+                risk_level = "high" if item_number <= 4 else "medium"
+            elif answer == "no":
+                risk_level = "low"
+
+            # 사용자 답변과 비교하여 user_comparison 생성 여부 확인
+            if user_answer and user_answer not in ("unknown", None):
+                if user_answer != answer and not user_comparison:
+                    # LLM이 user_comparison을 생성하지 않은 경우 기본 메시지
+                    user_comparison = f"사용자는 '{self._format_user_answer(user_answer)}'를 선택했으나, AI는 '{self._format_user_answer(answer)}'로 판단했습니다. 상세 내용을 확인해주세요."
+
+            result = {
+                "item_number": int(n),
+                "answer": answer,
+                "confidence": confidence,
+                "evidence": evidence,
+                "risk_level": risk_level,
+                "judgment": judgment,
+                "quote": quote,
+                "reasoning": reasoning,
+                "user_comparison": user_comparison if user_comparison else None
+            }
+
+            logger.info(f"[SelfCheck] Item {item_number} parsed: answer={answer}, judgment={judgment[:30] if judgment else 'N/A'}")
+            return result
+
+        except json.JSONDecodeError as e:
+            logger.warning(f"[SelfCheck] Item {item_number} JSON parse failed: {e}")
+
+            # 잘린 JSON 복구 재시도
+            truncated_match = re.search(r'\{[\s\S]*', content)
+            if truncated_match:
+                try:
+                    repaired = self._repair_truncated_json(truncated_match.group(0))
+                    parsed = json.loads(repaired)
+                    # 복구 성공 시 필드 추출
+                    n = parsed.get("n") or parsed.get("item_number") or item_number
+                    answer = self._normalize_answer(parsed.get("a") or parsed.get("answer") or "")
+                    confidence = self._safe_float(parsed.get("c") or parsed.get("confidence"), 0.8)
+                    judgment = parsed.get("j", "") or parsed.get("judgment", "")
+                    quote = parsed.get("q", "") or parsed.get("quote", "")
+                    reasoning = parsed.get("r", "") or parsed.get("reasoning", "") or parsed.get("ing", "")
+                    user_comparison = parsed.get("uc", "") or parsed.get("user_comparison", "")
+                    legacy_evidence = parsed.get("e") or parsed.get("evidence") or ""
+
+                    if judgment and reasoning:
+                        evidence = f"{judgment}. {reasoning}"
+                    elif legacy_evidence:
+                        evidence = legacy_evidence
+                    elif judgment:
+                        evidence = judgment
+                    elif reasoning:
+                        evidence = reasoning
+                    else:
+                        evidence = "분석 완료 (일부 정보 누락)"
+
+                    risk_level = "high" if answer == "yes" and item_number <= 4 else ("low" if answer == "no" else "medium")
+
+                    logger.info(f"[SelfCheck] Item {item_number} recovered from truncated JSON: answer={answer}")
+                    return {
+                        "item_number": int(n),
+                        "answer": answer,
+                        "confidence": confidence,
+                        "evidence": evidence,
+                        "risk_level": risk_level,
+                        "judgment": judgment,
+                        "quote": quote,
+                        "reasoning": reasoning,
+                        "user_comparison": user_comparison if user_comparison else None
+                    }
+                except json.JSONDecodeError:
+                    pass  # 복구 실패, regex로 진행
+
+            # 정규식으로 개별 필드 추출 시도
+            return self._extract_individual_fields(content, item_number, user_answer)
+        except Exception as e:
+            logger.error(f"[SelfCheck] Item {item_number} parse error: {e}")
+            return None
+
+    def _extract_individual_fields(
+        self,
+        content: str,
+        item_number: int,
+        user_answer: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """JSON 파싱 실패 시 정규식으로 필드 추출"""
+        try:
+            # 각 필드 추출
+            n_match = re.search(r'"n"\s*:\s*(\d+)', content)
+            a_match = re.search(r'"a"\s*:\s*"([^"]*)"', content)
+            c_match = re.search(r'"c"\s*:\s*([0-9.]+)', content)
+            # 축약형(j,q,r,uc) 또는 정식 필드명 모두 지원
+            judgment_match = re.search(r'"j"\s*:\s*"([^"]*)"', content) or re.search(r'"judgment"\s*:\s*"([^"]*)"', content)
+            quote_match = re.search(r'"q"\s*:\s*"([^"]*)"', content) or re.search(r'"quote"\s*:\s*"([^"]*)"', content)
+            # r, reasoning, 또는 잘린 "ing" 필드 모두 처리
+            reasoning_match = re.search(r'"r"\s*:\s*"([^"]*)"', content) or re.search(r'"reasoning"\s*:\s*"([^"]*)"', content) or re.search(r'"ing"\s*:\s*"([^"]*)"', content)
+            user_comp_match = re.search(r'"uc"\s*:\s*"([^"]*)"', content) or re.search(r'"user_comparison"\s*:\s*"([^"]*)"', content)
+
+            if not a_match:
+                logger.warning(f"[SelfCheck] Item {item_number}: Could not extract answer field")
+                return None
+
+            answer = self._normalize_answer(a_match.group(1))
+            judgment = judgment_match.group(1) if judgment_match else ""
+            quote = quote_match.group(1) if quote_match else ""
+            reasoning = reasoning_match.group(1) if reasoning_match else ""
+            user_comparison = user_comp_match.group(1) if user_comp_match else ""
+
+            # evidence 생성
+            if judgment and reasoning:
+                evidence = f"{judgment}. {reasoning}"
+            elif judgment:
+                evidence = judgment
+            elif reasoning:
+                evidence = reasoning
+            else:
+                evidence = "분석 완료"
+
+            # risk_level 결정
+            risk_level = "high" if answer == "yes" and item_number <= 4 else ("low" if answer == "no" else "medium")
+
+            # 사용자 비교
+            if user_answer and user_answer not in ("unknown", None) and user_answer != answer and not user_comparison:
+                user_comparison = f"사용자는 '{self._format_user_answer(user_answer)}'를 선택했으나, AI는 '{self._format_user_answer(answer)}'로 판단했습니다."
+
+            result = {
+                "item_number": item_number,
+                "answer": answer,
+                "confidence": self._safe_float(c_match.group(1) if c_match else "0.8"),
+                "evidence": evidence,
+                "risk_level": risk_level,
+                "judgment": judgment,
+                "quote": quote,
+                "reasoning": reasoning,
+                "user_comparison": user_comparison if user_comparison else None
+            }
+
+            logger.info(f"[SelfCheck] Item {item_number} extracted via regex: answer={answer}")
+            return result
+
+        except Exception as e:
+            logger.error(f"[SelfCheck] Item {item_number} regex extraction failed: {e}")
+            return None
+
     async def _recover_missing_items(
         self,
         url: str,
@@ -832,7 +1300,7 @@ class SelfCheckService:
         db: Optional[Session] = None
     ) -> SelfCheckAnalyzeResponse:
         """
-        셀프진단 분석 실행 (두 번의 병렬 LLM 호출)
+        셀프진단 분석 실행 (방안 C: 10개 항목 개별 병렬 처리 + 교차검증)
         """
         import asyncio
         start_time = datetime.now()
@@ -845,43 +1313,56 @@ class SelfCheckService:
         url = f"{llm_config['base_url']}/v1/chat/completions"
         model = llm_config["model"]
 
-        # 2. 사용자 프롬프트 생성
-        user_prompt = self._build_analysis_prompt(request)
-
-        logger.info(f"[SelfCheck] Starting parallel LLM calls: {model_key}")
-
-        # 3. 두 배치 병렬 호출
-        batch1_task = self._call_llm_batch(url, model, self.prompt_1_5, user_prompt, "Batch1(1-5)")
-        batch2_task = self._call_llm_batch(url, model, self.prompt_6_10, user_prompt, "Batch2(6-10)")
-
-        results = await asyncio.gather(batch1_task, batch2_task, return_exceptions=True)
-
-        # 4. 결과 병합
-        all_items = []
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                logger.error(f"[SelfCheck] Batch {i+1} raised exception: {result}")
-            elif isinstance(result, list):
-                all_items.extend(result)
-
-        # 5. 결과 매핑
-        llm_items = {item["item_number"]: item for item in all_items}
+        # 2. 사용자 입력 매핑
         user_items = {item.item_number: item for item in request.checklist_items}
+
+        logger.info(f"[SelfCheck] Starting individual LLM calls (10 items in 2 batches): {model_key}")
+
+        # 3. 10개 항목을 5개씩 2배치로 나눠서 호출 (LLM 서버 부하 분산)
+        BATCH_SIZE = 5
+        all_results = []
+
+        for batch_idx in range(0, len(CHECKLIST_ITEMS), BATCH_SIZE):
+            batch_items = CHECKLIST_ITEMS[batch_idx:batch_idx + BATCH_SIZE]
+            batch_num = batch_idx // BATCH_SIZE + 1
+            logger.info(f"[SelfCheck] Processing batch {batch_num}/2 ({len(batch_items)} items)")
+
+            batch_tasks = []
+            for checklist_item in batch_items:
+                num = checklist_item["number"]
+                user_input = user_items.get(num)
+
+                task = self._call_llm_individual(
+                    url=url,
+                    model=model,
+                    item_number=num,
+                    question=checklist_item["question"],
+                    project_content=request.project_description,
+                    user_answer=user_input.user_answer if user_input else None,
+                    user_details=user_input.user_details if user_input else None
+                )
+                batch_tasks.append(task)
+
+            batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
+            all_results.extend(batch_results)
+
+            # 배치 간 짧은 딜레이 (LLM 서버 안정화)
+            if batch_idx + BATCH_SIZE < len(CHECKLIST_ITEMS):
+                await asyncio.sleep(0.5)
+
+        # 4. 결과 매핑
+        llm_items = {}
+        for i, result in enumerate(all_results):
+            item_number = CHECKLIST_ITEMS[i]["number"]
+            if isinstance(result, Exception):
+                logger.error(f"[SelfCheck] Item {item_number} raised exception: {result}")
+            elif result is not None:
+                llm_items[result["item_number"]] = result
 
         # 로그: LLM이 반환한 항목 수 확인
         logger.info(f"[SelfCheck] LLM returned {len(llm_items)} items: {list(llm_items.keys())}")
 
-        # 5-1. 누락 항목 보완 (개별 호출)
-        missing_items = [i for i in range(1, 11) if i not in llm_items]
-        if missing_items:
-            logger.info(f"[SelfCheck] Missing items detected: {missing_items}, attempting recovery...")
-            recovered = await self._recover_missing_items(
-                url, model, user_prompt, missing_items
-            )
-            for item in recovered:
-                llm_items[item["item_number"]] = item
-            logger.info(f"[SelfCheck] After recovery: {len(llm_items)} items")
-
+        # 5. 결과 조합 (확장 필드 포함)
         result_items: List[SelfCheckItemResult] = []
         for checklist_item in CHECKLIST_ITEMS:
             num = checklist_item["number"]
@@ -899,6 +1380,12 @@ class SelfCheckService:
                 else:
                     evidence = "분석 근거가 제공되지 않았습니다."
 
+            # 확장 필드 추출 (방안 C)
+            llm_judgment = llm_result.get("judgment", None)
+            llm_quote = llm_result.get("quote", None)
+            llm_reasoning = llm_result.get("reasoning", None)
+            llm_user_comparison = llm_result.get("user_comparison", None)
+
             result_items.append(SelfCheckItemResult(
                 item_number=num,
                 item_category=checklist_item["category"],
@@ -911,7 +1398,12 @@ class SelfCheckService:
                 llm_evidence=evidence,
                 llm_risk_level=llm_result.get("risk_level", "medium"),
                 match_status=self._determine_match_status(user_answer, llm_answer),
-                final_answer=None
+                final_answer=None,
+                # 확장 필드 (방안 C: 교차검증 통합)
+                llm_judgment=llm_judgment,
+                llm_quote=llm_quote,
+                llm_reasoning=llm_reasoning,
+                llm_user_comparison=llm_user_comparison
             ))
 
         # 6. 상위기관 검토 대상 여부 결정 (필수항목 1-4 중 yes가 있으면)
@@ -975,7 +1467,7 @@ class SelfCheckService:
         is_saved = False
         if db and user_id:
             try:
-                # 분석 결과를 JSON으로 저장 (유사과제 포함)
+                # 분석 결과를 JSON으로 저장 (유사과제 포함, 확장 필드 포함)
                 analysis_result_json = {
                     "items": [
                         {
@@ -983,7 +1475,12 @@ class SelfCheckService:
                             "llm_answer": item.llm_answer,
                             "llm_evidence": item.llm_evidence,
                             "llm_confidence": item.llm_confidence,
-                            "llm_risk_level": item.llm_risk_level
+                            "llm_risk_level": item.llm_risk_level,
+                            # 확장 필드 (방안 C)
+                            "llm_judgment": item.llm_judgment,
+                            "llm_quote": item.llm_quote,
+                            "llm_reasoning": item.llm_reasoning,
+                            "llm_user_comparison": item.llm_user_comparison
                         }
                         for item in result_items
                     ],
@@ -1042,6 +1539,13 @@ class SelfCheckService:
                 db.rollback()
                 logger.error(f"[SelfCheck] Failed to save submission: {e}")
                 # 저장 실패해도 분석 결과는 반환
+
+        # 10. 임베딩 캐시 정리 (GPU 메모리 절약)
+        if settings.SELFCHECK_SIMILARITY_ENABLED:
+            try:
+                await self.embedding_service.clear_cache()
+            except Exception as e:
+                logger.warning(f"[SelfCheck] Failed to clear embedding cache: {e}")
 
         return SelfCheckAnalyzeResponse(
             submission_id=submission_id,
@@ -1141,8 +1645,26 @@ class SelfCheckService:
             SelfCheckItem.submission_id == submission_id
         ).order_by(SelfCheckItem.item_number).all()
 
-        items = [
-            SelfCheckItemResult(
+        # analysis_result JSON에서 확장 필드 추출 (llm_judgment, llm_quote, llm_reasoning, llm_user_comparison)
+        extended_fields_map = {}
+        if submission.analysis_result and isinstance(submission.analysis_result, dict):
+            analysis_items = submission.analysis_result.get("items", [])
+            for ai in analysis_items:
+                item_num = ai.get("item_number")
+                if item_num:
+                    extended_fields_map[item_num] = {
+                        "llm_judgment": ai.get("llm_judgment"),
+                        "llm_quote": ai.get("llm_quote"),
+                        "llm_reasoning": ai.get("llm_reasoning"),
+                        "llm_user_comparison": ai.get("llm_user_comparison")
+                    }
+
+        items = []
+        for item in db_items:
+            # 확장 필드 조회 (analysis_result JSON에서)
+            ext = extended_fields_map.get(item.item_number, {})
+
+            items.append(SelfCheckItemResult(
                 item_number=item.item_number,
                 item_category=item.item_category,
                 question=item.question,
@@ -1154,10 +1676,13 @@ class SelfCheckService:
                 llm_evidence=item.llm_evidence or "",
                 llm_risk_level=item.llm_risk_level or "medium",
                 match_status=self._determine_match_status(item.user_answer, item.llm_answer or "need_check"),
-                final_answer=item.final_answer
-            )
-            for item in db_items
-        ]
+                final_answer=item.final_answer,
+                # 확장 필드 (analysis_result JSON에서 읽음)
+                llm_judgment=ext.get("llm_judgment"),
+                llm_quote=ext.get("llm_quote"),
+                llm_reasoning=ext.get("llm_reasoning"),
+                llm_user_comparison=ext.get("llm_user_comparison")
+            ))
 
         # analysis_result에서 similar_projects 추출
         similar_projects: List[SimilarProject] = []

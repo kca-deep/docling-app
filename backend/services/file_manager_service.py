@@ -5,9 +5,9 @@
 import logging
 import json
 import shutil
-from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+from backend.utils.timezone import format_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ class FileManagerService:
             백업 경로
         """
         if not backup_name:
-            backup_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            backup_name = format_datetime(fmt="%Y-%m-%d_%H-%M-%S")
 
         backup_path = BACKUPS_DIR / backup_name
         backup_path.mkdir(parents=True, exist_ok=True)

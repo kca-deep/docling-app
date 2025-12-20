@@ -26,8 +26,8 @@ class EmbeddingService:
         # 싱글톤 HTTP 클라이언트 매니저 사용
         self.client = http_manager.get_client("embedding")
 
-    # 배치 크기 (VRAM 오버부킹 방지)
-    BATCH_SIZE = 32
+    # 배치 크기 (임베딩 서버 제한: 30개)
+    BATCH_SIZE = 25
 
     @async_retry(max_attempts=3, base_delay=1.0, max_delay=10.0)
     async def _get_embeddings_batch(
@@ -75,6 +75,30 @@ class EmbeddingService:
             if isinstance(texts, str):
                 texts = [texts]
 
+            # 빈 리스트 검증
+            if not texts:
+                logger.warning("Empty texts list provided for embedding")
+                return []
+
+            # 빈 문자열 필터링 및 길이 제한 (공백만 있는 경우도 제외)
+            MAX_TEXT_LENGTH = 4000  # 임베딩 텍스트 최대 길이
+            cleaned_texts = []
+            for t in texts:
+                if t and t.strip():
+                    # 텍스트 정제: 제어 문자 제거
+                    import re
+                    cleaned = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', t.strip())
+                    # 길이 제한
+                    if len(cleaned) > MAX_TEXT_LENGTH:
+                        cleaned = cleaned[:MAX_TEXT_LENGTH]
+                    if cleaned:
+                        cleaned_texts.append(cleaned)
+
+            texts = cleaned_texts
+            if not texts:
+                logger.warning("All texts were empty after filtering")
+                return []
+
             # 배치 크기 이하면 한번에 처리
             if len(texts) <= self.BATCH_SIZE:
                 embeddings = await self._get_embeddings_batch(texts)
@@ -108,6 +132,27 @@ class EmbeddingService:
             int: 벡터 차원
         """
         return 1024
+
+    async def clear_cache(self) -> bool:
+        """
+        임베딩 서버 캐시 정리
+
+        분석 완료 후 GPU 메모리 절약을 위해 캐시를 정리합니다.
+
+        Returns:
+            bool: 캐시 정리 성공 여부
+        """
+        try:
+            url = f"{self.base_url}/v1/cache/clear"
+            response = await self.client.post(url)
+            response.raise_for_status()
+
+            result = response.json()
+            logger.info(f"[Embedding] Cache cleared: {result.get('message', 'success')}")
+            return True
+        except Exception as e:
+            logger.warning(f"[Embedding] Failed to clear cache: {e}")
+            return False
 
     async def close(self):
         """

@@ -20,6 +20,7 @@ Environment="DOCLING_SERVE_ENABLE_UI=0"
 # Result cleanup settings (reduce memory usage)
 Environment="DOCLING_SERVE_SINGLE_USE_RESULTS=true"
 Environment="DOCLING_SERVE_RESULT_REMOVAL_DELAY=60"
+Environment="DOCLING_SERVE_SCRATCH_PATH=/data/docling-serve/scratch"
 
 # GPU settings - strong memory limit
 Environment="DOCLING_DEVICE=cuda:0"

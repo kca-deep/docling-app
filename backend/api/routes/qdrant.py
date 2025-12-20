@@ -139,7 +139,8 @@ async def get_collections(
                     visibility=meta.visibility,
                     description=meta.description,
                     owner_id=meta.owner_id,
-                    is_owner=user_id is not None and meta.owner_id == user_id
+                    is_owner=user_id is not None and meta.owner_id == user_id,
+                    allowed_users=meta.allowed_users if meta.visibility == "shared" else None
                 ))
 
         return QdrantCollectionsResponse(

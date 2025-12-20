@@ -2,9 +2,9 @@
 셀프진단 모델
 AI 과제 보안성 검토 셀프진단 데이터 저장
 """
-from datetime import datetime
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, JSON, Float
 from backend.database import Base
+from backend.utils.timezone import now_naive
 
 
 class SelfCheckSubmission(Base):
@@ -32,8 +32,8 @@ class SelfCheckSubmission(Base):
     # 메타데이터
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     status = Column(String(20), default="completed", index=True)  # draft, completed, submitted
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=now_naive)
+    updated_at = Column(DateTime, default=now_naive, onupdate=now_naive)
 
     def __repr__(self):
         return f"<SelfCheckSubmission(id={self.id}, submission_id='{self.submission_id}', project='{self.project_name}')>"

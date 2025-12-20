@@ -2,11 +2,11 @@
 QdrantCollection SQLAlchemy Model
 컬렉션 메타데이터 및 접근 제어 관리
 """
-from datetime import datetime
 from typing import Optional, List
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, JSON
 from sqlalchemy.orm import relationship
 from backend.database import Base
+from backend.utils.timezone import now_naive
 
 
 class QdrantCollection(Base):
@@ -35,8 +35,8 @@ class QdrantCollection(Base):
     allowed_users = Column(JSON, nullable=True, default=list)
 
     # 타임스탬프
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=now_naive, nullable=False, index=True)
+    updated_at = Column(DateTime, default=now_naive, onupdate=now_naive, nullable=False)
 
     def __repr__(self):
         return f"<QdrantCollection(id={self.id}, name='{self.collection_name}', visibility='{self.visibility}')>"

@@ -5,9 +5,9 @@ import logging
 import asyncio
 import uuid
 from typing import Dict, Any, List, Optional
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from backend.utils.timezone import now_naive, now_iso
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -209,7 +209,7 @@ async def generate_prompt(
         "progress": 0,
         "result": None,
         "error": None,
-        "created_at": datetime.now().isoformat()
+        "created_at": now_iso()
     }
 
     # DB 세션 팩토리 (백그라운드에서 새 세션 생성용)
@@ -375,11 +375,11 @@ async def cleanup_old_tasks():
     """30분 이상 된 작업 삭제"""
     from datetime import datetime, timedelta
 
-    cutoff = datetime.now() - timedelta(minutes=30)
+    cutoff = now_naive() - timedelta(minutes=30)
     to_delete = []
 
     for task_id, task in task_storage.items():
-        created_at = datetime.fromisoformat(task.get("created_at", datetime.now().isoformat()))
+        created_at = datetime.fromisoformat(task.get("created_at", now_iso()))
         if created_at < cutoff:
             to_delete.append(task_id)
 
