@@ -144,7 +144,7 @@ class PromptGeneratorService:
         collection_name: str,
         document_sample: str,
         template_type: str = "default",
-        num_questions: int = 6,
+        num_questions: int = 4,
         model: Optional[str] = None
     ) -> Dict[str, Any]:
         """
@@ -195,7 +195,7 @@ class PromptGeneratorService:
             result = await self.llm_service.chat_completion(
                 messages=messages,
                 model=model,
-                temperature=0.8,
+                temperature=0.7,  # 일관성 향상을 위해 0.8에서 조정
                 max_tokens=settings.PROMPT_GEN_QUESTIONS_MAX_TOKENS
             )
 
@@ -235,7 +235,7 @@ class PromptGeneratorService:
         collection_name: str,
         document_sample: str,
         template_type: str = "default",
-        num_questions: int = 6,
+        num_questions: int = 4,
         model: Optional[str] = None
     ) -> Dict[str, Any]:
         """
@@ -347,38 +347,46 @@ class PromptGeneratorService:
 
     def _get_default_questions(self, template_type: str, count: int = 4) -> List[str]:
         """
-        파싱 실패 시 반환할 기본 질문 목록
+        파싱 실패 시 반환할 기본 질문 목록 (4개 고정)
+        - 필수 3개: 정의/개념, 절차/방법, 조건/요건
+        - 선택 1개: 템플릿별 특화 질문
         """
         defaults = {
             "regulation": [
-                "이 규정의 적용 대상은 누구인가요?",
-                "신청 절차는 어떻게 되나요?",
-                "예외 조항이 있나요?",
-                "위반 시 처분과 일반 징계의 차이점은?",
+                "이 규정의 적용 대상은 누구인가요?",  # 정의/개념
+                "신청 절차는 어떻게 되나요?",  # 절차/방법
+                "적용 조건은 무엇인가요?",  # 조건/요건
+                "예외 조항이 있나요?",  # 선택: 예외/주의
             ],
             "budget": [
-                "총 예산 규모는 얼마인가요?",
-                "예산 집행 절차는 어떻게 되나요?",
-                "예비비 사용 조건은 무엇인가요?",
-                "경상비와 사업비의 차이점은?",
+                "이 예산 항목의 정의는 무엇인가요?",  # 정의/개념
+                "예산 집행 절차는 어떻게 되나요?",  # 절차/방법
+                "지급 조건은 무엇인가요?",  # 조건/요건
+                "필요한 증빙서류는 무엇인가요?",  # 선택: 서류/양식
             ],
-            "casual": [
-                "오늘 날씨가 어때요?",
-                "추천해줄 만한 것이 있나요?",
-                "이것에 대해 어떻게 생각하세요?",
-                "도움이 필요한데 조언해주실 수 있나요?",
+            "fund": [
+                "이 사업의 지원 대상은 누구인가요?",  # 정의/개념
+                "정산 절차는 어떻게 되나요?",  # 절차/방법
+                "지원 조건은 무엇인가요?",  # 조건/요건
+                "제출 서류는 무엇인가요?",  # 선택: 서류/양식
             ],
             "technical": [
-                "이 API의 사용 방법은 어떻게 되나요?",
-                "설치 및 설정 절차를 알려주세요.",
-                "이 오류의 해결 방법은 무엇인가요?",
-                "시스템 요구사항은 무엇인가요?",
+                "이 기능의 정의는 무엇인가요?",  # 정의/개념
+                "설치 및 설정 방법은 어떻게 되나요?",  # 절차/방법
+                "사용 요건은 무엇인가요?",  # 조건/요건
+                "오류 해결 방법은 무엇인가요?",  # 선택: 문제해결
+            ],
+            "casual": [
+                "이것에 대해 알려주세요.",
+                "어떻게 하면 되나요?",
+                "조건이 있나요?",
+                "추천해주실 수 있나요?",
             ],
             "default": [
-                "이 문서의 주요 내용은 무엇인가요?",
-                "핵심 절차가 무엇인가요?",
-                "적용 범위는 어떻게 되나요?",
-                "관련 용어의 정의는 무엇인가요?",
+                "이 문서의 주요 내용은 무엇인가요?",  # 정의/개념
+                "핵심 절차는 어떻게 되나요?",  # 절차/방법
+                "적용 조건은 무엇인가요?",  # 조건/요건
+                "관련 용어의 정의는 무엇인가요?",  # 선택: 추가 정의
             ],
         }
         questions = defaults.get(template_type, defaults["default"])
