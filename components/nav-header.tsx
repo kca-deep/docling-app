@@ -139,8 +139,8 @@ export function NavHeader() {
     ],
   }
 
-  // 워크플로우 아이템
-  const workflowItem: NavItem = { href: "/workflow", label: "워크플로우", icon: Workflow, requiresAuth: false }
+  // 구성도 아이템
+  const workflowItem: NavItem = { href: "/workflow", label: "구성도", icon: Workflow, requiresAuth: false }
 
   // KCA-i 챗봇 아이템
   const chatItem: NavItem = { href: "/chat?fullscreen=true", label: "KCA-i", icon: MessageSquare, requiresAuth: false }
