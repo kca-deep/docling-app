@@ -121,7 +121,7 @@ class ConversationService:
                 lambda c: c.has_error,  # 에러가 있는 대화
                 lambda c: c.has_regeneration,  # 재생성이 있는 대화
                 lambda c: c.turn_count >= 5,  # 긴 대화
-                lambda c: c.min_score < 0.5,  # 낮은 검색 스코어
+                lambda c: c.min_score < settings.CONVERSATION_LOW_SCORE_THRESHOLD,  # 낮은 검색 스코어
             ],
             "sample_rate": self.sample_rate  # 환경변수에서 로드 (기본값: 1.0 = 100%)
         }
@@ -238,11 +238,11 @@ class ConversationService:
 
     def _calculate_priority(self, conversation: Conversation) -> str:
         """대화 보존 우선순위 계산"""
-        if conversation.has_error or conversation.min_score < 0.3:
+        if conversation.has_error or conversation.min_score < settings.CONVERSATION_ERROR_SCORE_THRESHOLD:
             return "high"
         elif conversation.has_regeneration or conversation.turn_count >= 5:
             return "high"
-        elif conversation.turn_count >= 3 or conversation.min_score < 0.5:
+        elif conversation.turn_count >= 3 or conversation.min_score < settings.CONVERSATION_LOW_SCORE_THRESHOLD:
             return "medium"
         else:
             return "low"

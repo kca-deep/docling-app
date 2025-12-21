@@ -226,8 +226,8 @@ class HybridSearchService:
         query_vector: List[float],
         top_k: int = 5,
         score_threshold: Optional[float] = None,
-        vector_weight: float = 0.7,
-        bm25_weight: float = 0.3
+        vector_weight: Optional[float] = None,
+        bm25_weight: Optional[float] = None
     ) -> List[Dict[str, Any]]:
         """
         하이브리드 검색 수행 (벡터 + BM25)
@@ -238,12 +238,18 @@ class HybridSearchService:
             query_vector: 쿼리 임베딩 벡터
             top_k: 반환할 결과 수
             score_threshold: 최소 유사도 점수 (벡터 검색용)
-            vector_weight: 벡터 검색 가중치
-            bm25_weight: BM25 검색 가중치
+            vector_weight: 벡터 검색 가중치 (기본값: settings.HYBRID_VECTOR_WEIGHT)
+            bm25_weight: BM25 검색 가중치 (기본값: settings.HYBRID_BM25_WEIGHT)
 
         Returns:
             List[Dict[str, Any]]: 검색 결과 리스트
         """
+        # 기본값 설정 (settings에서 로드)
+        if vector_weight is None:
+            vector_weight = settings.HYBRID_VECTOR_WEIGHT
+        if bm25_weight is None:
+            bm25_weight = settings.HYBRID_BM25_WEIGHT
+
         # BM25 인덱스 로드 (캐시된 경우 스킵)
         await self._load_collection_texts(collection_name)
 

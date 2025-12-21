@@ -423,8 +423,8 @@ class LLMService:
         is_casual_mode = not retrieved_docs
 
         # 문서 컨텍스트 구성 (컨텍스트 한도 설정)
-        MAX_CONTEXT_CHARS = 12000  # 약 4000~6000 토큰 (한국어 기준)
-        MAX_DOC_CHARS = 2000  # 개별 문서당 최대 문자 수
+        MAX_CONTEXT_CHARS = settings.LLM_MAX_CONTEXT_CHARS
+        MAX_DOC_CHARS = settings.LLM_MAX_DOC_CHARS
 
         context = ""
         if not is_casual_mode:

@@ -515,7 +515,7 @@ class SelfCheckService:
             items.append({
                 "item_number": item_num,
                 "answer": answer,
-                "confidence": float(match[2]) if match[2] else 0.5,
+                "confidence": float(match[2]) if match[2] else settings.SELFCHECK_DEFAULT_CONFIDENCE,
                 "evidence": match[3] or "분석 내용 없음",
                 "risk_level": match[4] if match[4] in ("high", "medium", "low") else "medium"
             })
@@ -861,7 +861,7 @@ RULES:
         payload = {
             "model": model,
             "messages": messages,
-            "temperature": 0.3,  # 더 결정적인 출력을 위해 낮춤
+            "temperature": settings.SELFCHECK_TEMPERATURE,
             "max_tokens": settings.SELFCHECK_INDIVIDUAL_MAX_TOKENS,
             "top_p": 0.9,
         }
@@ -883,7 +883,7 @@ RULES:
                     if attempt < max_retries:
                         logger.warning(f"[SelfCheck] Item {item_number} empty/invalid response, retry {attempt + 1}/{max_retries}")
                         import asyncio
-                        await asyncio.sleep(0.5)  # 짧은 딜레이 후 재시도
+                        await asyncio.sleep(settings.SELFCHECK_RETRY_DELAY)  # 짧은 딜레이 후 재시도
                         continue
                     else:
                         logger.error(f"[SelfCheck] Item {item_number} failed after {max_retries} retries: empty response")
@@ -904,7 +904,7 @@ RULES:
                     if is_truncated and attempt < max_retries:
                         logger.warning(f"[SelfCheck] Item {item_number} truncated response detected (missing judgment/reasoning), retry {attempt + 1}/{max_retries}")
                         import asyncio
-                        await asyncio.sleep(0.5)
+                        await asyncio.sleep(settings.SELFCHECK_RETRY_DELAY)
                         continue
 
                     return parsed
@@ -913,14 +913,14 @@ RULES:
                 if attempt < max_retries:
                     logger.warning(f"[SelfCheck] Item {item_number} parse failed, retry {attempt + 1}/{max_retries}")
                     import asyncio
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(settings.SELFCHECK_RETRY_DELAY)
                     continue
 
             except Exception as e:
                 if attempt < max_retries:
                     logger.warning(f"[SelfCheck] Item {item_number} request error, retry {attempt + 1}/{max_retries}: {e}")
                     import asyncio
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(settings.SELFCHECK_RETRY_DELAY)
                     continue
                 logger.error(f"[SelfCheck] Item {item_number} request failed after {max_retries} retries: {e}")
 
@@ -1332,7 +1332,7 @@ RULES:
 
             # 배치 간 짧은 딜레이 (LLM 서버 안정화)
             if batch_idx + BATCH_SIZE < len(CHECKLIST_ITEMS):
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(settings.SELFCHECK_RETRY_DELAY)
 
         # 4. 결과 매핑
         llm_items = {}
@@ -1378,7 +1378,7 @@ RULES:
                 user_answer=user_answer,
                 user_details=user_input.user_details if user_input else None,
                 llm_answer=llm_answer,
-                llm_confidence=llm_result.get("confidence", 0.5),
+                llm_confidence=llm_result.get("confidence", settings.SELFCHECK_DEFAULT_CONFIDENCE),
                 llm_evidence=evidence,
                 llm_risk_level=llm_result.get("risk_level", "medium"),
                 match_status=self._determine_match_status(user_answer, llm_answer),
@@ -1656,7 +1656,7 @@ RULES:
                 user_answer=item.user_answer,
                 user_details=item.user_details,
                 llm_answer=item.llm_answer or "need_check",
-                llm_confidence=item.llm_confidence or 0.5,
+                llm_confidence=item.llm_confidence or settings.SELFCHECK_DEFAULT_CONFIDENCE,
                 llm_evidence=item.llm_evidence or "",
                 llm_risk_level=item.llm_risk_level or "medium",
                 match_status=self._determine_match_status(item.user_answer, item.llm_answer or "need_check"),

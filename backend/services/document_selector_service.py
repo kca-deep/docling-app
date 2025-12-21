@@ -8,6 +8,8 @@ from typing import List, Dict, Any, Optional, TYPE_CHECKING
 
 from sqlalchemy.orm import Session
 
+from backend.config.settings import settings
+
 from backend.models.document import Document
 from backend.models.qdrant_upload_history import QdrantUploadHistory
 from backend.services.document_crud import get_document_by_id, get_documents
@@ -305,7 +307,7 @@ class DocumentSelectorService:
                         collection_name=collection_name,
                         query_vector=query_vector,
                         limit=chunks_per_query * 3,  # 필터링을 위해 더 많이 검색
-                        score_threshold=0.3
+                        score_threshold=settings.DOCUMENT_SELECTOR_SCORE_THRESHOLD
                     )
 
                     # 지정된 document_ids에 해당하는 청크만 필터링

@@ -131,6 +131,10 @@ class Settings(BaseSettings):
     LLM_DEFAULT_MAX_TOKENS: int = 4096
     LLM_DEFAULT_TOP_P: float = 0.9
 
+    # LLM 컨텍스트 제한 설정
+    LLM_MAX_CONTEXT_CHARS: int = 12000  # RAG 전체 컨텍스트 최대 문자수 (약 4000~6000 토큰)
+    LLM_MAX_DOC_CHARS: int = 2000  # 개별 문서당 최대 문자수
+
     # RAG 설정
     RAG_DEFAULT_TOP_K: int = 5
     # BGE-M3 Cosine 유사도 기준, 0.4 이상만 검색 (저품질 문서 필터링)
@@ -139,6 +143,8 @@ class Settings(BaseSettings):
     RAG_DEEP_THINKING_LEVEL: str = "medium"  # low, medium, high
     # 인용 추출 활성화 (참조문서 하이라이팅용, 성능에 영향)
     RAG_CITATION_EXTRACTION: bool = True
+    # 문서 선택 최소 스코어 임계값
+    DOCUMENT_SELECTOR_SCORE_THRESHOLD: float = 0.3
 
     # 프롬프트 설정
     PROMPTS_DIR: Optional[str] = None  # None이면 backend/prompts/ 사용
@@ -154,6 +160,8 @@ class Settings(BaseSettings):
     SELFCHECK_INDIVIDUAL_MAX_TOKENS: int = 1000  # 개별 항목 분석 최대 토큰 (방안 C)
     SELFCHECK_RECOVERY_MAX_TOKENS: int = 300  # 복구 호출 최대 토큰
     SELFCHECK_TEMPERATURE: float = 0.3  # 셀프진단 LLM 온도
+    SELFCHECK_DEFAULT_CONFIDENCE: float = 0.5  # 기본 신뢰도 값
+    SELFCHECK_RETRY_DELAY: float = 0.5  # 재시도 딜레이 (초)
     SELFCHECK_TIMEOUT: int = 60  # 개별 호출 타임아웃 (초)
     SELFCHECK_RECOVERY_TIMEOUT: int = 30  # 복구 호출 타임아웃 (초)
 
@@ -187,6 +195,9 @@ class Settings(BaseSettings):
     CONVERSATION_SAMPLE_RATE: float = 1.0  # 100% 저장 (기본값)
     CONVERSATION_RETENTION_DAYS: int = 30  # 30일 보존
     CONVERSATION_COMPRESS_AFTER_DAYS: int = 7  # 7일 후 압축
+    # 대화 품질 분류 임계값
+    CONVERSATION_LOW_SCORE_THRESHOLD: float = 0.5  # 낮은 검색 스코어 판정 임계값
+    CONVERSATION_ERROR_SCORE_THRESHOLD: float = 0.3  # 에러 수준 스코어 판정 임계값
 
     # ===========================================
     # Rate Limiting 설정
