@@ -323,6 +323,7 @@ export function ChatContainer() {
           title,
           content: doc.text,
           score: doc.score,
+          keywords: doc.keywords,  // 키워드 전달
           metadata: {
             file: filename,
             section,  // title과 중복되지 않도록 조건부 설정
@@ -468,6 +469,24 @@ export function ChatContainer() {
             retrievedDocs = event.sources!;
             sources = mapRetrievedDocsToSources(event.sources!);
             setCurrentSources(sources);
+            break;
+
+          case "sources_update":
+            // 인용 정보가 추가된 sources로 업데이트
+            if (event.sourcesUpdate) {
+              sources = mapRetrievedDocsToSources(event.sourcesUpdate);
+              setCurrentSources(sources);
+              // 이미 생성된 메시지의 sources도 업데이트
+              if (messageCreated) {
+                setMessages((prev) =>
+                  prev.map((msg) =>
+                    msg.id === aiMessageId
+                      ? { ...msg, sources }
+                      : msg
+                  )
+                );
+              }
+            }
             break;
 
           case "reasoning":

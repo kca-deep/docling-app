@@ -12,6 +12,8 @@ from backend.services.reranker_service import RerankerService
 from backend.config.settings import settings
 from backend.utils.error_handler import get_sse_error_response
 from backend.utils.source_converter import convert_docs_to_sources
+from backend.services.keyword_service import extract_keywords_for_documents
+from backend.services.citation_service import extract_citations_for_sources
 
 if TYPE_CHECKING:
     from backend.services.hybrid_search_service import HybridSearchService
@@ -610,14 +612,16 @@ class RAGService:
                 yield f'data: {json.dumps({"type": "stage", "stage": "rerank"}, ensure_ascii=False)}\n\n'
                 retrieved_docs = await self._apply_reranking(query, retrieved_docs, top_k)
 
-            # 2. 검색된 문서를 먼저 전송 (스트리밍 시작 전)
-            sources_data = convert_docs_to_sources(retrieved_docs)
+            # 2. 검색된 문서에 키워드 추출 후 전송 (스트리밍 시작 전)
+            docs_with_keywords = extract_keywords_for_documents(query, retrieved_docs)
+            sources_data = convert_docs_to_sources(docs_with_keywords)
             yield f'data: {json.dumps({"sources": sources_data}, ensure_ascii=False)}\n\n'
 
             # 단계 이벤트: 생성 단계
             yield f'data: {json.dumps({"type": "stage", "stage": "generate"}, ensure_ascii=False)}\n\n'
 
-            # 3. Generate: 스트리밍 답변 생성
+            # 3. Generate: 스트리밍 답변 생성 (응답 내용 수집)
+            response_parts = []  # 리스트로 수집 (문자열 연결보다 효율적)
             async for chunk in self.generate_stream(
                 query=query,
                 retrieved_docs=retrieved_docs,
@@ -632,6 +636,38 @@ class RAGService:
                 collection_name=collection_name
             ):
                 yield chunk
+                # 응답 내용 추출하여 수집 (리스트 append는 O(1))
+                if chunk.startswith("data: "):
+                    try:
+                        chunk_data = json.loads(chunk[6:].strip())
+                        if "choices" in chunk_data:
+                            delta = chunk_data["choices"][0].get("delta", {})
+                            content = delta.get("content", "")
+                            if content:
+                                response_parts.append(content)
+                    except (json.JSONDecodeError, KeyError, IndexError):
+                        pass
+
+            # 리스트를 문자열로 합침 (O(n))
+            full_response = "".join(response_parts)
+
+            # 4. 스트리밍 완료 후 인용 추출 및 sources_update 전송 (설정에 따라)
+            if settings.RAG_CITATION_EXTRACTION and full_response and docs_with_keywords:
+                try:
+                    # 인용 추출
+                    docs_with_citations = extract_citations_for_sources(
+                        full_response, docs_with_keywords
+                    )
+                    # cited_phrases가 있는 문서가 있으면 업데이트 전송
+                    has_citations = any(
+                        doc.get("cited_phrases") for doc in docs_with_citations
+                    )
+                    if has_citations:
+                        updated_sources = convert_docs_to_sources(docs_with_citations)
+                        yield f'data: {json.dumps({"sources_update": updated_sources}, ensure_ascii=False)}\n\n'
+                        logger.debug(f"Sent sources_update with citations")
+                except Exception as cite_err:
+                    logger.warning(f"Citation extraction failed: {cite_err}")
 
         except Exception as e:
             logger.error(f"RAG stream chat failed: {e}")

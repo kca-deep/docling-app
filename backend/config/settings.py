@@ -137,6 +137,8 @@ class Settings(BaseSettings):
     RAG_DEFAULT_SCORE_THRESHOLD: Optional[float] = 0.4
     RAG_DEFAULT_REASONING_LEVEL: str = "medium"
     RAG_DEEP_THINKING_LEVEL: str = "medium"  # low, medium, high
+    # 인용 추출 활성화 (참조문서 하이라이팅용, 성능에 영향)
+    RAG_CITATION_EXTRACTION: bool = True
 
     # 프롬프트 설정
     PROMPTS_DIR: Optional[str] = None  # None이면 backend/prompts/ 사용

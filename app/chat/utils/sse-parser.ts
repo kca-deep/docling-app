@@ -4,7 +4,7 @@
 /**
  * SSE 이벤트 타입
  */
-export type SSEEventType = "stage" | "sources" | "reasoning" | "content" | "done" | "unknown";
+export type SSEEventType = "stage" | "sources" | "sources_update" | "reasoning" | "content" | "done" | "unknown";
 
 /**
  * SSE 이벤트 인터페이스
@@ -13,6 +13,7 @@ export interface SSEEvent {
   type: SSEEventType;
   stage?: string;           // type === "stage" 일 때 단계명
   sources?: any[];          // type === "sources" 일 때 검색 문서 목록
+  sourcesUpdate?: any[];    // type === "sources_update" 일 때 인용 정보가 추가된 문서 목록
   reasoning?: string;       // type === "reasoning" 일 때 추론 텍스트 청크
   content?: string;         // type === "content" 일 때 답변 텍스트 청크
   raw?: any;                // 원본 파싱 데이터
@@ -30,6 +31,11 @@ function parseSSEData(parsed: any): SSEEvent {
   // 2. sources 이벤트 (검색된 문서)
   if (parsed.sources) {
     return { type: "sources", sources: parsed.sources, raw: parsed };
+  }
+
+  // 2.5. sources_update 이벤트 (인용 정보가 추가된 문서)
+  if (parsed.sources_update) {
+    return { type: "sources_update", sourcesUpdate: parsed.sources_update, raw: parsed };
   }
 
   // 3. reasoning_chunk 이벤트 (추론 과정)

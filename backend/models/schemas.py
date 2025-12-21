@@ -463,6 +463,7 @@ class RetrievedDocument(BaseModel):
     score: float
     text: str
     metadata: Optional[dict] = None
+    keywords: Optional[List[str]] = None  # 쿼리와 매칭된 키워드 목록
 
 
 class ChatResponse(BaseModel):

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useCallback, useRef, useMemo } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,72 @@ import { useState } from "react";
 import { MarkdownMessage } from "@/components/markdown-message";
 import { cleanSourceContent } from "@/lib/content-sanitizer";
 import type { Source } from "../types";
+
+/**
+ * 인용/키워드 하이라이트 컴포넌트
+ * citedPhrases 우선, 없으면 keywords 폴백 (상위 3개만)
+ */
+function HighlightedText({
+  text,
+  citedPhrases,
+  keywords
+}: {
+  text: string;
+  citedPhrases?: string[];
+  keywords?: string[];
+}) {
+  const highlighted = useMemo(() => {
+    // citedPhrases 우선 사용
+    const phrasesToHighlight = citedPhrases && citedPhrases.length > 0
+      ? citedPhrases
+      : keywords?.slice(0, 3);  // keywords 폴백 (상위 3개만)
+
+    if (!phrasesToHighlight || phrasesToHighlight.length === 0) {
+      return text;
+    }
+
+    // 인용 구절은 긴 것부터 매칭 (긴 문구가 짧은 문구를 포함할 수 있으므로)
+    const sortedPhrases = [...phrasesToHighlight].sort((a, b) => b.length - a.length);
+
+    // 패턴 생성
+    const escapedPhrases = sortedPhrases.map(phrase =>
+      phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    );
+
+    // 인용 구절은 정확히 매칭, 키워드는 조사 변형 포함
+    const isKeywordMode = !citedPhrases || citedPhrases.length === 0;
+    const pattern = isKeywordMode
+      ? new RegExp(`(${escapedPhrases.map(kw => `${kw}[은는이가을를에서로의와과도만]?`).join('|')})`, 'gi')
+      : new RegExp(`(${escapedPhrases.join('|')})`, 'gi');
+
+    const parts = text.split(pattern);
+
+    return parts.map((part, index) => {
+      // 매칭되는지 확인
+      const isMatch = sortedPhrases.some(phrase => {
+        if (isKeywordMode) {
+          const kwPattern = new RegExp(`^${phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[은는이가을를에서로의와과도만]?$`, 'i');
+          return kwPattern.test(part);
+        }
+        return part.toLowerCase() === phrase.toLowerCase();
+      });
+
+      if (isMatch) {
+        return (
+          <mark
+            key={index}
+            className="bg-sky-200 dark:bg-sky-400/40 text-sky-900 dark:text-sky-100 px-0.5 rounded-sm font-medium"
+          >
+            {part}
+          </mark>
+        );
+      }
+      return part;
+    });
+  }, [text, citedPhrases, keywords]);
+
+  return <>{highlighted}</>;
+}
 
 interface SourceArtifactPanelProps {
   sources: Source[];
@@ -347,6 +413,29 @@ export function SourceArtifactPanel({
             )}
           </div>
 
+          {/* 키워드 배지 */}
+          {activeSource.keywords && activeSource.keywords.length > 0 && (
+            <div className="mt-2">
+              <span className="text-xs text-muted-foreground font-medium mr-2">키워드:</span>
+              <div className="inline-flex flex-wrap gap-1">
+                {activeSource.keywords.slice(0, 8).map((kw, kwIndex) => (
+                  <Badge
+                    key={kwIndex}
+                    variant="secondary"
+                    className="text-[0.65rem] px-1.5 py-0 bg-sky-100 dark:bg-sky-500/30 text-sky-800 dark:text-sky-100"
+                  >
+                    {kw}
+                  </Badge>
+                ))}
+                {activeSource.keywords.length > 8 && (
+                  <Badge variant="outline" className="text-[0.65rem] px-1.5 py-0">
+                    +{activeSource.keywords.length - 8}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* 섹션 정보 - title과 다를 때만 표시 */}
           {activeSource.metadata?.section && activeSource.metadata.section !== activeSource.title && (
             <div className="mt-2 text-xs text-muted-foreground">
@@ -361,7 +450,20 @@ export function SourceArtifactPanel({
         <div className="p-4">
           {activeSource ? (
             <div className="prose prose-sm dark:prose-invert max-w-none">
-              <MarkdownMessage content={cleanSourceContent(activeSource.content)} compact />
+              {(activeSource.citedPhrases && activeSource.citedPhrases.length > 0) ||
+               (activeSource.keywords && activeSource.keywords.length > 0) ? (
+                // 인용 구절 또는 키워드가 있으면 하이라이트된 텍스트로 표시
+                <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                  <HighlightedText
+                    text={cleanSourceContent(activeSource.content)}
+                    citedPhrases={activeSource.citedPhrases}
+                    keywords={activeSource.keywords}
+                  />
+                </div>
+              ) : (
+                // 없으면 마크다운 렌더링
+                <MarkdownMessage content={cleanSourceContent(activeSource.content)} compact />
+              )}
             </div>
           ) : (
             <div className="text-center text-muted-foreground py-8">

@@ -34,6 +34,7 @@ from backend.utils.exaone_utils import clean_thought_tags_simple, is_exaone_mode
 from backend.utils.error_handler import get_http_error_detail, get_sse_error_response
 from backend.utils.source_converter import extract_sources_info, convert_docs_to_sources
 from backend.utils.token_counter import count_chat_tokens
+from backend.services.keyword_service import extract_keywords_for_documents
 
 # 로거 설정
 logger = logging.getLogger("uvicorn")
@@ -311,15 +312,19 @@ async def chat(
             temp_collection_name=chat_request.temp_collection_name
         )
 
-        # 응답 포맷팅
+        # 응답 포맷팅 (키워드 추출 포함)
+        raw_docs = result.get("retrieved_docs", [])
+        docs_with_keywords = extract_keywords_for_documents(chat_request.message, raw_docs)
+
         retrieved_docs = [
             RetrievedDocument(
                 id=str(doc.get("id", "")),
                 score=doc.get("score", 0.0),
                 text=doc.get("payload", {}).get("text", ""),
-                metadata={k: v for k, v in doc.get("payload", {}).items() if k != "text"}
+                metadata={k: v for k, v in doc.get("payload", {}).items() if k != "text"},
+                keywords=doc.get("keywords", [])
             )
-            for doc in result.get("retrieved_docs", [])
+            for doc in docs_with_keywords
         ]
 
         # 응답 시간 계산
@@ -511,9 +516,10 @@ async def chat_stream(
                         temp_collection_name=chat_request.temp_collection_name
                     )
 
-                    # 검색된 문서 전송
+                    # 검색된 문서 전송 (키워드 추출 포함)
                     if result.get("retrieved_docs"):
-                        sources_data = result["retrieved_docs"]
+                        raw_docs = result["retrieved_docs"]
+                        sources_data = extract_keywords_for_documents(chat_request.message, raw_docs)
                         collected_response["retrieved_docs"] = sources_data
                         yield f'data: {json.dumps({"sources": sources_data}, ensure_ascii=False)}\n\n'
 

@@ -3,6 +3,7 @@
 import React, { useState, isValidElement, ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import { Components } from "react-markdown";
@@ -294,7 +295,7 @@ export function MarkdownMessage({ content, compact = false }: MarkdownMessagePro
   return (
     <div className={compact ? "markdown-content w-full max-w-full" : "markdown-content w-full max-w-full overflow-hidden"}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkBreaks]}
         rehypePlugins={[
           rehypeRaw,
           [rehypeSanitize, sanitizeSchema]

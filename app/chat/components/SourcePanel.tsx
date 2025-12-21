@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,72 @@ import type { Source } from "../types";
 
 interface SourcePanelProps {
   sources: Source[];
+}
+
+/**
+ * 인용/키워드 하이라이트 컴포넌트
+ * citedPhrases 우선, 없으면 keywords 폴백 (상위 3개만)
+ */
+function HighlightedText({
+  text,
+  citedPhrases,
+  keywords
+}: {
+  text: string;
+  citedPhrases?: string[];
+  keywords?: string[];
+}) {
+  const highlighted = useMemo(() => {
+    // citedPhrases 우선 사용
+    const phrasesToHighlight = citedPhrases && citedPhrases.length > 0
+      ? citedPhrases
+      : keywords?.slice(0, 3);  // keywords 폴백 (상위 3개만)
+
+    if (!phrasesToHighlight || phrasesToHighlight.length === 0) {
+      return text;
+    }
+
+    // 인용 구절은 긴 것부터 매칭 (긴 문구가 짧은 문구를 포함할 수 있으므로)
+    const sortedPhrases = [...phrasesToHighlight].sort((a, b) => b.length - a.length);
+
+    // 패턴 생성
+    const escapedPhrases = sortedPhrases.map(phrase =>
+      phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    );
+
+    // 인용 구절은 정확히 매칭, 키워드는 조사 변형 포함
+    const isKeywordMode = !citedPhrases || citedPhrases.length === 0;
+    const pattern = isKeywordMode
+      ? new RegExp(`(${escapedPhrases.map(kw => `${kw}[은는이가을를에서로의와과도만]?`).join('|')})`, 'gi')
+      : new RegExp(`(${escapedPhrases.join('|')})`, 'gi');
+
+    const parts = text.split(pattern);
+
+    return parts.map((part, index) => {
+      // 매칭되는지 확인
+      const isMatch = sortedPhrases.some(phrase => {
+        if (isKeywordMode) {
+          const kwPattern = new RegExp(`^${phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[은는이가을를에서로의와과도만]?$`, 'i');
+          return kwPattern.test(part);
+        }
+        return part.toLowerCase() === phrase.toLowerCase();
+      });
+
+      if (isMatch) {
+        return (
+          <mark
+            key={index}
+            className="bg-sky-200 dark:bg-sky-400/40 text-sky-900 dark:text-sky-100 px-0.5 rounded-sm font-medium"
+          >
+            {part}
+          </mark>
+        );
+      }
+      return part;
+    });
+  }, [text, citedPhrases, keywords]);
+
+  return <>{highlighted}</>;
 }
 
 export function SourcePanel({ sources }: SourcePanelProps) {
@@ -175,13 +241,37 @@ export function SourcePanel({ sources }: SourcePanelProps) {
                     onOpenChange={() => toggleExpanded(source.id)}
                   >
                     <div className="space-y-2">
+                      {/* 키워드 배지 표시 */}
+                      {source.keywords && source.keywords.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {source.keywords.slice(0, 5).map((kw, kwIndex) => (
+                            <Badge
+                              key={kwIndex}
+                              variant="secondary"
+                              className="text-[0.65rem] px-1.5 py-0 bg-sky-100 dark:bg-sky-500/30 text-sky-800 dark:text-sky-100"
+                            >
+                              {kw}
+                            </Badge>
+                          ))}
+                          {source.keywords.length > 5 && (
+                            <Badge variant="outline" className="text-[0.65rem] px-1.5 py-0">
+                              +{source.keywords.length - 5}
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+
                       {/* 미리보기/전체 내용 */}
                       <div className="text-sm text-foreground bg-muted/30 p-3 rounded-md">
                         {isExpanded ? (
                           <MarkdownMessage content={cleanSourceContent(source.content)} compact />
                         ) : (
                           <p className="line-clamp-3 whitespace-pre-wrap">
-                            {cleanSourceContent(source.content)}
+                            <HighlightedText
+                              text={cleanSourceContent(source.content)}
+                              citedPhrases={source.citedPhrases}
+                              keywords={source.keywords}
+                            />
                           </p>
                         )}
                       </div>

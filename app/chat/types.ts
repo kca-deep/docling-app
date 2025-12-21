@@ -9,6 +9,8 @@ export interface Source {
   title: string;
   content: string;
   score: number;
+  keywords?: string[];  // 쿼리와 매칭된 키워드 목록
+  citedPhrases?: string[];  // LLM 응답에서 인용된 구절 목록
   metadata?: {
     page?: number;
     file?: string;
@@ -51,6 +53,8 @@ export interface RetrievedDocument {
   id: string;
   text: string;
   score: number;
+  keywords?: string[];  // 쿼리와 매칭된 키워드 목록
+  citedPhrases?: string[];  // LLM 응답에서 인용된 구절 목록
   metadata?: {
     filename?: string;
     document_id?: number;

@@ -71,6 +71,7 @@ def convert_to_source_data(doc: Dict[str, Any]) -> Dict[str, Any]:
             - id: 문서 ID
             - score: 유사도 점수
             - payload: 문서 내용 및 메타데이터
+            - keywords: (선택) 매칭된 키워드 목록
 
     Returns:
         프론트엔드용 source 데이터:
@@ -78,14 +79,22 @@ def convert_to_source_data(doc: Dict[str, Any]) -> Dict[str, Any]:
             - score: 유사도 점수
             - text: 문서 텍스트
             - metadata: text를 제외한 메타데이터
+            - keywords: 매칭된 키워드 목록
     """
     payload = doc.get("payload", {})
-    return {
+    result = {
         "id": str(doc.get("id", "")),
         "score": doc.get("score", 0.0),
         "text": payload.get("text", ""),
         "metadata": {k: v for k, v in payload.items() if k != "text"}
     }
+    # keywords가 있으면 포함
+    if "keywords" in doc:
+        result["keywords"] = doc["keywords"]
+    # cited_phrases가 있으면 포함 (인용 기반 하이라이팅용)
+    if "cited_phrases" in doc:
+        result["cited_phrases"] = doc["cited_phrases"]
+    return result
 
 
 def convert_to_source_info(doc: Dict[str, Any]) -> Dict[str, Any]:
