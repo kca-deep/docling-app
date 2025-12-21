@@ -80,7 +80,7 @@ function HighlightedText({
         return (
           <mark
             key={index}
-            className="bg-sky-200 dark:bg-sky-400/40 text-sky-900 dark:text-sky-100 px-0.5 rounded-sm font-medium"
+            className="underline decoration-teal-500 decoration-2 underline-offset-2 text-teal-700 dark:decoration-teal-400 dark:text-teal-300 font-medium bg-transparent"
           >
             {part}
           </mark>
@@ -422,7 +422,7 @@ export function SourceArtifactPanel({
                   <Badge
                     key={kwIndex}
                     variant="secondary"
-                    className="text-[0.65rem] px-1.5 py-0 bg-sky-100 dark:bg-sky-500/30 text-sky-800 dark:text-sky-100"
+                    className="text-[0.65rem] px-1.5 py-0 bg-teal-100 dark:bg-teal-500/40 text-teal-800 dark:text-teal-100"
                   >
                     {kw}
                   </Badge>
