@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,77 +23,12 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { cleanSourceContent } from "@/lib/content-sanitizer";
+import { applyMarkdownHighlighting } from "@/lib/markdown-highlighter";
 import { MarkdownMessage } from "@/components/markdown-message";
 import type { Source } from "../types";
 
 interface SourcePanelProps {
   sources: Source[];
-}
-
-/**
- * 인용/키워드 하이라이트 컴포넌트
- * citedPhrases 우선, 없으면 keywords 폴백 (상위 3개만)
- */
-function HighlightedText({
-  text,
-  citedPhrases,
-  keywords
-}: {
-  text: string;
-  citedPhrases?: string[];
-  keywords?: string[];
-}) {
-  const highlighted = useMemo(() => {
-    // citedPhrases 우선 사용
-    const phrasesToHighlight = citedPhrases && citedPhrases.length > 0
-      ? citedPhrases
-      : keywords?.slice(0, 3);  // keywords 폴백 (상위 3개만)
-
-    if (!phrasesToHighlight || phrasesToHighlight.length === 0) {
-      return text;
-    }
-
-    // 인용 구절은 긴 것부터 매칭 (긴 문구가 짧은 문구를 포함할 수 있으므로)
-    const sortedPhrases = [...phrasesToHighlight].sort((a, b) => b.length - a.length);
-
-    // 패턴 생성
-    const escapedPhrases = sortedPhrases.map(phrase =>
-      phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    );
-
-    // 인용 구절은 정확히 매칭, 키워드는 조사 변형 포함
-    const isKeywordMode = !citedPhrases || citedPhrases.length === 0;
-    const pattern = isKeywordMode
-      ? new RegExp(`(${escapedPhrases.map(kw => `${kw}[은는이가을를에서로의와과도만]?`).join('|')})`, 'gi')
-      : new RegExp(`(${escapedPhrases.join('|')})`, 'gi');
-
-    const parts = text.split(pattern);
-
-    return parts.map((part, index) => {
-      // 매칭되는지 확인
-      const isMatch = sortedPhrases.some(phrase => {
-        if (isKeywordMode) {
-          const kwPattern = new RegExp(`^${phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[은는이가을를에서로의와과도만]?$`, 'i');
-          return kwPattern.test(part);
-        }
-        return part.toLowerCase() === phrase.toLowerCase();
-      });
-
-      if (isMatch) {
-        return (
-          <mark
-            key={index}
-            className="underline decoration-teal-500 decoration-2 underline-offset-2 text-teal-700 dark:decoration-teal-400 dark:text-teal-300 font-medium bg-transparent"
-          >
-            {part}
-          </mark>
-        );
-      }
-      return part;
-    });
-  }, [text, citedPhrases, keywords]);
-
-  return <>{highlighted}</>;
 }
 
 export function SourcePanel({ sources }: SourcePanelProps) {
@@ -261,19 +196,19 @@ export function SourcePanel({ sources }: SourcePanelProps) {
                         </div>
                       )}
 
-                      {/* 미리보기/전체 내용 */}
-                      <div className="text-sm text-foreground bg-muted/30 p-3 rounded-md">
-                        {isExpanded ? (
-                          <MarkdownMessage content={cleanSourceContent(source.content)} compact />
-                        ) : (
-                          <p className="line-clamp-3 whitespace-pre-wrap">
-                            <HighlightedText
-                              text={cleanSourceContent(source.content)}
-                              citedPhrases={source.citedPhrases}
-                              keywords={source.keywords}
-                            />
-                          </p>
-                        )}
+                      {/* 미리보기/전체 내용 - 항상 마크다운 렌더링 + 하이라이팅 */}
+                      <div className={cn(
+                        "text-sm text-foreground bg-muted/30 p-3 rounded-md",
+                        !isExpanded && "line-clamp-3 overflow-hidden"
+                      )}>
+                        <MarkdownMessage
+                          content={applyMarkdownHighlighting(
+                            cleanSourceContent(source.content),
+                            source.citedPhrases,
+                            source.keywords
+                          )}
+                          compact
+                        />
                       </div>
 
                       {/* 펼치기/접기 및 액션 버튼 */}

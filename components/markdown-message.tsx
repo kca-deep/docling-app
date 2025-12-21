@@ -135,10 +135,10 @@ function CodeBlock({ children, language }: { children: React.ReactNode; language
 }
 
 export function MarkdownMessage({ content, compact = false }: MarkdownMessageProps) {
-  // rehypeSanitize 스키마 커스터마이즈 - <br> 태그 허용
+  // rehypeSanitize 스키마 커스터마이즈 - <br>, <mark> 태그 허용
   const sanitizeSchema = {
     ...defaultSchema,
-    tagNames: [...(defaultSchema.tagNames || []), 'br'],
+    tagNames: [...(defaultSchema.tagNames || []), 'br', 'mark'],
     attributes: {
       ...defaultSchema.attributes,
       '*': [...(defaultSchema.attributes?.['*'] || []), 'className', 'style'],
@@ -290,6 +290,13 @@ export function MarkdownMessage({ content, compact = false }: MarkdownMessagePro
 
     // br 태그 처리
     br: () => <br />,
+
+    // mark 태그 처리 (하이라이트)
+    mark: ({ children }) => (
+      <mark className="underline decoration-teal-500 decoration-2 underline-offset-2 text-teal-700 dark:decoration-teal-400 dark:text-teal-300 font-medium bg-transparent">
+        {children}
+      </mark>
+    ),
   };
 
   return (
