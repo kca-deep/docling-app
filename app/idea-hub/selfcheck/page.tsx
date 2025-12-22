@@ -43,7 +43,7 @@ import { AnalysisProgress, type AnalysisResult } from "@/components/idea-hub/ana
 import { ResultComparison } from "@/components/idea-hub/result-comparison"
 import { LlmStatusBadge } from "@/components/idea-hub/llm-status-badge"
 
-// 체크리스트 항목 정의 (PDF 문서 기준 질문형)
+// 체크리스트 항목 정의 (필수: 1-5, 선택: 6-10)
 export const CHECKLIST_QUESTIONS = [
   {
     number: 1,
@@ -71,21 +71,21 @@ export const CHECKLIST_QUESTIONS = [
   },
   {
     number: 5,
+    category: "required" as const,
+    question: "본 과제의 결과물이 대국민 서비스로 제공될 예정입니까?",
+    shortLabel: "대국민 서비스",
+  },
+  {
+    number: 6,
     category: "optional" as const,
     question: "본 과제에서 외부 클라우드 기반 AI 서비스(ChatGPT, Claude 등)를 활용합니까?",
     shortLabel: "외부 클라우드 AI",
   },
   {
-    number: 6,
+    number: 7,
     category: "optional" as const,
     question: "본 과제에서 자체 AI 모델을 구축/학습할 계획이 있습니까?",
     shortLabel: "자체 AI 모델",
-  },
-  {
-    number: 7,
-    category: "optional" as const,
-    question: "본 과제의 결과물이 대국민 서비스로 제공될 예정입니까?",
-    shortLabel: "대국민 서비스",
   },
   {
     number: 8,

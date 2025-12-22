@@ -135,7 +135,7 @@ export default function IdeaHubPage() {
               <div className="text-sm text-muted-foreground space-y-2">
                 <p className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-green-500" />
-                  필수항목 1~4번 중 하나라도 &quot;예&quot;인 경우
+                  필수항목 1~5번 중 하나라도 &quot;예&quot;인 경우
                 </p>
                 <p className="flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-amber-500" />
@@ -160,7 +160,7 @@ export default function IdeaHubPage() {
               보안성 검토 체크리스트 항목
             </CardTitle>
             <CardDescription>
-              AI 과제 추진 시 검토해야 할 10개 항목입니다. 필수 항목(1~4번) 중 하나라도 &quot;예&quot;인 경우 상위기관 검토 대상입니다.
+              AI 과제 추진 시 검토해야 할 10개 항목입니다. 필수 항목(1~5번) 중 하나라도 &quot;예&quot;인 경우 상위기관 검토 대상입니다.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -169,7 +169,7 @@ export default function IdeaHubPage() {
               <div className="space-y-3">
                 <h3 className="font-semibold flex items-center gap-2 text-red-600 dark:text-red-400">
                   <AlertTriangle className="w-4 h-4" />
-                  필수 항목 (1~4번)
+                  필수 항목 (1~5번)
                 </h3>
                 <ul className="space-y-2 text-sm">
                   <li className="flex items-start gap-2 p-2 rounded-lg bg-red-50 dark:bg-red-950/20">
@@ -188,6 +188,10 @@ export default function IdeaHubPage() {
                     <Badge variant="outline" className="shrink-0 mt-0.5">4</Badge>
                     <span>본 과제에서 비공개 업무자료(내부문서, 대외비 등)를 AI 서비스에 입력합니까?</span>
                   </li>
+                  <li className="flex items-start gap-2 p-2 rounded-lg bg-red-50 dark:bg-red-950/20">
+                    <Badge variant="outline" className="shrink-0 mt-0.5">5</Badge>
+                    <span>본 과제의 결과물이 대국민 서비스로 제공될 예정입니까?</span>
+                  </li>
                 </ul>
               </div>
 
@@ -195,20 +199,16 @@ export default function IdeaHubPage() {
               <div className="space-y-3">
                 <h3 className="font-semibold flex items-center gap-2 text-blue-600 dark:text-blue-400">
                   <CheckCircle2 className="w-4 h-4" />
-                  선택 항목 (5~10번)
+                  선택 항목 (6~10번)
                 </h3>
                 <ul className="space-y-2 text-sm">
                   <li className="flex items-start gap-2 p-2 rounded-lg bg-blue-50 dark:bg-blue-950/20">
-                    <Badge variant="outline" className="shrink-0 mt-0.5">5</Badge>
+                    <Badge variant="outline" className="shrink-0 mt-0.5">6</Badge>
                     <span>본 과제에서 외부 클라우드 기반 AI 서비스(ChatGPT, Claude 등)를 활용합니까?</span>
                   </li>
                   <li className="flex items-start gap-2 p-2 rounded-lg bg-blue-50 dark:bg-blue-950/20">
-                    <Badge variant="outline" className="shrink-0 mt-0.5">6</Badge>
-                    <span>본 과제에서 자체 AI 모델을 구축/학습할 계획이 있습니까?</span>
-                  </li>
-                  <li className="flex items-start gap-2 p-2 rounded-lg bg-blue-50 dark:bg-blue-950/20">
                     <Badge variant="outline" className="shrink-0 mt-0.5">7</Badge>
-                    <span>본 과제의 결과물이 대국민 서비스로 제공될 예정입니까?</span>
+                    <span>본 과제에서 자체 AI 모델을 구축/학습할 계획이 있습니까?</span>
                   </li>
                   <li className="flex items-start gap-2 p-2 rounded-lg bg-blue-50 dark:bg-blue-950/20">
                     <Badge variant="outline" className="shrink-0 mt-0.5">8</Badge>

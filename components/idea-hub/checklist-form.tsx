@@ -136,7 +136,7 @@ export function ChecklistForm({ items, onChange }: ChecklistFormProps) {
         <div className="flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 text-red-500" />
           <h3 className="font-semibold text-sm text-red-600 dark:text-red-400">
-            필수 항목 (1~4번)
+            필수 항목 (1~5번)
           </h3>
           <Badge variant="destructive" className="text-xs">
             1개 이상 "예" 시 검토 대상
@@ -154,7 +154,7 @@ export function ChecklistForm({ items, onChange }: ChecklistFormProps) {
         <div className="flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-blue-500" />
           <h3 className="font-semibold text-sm text-blue-600 dark:text-blue-400">
-            선택 항목 (5~10번)
+            선택 항목 (6~10번)
           </h3>
         </div>
         <div className="grid gap-2">

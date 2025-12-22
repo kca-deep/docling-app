@@ -33,15 +33,15 @@ from backend.services.embedding_service import EmbeddingService
 
 logger = logging.getLogger(__name__)
 
-# 체크리스트 항목 정의
+# 체크리스트 항목 정의 (필수: 1-5, 선택: 6-10)
 CHECKLIST_ITEMS = [
     {"number": 1, "category": "required", "question": "내부 정보시스템(업무포털, 무선국검사, 자격검정 등)과 연계 필요 여부", "short_label": "내부시스템 연계"},
     {"number": 2, "category": "required", "question": "개인정보(성명, 주민등록번호, 연락처 등) 수집/처리/저장 여부", "short_label": "개인정보 처리"},
     {"number": 3, "category": "required", "question": "민감정보(건강정보, 사상/신념, 정치적 견해 등) 활용 여부", "short_label": "민감정보 활용"},
     {"number": 4, "category": "required", "question": "비공개 업무자료(내부문서, 대외비 등) AI 서비스 입력 여부", "short_label": "비공개자료 AI입력"},
-    {"number": 5, "category": "optional", "question": "외부 클라우드 기반 AI 서비스(ChatGPT, Claude 등) 활용 여부", "short_label": "외부 클라우드 AI"},
-    {"number": 6, "category": "optional", "question": "자체 AI 모델 구축/학습 계획 여부", "short_label": "자체 AI 모델"},
-    {"number": 7, "category": "optional", "question": "대국민 서비스 제공 예정 여부", "short_label": "대국민 서비스"},
+    {"number": 5, "category": "required", "question": "대국민 서비스 제공 예정 여부", "short_label": "대국민 서비스"},
+    {"number": 6, "category": "optional", "question": "외부 클라우드 기반 AI 서비스(ChatGPT, Claude 등) 활용 여부", "short_label": "외부 클라우드 AI"},
+    {"number": 7, "category": "optional", "question": "자체 AI 모델 구축/학습 계획 여부", "short_label": "자체 AI 모델"},
     {"number": 8, "category": "optional", "question": "외부 API 연동(OpenAI API, 외부 데이터 수집 등) 필요 여부", "short_label": "외부 API 연동"},
     {"number": 9, "category": "optional", "question": "생성 결과물의 정확성/윤리성 검증 절차 마련 여부", "short_label": "검증 절차"},
     {"number": 10, "category": "optional", "question": "AI 서비스 이용약관 및 저작권 관련 사항 확인 여부", "short_label": "이용약관 확인"},
@@ -523,9 +523,9 @@ class SelfCheckService:
         # item_number로 정렬
         items.sort(key=lambda x: x["item_number"])
 
-        # requires_review 결정: 필수항목(1-4) 중 yes가 있으면 true
+        # requires_review 결정: 필수항목(1-5) 중 yes가 있으면 true
         requires_review = any(
-            item["item_number"] <= 4 and item["answer"] == "yes"
+            item["item_number"] <= 5 and item["answer"] == "yes"
             for item in items
         )
 
@@ -1043,8 +1043,8 @@ RULES:
             # risk_level 결정
             risk_level = parsed.get("r") or parsed.get("risk_level") or "medium"
             if answer == "yes":
-                # 필수항목(1-4)이면 high, 선택항목(5-10)이면 medium
-                risk_level = "high" if item_number <= 4 else "medium"
+                # 필수항목(1-5)이면 high, 선택항목(6-10)이면 medium
+                risk_level = "high" if item_number <= 5 else "medium"
             elif answer == "no":
                 risk_level = "low"
 
@@ -1099,7 +1099,7 @@ RULES:
                     else:
                         evidence = "분석 완료 (일부 정보 누락)"
 
-                    risk_level = "high" if answer == "yes" and item_number <= 4 else ("low" if answer == "no" else "medium")
+                    risk_level = "high" if answer == "yes" and item_number <= 5 else ("low" if answer == "no" else "medium")
 
                     logger.info(f"[SelfCheck] Item {item_number} recovered from truncated JSON: answer={answer}")
                     return {
@@ -1162,7 +1162,7 @@ RULES:
                 evidence = "분석 완료"
 
             # risk_level 결정
-            risk_level = "high" if answer == "yes" and item_number <= 4 else ("low" if answer == "no" else "medium")
+            risk_level = "high" if answer == "yes" and item_number <= 5 else ("low" if answer == "no" else "medium")
 
             # 사용자 비교
             if user_answer and user_answer not in ("unknown", None) and user_answer != answer and not user_comparison:
@@ -1197,15 +1197,15 @@ RULES:
         """누락된 항목을 개별 호출로 보완"""
         import asyncio
 
-        # 체크리스트 질문 매핑
+        # 체크리스트 질문 매핑 (필수: 1-5, 선택: 6-10)
         questions = {
             1: "내부시스템 연계 필요 여부",
             2: "개인정보(성명, 연락처) 수집 여부",
             3: "민감정보(건강, 정치) 활용 여부",
             4: "비공개자료 AI 입력 여부",
-            5: "외부 클라우드 AI(ChatGPT 등) 사용 여부",
-            6: "자체 AI 모델 구축/학습 계획 여부",
-            7: "대국민 서비스 제공 예정 여부",
+            5: "대국민 서비스 제공 예정 여부",
+            6: "외부 클라우드 AI(ChatGPT 등) 사용 여부",
+            7: "자체 AI 모델 구축/학습 계획 여부",
             8: "외부 API 연동 필요 여부",
             9: "생성 결과물 검증 절차 마련 여부",
             10: "AI 이용약관/저작권 확인 여부",
@@ -1375,7 +1375,7 @@ RULES:
                 llm_user_comparison=llm_user_comparison
             ))
 
-        # 6. 상위기관 검토 대상 여부 결정 (필수항목 1-4 중 yes가 있으면)
+        # 6. 상위기관 검토 대상 여부 결정 (필수항목 1-5 중 yes가 있으면)
         requires_review = False
         review_reason = None
         for item in result_items:

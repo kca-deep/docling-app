@@ -384,7 +384,7 @@ class PDFService:
         elements.append(Paragraph(f"{section_num}. 점검 항목 상세", styles["heading1"]))
 
         # 필수 항목
-        elements.append(Paragraph(f"{section_num}.1 필수 항목 (1~4번)", styles["heading2"]))
+        elements.append(Paragraph(f"{section_num}.1 필수 항목 (1~5번)", styles["heading2"]))
 
         required_items = [item for item in submission.items if item.item_category == "required"]
         if required_items:
@@ -392,7 +392,7 @@ class PDFService:
         elements.append(Spacer(1, 15))
 
         # 선택 항목
-        elements.append(Paragraph(f"{section_num}.2 선택 항목 (5~10번)", styles["heading2"]))
+        elements.append(Paragraph(f"{section_num}.2 선택 항목 (6~10번)", styles["heading2"]))
 
         optional_items = [item for item in submission.items if item.item_category == "optional"]
         if optional_items:

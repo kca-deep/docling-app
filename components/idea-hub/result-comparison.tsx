@@ -190,7 +190,7 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
                     ) : (
                       <p>
                         <span className="text-green-600 dark:text-green-400 font-medium">양호:</span>{" "}
-                        필수 항목(1~4번)에서 보안 검토가 필요한 항목이 발견되지 않았습니다.
+                        필수 항목(1~5번)에서 보안 검토가 필요한 항목이 발견되지 않았습니다.
                       </p>
                     )}
                     {/* 선택항목 중 "예" 응답 항목 */}
@@ -360,7 +360,7 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Shield className="w-5 h-5 text-red-500" />
-            필수 항목 (1~4번)
+            필수 항목 (1~5번)
           </CardTitle>
         </CardHeader>
         <CardContent className="px-2 sm:px-6">
@@ -490,7 +490,7 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <CheckCircle2 className="w-5 h-5 text-blue-500" />
-            선택 항목 (5~10번)
+            선택 항목 (6~10번)
           </CardTitle>
         </CardHeader>
         <CardContent className="px-2 sm:px-6">
