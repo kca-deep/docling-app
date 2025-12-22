@@ -64,6 +64,7 @@ interface InputAreaProps {
   documentProgress?: number;
   documentStage?: ProcessingStage;
   documentError?: string | null;
+  documentFilename?: string;
   onClearDocument?: () => void;
 }
 
@@ -99,6 +100,7 @@ export const InputArea = memo(function InputArea({
   documentProgress = 0,
   documentStage,
   documentError,
+  documentFilename,
   onClearDocument,
 }: InputAreaProps) {
   const [isComposing, setIsComposing] = useState(false);
@@ -158,11 +160,11 @@ export const InputArea = memo(function InputArea({
           </div>
         )}
 
-        {/* 문서 컨텍스트 바 - 업로드 중이거나 파일이 있을 때 표시 */}
-        {(isDocumentUploading || uploadedFilenames.length > 0) && onClearDocument && (
+        {/* 문서 컨텍스트 바 - 업로드 중이거나 파일이 있거나 에러가 있을 때 표시 */}
+        {(isDocumentUploading || uploadedFilenames.length > 0 || documentError) && onClearDocument && (
           <div className="mb-2 rounded-xl overflow-hidden border border-border/40">
             <DocumentContextBar
-              filenames={uploadedFilenames}
+              filenames={uploadedFilenames.length > 0 ? uploadedFilenames : (documentFilename ? [documentFilename] : ["파일"])}
               pageCount={documentPageCount}
               isProcessing={isDocumentUploading}
               progress={documentProgress}

@@ -67,6 +67,27 @@ class CleanupResponse(BaseModel):
     deleted_count: int
 
 
+class UploadConfigResponse(BaseModel):
+    """업로드 설정 응답"""
+    max_file_size_mb: int
+    max_file_size_bytes: int
+    allowed_extensions: list
+
+
+@router.get("/upload-config", response_model=UploadConfigResponse)
+async def get_upload_config():
+    """
+    문서 업로드 설정 조회
+
+    프론트엔드에서 파일 크기 제한 등을 동적으로 가져오기 위한 엔드포인트
+    """
+    return UploadConfigResponse(
+        max_file_size_mb=settings.CHAT_MAX_UPLOAD_SIZE_MB,
+        max_file_size_bytes=settings.CHAT_MAX_UPLOAD_SIZE,
+        allowed_extensions=settings.ALLOWED_EXTENSIONS
+    )
+
+
 @router.post("/upload", response_model=UploadResponse)
 async def upload_document(
     background_tasks: BackgroundTasks,

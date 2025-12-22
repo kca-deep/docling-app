@@ -4,6 +4,59 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { API_BASE_URL } from "@/lib/api-config";
 
 /**
+ * 업로드 설정 (백엔드에서 로드)
+ */
+interface UploadConfig {
+  maxFileSizeMB: number;
+  maxFileSizeBytes: number;
+  allowedExtensions: string[];
+}
+
+/**
+ * 기본 업로드 설정 (API 로드 실패 시 폴백)
+ */
+const DEFAULT_UPLOAD_CONFIG: UploadConfig = {
+  maxFileSizeMB: 3,
+  maxFileSizeBytes: 3 * 1024 * 1024,
+  allowedExtensions: [".pdf", ".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls"],
+};
+
+/**
+ * 파일 크기 검증 결과
+ */
+interface FileSizeValidation {
+  valid: boolean;
+  invalidFiles: { name: string; size: number }[];
+}
+
+/**
+ * 파일 크기 검증
+ */
+function validateFileSize(files: File[], maxSizeBytes: number): FileSizeValidation {
+  const invalidFiles: { name: string; size: number }[] = [];
+
+  for (const file of files) {
+    if (file.size > maxSizeBytes) {
+      invalidFiles.push({ name: file.name, size: file.size });
+    }
+  }
+
+  return {
+    valid: invalidFiles.length === 0,
+    invalidFiles,
+  };
+}
+
+/**
+ * 파일 크기를 사람이 읽기 쉬운 형식으로 변환
+ */
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+/**
  * 문서 처리 단계
  */
 export type ProcessingStage =
@@ -65,6 +118,8 @@ export interface UseDocumentUploadReturn {
   tempCollectionName: string | null;
   /** 업로드된 파일명 목록 */
   uploadedFilenames: string[];
+  /** 최대 파일 크기 (MB) */
+  maxFileSizeMB: number;
 }
 
 /**
@@ -79,9 +134,32 @@ export function useDocumentUpload(): UseDocumentUploadReturn {
   const [status, setStatus] = useState<UploadStatus | null>(null);
   const [tempCollectionName, setTempCollectionName] = useState<string | null>(null);
   const [uploadedFilenames, setUploadedFilenames] = useState<string[]>([]);
+  const [uploadConfig, setUploadConfig] = useState<UploadConfig>(DEFAULT_UPLOAD_CONFIG);
 
   const eventSourcesRef = useRef<Map<string, EventSource>>(new Map());
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // 백엔드에서 업로드 설정 로드
+  useEffect(() => {
+    const loadUploadConfig = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/chat/documents/upload-config`);
+        if (response.ok) {
+          const data = await response.json();
+          setUploadConfig({
+            maxFileSizeMB: data.max_file_size_mb,
+            maxFileSizeBytes: data.max_file_size_bytes,
+            allowedExtensions: data.allowed_extensions,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to load upload config:", error);
+        // 기본값 사용
+      }
+    };
+
+    loadUploadConfig();
+  }, []);
 
   // 컴포넌트 언마운트 시 정리
   useEffect(() => {
@@ -190,6 +268,40 @@ export function useDocumentUpload(): UseDocumentUploadReturn {
   const uploadDocuments = useCallback(
     async (files: File[], sessionId?: string) => {
       if (files.length === 0) return;
+
+      // 파일 크기 검증 (동적 설정 사용)
+      const validation = validateFileSize(files, uploadConfig.maxFileSizeBytes);
+      if (!validation.valid) {
+        const errorMessages = validation.invalidFiles.map(
+          (f) => `${f.name} (${formatFileSize(f.size)})`
+        );
+        const errorMessage =
+          validation.invalidFiles.length === 1
+            ? `파일 크기가 ${uploadConfig.maxFileSizeMB}MB를 초과합니다: ${errorMessages[0]}`
+            : `파일 크기가 ${uploadConfig.maxFileSizeMB}MB를 초과하는 파일이 있습니다:\n${errorMessages.join("\n")}`;
+
+        setStatus({
+          stage: "error",
+          progress: 0,
+          filename: files.length === 1 ? files[0].name : `${files.length}개 파일`,
+          collectionName: null,
+          error: errorMessage,
+          pageCount: 0,
+          files: files.map((f) => ({
+            filename: f.name,
+            stage: "error" as ProcessingStage,
+            progress: 0,
+            error: f.size > uploadConfig.maxFileSizeBytes
+              ? `파일 크기 초과 (${formatFileSize(f.size)} / 최대 ${uploadConfig.maxFileSizeMB}MB)`
+              : null,
+            pageCount: 0,
+            taskId: null,
+          })),
+          totalFiles: files.length,
+          completedFiles: 0,
+        });
+        return;
+      }
 
       // 기존 연결 정리
       eventSourcesRef.current.forEach((es) => es.close());
@@ -337,7 +449,7 @@ export function useDocumentUpload(): UseDocumentUploadReturn {
         });
       }
     },
-    [uploadSingleFile, tempCollectionName, uploadedFilenames]
+    [uploadSingleFile, tempCollectionName, uploadedFilenames, uploadConfig]
   );
 
   /**
@@ -387,5 +499,6 @@ export function useDocumentUpload(): UseDocumentUploadReturn {
     clearDocument,
     tempCollectionName,
     uploadedFilenames,
+    maxFileSizeMB: uploadConfig.maxFileSizeMB,
   };
 }

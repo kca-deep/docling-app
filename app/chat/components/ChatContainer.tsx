@@ -1170,6 +1170,7 @@ export function ChatContainer() {
             documentProgress={documentUploadStatus?.progress}
             documentStage={documentUploadStatus?.stage}
             documentError={documentUploadStatus?.error}
+            documentFilename={documentUploadStatus?.filename}
             onClearDocument={handleClearDocument}
             />
           </div>
