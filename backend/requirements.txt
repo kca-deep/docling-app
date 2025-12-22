@@ -24,3 +24,4 @@ PyPDF2>=3.0.0
 xlrd>=2.0.0
 tiktoken>=0.5.0
 kiwipiepy>=0.20.0
+apscheduler>=3.10.0

@@ -438,6 +438,7 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     """채팅 요청"""
+    session_id: Optional[str] = None  # 세션 ID (선택적, 없으면 서버에서 생성)
     conversation_id: Optional[str] = None  # 대화 ID (선택적)
     collection_name: Optional[str] = None  # 컬렉션 이름 (None이면 일상대화 모드)
     temp_collection_name: Optional[str] = None  # 임시 컬렉션명 (채팅 문서 업로드용)
@@ -468,6 +469,7 @@ class RetrievedDocument(BaseModel):
 
 class ChatResponse(BaseModel):
     """채팅 응답"""
+    session_id: Optional[str] = None  # 세션 ID
     conversation_id: Optional[str] = None  # 대화 ID
     answer: str
     reasoning_content: Optional[str] = None  # GPT-OSS 추론 과정 (high 레벨)

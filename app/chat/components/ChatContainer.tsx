@@ -52,6 +52,24 @@ export function ChatContainer() {
   const [quotedMessage, setQuotedMessage] = useState<Message | null>(null);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [currentStage, setCurrentStage] = useState<string>(""); // 백엔드 단계 이벤트
+  const lastUserMessageRef = useRef<{ content: string; quoted: Message | null } | null>(null);
+
+  // 스트리밍 배칭용 refs
+  const streamingBatchRef = useRef<{
+    content: string;
+    reasoning: string;
+    sources: Source[];
+    messageId: string;
+    messageCreated: boolean;
+    flushScheduled: boolean;
+  }>({
+    content: "",
+    reasoning: "",
+    sources: [],
+    messageId: "",
+    messageCreated: false,
+    flushScheduled: false,
+  });
 
   // 참조문서 아티팩트 패널 상태
   const [artifactState, setArtifactState] = useState<ArtifactState>({
@@ -70,24 +88,50 @@ export function ChatContainer() {
     return param === 'true';
   });
 
+  // localStorage 키
+  const SETTINGS_STORAGE_KEY = "chat-settings";
+
   // AI 설정 (기본값은 fallback용)
-  const [settings, setSettings] = useState<ChatSettings>({
-    model: "gpt-oss-20b",
-    reasoningLevel: "medium",
-    temperature: 0.7,
-    maxTokens: 2000,
-    topP: 0.9,
-    topK: 5,
-    frequencyPenalty: 0,
-    presencePenalty: 0,
-    streamMode: true,
-    useReranking: true,
+  const [settings, setSettings] = useState<ChatSettings>(() => {
+    const defaults: ChatSettings = {
+      model: "gpt-oss-20b",
+      reasoningLevel: "medium",
+      temperature: 0.7,
+      maxTokens: 2000,
+      topP: 0.9,
+      topK: 5,
+      frequencyPenalty: 0,
+      presencePenalty: 0,
+      streamMode: true,
+      useReranking: true,
+    };
+    // 클라이언트에서 localStorage 설정 병합
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
+        if (saved) {
+          return { ...defaults, ...JSON.parse(saved) };
+        }
+      } catch (e) {
+        console.error("[Settings] Failed to load initial settings:", e);
+      }
+    }
+    return defaults;
   });
 
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [defaultReasoningLevel, setDefaultReasoningLevel] = useState<string>("medium"); // 백엔드에서 로드한 기본값
   const [deepThinkingEnabled, setDeepThinkingEnabled] = useState(false); // 심층사고 토글 상태
 
+  // 설정 변경 시 localStorage에 저장
+  useEffect(() => {
+    if (!settingsLoaded) return; // 백엔드 로딩 완료 전에는 저장하지 않음
+    try {
+      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+    } catch (e) {
+      console.error("[Settings] Failed to save to localStorage:", e);
+    }
+  }, [settings, settingsLoaded]);
 
   // 문서 업로드 훅 (다중 파일 지원)
   const {
@@ -283,6 +327,7 @@ export function ChatContainer() {
         headers: { "Content-Type": "application/json" },
         credentials: 'include',
         body: JSON.stringify({
+          session_id: sessionId,  // 세션 ID 전달
           collection_name: selectedCollection || null,  // 빈 문자열이면 null로 전송 (일상대화 모드)
           temp_collection_name: tempCollectionName || null,  // 임시 컬렉션 (문서 업로드용)
           message: userMessage.content,
@@ -373,7 +418,36 @@ export function ChatContainer() {
       }
     } catch (error) {
       console.error("Error sending message:", error);
-      toast.error("메시지 전송에 실패했습니다");
+
+      // 네트워크 오류인 경우 재시도 버튼 제공
+      const isNetworkError = error instanceof TypeError && error.message.includes('fetch');
+
+      toast.error(
+        isNetworkError ? "네트워크 오류가 발생했습니다" : "메시지 전송에 실패했습니다",
+        {
+          duration: 8000,
+          action: lastUserMessageRef.current ? {
+            label: "재시도",
+            onClick: () => {
+              // 마지막 에러 메시지 제거
+              setMessages((prev) => {
+                const lastMsg = prev[prev.length - 1];
+                if (lastMsg?.role === "assistant" && lastMsg?.content.includes("오류가 발생했습니다")) {
+                  return prev.slice(0, -1);
+                }
+                return prev;
+              });
+              // 마지막 사용자 메시지로 재시도
+              if (lastUserMessageRef.current) {
+                setInput(lastUserMessageRef.current.content);
+                if (lastUserMessageRef.current.quoted) {
+                  setQuotedMessage(lastUserMessageRef.current.quoted);
+                }
+              }
+            },
+          } : undefined,
+        }
+      );
 
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -424,6 +498,7 @@ export function ChatContainer() {
         headers: { "Content-Type": "application/json" },
         credentials: 'include',
         body: JSON.stringify({
+          session_id: sessionId,  // 세션 ID 전달
           collection_name: selectedCollection || null,  // 빈 문자열이면 null로 전송 (일상대화 모드)
           temp_collection_name: tempCollectionName || null,  // 임시 컬렉션 (문서 업로드용)
           message: userMessage.content,
@@ -456,7 +531,64 @@ export function ChatContainer() {
       let aiReasoningContent = "";
       let sources: Source[] = [];
       let retrievedDocs: RetrievedDocument[] = [];
-      let messageCreated = false;
+
+      // 배칭용 상태 초기화
+      const batch = streamingBatchRef.current;
+      batch.content = "";
+      batch.reasoning = "";
+      batch.sources = [];
+      batch.messageId = aiMessageId;
+      batch.messageCreated = false;
+      batch.flushScheduled = false;
+
+      // 배치 플러시 함수 (requestAnimationFrame으로 다음 프레임에 업데이트)
+      const flushBatch = () => {
+        if (!batch.flushScheduled) return;
+
+        const currentContent = batch.content;
+        const currentReasoning = batch.reasoning;
+        const currentSources = batch.sources;
+        const currentMessageId = batch.messageId;
+
+        if (!batch.messageCreated && (currentContent || currentReasoning)) {
+          batch.messageCreated = true;
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: currentMessageId,
+              role: "assistant",
+              content: currentContent,
+              timestamp: new Date(),
+              model: settings.model,
+              sources: currentSources,
+              reasoningContent: currentReasoning || undefined,
+            },
+          ]);
+        } else if (batch.messageCreated) {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === currentMessageId
+                ? {
+                    ...msg,
+                    content: currentContent,
+                    sources: currentSources.length > 0 ? currentSources : msg.sources,
+                    reasoningContent: currentReasoning || msg.reasoningContent,
+                  }
+                : msg
+            )
+          );
+        }
+
+        batch.flushScheduled = false;
+      };
+
+      // 배치 스케줄 함수
+      const scheduleBatchFlush = () => {
+        if (!batch.flushScheduled) {
+          batch.flushScheduled = true;
+          requestAnimationFrame(flushBatch);
+        }
+      };
 
       // SSE 스트림 파싱 (공통 유틸리티 사용)
       for await (const event of parseSSEStream(reader)) {
@@ -468,6 +600,7 @@ export function ChatContainer() {
           case "sources":
             retrievedDocs = event.sources!;
             sources = mapRetrievedDocsToSources(event.sources!);
+            batch.sources = sources;
             setCurrentSources(sources);
             break;
 
@@ -475,76 +608,36 @@ export function ChatContainer() {
             // 인용 정보가 추가된 sources로 업데이트
             if (event.sourcesUpdate) {
               sources = mapRetrievedDocsToSources(event.sourcesUpdate);
+              batch.sources = sources;
               setCurrentSources(sources);
-              // 이미 생성된 메시지의 sources도 업데이트
-              if (messageCreated) {
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === aiMessageId
-                      ? { ...msg, sources }
-                      : msg
-                  )
-                );
-              }
+              scheduleBatchFlush();
             }
             break;
 
           case "reasoning":
             aiReasoningContent += event.reasoning!;
-            if (!messageCreated) {
-              messageCreated = true;
-              setMessages((prev) => [
-                ...prev,
-                {
-                  id: aiMessageId,
-                  role: "assistant",
-                  content: "",
-                  timestamp: new Date(),
-                  model: settings.model,
-                  sources,
-                  reasoningContent: aiReasoningContent,
-                },
-              ]);
-            } else {
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === aiMessageId
-                    ? { ...msg, reasoningContent: aiReasoningContent, sources: sources.length > 0 ? sources : msg.sources }
-                    : msg
-                )
-              );
-            }
+            batch.reasoning = aiReasoningContent;
+            scheduleBatchFlush();
             break;
 
           case "content":
             aiContent += event.content!;
-            if (!messageCreated) {
-              messageCreated = true;
-              setMessages((prev) => [
-                ...prev,
-                {
-                  id: aiMessageId,
-                  role: "assistant",
-                  content: aiContent,
-                  timestamp: new Date(),
-                  model: settings.model,
-                  sources,
-                },
-              ]);
-            } else {
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === aiMessageId
-                    ? { ...msg, content: aiContent, sources, reasoningContent: aiReasoningContent || msg.reasoningContent }
-                    : msg
-                )
-              );
-            }
+            batch.content = aiContent;
+            scheduleBatchFlush();
             break;
 
           case "done":
+            // 최종 플러시 보장
+            if (batch.flushScheduled) {
+              flushBatch();
+            }
             break;
         }
+      }
+
+      // 스트리밍 완료 후 최종 플러시
+      if (batch.flushScheduled) {
+        flushBatch();
       }
 
       // 스트리밍 완료 후 sources와 regenerationContext 추가
@@ -593,7 +686,36 @@ export function ChatContainer() {
         );
       } else {
         console.error("Error streaming message:", error);
-        toast.error("스트리밍 중 오류가 발생했습니다");
+
+        // 네트워크 오류인 경우 재시도 버튼 제공
+        const isNetworkError = error instanceof TypeError && error.message.includes('fetch');
+
+        toast.error(
+          isNetworkError ? "네트워크 오류가 발생했습니다" : "스트리밍 중 오류가 발생했습니다",
+          {
+            duration: 8000,
+            action: lastUserMessageRef.current ? {
+              label: "재시도",
+              onClick: () => {
+                // 마지막 에러 메시지 제거
+                setMessages((prev) => {
+                  const lastMsg = prev[prev.length - 1];
+                  if (lastMsg?.role === "assistant" && lastMsg?.content.includes("오류가 발생했습니다")) {
+                    return prev.slice(0, -1);
+                  }
+                  return prev;
+                });
+                // 마지막 사용자 메시지로 재시도
+                if (lastUserMessageRef.current) {
+                  setInput(lastUserMessageRef.current.content);
+                  if (lastUserMessageRef.current.quoted) {
+                    setQuotedMessage(lastUserMessageRef.current.quoted);
+                  }
+                }
+              },
+            } : undefined,
+          }
+        );
 
         const errorMessage: Message = {
           id: (Date.now() + 1).toString(),
@@ -621,6 +743,12 @@ export function ChatContainer() {
       role: "user",
       content: input.trim(),
       timestamp: new Date(),
+    };
+
+    // 재시도를 위해 마지막 사용자 메시지 저장
+    lastUserMessageRef.current = {
+      content: input.trim(),
+      quoted: quotedMessage,
     };
 
     setMessages((prev) => [...prev, userMessage]);
@@ -862,7 +990,7 @@ export function ChatContainer() {
 
   // 스트리밍 중단 핸들러
   const handleStopStreaming = useCallback(() => {
-    if (abortController) {
+    if (abortController && !abortController.signal.aborted) {
       abortController.abort();
       setAbortController(null);
     }

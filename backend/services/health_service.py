@@ -41,9 +41,16 @@ class HealthService:
     async def check_qdrant(self) -> Dict[str, Any]:
         """Qdrant 벡터 DB 연결 확인"""
         try:
+            headers = {}
+            if settings.QDRANT_API_KEY:
+                headers["api-key"] = settings.QDRANT_API_KEY
+
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 start = datetime.now()
-                response = await client.get(f"{settings.QDRANT_URL}/collections")
+                response = await client.get(
+                    f"{settings.QDRANT_URL}/collections",
+                    headers=headers
+                )
                 latency = (datetime.now() - start).total_seconds() * 1000
 
                 if response.status_code == 200:
@@ -113,6 +120,54 @@ class HealthService:
         except Exception as e:
             logger.warning(f"LLM health check failed: {e}")
             return {"status": "degraded", "error": str(e)}
+
+    async def check_gpt_oss(self) -> Dict[str, Any]:
+        """GPT-OSS 20B 서비스 확인"""
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                start = datetime.now()
+                response = await client.get(f"{settings.GPT_OSS_20B_URL}/v1/models")
+                latency = (datetime.now() - start).total_seconds() * 1000
+
+                if response.status_code == 200:
+                    return {
+                        "status": "healthy",
+                        "latency_ms": round(latency, 2),
+                        "model": settings.GPT_OSS_20B_MODEL
+                    }
+                return {
+                    "status": "degraded",
+                    "status_code": response.status_code
+                }
+        except httpx.TimeoutException:
+            return {"status": "unhealthy", "error": "timeout"}
+        except Exception as e:
+            logger.warning(f"GPT-OSS health check failed: {e}")
+            return {"status": "unhealthy", "error": str(e)}
+
+    async def check_exaone(self) -> Dict[str, Any]:
+        """EXAONE 4.0 32B 서비스 확인"""
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                start = datetime.now()
+                response = await client.get(f"{settings.EXAONE_4_0_32B_URL}/v1/models")
+                latency = (datetime.now() - start).total_seconds() * 1000
+
+                if response.status_code == 200:
+                    return {
+                        "status": "healthy",
+                        "latency_ms": round(latency, 2),
+                        "model": settings.EXAONE_4_0_32B_MODEL
+                    }
+                return {
+                    "status": "degraded",
+                    "status_code": response.status_code
+                }
+        except httpx.TimeoutException:
+            return {"status": "unhealthy", "error": "timeout"}
+        except Exception as e:
+            logger.warning(f"EXAONE health check failed: {e}")
+            return {"status": "unhealthy", "error": str(e)}
 
     async def _check_single_llm(self, url: str, model_info: Dict[str, Any]) -> Dict[str, Any]:
         """단일 LLM 서비스 상태 확인"""
@@ -228,7 +283,7 @@ class HealthService:
             return {"status": "unhealthy", "error": "timeout"}
         except Exception as e:
             logger.warning(f"Reranker health check failed: {e}")
-            return {"status": "degraded", "error": str(e)}
+            return {"status": "unhealthy", "error": str(e)}
 
     async def check_qwen3_vl(self) -> Dict[str, Any]:
         """Qwen3-VL OCR 서비스 확인"""
@@ -252,16 +307,17 @@ class HealthService:
             return {"status": "unhealthy", "error": "timeout"}
         except Exception as e:
             logger.warning(f"Qwen3-VL health check failed: {e}")
-            return {"status": "degraded", "error": str(e)}
+            return {"status": "unhealthy", "error": str(e)}
 
     async def get_full_health(self) -> Dict[str, Any]:
         """전체 시스템 상태 확인"""
-        # 모든 체크를 병렬로 실행
+        # 모든 체크를 병렬로 실행 (개별 LLM 모델 포함)
         checks = await asyncio.gather(
             self.check_database(),
             self.check_qdrant(),
             self.check_embedding(),
-            self.check_llm(),
+            self.check_gpt_oss(),
+            self.check_exaone(),
             self.check_docling(),
             self.check_reranker(),
             self.check_qwen3_vl(),
@@ -272,17 +328,18 @@ class HealthService:
             "database": checks[0] if not isinstance(checks[0], Exception) else {"status": "error", "error": str(checks[0])},
             "qdrant": checks[1] if not isinstance(checks[1], Exception) else {"status": "error", "error": str(checks[1])},
             "embedding": checks[2] if not isinstance(checks[2], Exception) else {"status": "error", "error": str(checks[2])},
-            "llm": checks[3] if not isinstance(checks[3], Exception) else {"status": "error", "error": str(checks[3])},
-            "docling": checks[4] if not isinstance(checks[4], Exception) else {"status": "error", "error": str(checks[4])},
-            "reranker": checks[5] if not isinstance(checks[5], Exception) else {"status": "error", "error": str(checks[5])},
-            "qwen3_vl": checks[6] if not isinstance(checks[6], Exception) else {"status": "error", "error": str(checks[6])},
+            "gpt_oss": checks[3] if not isinstance(checks[3], Exception) else {"status": "error", "error": str(checks[3])},
+            "exaone": checks[4] if not isinstance(checks[4], Exception) else {"status": "error", "error": str(checks[4])},
+            "docling": checks[5] if not isinstance(checks[5], Exception) else {"status": "error", "error": str(checks[5])},
+            "reranker": checks[6] if not isinstance(checks[6], Exception) else {"status": "error", "error": str(checks[6])},
+            "qwen3_vl": checks[7] if not isinstance(checks[7], Exception) else {"status": "error", "error": str(checks[7])},
         }
 
         # 전체 상태 결정
         # 필수 서비스: database, qdrant
-        # 선택 서비스: embedding, llm, docling, reranker, qwen3_vl
+        # 선택 서비스: embedding, gpt_oss, exaone, docling, reranker, qwen3_vl
         critical_services = ["database", "qdrant"]
-        optional_services = ["embedding", "llm", "docling", "reranker", "qwen3_vl"]
+        optional_services = ["embedding", "gpt_oss", "exaone", "docling", "reranker", "qwen3_vl"]
 
         critical_unhealthy = sum(
             1 for svc in critical_services

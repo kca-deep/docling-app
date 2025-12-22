@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, memo } from "react";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { useEffect, useRef, useState, memo, useCallback } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { MessageBubble } from "./MessageBubble";
 import { SuggestedPrompts } from "./SuggestedPrompts";
 import { ThinkingIndicator } from "./ThinkingIndicator";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-// DocumentUploadStatus, DocumentActiveCard는 InputArea 상단의 DocumentContextBar로 대체됨
 import type { Message, Source } from "../types";
 import type { UploadStatus } from "../hooks/useDocumentUpload";
 
@@ -22,12 +21,14 @@ interface MessageListProps {
   onPromptSelect?: (prompt: string) => void;
   onOpenArtifact?: (sources: Source[], messageId: string) => void;
   currentStage?: string;
-  // 문서 업로드 관련
   documentUploadStatus?: UploadStatus | null;
   isDocumentReady?: boolean;
   uploadedFilenames?: string[];
   onClearDocument?: () => void;
 }
+
+// 가상 스크롤링 임계값 (이 개수 이상일 때만 가상화 적용)
+const VIRTUALIZATION_THRESHOLD = 20;
 
 export const MessageList = memo(function MessageList({
   messages,
@@ -39,51 +40,58 @@ export const MessageList = memo(function MessageList({
   onPromptSelect,
   onOpenArtifact,
   currentStage,
-  // 문서 업로드 관련
   documentUploadStatus,
   isDocumentReady = false,
   uploadedFilenames = [],
   onClearDocument,
 }: MessageListProps) {
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const parentRef = useRef<HTMLDivElement>(null);
   const [userScrolled, setUserScrolled] = useState(false);
   const prevLoadingRef = useRef(isLoading);
   const prevMessageCountRef = useRef(messages.length);
 
+  // 가상화 적용 여부 결정
+  const shouldVirtualize = messages.length >= VIRTUALIZATION_THRESHOLD;
+
+  // 가상 스크롤러 설정
+  const virtualizer = useVirtualizer({
+    count: messages.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 200, // 평균 메시지 높이 추정
+    overscan: 5, // 화면 밖 5개 항목 미리 렌더링
+    enabled: shouldVirtualize,
+  });
+
+  // 스크롤 하단으로 이동
+  const scrollToBottom = useCallback((smooth = true) => {
+    if (parentRef.current) {
+      parentRef.current.scrollTo({
+        top: parentRef.current.scrollHeight,
+        behavior: smooth ? 'smooth' : 'auto',
+      });
+      setUserScrolled(false);
+    }
+  }, []);
+
   // 자동 스크롤 - 스트리밍 중이거나 사용자가 수동으로 스크롤하지 않았을 때
   useEffect(() => {
     const shouldAutoScroll = isLoading || !userScrolled;
-
-    if (shouldAutoScroll && scrollAreaRef.current) {
-      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
-      if (scrollContainer) {
-        // 스크롤을 최하단으로
-        scrollContainer.scrollTop = scrollContainer.scrollHeight;
-      }
+    if (shouldAutoScroll) {
+      scrollToBottom(false);
     }
-  }, [messages, isLoading, userScrolled]);
+  }, [messages, isLoading, userScrolled, scrollToBottom]);
 
   // 답변 완료 시 (isLoading: true -> false) 자동 스크롤
   useEffect(() => {
     if (prevLoadingRef.current && !isLoading) {
-      // 답변이 완료되었을 때
-      const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
-      if (scrollContainer) {
-        scrollContainer.scrollTo({
-          top: scrollContainer.scrollHeight,
-          behavior: 'smooth'
-        });
-        setUserScrolled(false); // 자동 스크롤 상태 리셋
-      }
+      scrollToBottom(true);
     }
     prevLoadingRef.current = isLoading;
-  }, [isLoading]);
+  }, [isLoading, scrollToBottom]);
 
   // 새 메시지 추가 시 자동 스크롤 상태 리셋
   useEffect(() => {
     if (messages.length > prevMessageCountRef.current) {
-      // 새 메시지가 추가되었을 때 (질문 또는 답변 시작)
       setUserScrolled(false);
     }
     prevMessageCountRef.current = messages.length;
@@ -91,7 +99,7 @@ export const MessageList = memo(function MessageList({
 
   // 스크롤 이벤트 감지
   useEffect(() => {
-    const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+    const scrollContainer = parentRef.current;
     if (!scrollContainer) return;
 
     const handleScroll = () => {
@@ -100,7 +108,7 @@ export const MessageList = memo(function MessageList({
       setUserScrolled(!isAtBottom);
     };
 
-    scrollContainer.addEventListener('scroll', handleScroll);
+    scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
     return () => scrollContainer.removeEventListener('scroll', handleScroll);
   }, []);
 
@@ -117,49 +125,80 @@ export const MessageList = memo(function MessageList({
     onRegenerate?.(index);
   };
 
-  // 스크롤 하단으로 이동 핸들러
-  const handleScrollToBottom = () => {
-    const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
-    if (scrollContainer) {
-      scrollContainer.scrollTo({
-        top: scrollContainer.scrollHeight,
-        behavior: 'smooth'
-      });
-      setUserScrolled(false);
-    }
-  };
+  // 메시지 렌더링 함수
+  const renderMessage = (message: Message, index: number) => (
+    <MessageBubble
+      key={message.id}
+      messageId={message.id}
+      role={message.role}
+      content={message.content}
+      timestamp={message.timestamp}
+      model={message.model}
+      sources={message.sources}
+      reasoningContent={message.reasoningContent}
+      metadata={message.metadata}
+      onCopy={() => handleCopy(message.content)}
+      onRegenerate={() => handleRegenerate(index)}
+      onQuote={() => onQuote?.(message)}
+      onOpenArtifact={onOpenArtifact}
+      isLast={index === messages.length - 1}
+      isStreaming={isLoading && index === messages.length - 1}
+    />
+  );
+
+  // 로딩 인디케이터 표시 여부
+  const showThinkingIndicator = isLoading && (
+    !isStreaming ||
+    (isStreaming && (messages.length === 0 || messages[messages.length - 1].role !== 'assistant'))
+  );
 
   return (
     <div className="relative h-full">
-      <ScrollArea
-        ref={scrollAreaRef}
-        className="h-full w-full"
-        type="always"
+      {/* 스크롤 컨테이너 */}
+      <div
+        ref={parentRef}
+        className="h-full w-full overflow-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent"
       >
         <div className="py-4 md:py-6 px-4 md:px-8 lg:px-12 pb-20">
-          {/* Claude 스타일: 메시지 사이 구분선 */}
-          <div className="divide-y divide-border/20 max-w-4xl mx-auto">
-            {messages.map((message, index) => (
-              <MessageBubble
-                key={message.id}
-                messageId={message.id}
-                role={message.role}
-                content={message.content}
-                timestamp={message.timestamp}
-                model={message.model}
-                sources={message.sources}
-                reasoningContent={message.reasoningContent}
-                metadata={message.metadata}
-                onCopy={() => handleCopy(message.content)}
-                onRegenerate={() => handleRegenerate(index)}
-                onQuote={() => onQuote?.(message)}
-                onOpenArtifact={onOpenArtifact}
-                isLast={index === messages.length - 1}
-                isStreaming={isLoading && index === messages.length - 1}
-              />
-            ))}
+          <div className="max-w-4xl mx-auto">
+            {/* 가상 스크롤링 적용 */}
+            {shouldVirtualize ? (
+              <div
+                style={{
+                  height: `${virtualizer.getTotalSize()}px`,
+                  width: '100%',
+                  position: 'relative',
+                }}
+              >
+                {virtualizer.getVirtualItems().map((virtualRow) => {
+                  const message = messages[virtualRow.index];
+                  return (
+                    <div
+                      key={virtualRow.key}
+                      data-index={virtualRow.index}
+                      ref={virtualizer.measureElement}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        transform: `translateY(${virtualRow.start}px)`,
+                      }}
+                      className="border-b border-border/20"
+                    >
+                      {renderMessage(message, virtualRow.index)}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              /* 일반 렌더링 (메시지 수가 적을 때) */
+              <div className="divide-y divide-border/20">
+                {messages.map((message, index) => renderMessage(message, index))}
+              </div>
+            )}
 
-            {/* 초기 화면 추천 질문 (일상대화 모드에서도 표시) */}
+            {/* 초기 화면 추천 질문 */}
             {messages.length === 0 && !isLoading && !documentUploadStatus && onPromptSelect && (
               <SuggestedPrompts
                 collectionName={collectionName || ""}
@@ -167,45 +206,30 @@ export const MessageList = memo(function MessageList({
               />
             )}
 
-            {/* 문서 업로드 상태는 InputArea 상단의 DocumentContextBar로 이동됨 */}
-
-            {/* 로딩 인디케이터 (스트리밍 중 메시지가 없을 때 또는 비스트리밍 모드) */}
-            {isLoading && (
-              !isStreaming ||
-              (isStreaming && (messages.length === 0 || messages[messages.length - 1].role !== 'assistant'))
-            ) && (
+            {/* 로딩 인디케이터 */}
+            {showThinkingIndicator && (
               <ThinkingIndicator collectionName={collectionName} currentStage={currentStage} />
             )}
-
-            {/* 스크롤 앵커 */}
-            <div ref={messagesEndRef} />
           </div>
         </div>
-      </ScrollArea>
+      </div>
 
-      {/* Jump to Latest 버튼 - Glassmorphism 스타일 */}
+      {/* Jump to Latest 버튼 */}
       {userScrolled && messages.length > 0 && (
         <button
-          onClick={handleScrollToBottom}
+          onClick={() => scrollToBottom(true)}
           className={cn(
-            // 위치 - 메시지 영역 하단
             "absolute bottom-4 left-1/2 -translate-x-1/2 z-40",
-            // Glassmorphism 스타일
             "bg-background/70 backdrop-blur-xl",
             "border border-white/20",
             "rounded-full",
-            // 크기
             "w-10 h-10",
             "flex items-center justify-center",
-            // 그림자 및 링
             "shadow-lg ring-1 ring-white/10",
-            // 호버/액티브 상태
             "hover:bg-background/90 hover:ring-white/20",
             "hover:shadow-xl hover:scale-105",
             "active:scale-95",
-            // 트랜지션
             "transition-all duration-200",
-            // 진입 애니메이션
             "animate-in fade-in slide-in-from-bottom-2 duration-300"
           )}
           aria-label="최신 메시지로 이동"

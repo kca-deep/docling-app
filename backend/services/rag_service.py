@@ -4,6 +4,7 @@ Qdrant 검색 + LLM 생성을 통합하는 서비스
 """
 import json
 import logging
+import time
 from typing import List, Dict, Any, Optional, AsyncGenerator, TYPE_CHECKING
 from backend.services.embedding_service import EmbeddingService
 from backend.services.qdrant_service import QdrantService
@@ -427,6 +428,10 @@ class RAGService:
             # 일상대화 모드 체크 (컬렉션이 하나도 없는 경우)
             is_casual_mode = len(target_collections) == 0
 
+            # 검색 시간 측정 시작
+            retrieval_start = time.time()
+            retrieval_time_ms = None
+
             if is_casual_mode:
                 # 일상대화 모드: 검색 없이 바로 LLM 생성
                 logger.info(f"[RAG] Casual mode - skipping retrieval")
@@ -458,6 +463,10 @@ class RAGService:
                         score_threshold=score_threshold,
                         use_hybrid=use_hybrid
                     )
+
+                # 검색 시간 측정 완료 (리랭킹 전)
+                retrieval_time_ms = int((time.time() - retrieval_start) * 1000)
+                logger.info(f"[RAG] Retrieval took {retrieval_time_ms}ms for {len(retrieved_docs)} documents")
 
                 if not retrieved_docs:
                     return {
@@ -494,7 +503,8 @@ class RAGService:
             result = {
                 "answer": answer,
                 "retrieved_docs": retrieved_docs,
-                "usage": usage
+                "usage": usage,
+                "retrieval_time_ms": retrieval_time_ms
             }
 
             # GPT-OSS의 reasoning_content가 있으면 포함
@@ -561,6 +571,10 @@ class RAGService:
             # 일상대화 모드 체크 (컬렉션이 하나도 없는 경우)
             is_casual_mode = len(target_collections) == 0
 
+            # 검색 시간 측정 시작
+            retrieval_start = time.time()
+            retrieval_time_ms = None
+
             if is_casual_mode:
                 # 일상대화 모드: 검색 없이 바로 LLM 생성
                 logger.info(f"[RAG] Casual mode stream - skipping retrieval")
@@ -600,6 +614,10 @@ class RAGService:
                         score_threshold=score_threshold,
                         use_hybrid=use_hybrid
                     )
+
+                # 검색 시간 측정 완료 (리랭킹 전)
+                retrieval_time_ms = int((time.time() - retrieval_start) * 1000)
+                logger.info(f"[RAG] Stream retrieval took {retrieval_time_ms}ms for {len(retrieved_docs)} documents")
 
                 if not retrieved_docs:
                     # 문서가 없을 경우 단일 메시지 전송

@@ -1,6 +1,7 @@
 """
 하이브리드 로깅 서비스
 SQLite에는 메타데이터만, 실제 로그는 JSONL 파일로 저장
+세션 업데이트도 큐 기반으로 처리
 """
 
 import os
@@ -19,52 +20,96 @@ from backend.config.settings import settings
 logger = logging.getLogger(__name__)
 
 
+# 순환 참조 방지를 위해 지연 import
+def _get_session_local():
+    """DB 세션 팩토리 지연 로드"""
+    from backend.database import SessionLocal
+    return SessionLocal
+
+
+def _get_chat_session_model():
+    """ChatSession 모델 지연 로드"""
+    from backend.models.chat_session import ChatSession
+    return ChatSession
+
+
 class HybridLoggingService:
     """하이브리드 로깅 서비스 (SQLite + JSONL)"""
 
+    # 큐 설정
+    DEFAULT_QUEUE_SIZE = 1000  # 기본 큐 크기 (100 -> 1000)
+    SESSION_QUEUE_SIZE = 500   # 세션 업데이트 큐 크기
+    BACKPRESSURE_THRESHOLD = 0.8  # 백프레셔 임계값 (80%)
+    MAX_RETRIES = 3  # 최대 재시도 횟수
+    SESSION_BATCH_SIZE = 50  # 세션 업데이트 배치 크기
+
     def __init__(self):
         """서비스 초기화"""
-        self.queue = asyncio.Queue(maxsize=100)
+        self.queue = asyncio.Queue(maxsize=self.DEFAULT_QUEUE_SIZE)
+        self.session_queue = asyncio.Queue(maxsize=self.SESSION_QUEUE_SIZE)  # 세션 업데이트 큐
         self.batch_size = settings.LOGGING_BATCH_SIZE
         self.flush_interval = 5  # seconds
         self.log_dir = Path("./logs/data")
         self.conversation_dir = Path("./logs/conversations")
+        self.overflow_dir = Path("./logs/overflow")  # 오버플로우 디렉토리
 
         # 디렉토리 생성
         self._create_directories()
 
         # 백그라운드 태스크 상태
         self._processor_task = None
+        self._session_processor_task = None  # 세션 업데이트 처리 태스크
         self._running = False
+
+        # 통계
+        self._dropped_count = 0
+        self._overflow_count = 0
+        self._session_update_count = 0
+        self._session_update_errors = 0
 
     def _create_directories(self):
         """로그 디렉토리 생성"""
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.conversation_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"로그 디렉토리 생성: {self.log_dir}, {self.conversation_dir}")
+        self.overflow_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"로그 디렉토리 생성: {self.log_dir}, {self.conversation_dir}, {self.overflow_dir}")
 
     async def start(self):
         """백그라운드 처리 시작"""
         if not self._running:
             self._running = True
             self._processor_task = asyncio.create_task(self._process_loop())
-            logger.info("HybridLoggingService 시작됨")
+            self._session_processor_task = asyncio.create_task(self._process_session_loop())
+            logger.info("HybridLoggingService 시작됨 (로그 + 세션 업데이트 큐)")
 
     async def stop(self):
         """백그라운드 처리 중지"""
         self._running = False
+
+        # 로그 처리 태스크 중지
         if self._processor_task:
-            # 태스크 취소
             self._processor_task.cancel()
             try:
                 await self._processor_task
             except asyncio.CancelledError:
-                # 정상적인 취소 - 무시
                 pass
-        logger.info("HybridLoggingService 중지됨")
+
+        # 세션 업데이트 처리 태스크 중지
+        if self._session_processor_task:
+            self._session_processor_task.cancel()
+            try:
+                await self._session_processor_task
+            except asyncio.CancelledError:
+                pass
+
+        logger.info(f"HybridLoggingService 중지됨 (세션 업데이트: {self._session_update_count}건, 오류: {self._session_update_errors}건)")
+
+    def _get_queue_usage(self) -> float:
+        """큐 사용률 계산"""
+        return self.queue.qsize() / self.DEFAULT_QUEUE_SIZE
 
     async def log_async(self, log_data: Dict[str, Any]):
-        """비동기 로그 추가"""
+        """비동기 로그 추가 (백프레셔 지원)"""
         try:
             # 로그 ID 생성
             if "log_id" not in log_data:
@@ -74,13 +119,37 @@ class HybridLoggingService:
             if "created_at" not in log_data:
                 log_data["created_at"] = now_iso()
 
-            # 큐에 추가
-            await self.queue.put(log_data)
+            # 백프레셔 체크
+            queue_usage = self._get_queue_usage()
+            if queue_usage >= self.BACKPRESSURE_THRESHOLD:
+                logger.warning(f"로그 큐 사용률 높음: {queue_usage:.1%} - 백프레셔 적용")
 
-        except asyncio.QueueFull:
-            logger.warning("로그 큐가 가득참, 로그 유실 가능성")
-            # 긴급 파일 저장 (블로킹)
-            await self._emergency_save([log_data])
+            # 큐에 추가 시도 (논블로킹)
+            try:
+                self.queue.put_nowait(log_data)
+            except asyncio.QueueFull:
+                # 큐가 가득 찬 경우 오버플로우 파일에 저장
+                self._overflow_count += 1
+                logger.warning(f"로그 큐 오버플로우 (total: {self._overflow_count})")
+                await self._save_to_overflow([log_data])
+
+        except Exception as e:
+            self._dropped_count += 1
+            logger.error(f"로그 추가 실패 (dropped: {self._dropped_count}): {e}")
+
+    async def _save_to_overflow(self, logs: List[Dict[str, Any]]):
+        """오버플로우 로그를 별도 파일에 저장"""
+        try:
+            today = format_date(now())
+            file_path = self.overflow_dir / f"overflow_{today}.jsonl"
+
+            async with aiofiles.open(file_path, 'a', encoding='utf-8') as f:
+                for log in logs:
+                    await f.write(json.dumps(log, ensure_ascii=False) + "\n")
+
+            logger.debug(f"오버플로우 로그 저장: {len(logs)}건")
+        except Exception as e:
+            logger.error(f"오버플로우 저장 실패: {e}")
 
     async def _process_loop(self):
         """백그라운드 처리 루프"""
@@ -280,6 +349,185 @@ class HybridLoggingService:
                 logger.error(f"파일 읽기 오류 {file_path}: {e}")
 
         return logs
+
+    # ========== 세션 업데이트 큐 관련 메서드 ==========
+
+    async def queue_session_update(
+        self,
+        session_id: str,
+        collection_name: str,
+        model: str,
+        reasoning_level: str,
+        performance_metrics: Dict[str, Any],
+        retrieval_info: Optional[Dict] = None,
+        error_info: Optional[Dict] = None
+    ):
+        """세션 업데이트를 큐에 추가 (논블로킹)"""
+        try:
+            update_data = {
+                "session_id": session_id,
+                "collection_name": collection_name,
+                "model": model,
+                "reasoning_level": reasoning_level,
+                "performance_metrics": performance_metrics,
+                "retrieval_info": retrieval_info or {},
+                "error_info": error_info,
+                "queued_at": now_iso()
+            }
+
+            # 큐에 추가 시도 (논블로킹)
+            try:
+                self.session_queue.put_nowait(update_data)
+            except asyncio.QueueFull:
+                logger.warning(f"세션 업데이트 큐 가득 참 - session_id: {session_id}")
+                # 오버플로우 파일에 저장
+                await self._save_to_overflow([{"type": "session_update", **update_data}])
+
+        except Exception as e:
+            logger.error(f"세션 업데이트 큐 추가 실패: {e}")
+
+    async def _process_session_loop(self):
+        """세션 업데이트 백그라운드 처리 루프"""
+        while self._running:
+            try:
+                await self._process_session_batch()
+                await asyncio.sleep(0.5)  # 0.5초 대기
+            except asyncio.CancelledError:
+                logger.debug("세션 처리 루프 취소됨")
+                break
+            except Exception as e:
+                logger.error(f"세션 배치 처리 중 오류: {e}")
+
+    async def _process_session_batch(self):
+        """세션 업데이트 배치 처리 - DB에 저장"""
+        batch = []
+
+        # 배치 수집
+        while len(batch) < self.SESSION_BATCH_SIZE:
+            try:
+                item = await asyncio.wait_for(
+                    self.session_queue.get(),
+                    timeout=2.0  # 2초 타임아웃
+                )
+                batch.append(item)
+            except asyncio.TimeoutError:
+                break
+            except asyncio.CancelledError:
+                if batch:
+                    await self._save_session_updates(batch)
+                raise
+            except Exception as e:
+                logger.error(f"세션 큐에서 아이템 가져오기 실패: {e}")
+                break
+
+        # 배치가 있으면 저장
+        if batch:
+            await self._save_session_updates(batch)
+
+    async def _save_session_updates(self, batch: List[Dict[str, Any]]):
+        """세션 업데이트 배치를 DB에 저장"""
+        SessionLocal = _get_session_local()
+        ChatSession = _get_chat_session_model()
+
+        db = SessionLocal()
+        try:
+            for update_data in batch:
+                try:
+                    session_id = update_data["session_id"]
+                    performance_metrics = update_data.get("performance_metrics", {})
+                    retrieval_info = update_data.get("retrieval_info", {})
+                    error_info = update_data.get("error_info")
+
+                    # 기존 세션 조회
+                    session = db.query(ChatSession).filter(
+                        ChatSession.session_id == session_id
+                    ).first()
+
+                    if not session:
+                        # 새 세션 생성
+                        session = ChatSession(
+                            session_id=session_id,
+                            collection_name=update_data["collection_name"],
+                            llm_model=update_data["model"],
+                            reasoning_level=update_data["reasoning_level"]
+                        )
+                        db.add(session)
+
+                    # 카운트 필드 초기화 (None인 경우)
+                    if session.message_count is None:
+                        session.message_count = 0
+                    if session.user_message_count is None:
+                        session.user_message_count = 0
+                    if session.assistant_message_count is None:
+                        session.assistant_message_count = 0
+
+                    # 메시지 카운트 업데이트
+                    session.message_count += 2  # 사용자 + 어시스턴트
+                    session.user_message_count += 1
+                    session.assistant_message_count += 1
+
+                    # 응답 시간 업데이트
+                    if performance_metrics.get("response_time_ms"):
+                        if session.total_response_time_ms is None:
+                            session.total_response_time_ms = 0
+                        session.total_response_time_ms += performance_metrics["response_time_ms"]
+                        session.avg_response_time_ms = session.total_response_time_ms // session.assistant_message_count
+
+                    # 에러 플래그 업데이트
+                    if error_info:
+                        session.has_error = 1
+
+                    # 최소 검색 스코어 업데이트
+                    if retrieval_info.get("top_scores"):
+                        min_score = min(retrieval_info["top_scores"])
+                        if session.min_retrieval_score is None or float(session.min_retrieval_score) > min_score:
+                            session.min_retrieval_score = str(min_score)
+
+                    self._session_update_count += 1
+
+                except Exception as e:
+                    logger.error(f"개별 세션 업데이트 실패 (session_id: {update_data.get('session_id')}): {e}")
+                    self._session_update_errors += 1
+
+            # 배치 커밋
+            db.commit()
+            logger.debug(f"세션 업데이트 배치 저장 완료: {len(batch)}건")
+
+        except Exception as e:
+            logger.error(f"세션 업데이트 배치 커밋 실패: {e}")
+            db.rollback()
+            self._session_update_errors += len(batch)
+        finally:
+            db.close()
+
+    async def flush_sessions(self):
+        """세션 큐의 모든 아이템 즉시 처리"""
+        remaining = []
+
+        while not self.session_queue.empty():
+            try:
+                item = self.session_queue.get_nowait()
+                remaining.append(item)
+            except asyncio.QueueEmpty:
+                break
+
+        if remaining:
+            await self._save_session_updates(remaining)
+            logger.info(f"세션 플러시 완료: {len(remaining)}개 아이템 저장")
+
+    def get_stats(self) -> Dict[str, Any]:
+        """서비스 통계 반환"""
+        return {
+            "log_queue_size": self.queue.qsize(),
+            "log_queue_capacity": self.DEFAULT_QUEUE_SIZE,
+            "session_queue_size": self.session_queue.qsize(),
+            "session_queue_capacity": self.SESSION_QUEUE_SIZE,
+            "dropped_count": self._dropped_count,
+            "overflow_count": self._overflow_count,
+            "session_update_count": self._session_update_count,
+            "session_update_errors": self._session_update_errors,
+            "running": self._running
+        }
 
 
 # 싱글톤 인스턴스

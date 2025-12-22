@@ -1,0 +1,39 @@
+# /etc/systemd/system/llama-server-gemma3.service
+[Unit]
+Description=Llama.cpp Server - Gemma 3 27B IT Q4_0
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=kca
+WorkingDirectory=/models/llama.cpp
+Environment="CUDA_VISIBLE_DEVICES=0"
+ExecStart=/models/llama.cpp/build/bin/llama-server \
+  -m /models/gemma3/gemma-3-27b-it-q4_0.gguf \
+  --mmproj /models/gemma3/mmproj-model-f16-27B.gguf \
+  --host 0.0.0.0 \
+  --port 8082 \
+  --ctx-size 16384 \
+  --parallel 2 \
+  --cont-batching \
+  --defrag-thold 0.1 \
+  --jinja \
+  -fa auto \
+  -ngl 99 \
+  --temp 0.7 \
+  --top-p 0.9 \
+  --repeat-penalty 1.1 \
+  --n-predict 8192 \
+  --threads 8 \
+  --batch-size 2048 \
+  --ubatch-size 2048
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=llama-server-gemma3
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

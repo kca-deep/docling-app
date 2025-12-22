@@ -1,5 +1,7 @@
 "use client"
 
+import { useRef } from "react"
+import { useVirtualizer } from "@tanstack/react-virtual"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -7,7 +9,6 @@ import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Pagination, PaginationContent, PaginationItem, PaginationLink } from "@/components/ui/pagination"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Loader2, FileText, Search, X, FileQuestion, Database, FolderInput, Trash2, ChevronLeft, ChevronRight } from "lucide-react"
@@ -49,6 +50,9 @@ interface DocumentSelectorProps {
 
 // Pagination constants
 const PAGES_PER_BLOCK = 10
+// 가상 스크롤링 임계값 (이 개수 이상일 때만 가상화 적용)
+const VIRTUALIZATION_THRESHOLD = 50
+const ROW_HEIGHT = 52 // 테이블 행 높이
 
 export function DocumentSelector({
   documents,
@@ -96,6 +100,18 @@ export function DocumentSelector({
     }
   }
 
+  // 가상 스크롤링 설정
+  const parentRef = useRef<HTMLDivElement>(null)
+  const shouldVirtualize = documents.length >= VIRTUALIZATION_THRESHOLD
+
+  const virtualizer = useVirtualizer({
+    count: documents.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 5,
+    enabled: shouldVirtualize,
+  })
+
   // 카테고리명을 한글명으로 변환하는 함수
   const getCategoryDisplayName = (categoryName: string | null): string => {
     if (!categoryName) return "미분류"
@@ -110,6 +126,57 @@ export function DocumentSelector({
     }
     return categoryName
   }
+
+  // 테이블 행 렌더링 함수
+  const renderTableRow = (doc: Document) => (
+    <TableRow
+      key={doc.id}
+      className={cn(
+        "transition-colors cursor-pointer",
+        selectedDocs.has(doc.id)
+          ? "bg-[color:var(--chart-1)]/5 hover:bg-[color:var(--chart-1)]/10"
+          : "hover:bg-muted/50"
+      )}
+      onClick={() => onToggleDocument(doc.id)}
+    >
+      <TableCell onClick={(e) => e.stopPropagation()}>
+        <Checkbox
+          checked={selectedDocs.has(doc.id)}
+          onCheckedChange={() => onToggleDocument(doc.id)}
+        />
+      </TableCell>
+      <TableCell className="font-medium max-w-[300px]" onClick={(e) => e.stopPropagation()}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => onOpenDocumentViewer(doc.id)}
+              className="text-left hover:text-[color:var(--chart-1)] transition-colors truncate block w-full max-w-full"
+            >
+              {doc.original_filename}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="max-w-md">
+            <p className="break-all">{doc.original_filename}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TableCell>
+      <TableCell className="text-muted-foreground text-sm">
+        {doc.category ? (
+          <Badge variant="secondary" className="text-xs bg-[color:var(--chart-4)]/10 text-[color:var(--chart-4)]">
+            {getCategoryDisplayName(doc.category)}
+          </Badge>
+        ) : (
+          <span className="text-muted-foreground/50">미분류</span>
+        )}
+      </TableCell>
+      <TableCell className="text-right text-muted-foreground text-sm">
+        {doc.content_length ? `${Math.round(doc.content_length / 1000)}KB` : "-"}
+      </TableCell>
+      <TableCell className="text-right text-muted-foreground text-sm">
+        {new Date(doc.created_at).toLocaleDateString("ko-KR")}
+      </TableCell>
+    </TableRow>
+  )
 
   return (
     <Card className="min-w-0 overflow-hidden border-border/50 bg-background/60 backdrop-blur-sm">
@@ -312,68 +379,103 @@ export function DocumentSelector({
                 </TableRow>
               </TableHeader>
             </Table>
-            <ScrollArea className="max-h-[420px]">
-              <Table>
-                <colgroup>
-                  <col className="w-12" />
-                  <col />
-                  <col className="w-28" />
-                  <col className="w-20" />
-                  <col className="w-24" />
-                </colgroup>
-                <TableBody>
-                  {documents.map((doc) => (
-                    <TableRow
-                      key={doc.id}
-                      className={cn(
-                        "transition-colors cursor-pointer",
-                        selectedDocs.has(doc.id)
-                          ? "bg-[color:var(--chart-1)]/5 hover:bg-[color:var(--chart-1)]/10"
-                          : "hover:bg-muted/50"
-                      )}
-                      onClick={() => onToggleDocument(doc.id)}
-                    >
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <Checkbox
-                          checked={selectedDocs.has(doc.id)}
-                          onCheckedChange={() => onToggleDocument(doc.id)}
-                        />
-                      </TableCell>
-                      <TableCell className="font-medium max-w-[300px]" onClick={(e) => e.stopPropagation()}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              onClick={() => onOpenDocumentViewer(doc.id)}
-                              className="text-left hover:text-[color:var(--chart-1)] transition-colors truncate block w-full max-w-full"
-                            >
-                              {doc.original_filename}
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent side="bottom" className="max-w-md">
-                            <p className="break-all">{doc.original_filename}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {doc.category ? (
-                          <Badge variant="secondary" className="text-xs bg-[color:var(--chart-4)]/10 text-[color:var(--chart-4)]">
-                            {getCategoryDisplayName(doc.category)}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground/50">미분류</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right text-muted-foreground text-sm">
-                        {doc.content_length ? `${Math.round(doc.content_length / 1000)}KB` : "-"}
-                      </TableCell>
-                      <TableCell className="text-right text-muted-foreground text-sm">
-                        {new Date(doc.created_at).toLocaleDateString("ko-KR")}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </ScrollArea>
+            {/* 가상 스크롤링 또는 일반 스크롤링 */}
+            <div
+              ref={parentRef}
+              className="max-h-[420px] overflow-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent"
+            >
+              {shouldVirtualize ? (
+                /* 가상 스크롤링 (50개 이상) */
+                <div
+                  style={{
+                    height: `${virtualizer.getTotalSize()}px`,
+                    width: '100%',
+                    position: 'relative',
+                  }}
+                >
+                  <Table>
+                    <colgroup>
+                      <col className="w-12" />
+                      <col />
+                      <col className="w-28" />
+                      <col className="w-20" />
+                      <col className="w-24" />
+                    </colgroup>
+                    <TableBody>
+                      {virtualizer.getVirtualItems().map((virtualRow) => {
+                        const doc = documents[virtualRow.index]
+                        return (
+                          <tr
+                            key={virtualRow.key}
+                            data-index={virtualRow.index}
+                            ref={virtualizer.measureElement}
+                            style={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '100%',
+                              height: `${virtualRow.size}px`,
+                              transform: `translateY(${virtualRow.start}px)`,
+                            }}
+                            className={cn(
+                              "transition-colors cursor-pointer flex items-center",
+                              selectedDocs.has(doc.id)
+                                ? "bg-[color:var(--chart-1)]/5 hover:bg-[color:var(--chart-1)]/10"
+                                : "hover:bg-muted/50"
+                            )}
+                            onClick={() => onToggleDocument(doc.id)}
+                          >
+                            <td className="w-12 px-4" onClick={(e) => e.stopPropagation()}>
+                              <Checkbox
+                                checked={selectedDocs.has(doc.id)}
+                                onCheckedChange={() => onToggleDocument(doc.id)}
+                              />
+                            </td>
+                            <td className="flex-1 px-4 font-medium" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                onClick={() => onOpenDocumentViewer(doc.id)}
+                                className="text-left hover:text-[color:var(--chart-1)] transition-colors truncate block w-full max-w-[300px]"
+                              >
+                                {doc.original_filename}
+                              </button>
+                            </td>
+                            <td className="w-28 px-4 text-muted-foreground text-sm">
+                              {doc.category ? (
+                                <Badge variant="secondary" className="text-xs bg-[color:var(--chart-4)]/10 text-[color:var(--chart-4)]">
+                                  {getCategoryDisplayName(doc.category)}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground/50">미분류</span>
+                              )}
+                            </td>
+                            <td className="w-20 px-4 text-right text-muted-foreground text-sm">
+                              {doc.content_length ? `${Math.round(doc.content_length / 1000)}KB` : "-"}
+                            </td>
+                            <td className="w-24 px-4 text-right text-muted-foreground text-sm">
+                              {new Date(doc.created_at).toLocaleDateString("ko-KR")}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                /* 일반 렌더링 (50개 미만) */
+                <Table>
+                  <colgroup>
+                    <col className="w-12" />
+                    <col />
+                    <col className="w-28" />
+                    <col className="w-20" />
+                    <col className="w-24" />
+                  </colgroup>
+                  <TableBody>
+                    {documents.map((doc) => renderTableRow(doc))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
             </div>
 
             {/* 페이지네이션 */}

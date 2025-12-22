@@ -71,7 +71,7 @@ CLEAR_LINE=$'\033[K'
 
 declare -A SERVICES=(
     ["gpt"]="llama-server-gpt-oss"
-    ["exaone"]="llama-server-exaone-deep"
+    ["gemma3"]="llama-server-gemma3"
     ["exaone-4.0-32b"]="exaone-4.0"
     ["qwen3vl"]="llama-server-qwen3vl"
     ["docling"]="docling-serve"
@@ -84,7 +84,7 @@ declare -A SERVICES=(
 
 declare -A SERVICE_INFO=(
     ["gpt"]="gpt-oss-20b|8080|~12GB"
-    ["exaone"]="exaone-deep-7.8b|8085|~6GB"
+    ["gemma3"]="gemma3-27b-it|8082|~15GB"
     ["exaone-4.0-32b"]="exaone-4.0-32b|8081|~25GB"
     ["qwen3vl"]="Qwen3-VL 8B Vision|8084|~9GB"
     ["docling"]="Docling API|8007|~13GB"
@@ -96,12 +96,12 @@ declare -A SERVICE_INFO=(
 )
 
 # 서비스 그룹
-LLM_SERVICES=("gpt" "exaone" "exaone-4.0-32b")
+LLM_SERVICES=("gpt" "gemma3" "exaone-4.0-32b")
 
 # VRAM 요구량 정의 (MB) - RAG 모드 기준
 declare -A VRAM_REQUIRED=(
     ["gpt"]=12000
-    ["exaone"]=6000
+    ["gemma3"]=15000
     ["exaone-4.0-32b"]=25000
     ["qwen3vl"]=9000
     ["docling"]=13000
@@ -118,9 +118,7 @@ ALL_LLM_SERVICES=(
     "llama-server-gpt-oss"
     "llama-server-gpt-oss-min"
     "llama-server-gpt-oss-llm"
-    "llama-server-exaone-deep"
-    "llama-server-exaone-deep-rag"
-    "llama-server-exaone-deep-llm"
+    "llama-server-gemma3"
     "exaone-4.0"
     "exaone-4.0-rag"
     "llama-server-qwen3vl"
@@ -151,7 +149,7 @@ get_service_name_from_process() {
         *llama-server*)
             echo "$cmd" | grep -q "8080" && svc_name="gpt-oss-20b"
             echo "$cmd" | grep -q "8081" && svc_name="exaone-4.0-32b"
-            echo "$cmd" | grep -q "8085" && svc_name="exaone-deep-7.8b"
+            echo "$cmd" | grep -q "8082" && svc_name="gemma3-27b"
             echo "$cmd" | grep -q "8084" && svc_name="qwen3-vl"
             ;;
         *python*)
@@ -226,11 +224,9 @@ get_service_status() {
             done
             echo "inactive"
             ;;
-        exaone)
-            for variant in "llama-server-exaone-deep" "llama-server-exaone-deep-rag" "llama-server-exaone-deep-llm"; do
-                local status=$(systemctl is-active "$variant.service" 2>/dev/null)
-                [ "$status" = "active" ] && echo "active" && return
-            done
+        gemma3)
+            local status=$(systemctl is-active "llama-server-gemma3.service" 2>/dev/null)
+            [ "$status" = "active" ] && echo "active" && return
             echo "inactive"
             ;;
         exaone-4.0-32b)
@@ -397,14 +393,14 @@ start_service() {
 
     echo -ne "${BLUE}Starting${NC} $name... "
 
-    # GPT-OSS, EXAONE, Qwen3-VL은 기본 변형 서비스로 시작 (RAG 모드)
+    # GPT-OSS, Gemma3, Qwen3-VL은 기본 변형 서비스로 시작
     local actual_svc="$svc"
     case "$key" in
         gpt)
             actual_svc="llama-server-gpt-oss-min"  # RAG 모드: ctx=8K p=1
             ;;
-        exaone)
-            actual_svc="llama-server-exaone-deep-rag"  # RAG 모드: ctx=8K p=1
+        gemma3)
+            actual_svc="llama-server-gemma3"  # ctx=16K p=2
             ;;
         exaone-4.0-32b)
             actual_svc="exaone-4.0"  # 단일 서비스: ctx=48K p=6 n=8K
@@ -418,7 +414,7 @@ start_service() {
 
     local wait=5
     case "$key" in
-        gpt|exaone) wait=8 ;;
+        gpt|gemma3) wait=10 ;;
         exaone-4.0-32b) wait=15 ;;
         qwen3vl|docling) wait=10 ;;
     esac
@@ -458,17 +454,15 @@ stop_service() {
 
     echo -ne "${BLUE}Stopping${NC} $name... "
 
-    # GPT-OSS, EXAONE, Qwen3-VL은 여러 변형 서비스가 있으므로 모두 중지
+    # GPT-OSS, Gemma3, Qwen3-VL 서비스 중지
     case "$key" in
         gpt)
             sudo systemctl stop llama-server-gpt-oss.service 2>/dev/null
             sudo systemctl stop llama-server-gpt-oss-min.service 2>/dev/null
             sudo systemctl stop llama-server-gpt-oss-llm.service 2>/dev/null
             ;;
-        exaone)
-            sudo systemctl stop llama-server-exaone-deep.service 2>/dev/null
-            sudo systemctl stop llama-server-exaone-deep-rag.service 2>/dev/null
-            sudo systemctl stop llama-server-exaone-deep-llm.service 2>/dev/null
+        gemma3)
+            sudo systemctl stop llama-server-gemma3.service 2>/dev/null
             ;;
         exaone-4.0-32b)
             sudo systemctl stop exaone-4.0.service 2>/dev/null
@@ -622,11 +616,8 @@ view_logs() {
             done
             [ -z "$svc" ] && svc="llama-server-gpt-oss"
             ;;
-        exaone)
-            for variant in "llama-server-exaone-deep" "llama-server-exaone-deep-rag" "llama-server-exaone-deep-llm"; do
-                systemctl is-active --quiet "$variant.service" 2>/dev/null && { svc="$variant"; break; }
-            done
-            [ -z "$svc" ] && svc="llama-server-exaone-deep"
+        gemma3)
+            svc="llama-server-gemma3"
             ;;
         exaone-4.0-32b)
             for variant in "exaone-4.0" "exaone-4.0-rag"; do
@@ -876,10 +867,12 @@ draw_dashboard_screen() {
 
     # LLM
     local gpt_s=$(get_service_status "gpt")
+    local gemma3_s=$(get_service_status "gemma3")
     local exaone4_s=$(get_service_status "exaone-4.0-32b")
     local gpt_i=$(get_status_icon "$gpt_s" "$(check_api_health 8080)")
+    local gemma3_i=$(get_status_icon "$gemma3_s" "$(check_api_health 8082)")
     local exaone4_i=$(get_status_icon "$exaone4_s" "$(check_api_health 8081)")
-    printf "  ${WHITE}LLM:${NC}    %b gpt-20b      %b exaone-32b${CLEAR_LINE}\n" "$gpt_i" "$exaone4_i"
+    printf "  ${WHITE}LLM:${NC}    %b gpt-20b  %b gemma3-27b  %b exaone-32b${CLEAR_LINE}\n" "$gpt_i" "$gemma3_i" "$exaone4_i"
 
     # Aux
     local qwe_s=$(get_service_status "qwen3vl")
@@ -1048,14 +1041,14 @@ draw_dynamic_menu_inline() {
     if [ $active_count -gt 0 ]; then
         echo -e "${GREEN}▶${NC} ${WHITE}Active LLM:${NC} ${active_llms}${CLEAR_LINE}"
     else
-        echo -e "${DIM}▷${NC} ${WHITE}No LLM running${NC} - ${DIM}Free: ${vram_free_gb}GB | 1)gpt-20b 8)exaone-7.8b 9)exaone-32b${NC}${CLEAR_LINE}"
+        echo -e "${DIM}▷${NC} ${WHITE}No LLM running${NC} - ${DIM}Free: ${vram_free_gb}GB | 1)gpt-20b 8)gemma3-27b 9)exaone-32b${NC}${CLEAR_LINE}"
     fi
 
     # LLM Toggle
     echo -e "${CLEAR_LINE}"
     echo -e "${WHITE}LLM Toggle${NC}${CLEAR_LINE}"
     local llm_opts=""
-    local exaone_s=$(get_service_status "exaone")
+    local gemma3_s=$(get_service_status "gemma3")
     local exaone4_s=$(get_service_status "exaone-4.0-32b")
 
     if [ "$gpt_s" = "active" ]; then
@@ -1066,12 +1059,12 @@ draw_dynamic_menu_inline() {
         llm_opts+="  ${DIM}1) gpt-20b (VRAM)${NC}"
     fi
 
-    if [ "$exaone_s" = "active" ]; then
-        llm_opts+="   ${GREEN}8) exaone-7.8b ●${NC}"
-    elif can_start_service "exaone" || [ -n "$active_llm" ]; then
-        llm_opts+="   8) exaone-7.8b"
+    if [ "$gemma3_s" = "active" ]; then
+        llm_opts+="   ${GREEN}8) gemma3-27b ●${NC}"
+    elif can_start_service "gemma3" || [ -n "$active_llm" ]; then
+        llm_opts+="   8) gemma3-27b"
     else
-        llm_opts+="   ${DIM}8) exaone-7.8b (VRAM)${NC}"
+        llm_opts+="   ${DIM}8) gemma3-27b (VRAM)${NC}"
     fi
 
     if [ "$exaone4_s" = "active" ]; then
@@ -1135,7 +1128,7 @@ draw_dynamic_menu_inline() {
     # Mode Switching
     echo -e "${CLEAR_LINE}"
     echo -e "${WHITE}Mode Switching${NC}${CLEAR_LINE}"
-    echo -e "  ${MAGENTA}r) RAG mode${NC}  ${MAGENTA}t) GPT mode${NC}  ${GREEN}e) EXAONE 4.0 mode${NC}  (standalone, high-quality reasoning)${CLEAR_LINE}"
+    echo -e "  ${CYAN}r) RAG mode${NC}  ${MAGENTA}t) GPT mode${NC}  ${GREEN}e) EXAONE mode${NC}  ${YELLOW}g) Gemma3 mode${NC}${CLEAR_LINE}"
 
     # Operations
     echo -e "${CLEAR_LINE}"
@@ -1216,7 +1209,7 @@ handle_menu_choice() {
         5) tput cnorm; toggle_service "embedding"; sleep 2; tput civis ;;
         6) tput cnorm; toggle_service "reranker"; sleep 2; tput civis ;;
         7) tput cnorm; toggle_qdrant; sleep 2; tput civis ;;
-        8) tput cnorm; toggle_llm "exaone"; sleep 2; tput civis ;;
+        8) tput cnorm; toggle_llm "gemma3"; sleep 2; tput civis ;;
         9) tput cnorm; toggle_llm "exaone-4.0-32b"; sleep 2; tput civis ;;
         a|A) tput cnorm; stop_all_llm; sleep 2; tput civis ;;
         b|B) tput cnorm; stop_all; sleep 2; tput civis ;;
@@ -1225,6 +1218,7 @@ handle_menu_choice() {
         r) tput cnorm; mode_rag; sleep 3; tput civis ;;
         t|T) tput cnorm; mode_gpt; sleep 3; tput civis ;;
         e|E) tput cnorm; mode_exaone; sleep 3; tput civis ;;
+        g|G) tput cnorm; mode_gemma3; sleep 3; tput civis ;;
         R) ;;
         0) tput cnorm; echo ""; exit 0 ;;
         *) ;;
@@ -1299,10 +1293,17 @@ validate_service() {
 
 # 현재 활성 모드 감지
 detect_current_mode() {
-    # EXAONE 4.0 standalone 모드 체크 (최우선)
+    # EXAONE 4.0 standalone 모드 체크
     local exaone4=$(systemctl is-active exaone-4.0.service 2>/dev/null)
     if [ "$exaone4" = "active" ]; then
         echo "exaone4"
+        return
+    fi
+
+    # Gemma3 standalone 모드 체크
+    local gemma3=$(systemctl is-active llama-server-gemma3.service 2>/dev/null)
+    if [ "$gemma3" = "active" ]; then
+        echo "gemma3"
         return
     fi
 
@@ -1342,24 +1343,34 @@ _print_mode_table_rows() {
     local suffix=$2  # CLEAR_LINE 또는 빈 문자열
     case "$mode" in
         rag|rag-partial)
-            echo -e "│ gpt-oss-20b  │ ${GREEN}16/2/8K${NC}     │ 96/12/8K    │ ${DIM}-${NC}           │${suffix}"
-            echo -e "│ exaone-32b   │ ${DIM}-${NC}           │ ${DIM}-${NC}           │ 16/2/8K     │${suffix}"
-            echo -e "│ qwen3-vl     │ ${GREEN}16/2/8K${NC}     │ ${DIM}-${NC}           │ ${DIM}-${NC}           │${suffix}"
+            echo -e "│ gpt-oss-20b  │ ${GREEN}16/2/8K${NC}   │ 96/12/8K  │ ${DIM}-${NC}         │ ${DIM}-${NC}         │${suffix}"
+            echo -e "│ gemma3-27b   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ 16/2/8K   │${suffix}"
+            echo -e "│ exaone-32b   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ 16/2/8K   │ ${DIM}-${NC}         │${suffix}"
+            echo -e "│ qwen3-vl     │ ${GREEN}16/2/8K${NC}   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ ${DIM}-${NC}         │${suffix}"
             ;;
         gpt|gpt-partial)
-            echo -e "│ gpt-oss-20b  │ 16/2/8K     │ ${GREEN}96/12/8K${NC}    │ ${DIM}-${NC}           │${suffix}"
-            echo -e "│ exaone-32b   │ ${DIM}-${NC}           │ ${DIM}-${NC}           │ 16/2/8K     │${suffix}"
-            echo -e "│ qwen3-vl     │ 16/2/8K     │ ${DIM}-${NC}           │ ${DIM}-${NC}           │${suffix}"
+            echo -e "│ gpt-oss-20b  │ 16/2/8K   │ ${GREEN}96/12/8K${NC}  │ ${DIM}-${NC}         │ ${DIM}-${NC}         │${suffix}"
+            echo -e "│ gemma3-27b   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ 16/2/8K   │${suffix}"
+            echo -e "│ exaone-32b   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ 16/2/8K   │ ${DIM}-${NC}         │${suffix}"
+            echo -e "│ qwen3-vl     │ 16/2/8K   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ ${DIM}-${NC}         │${suffix}"
             ;;
         exaone4|exaone4-partial)
-            echo -e "│ gpt-oss-20b  │ 16/2/8K     │ 96/12/8K    │ ${DIM}-${NC}           │${suffix}"
-            echo -e "│ exaone-32b   │ ${DIM}-${NC}           │ ${DIM}-${NC}           │ ${GREEN}16/2/8K${NC}     │${suffix}"
-            echo -e "│ qwen3-vl     │ 16/2/8K     │ ${DIM}-${NC}           │ ${DIM}-${NC}           │${suffix}"
+            echo -e "│ gpt-oss-20b  │ 16/2/8K   │ 96/12/8K  │ ${DIM}-${NC}         │ ${DIM}-${NC}         │${suffix}"
+            echo -e "│ gemma3-27b   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ 16/2/8K   │${suffix}"
+            echo -e "│ exaone-32b   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ ${GREEN}16/2/8K${NC}   │ ${DIM}-${NC}         │${suffix}"
+            echo -e "│ qwen3-vl     │ 16/2/8K   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ ${DIM}-${NC}         │${suffix}"
+            ;;
+        gemma3|gemma3-partial)
+            echo -e "│ gpt-oss-20b  │ 16/2/8K   │ 96/12/8K  │ ${DIM}-${NC}         │ ${DIM}-${NC}         │${suffix}"
+            echo -e "│ gemma3-27b   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ ${GREEN}16/2/8K${NC}   │${suffix}"
+            echo -e "│ exaone-32b   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ 16/2/8K   │ ${DIM}-${NC}         │${suffix}"
+            echo -e "│ qwen3-vl     │ 16/2/8K   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ ${DIM}-${NC}         │${suffix}"
             ;;
         *)
-            echo -e "│ gpt-oss-20b  │ 16/2/8K     │ 96/12/8K    │ ${DIM}-${NC}           │${suffix}"
-            echo -e "│ exaone-32b   │ ${DIM}-${NC}           │ ${DIM}-${NC}           │ 16/2/8K     │${suffix}"
-            echo -e "│ qwen3-vl     │ 16/2/8K     │ ${DIM}-${NC}           │ ${DIM}-${NC}           │${suffix}"
+            echo -e "│ gpt-oss-20b  │ 16/2/8K   │ 96/12/8K  │ ${DIM}-${NC}         │ ${DIM}-${NC}         │${suffix}"
+            echo -e "│ gemma3-27b   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ 16/2/8K   │${suffix}"
+            echo -e "│ exaone-32b   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ 16/2/8K   │ ${DIM}-${NC}         │${suffix}"
+            echo -e "│ qwen3-vl     │ 16/2/8K   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ ${DIM}-${NC}         │${suffix}"
             ;;
     esac
 }
@@ -1371,11 +1382,11 @@ show_mode_config_inline() {
 
     echo -e "${CL}"
     echo -e "${CYAN}Mode Configuration${NC} ${DIM}(c/p/n = context/parallel/n-predict)${NC}${CL}"
-    echo -e "┌──────────────┬─────────────┬─────────────┬─────────────┐${CL}"
-    echo -e "│ ${WHITE}Service${NC}      │ ${CYAN}r)RAG${NC}       │ ${MAGENTA}t)GPT${NC}       │ ${GREEN}e)EXAONE${NC}    │${CL}"
-    echo -e "├──────────────┼─────────────┼─────────────┼─────────────┤${CL}"
+    echo -e "┌──────────────┬───────────┬───────────┬───────────┬───────────┐${CL}"
+    echo -e "│ ${WHITE}Service${NC}      │ ${CYAN}r)RAG${NC}     │ ${MAGENTA}t)GPT${NC}     │ ${GREEN}e)EXAONE${NC}  │ ${YELLOW}g)GEMMA3${NC}  │${CL}"
+    echo -e "├──────────────┼───────────┼───────────┼───────────┼───────────┤${CL}"
     _print_mode_table_rows "$current_mode" "$CL"
-    echo -e "└──────────────┴─────────────┴─────────────┴─────────────┘${CL}"
+    echo -e "└──────────────┴───────────┴───────────┴───────────┴───────────┘${CL}"
 
     case "$current_mode" in
         rag) echo -e "  ${GREEN}>>>${NC} Current: ${CYAN}RAG Mode${NC} ${DIM}(document processing & retrieval)${NC}${CL}" ;;
@@ -1383,6 +1394,7 @@ show_mode_config_inline() {
         gpt) echo -e "  ${GREEN}>>>${NC} Current: ${MAGENTA}GPT Mode${NC} ${DIM}(text generation & chat)${NC}${CL}" ;;
         gpt-partial) echo -e "  ${YELLOW}>>>${NC} Current: ${MAGENTA}GPT Mode${NC} ${YELLOW}(partial)${NC}${CL}" ;;
         exaone4) echo -e "  ${GREEN}>>>${NC} Current: ${GREEN}EXAONE 4.0 Mode${NC} ${DIM}(high-quality reasoning)${NC}${CL}" ;;
+        gemma3) echo -e "  ${GREEN}>>>${NC} Current: ${YELLOW}Gemma3 Mode${NC} ${DIM}(multimodal reasoning)${NC}${CL}" ;;
         *) echo -e "  ${DIM}>>> No mode active${NC}${CL}" ;;
     esac
 }
@@ -1393,16 +1405,17 @@ show_mode_config() {
 
     echo ""
     echo -e "${WHITE}Mode Configuration${NC} ${DIM}(c/p/n = context/parallel/n-predict)${NC}"
-    echo -e "┌──────────────┬─────────────┬─────────────┬─────────────┐"
-    echo -e "│ ${WHITE}Service${NC}      │ ${CYAN}r)RAG${NC}       │ ${MAGENTA}t)GPT${NC}       │ ${GREEN}e)EXAONE${NC}    │"
-    echo -e "├──────────────┼─────────────┼─────────────┼─────────────┤"
+    echo -e "┌──────────────┬───────────┬───────────┬───────────┬───────────┐"
+    echo -e "│ ${WHITE}Service${NC}      │ ${CYAN}r)RAG${NC}     │ ${MAGENTA}t)GPT${NC}     │ ${GREEN}e)EXAONE${NC}  │ ${YELLOW}g)GEMMA3${NC}  │"
+    echo -e "├──────────────┼───────────┼───────────┼───────────┼───────────┤"
     _print_mode_table_rows "$current_mode" ""
-    echo -e "└──────────────┴─────────────┴─────────────┴─────────────┘"
+    echo -e "└──────────────┴───────────┴───────────┴───────────┴───────────┘"
 
     case "$current_mode" in
         rag|rag-partial) echo -e "\n  ${GREEN}>>>${NC} Current: ${CYAN}RAG Mode${NC} - Document processing & retrieval" ;;
         gpt|gpt-partial) echo -e "\n  ${GREEN}>>>${NC} Current: ${MAGENTA}GPT Mode${NC} - Text generation & chat" ;;
         exaone4|exaone4-partial) echo -e "\n  ${GREEN}>>>${NC} Current: ${GREEN}EXAONE 4.0 Mode${NC} - High-quality reasoning" ;;
+        gemma3|gemma3-partial) echo -e "\n  ${GREEN}>>>${NC} Current: ${YELLOW}Gemma3 Mode${NC} - Multimodal reasoning" ;;
     esac
 }
 
@@ -1561,6 +1574,51 @@ mode_exaone() {
     show_mode_config "exaone4"
 }
 
+# mode-gemma3: Gemma3 전용 모드 (Gemma3 27B만 구동)
+mode_gemma3() {
+    echo -e "\n${BOLD}Switching to Gemma3 mode...${NC}\n"
+
+    # 1. 모든 기존 LLM 서비스 중지 (VRAM 확보)
+    echo -e "${BLUE}Stopping${NC} all existing LLM services..."
+    stop_all_llm_variants
+    echo -e "  ${GREEN}OK${NC}"
+
+    # 2. VRAM 해제 대기 (Gemma3 27B Q4_0은 ~15GB 필요)
+    wait_vram_release 15000 30
+    if [ $? -ne 0 ]; then
+        echo -e "${YELLOW}Warning: VRAM may be insufficient, attempting anyway...${NC}"
+    fi
+
+    # 3. Gemma3 27B 시작 (ctx=16K, p=2, n=8K)
+    echo -ne "${BLUE}Starting${NC} Gemma3 27B (ctx=16K p=2)... "
+    sudo systemctl start llama-server-gemma3.service
+    sleep 15
+    if systemctl is-active --quiet llama-server-gemma3.service; then
+        echo -e "${GREEN}OK${NC}"
+    else
+        echo -e "${RED}FAILED${NC}"
+        echo -e "  ${DIM}Check logs: journalctl -u llama-server-gemma3 -n 50${NC}"
+        return 1
+    fi
+
+    # 4. 지원 서비스 시작
+    echo -ne "${BLUE}Starting${NC} BGE Embedding... "
+    sudo systemctl start bge-embedding-server
+    echo -e "${GREEN}OK${NC}"
+
+    echo -ne "${BLUE}Starting${NC} BGE Reranker... "
+    sudo systemctl start bge-reranker
+    echo -e "${GREEN}OK${NC}"
+
+    echo -ne "${BLUE}Starting${NC} Qdrant... "
+    sudo systemctl start qdrant.service &>/dev/null
+    sleep 2
+    echo -e "${GREEN}OK${NC}"
+
+    echo -e "\n${GREEN}Gemma3 mode activated${NC}"
+    show_mode_config "gemma3"
+}
+
 # ============================================================================
 # 메인
 # ============================================================================
@@ -1597,8 +1655,9 @@ else
         mode-rag) mode_rag ;;
         mode-gpt) mode_gpt ;;
         mode-exaone) mode_exaone ;;
+        mode-gemma3) mode_gemma3 ;;
         exaone4|exaone-4.0-32b) toggle_llm "exaone-4.0-32b" ;;
-        gpt|exaone|qwen3vl|embedding|reranker|docling) toggle_service "$CMD" ;;
+        gpt|gemma3|qwen3vl|embedding|reranker|docling) toggle_service "$CMD" ;;
         qdrant) toggle_qdrant ;;
         qdrant-start) start_qdrant ;;
         qdrant-stop) stop_qdrant ;;

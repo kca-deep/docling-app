@@ -35,6 +35,7 @@ import {
 import { toast } from "sonner"
 import { API_BASE_URL } from "@/lib/api-config"
 import { getCollectionDisplayName } from "@/lib/collection-utils"
+import { ServiceHealthBanner } from "@/components/service-health-banner"
 
 // 차트 설정
 const timelineChartConfig = {
@@ -405,6 +406,9 @@ export default function AnalyticsPage() {
 
   return (
     <PageContainer maxWidth="wide" className="space-y-4">
+      {/* Service Health Banner */}
+      <ServiceHealthBanner showDetails />
+
       {/* Page Header */}
       <div className="flex items-center">
         <h1 className="text-lg font-semibold flex items-center gap-2">

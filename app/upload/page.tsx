@@ -14,6 +14,7 @@ import { Loader2, Upload, Database, Sparkles, AlertTriangle } from "lucide-react
 import { toast } from "sonner"
 import { motion } from "framer-motion"
 import { MarkdownViewerModal } from "@/components/markdown-viewer-modal"
+import { ServiceHealthBanner } from "@/components/service-health-banner"
 import { API_BASE_URL } from "@/lib/api-config"
 import { DocumentSelector } from "./components/DocumentSelector"
 import { DifySettingsPanel } from "./components/DifySettingsPanel"
@@ -59,9 +60,9 @@ function UploadPageContent() {
   const [searchInput, setSearchInput] = useState("")
   const [loadingDocuments, setLoadingDocuments] = useState(false)
 
-  // Dify 관련 상태
-  const [difyApiKey, setDifyApiKey] = useState("dataset-tTuWMwOLTw6Lhhmihan6uszE")
-  const [difyBaseUrl, setDifyBaseUrl] = useState("http://ai.kca.kr:5001/v1")
+  // Dify 관련 상태 (초기값은 빈 문자열, loadActiveDifyConfig에서 로드)
+  const [difyApiKey, setDifyApiKey] = useState("")
+  const [difyBaseUrl, setDifyBaseUrl] = useState("")
   const [difyDatasets, setDifyDatasets] = useState<DifyDataset[]>([])
   const [selectedDifyDataset, setSelectedDifyDataset] = useState("")
   const [loadingDifyDatasets, setLoadingDifyDatasets] = useState(false)
@@ -681,6 +682,9 @@ function UploadPageContent() {
 
   return (
     <PageContainer maxWidth="wide" className="space-y-4">
+      {/* Service Health Banner */}
+      <ServiceHealthBanner />
+
       {/* Page Header */}
       <div className="flex items-center">
         <h1 className="text-lg font-semibold flex items-center gap-2">

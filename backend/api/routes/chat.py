@@ -17,7 +17,6 @@ from backend.database import get_db
 from backend.middleware.request_tracking import get_tracking_ids
 from backend.utils.client_info import extract_client_info
 from backend.models.schemas import ChatRequest, ChatResponse, RetrievedDocument, RegenerateRequest, DefaultSettingsResponse
-from backend.models.chat_session import ChatSession
 from backend.services.embedding_service import EmbeddingService
 from backend.services.qdrant_service import QdrantService
 from backend.services.llm_service import LLMService
@@ -83,15 +82,14 @@ async def log_chat_interaction_task(
     llm_params: Dict[str, Any],
     performance_metrics: Dict[str, Any],
     error_info: Optional[Dict] = None,
-    db: Optional[Session] = None,
     request_id: Optional[str] = None,
     trace_id: Optional[str] = None,
     client_info: Optional[Dict] = None,
     use_reranking: bool = False
 ):
-    """채팅 상호작용 로깅 백그라운드 태스크"""
+    """채팅 상호작용 로깅 백그라운드 태스크 (큐 기반)"""
     try:
-        # 사용자 메시지 로깅
+        # 사용자 메시지 로깅 (JSONL 큐)
         await hybrid_logging_service.log_chat_interaction(
             session_id=session_id,
             collection_name=collection_name,
@@ -154,60 +152,21 @@ async def log_chat_interaction_task(
         )
 
         # 대화 종료 및 저장 (100% 저장 정책)
-        # 각 요청-응답 쌍마다 저장
         await conversation_service.end_conversation(conversation_id)
 
-        # 세션 정보 업데이트 (DB에)
-        if db:
-            session = db.query(ChatSession).filter(
-                ChatSession.session_id == session_id
-            ).first()
-
-            if not session:
-                # 새 세션 생성
-                session = ChatSession(
-                    session_id=session_id,
-                    collection_name=collection_name,
-                    llm_model=model,
-                    reasoning_level=reasoning_level
-                )
-                db.add(session)
-
-            # 세션 정보 업데이트
-            # 카운트 필드들이 None인 경우 0으로 초기화
-            if session.message_count is None:
-                session.message_count = 0
-            if session.user_message_count is None:
-                session.user_message_count = 0
-            if session.assistant_message_count is None:
-                session.assistant_message_count = 0
-
-            session.message_count += 2  # 사용자 + 어시스턴트
-            session.user_message_count += 1
-            session.assistant_message_count += 1
-
-            if performance_metrics.get("response_time_ms"):
-                # total_response_time_ms가 None인 경우 0으로 초기화
-                if session.total_response_time_ms is None:
-                    session.total_response_time_ms = 0
-                session.total_response_time_ms += performance_metrics["response_time_ms"]
-                session.avg_response_time_ms = session.total_response_time_ms // session.assistant_message_count
-
-            if error_info:
-                session.has_error = 1
-
-            # 최소 검색 스코어 업데이트
-            if retrieval_info.get("top_scores"):
-                min_score = min(retrieval_info["top_scores"])
-                if session.min_retrieval_score is None or float(session.min_retrieval_score) > min_score:
-                    session.min_retrieval_score = str(min_score)
-
-            db.commit()
+        # 세션 정보 업데이트 (큐 기반 - 비동기 배치 처리)
+        await hybrid_logging_service.queue_session_update(
+            session_id=session_id,
+            collection_name=collection_name,
+            model=model,
+            reasoning_level=reasoning_level,
+            performance_metrics=performance_metrics,
+            retrieval_info=retrieval_info,
+            error_info=error_info
+        )
 
     except Exception as e:
         logger.error(f"로깅 태스크 실패: {e}")
-        if db:
-            db.rollback()
 
 
 @router.post("/", response_model=ChatResponse)
@@ -272,8 +231,8 @@ async def chat(
     if not chat_request.conversation_id:
         chat_request.conversation_id = str(uuid.uuid4())
 
-    # session_id 생성 (conversation과 별도)
-    session_id = str(uuid.uuid4())
+    # session_id 처리 (요청에서 받거나 새로 생성)
+    session_id = chat_request.session_id or str(uuid.uuid4())
 
     # 대화 시작 (일상대화 모드에서는 collection_name을 "casual"로 표시)
     conversation_id = conversation_service.start_conversation(
@@ -334,7 +293,7 @@ async def chat(
         performance_metrics = {
             "response_time_ms": response_time_ms,
             "token_count": result.get("usage", {}).get("total_tokens", 0),
-            "retrieval_time_ms": None  # TODO: RAG 서비스에서 측정 필요
+            "retrieval_time_ms": result.get("retrieval_time_ms")
         }
 
         # LLM 파라미터 준비
@@ -360,20 +319,20 @@ async def chat(
             llm_params=llm_params,
             performance_metrics=performance_metrics,
             error_info=None,
-            db=db,
             request_id=tracking_ids.get("request_id"),
             trace_id=tracking_ids.get("trace_id"),
             client_info=client_info
         )
 
-        # conversation_id 포함하여 응답
+        # session_id, conversation_id 포함하여 응답
         response = ChatResponse(
+            session_id=session_id,
+            conversation_id=conversation_id,
             answer=result.get("answer", ""),
             reasoning_content=result.get("reasoning_content"),
             retrieved_docs=retrieved_docs,
             usage=result.get("usage")
         )
-        response.conversation_id = conversation_id
 
         return response
 
@@ -405,7 +364,6 @@ async def chat(
                 "response_time_ms": int((time.time() - start_time) * 1000)
             },
             error_info=error_info,
-            db=db,
             request_id=tracking_ids.get("request_id"),
             trace_id=tracking_ids.get("trace_id"),
             client_info=client_info
@@ -462,8 +420,8 @@ async def chat_stream(
     if not chat_request.conversation_id:
         chat_request.conversation_id = str(uuid.uuid4())
 
-    # session_id 생성 (conversation과 별도)
-    session_id = str(uuid.uuid4())
+    # session_id 처리 (요청에서 받거나 새로 생성)
+    session_id = chat_request.session_id or str(uuid.uuid4())
 
     # 대화 시작 (일상대화 모드에서는 collection_name을 "casual"로 표시)
     conversation_id = conversation_service.start_conversation(
@@ -729,7 +687,6 @@ async def chat_stream(
                         llm_params=final_llm_params,
                         performance_metrics=final_performance_metrics,
                         error_info=stream_error_info,
-                        db=db,
                         request_id=tracking_ids.get("request_id"),
                         trace_id=tracking_ids.get("trace_id"),
                         client_info=client_info,
@@ -782,7 +739,6 @@ async def chat_stream(
                 "response_time_ms": int((time.time() - start_time) * 1000)
             },
             error_info=error_info,
-            db=db,
             request_id=tracking_ids.get("request_id"),
             trace_id=tracking_ids.get("trace_id"),
             client_info=client_info
@@ -795,7 +751,11 @@ async def chat_stream(
 
 
 @router.post("/regenerate", response_model=ChatResponse)
-async def regenerate(request: RegenerateRequest):
+async def regenerate(
+    request: RegenerateRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
     """
     AI 응답 재생성 (검색 결과 재사용)
 
@@ -821,6 +781,10 @@ async def regenerate(request: RegenerateRequest):
     Raises:
         HTTPException: 재생성 실패 시
     """
+    start_time = time.time()
+    session_id = request.session_id or f"regen_{int(time.time() * 1000)}"
+    conversation_id = str(uuid.uuid4())
+
     try:
         # 대화 기록 변환
         chat_history = None
@@ -862,14 +826,64 @@ async def regenerate(request: RegenerateRequest):
         # 응답 포맷팅 (원본 검색 결과 재사용)
         answer = result.get("choices", [{}])[0].get("message", {}).get("content", "응답을 생성할 수 없습니다.")
 
+        # 응답 시간 계산
+        response_time_ms = int((time.time() - start_time) * 1000)
+
+        # 로깅 추가
+        background_tasks.add_task(
+            log_chat_interaction_task,
+            session_id=session_id,
+            conversation_id=conversation_id,
+            collection_name=request.collection_name or "regenerate",
+            message=f"[REGENERATE] {request.query}",
+            response_data={
+                "answer": answer,
+                "retrieved_docs": retrieved_docs_internal
+            },
+            reasoning_level=request.reasoning_level,
+            model=request.model,
+            llm_params={
+                "temperature": request.temperature,
+                "max_tokens": request.max_tokens,
+                "top_p": request.top_p
+            },
+            performance_metrics={
+                "response_time_ms": response_time_ms,
+                "token_count": result.get("usage", {}).get("total_tokens", 0),
+                "retrieval_time_ms": None  # 재생성은 검색 없음
+            },
+            error_info=None
+        )
+
         return ChatResponse(
             answer=answer,
             retrieved_docs=request.retrieved_docs,  # 원본 그대로 반환
-            usage=result.get("usage")
+            usage=result.get("usage"),
+            session_id=session_id
         )
 
     except Exception as e:
         logger.error(f"Regenerate failed: {e}")
+        # 에러 로깅
+        background_tasks.add_task(
+            log_chat_interaction_task,
+            session_id=session_id,
+            conversation_id=conversation_id,
+            collection_name=request.collection_name or "regenerate",
+            message=f"[REGENERATE] {request.query}",
+            response_data={},
+            reasoning_level=request.reasoning_level,
+            model=request.model,
+            llm_params={
+                "temperature": request.temperature,
+                "max_tokens": request.max_tokens,
+                "top_p": request.top_p
+            },
+            performance_metrics={
+                "response_time_ms": int((time.time() - start_time) * 1000)
+            },
+            error_info={"error": str(e), "type": "regenerate_error"}
+        )
         raise HTTPException(
             status_code=500,
             detail=get_http_error_detail(e, "regenerate", "응답 재생성 실패")

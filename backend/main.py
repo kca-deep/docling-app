@@ -35,6 +35,7 @@ from backend.models import selfcheck as selfcheck_model  # Import SelfCheck mode
 from backend.services.hybrid_logging_service import hybrid_logging_service
 from backend.services.statistics_service import statistics_service
 from backend.services.auth_service import auth_service
+from backend.services.scheduler_service import scheduler_service
 from backend.middleware.request_tracking import RequestTrackingMiddleware
 from backend.middleware.rate_limit import limiter, rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -100,8 +101,14 @@ async def lifespan(app: FastAPI):
     await hybrid_logging_service.start()
     print("[OK] Hybrid logging service started successfully")
 
-    # 자동 통계 집계 (백그라운드에서 실행)
-    asyncio.create_task(aggregate_pending_statistics())
+    # 스케줄러 서비스 시작 (자동 통계 집계 포함)
+    try:
+        await scheduler_service.start()
+        print("[OK] Scheduler service started (daily/hourly stats aggregation)")
+    except Exception as e:
+        logger.warning(f"Scheduler service failed to start, using fallback: {e}")
+        # 폴백: 기존 방식으로 통계 집계
+        asyncio.create_task(aggregate_pending_statistics())
 
     # 임시 컬렉션 정리 스케줄러 시작 (백그라운드에서 실행)
     cleanup_task = asyncio.create_task(start_temp_collection_cleanup_scheduler())
@@ -109,6 +116,13 @@ async def lifespan(app: FastAPI):
     yield  # 애플리케이션 실행
 
     # ========== SHUTDOWN ==========
+    # 스케줄러 서비스 중지
+    try:
+        await scheduler_service.stop()
+        print("[OK] Scheduler service stopped")
+    except Exception as e:
+        print(f"[WARN] Scheduler service shutdown error: {e}")
+
     # 임시 컬렉션 정리 스케줄러 중지
     try:
         cleanup_task.cancel()

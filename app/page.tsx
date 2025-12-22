@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import {
   ArrowRight,
@@ -16,6 +17,9 @@ import {
   Server,
   Cpu,
   Network,
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
 } from "lucide-react"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
@@ -26,8 +30,105 @@ import {
 } from "@/components/ui/hover-card"
 import { Badge } from "@/components/ui/badge"
 import { FloatingChatButton } from "@/components/floating-chat-button"
+import { API_BASE_URL } from "@/lib/api-config"
+
+// 서비스 상태 타입
+interface ServiceStatus {
+  status: "healthy" | "degraded" | "unhealthy" | "disabled" | "unconfigured" | "loading"
+  latency_ms?: number
+  error?: string
+  model?: string
+}
+
+interface HealthData {
+  status: string
+  services: {
+    database: ServiceStatus
+    qdrant: ServiceStatus
+    embedding: ServiceStatus
+    gpt_oss: ServiceStatus
+    exaone: ServiceStatus
+    docling: ServiceStatus
+    reranker: ServiceStatus
+    qwen3_vl: ServiceStatus
+  }
+}
+
+// 상태별 Badge 렌더링 함수
+const StatusBadge = ({ status }: { status: ServiceStatus["status"] }) => {
+  switch (status) {
+    case "healthy":
+      return (
+        <Badge className="bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20 text-xs gap-1">
+          <CheckCircle2 className="w-3 h-3" />
+          Running
+        </Badge>
+      )
+    case "degraded":
+      return (
+        <Badge className="bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20 text-xs gap-1">
+          <AlertCircle className="w-3 h-3" />
+          Degraded
+        </Badge>
+      )
+    case "unhealthy":
+      return (
+        <Badge className="bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20 text-xs gap-1">
+          <AlertCircle className="w-3 h-3" />
+          Offline
+        </Badge>
+      )
+    case "disabled":
+      return (
+        <Badge className="bg-muted text-muted-foreground border-border text-xs">
+          Disabled
+        </Badge>
+      )
+    case "loading":
+      return (
+        <Badge className="bg-muted/50 text-muted-foreground border-border text-xs gap-1">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          Loading
+        </Badge>
+      )
+    default:
+      return (
+        <Badge className="bg-muted text-muted-foreground border-border text-xs">
+          Unknown
+        </Badge>
+      )
+  }
+}
 
 export default function HomePage() {
+  // 인프라 상태
+  const [healthData, setHealthData] = useState<HealthData | null>(null)
+  const [healthLoading, setHealthLoading] = useState(true)
+
+  // 인프라 상태 폴링
+  const fetchHealth = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/health/ready`, {
+        credentials: "include",
+      })
+      // 503도 JSON 응답이므로 파싱 (critical 서비스 장애 시 503 반환)
+      if (response.ok || response.status === 503) {
+        const data = await response.json()
+        setHealthData(data)
+      }
+    } catch (error) {
+      console.error("[Health] Failed to fetch:", error)
+    } finally {
+      setHealthLoading(false)
+    }
+  }, [])
+
+  // 초기 로드 + 30초 간격 폴링
+  useEffect(() => {
+    fetchHealth()
+    const interval = setInterval(fetchHealth, 30000)
+    return () => clearInterval(interval)
+  }, [fetchHealth])
   // 핵심 워크플로우 4단계 (미니멀 데이터 구조)
   const coreSteps = [
     {
@@ -64,11 +165,18 @@ export default function HomePage() {
     },
   ]
 
+  // 활성 서비스 수 계산
+  const activeServiceCount = healthData
+    ? Object.values(healthData.services).filter(
+        (s) => s.status === "healthy" || s.status === "degraded"
+      ).length
+    : 0
+
   const stats = [
-    { icon: Zap, label: "처리 속도", value: "3초", unit: "/문서" },
-    { icon: Shield, label: "정확도", value: "99.5", unit: "%" },
-    { icon: TrendingUp, label: "처리량", value: "1000+", unit: "/일" },
-    { icon: Sparkles, label: "AI 모델", value: "4", unit: "개" },
+    { icon: Zap, label: "처리 속도", value: "<3", unit: "초/문서" },
+    { icon: Server, label: "활성 서비스", value: healthLoading ? "-" : String(activeServiceCount), unit: "개" },
+    { icon: TrendingUp, label: "벡터 차원", value: "1024", unit: "dim" },
+    { icon: Sparkles, label: "AI 모델", value: "3+", unit: "개" },
   ]
 
   return (
@@ -427,43 +535,58 @@ export default function HomePage() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { name: "GPT-OSS 20B", badge: "US", type: "General", port: "8080", vram: "16GB", active: true, colorVar: 1 },
-                { name: "Qwen3-VL 8B", badge: "CN", type: "Vision OCR", port: "8084", vram: "8GB", active: true, colorVar: 2 },
-                { name: "EXAONE 4.0 32B", badge: "KR", type: "Long Context", port: "8081", vram: "20GB", active: true, colorVar: 3 },
-              ].map((model, i) => (
-                <motion.div
-                  key={i}
-                  whileHover={{ y: -4, scale: 1.02 }}
-                  className={`relative rounded-2xl p-5 transition-all duration-300 ${
-                    model.active
-                      ? 'bg-background dark:bg-card border border-border shadow-lg hover:shadow-xl'
-                      : 'bg-muted/30 dark:bg-muted/20 border border-border/50 opacity-60'
-                  }`}
-                >
-                  {/* Status Indicator */}
-                  <div className="absolute top-4 right-4">
-                    <div className={`w-3 h-3 rounded-full ${model.active ? 'bg-green-500 animate-pulse shadow-lg shadow-green-500/50' : 'bg-muted-foreground/50'}`} />
-                  </div>
+                { name: "GPT-OSS 20B", badge: "US", type: "General", port: "8080", vram: "16GB", healthKey: "gpt_oss" as const, colorVar: 1 },
+                { name: "Qwen3-VL 8B", badge: "CN", type: "Vision OCR", port: "8084", vram: "8GB", healthKey: "qwen3_vl" as const, colorVar: 2 },
+                { name: "EXAONE 4.0 32B", badge: "KR", type: "Long Context", port: "8081", vram: "20GB", healthKey: "exaone" as const, colorVar: 3 },
+              ].map((model, i) => {
+                const status = healthLoading
+                  ? "loading"
+                  : healthData?.services[model.healthKey]?.status || "unhealthy"
+                const isActive = status === "healthy" || status === "degraded"
 
-                  {/* Model Info */}
-                  <div className="mb-4">
-                    <h4 className="font-bold text-base mb-1">{model.name}</h4>
-                    <p className="text-sm text-muted-foreground">{model.type}</p>
-                  </div>
+                return (
+                  <motion.div
+                    key={i}
+                    whileHover={{ y: -4, scale: 1.02 }}
+                    className={`relative rounded-2xl p-5 transition-all duration-300 ${
+                      isActive
+                        ? 'bg-background dark:bg-card border border-border shadow-lg hover:shadow-xl'
+                        : 'bg-muted/30 dark:bg-muted/20 border border-border/50 opacity-60'
+                    }`}
+                  >
+                    {/* Status Indicator */}
+                    <div className="absolute top-4 right-4">
+                      {healthLoading ? (
+                        <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+                      ) : (
+                        <div className={`w-3 h-3 rounded-full ${
+                          status === "healthy" ? 'bg-green-500 animate-pulse shadow-lg shadow-green-500/50' :
+                          status === "degraded" ? 'bg-yellow-500 shadow-lg shadow-yellow-500/50' :
+                          'bg-muted-foreground/50'
+                        }`} />
+                      )}
+                    </div>
 
-                  {/* Tags */}
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    <Badge variant="outline" className="text-xs font-medium">{model.badge}</Badge>
-                    <Badge variant="secondary" className="text-xs font-mono">{model.vram}</Badge>
-                  </div>
+                    {/* Model Info */}
+                    <div className="mb-4">
+                      <h4 className="font-bold text-base mb-1">{model.name}</h4>
+                      <p className="text-sm text-muted-foreground">{model.type}</p>
+                    </div>
 
-                  {/* Port */}
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Port</span>
-                    <span className="font-mono font-medium" style={{ color: `var(--chart-${model.colorVar})` }}>:{model.port}</span>
-                  </div>
-                </motion.div>
-              ))}
+                    {/* Tags */}
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      <Badge variant="outline" className="text-xs font-medium">{model.badge}</Badge>
+                      <Badge variant="secondary" className="text-xs font-mono">{model.vram}</Badge>
+                    </div>
+
+                    {/* Port */}
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Port</span>
+                      <span className="font-mono font-medium" style={{ color: `var(--chart-${model.colorVar})` }}>:{model.port}</span>
+                    </div>
+                  </motion.div>
+                )
+              })}
             </div>
           </motion.div>
 
@@ -480,17 +603,23 @@ export default function HomePage() {
                 <Server className="h-5 w-5 text-[color:var(--chart-2)]" />
               </div>
               <h3 className="text-xl font-bold">Core Services</h3>
-              <span className="text-sm text-muted-foreground ml-auto">Always Running</span>
+              <span className="text-sm text-muted-foreground ml-auto">
+                {healthLoading ? "Checking..." : `${activeServiceCount} Active`}
+              </span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { name: "BGE-M3 Embedding", desc: "1024-dim Vector", port: "8083", icon: Database, colorVar: 1 },
-                { name: "BGE Reranker", desc: "v2-m3 Model", port: "8006", icon: TrendingUp, colorVar: 2 },
-                { name: "Docling API", desc: "Doc Parser", port: "8007", icon: FileCode, colorVar: 3 },
-                { name: "Qdrant DB", desc: "Vector Store", port: "6333", icon: Database, colorVar: 4 },
+                { name: "BGE-M3 Embedding", desc: "1024-dim Vector", port: "8083", icon: Database, healthKey: "embedding" as const, colorVar: 1 },
+                { name: "BGE Reranker", desc: "v2-m3 Model", port: "8006", icon: TrendingUp, healthKey: "reranker" as const, colorVar: 2 },
+                { name: "Docling API", desc: "Doc Parser", port: "8007", icon: FileCode, healthKey: "docling" as const, colorVar: 3 },
+                { name: "Qdrant DB", desc: "Vector Store", port: "6333", icon: Database, healthKey: "qdrant" as const, colorVar: 4 },
               ].map((svc, i) => {
                 const Icon = svc.icon
                 const chartColor = `var(--chart-${svc.colorVar})`
+                const status = healthLoading
+                  ? "loading"
+                  : healthData?.services[svc.healthKey]?.status || "unhealthy"
+
                 return (
                   <motion.div
                     key={i}
@@ -512,9 +641,7 @@ export default function HomePage() {
                     {/* Port & Status */}
                     <div className="flex items-center justify-between">
                       <span className="font-mono text-sm" style={{ color: chartColor }}>:{svc.port}</span>
-                      <Badge className="bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20 text-xs">
-                        Running
-                      </Badge>
+                      <StatusBadge status={status} />
                     </div>
                   </motion.div>
                 )
