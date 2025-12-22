@@ -1284,7 +1284,7 @@ RULES:
         db: Optional[Session] = None
     ) -> SelfCheckAnalyzeResponse:
         """
-        셀프진단 분석 실행 (방안 C: 10개 항목 개별 병렬 처리 + 교차검증)
+        셀프진단 분석 실행 (방안 C: 10개 항목 개별 순차 처리 + 교차검증)
         """
         import asyncio
         start_time = datetime.now()
@@ -1300,47 +1300,32 @@ RULES:
         # 2. 사용자 입력 매핑
         user_items = {item.item_number: item for item in request.checklist_items}
 
-        logger.info(f"[SelfCheck] Starting individual LLM calls (10 items in 2 batches): {model_key}")
+        logger.info(f"[SelfCheck] Starting individual LLM calls (10 items sequential): {model_key}")
 
-        # 3. 10개 항목을 5개씩 2배치로 나눠서 호출 (LLM 서버 부하 분산)
-        BATCH_SIZE = 5
+        # 3. 10개 항목을 개별 순차 처리 (안정적인 LLM 호출)
         all_results = []
 
-        for batch_idx in range(0, len(CHECKLIST_ITEMS), BATCH_SIZE):
-            batch_items = CHECKLIST_ITEMS[batch_idx:batch_idx + BATCH_SIZE]
-            batch_num = batch_idx // BATCH_SIZE + 1
-            logger.info(f"[SelfCheck] Processing batch {batch_num}/2 ({len(batch_items)} items)")
+        for checklist_item in CHECKLIST_ITEMS:
+            num = checklist_item["number"]
+            user_input = user_items.get(num)
 
-            batch_tasks = []
-            for checklist_item in batch_items:
-                num = checklist_item["number"]
-                user_input = user_items.get(num)
+            logger.info(f"[SelfCheck] Processing item {num}/10 ({checklist_item['short_label']})")
 
-                task = self._call_llm_individual(
-                    url=url,
-                    model=model,
-                    item_number=num,
-                    question=checklist_item["question"],
-                    project_content=request.project_description,
-                    user_answer=user_input.user_answer if user_input else None,
-                    user_details=user_input.user_details if user_input else None
-                )
-                batch_tasks.append(task)
-
-            batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
-            all_results.extend(batch_results)
-
-            # 배치 간 짧은 딜레이 (LLM 서버 안정화)
-            if batch_idx + BATCH_SIZE < len(CHECKLIST_ITEMS):
-                await asyncio.sleep(settings.SELFCHECK_RETRY_DELAY)
+            result = await self._call_llm_individual(
+                url=url,
+                model=model,
+                item_number=num,
+                question=checklist_item["question"],
+                project_content=request.project_description,
+                user_answer=user_input.user_answer if user_input else None,
+                user_details=user_input.user_details if user_input else None
+            )
+            all_results.append(result)
 
         # 4. 결과 매핑
         llm_items = {}
         for i, result in enumerate(all_results):
-            item_number = CHECKLIST_ITEMS[i]["number"]
-            if isinstance(result, Exception):
-                logger.error(f"[SelfCheck] Item {item_number} raised exception: {result}")
-            elif result is not None:
+            if result is not None:
                 llm_items[result["item_number"]] = result
 
         # 로그: LLM이 반환한 항목 수 확인
