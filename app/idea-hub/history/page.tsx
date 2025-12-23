@@ -130,6 +130,9 @@ export default function HistoryPage() {
   // 관리자 여부
   const isAdmin = user?.role === "admin"
 
+  // 관리자 전체 보기 모드 (관리자는 기본 전체 보기)
+  const [viewAll, setViewAll] = useState(true)
+
   // Track mobile viewport for calendar
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 640)
@@ -149,6 +152,10 @@ export default function HistoryPage() {
       if (dateRange?.to) {
         params.set("end_date", format(dateRange.to, "yyyy-MM-dd"))
       }
+      // 관리자 전체 보기 모드
+      if (isAdmin && viewAll) {
+        params.set("view_all", "true")
+      }
 
       const response = await fetch(`${apiEndpoints.selfcheckHistory}?${params.toString()}`, {
         credentials: "include",
@@ -164,7 +171,7 @@ export default function HistoryPage() {
     } finally {
       setIsLoadingHistory(false)
     }
-  }, [dateRange])
+  }, [dateRange, isAdmin, viewAll])
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -542,6 +549,19 @@ export default function HistoryPage() {
                       onClick={clearDateFilter}
                     >
                       <X className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+
+                  {/* Admin: View All Toggle */}
+                  {isAdmin && (
+                    <Button
+                      variant={viewAll ? "default" : "outline"}
+                      size="sm"
+                      className="h-8 text-xs gap-1.5"
+                      onClick={() => setViewAll(!viewAll)}
+                    >
+                      <User className="h-3.5 w-3.5" />
+                      {viewAll ? "전체 보기" : "내 이력"}
                     </Button>
                   )}
 

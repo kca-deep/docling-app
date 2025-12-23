@@ -122,17 +122,19 @@ async def get_history(
     limit: int = Query(100, ge=1, le=500),
     start_date: Optional[str] = Query(None, description="시작일 (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="종료일 (YYYY-MM-DD)"),
+    view_all: bool = Query(False, description="전체 조회 (관리자 전용)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    내 진단 이력 조회 (로그인 필수)
+    진단 이력 조회 (로그인 필수)
 
     Args:
         skip: 건너뛸 항목 수 (페이지네이션)
         limit: 조회할 항목 수
         start_date: 시작일 (YYYY-MM-DD 형식)
         end_date: 종료일 (YYYY-MM-DD 형식)
+        view_all: 전체 조회 여부 (관리자만 사용 가능)
 
     Returns:
         SelfCheckHistoryResponse: 이력 목록
@@ -151,9 +153,12 @@ async def get_history(
         except ValueError:
             raise HTTPException(status_code=400, detail="종료일 형식이 올바르지 않습니다. (YYYY-MM-DD)")
 
+    # 관리자이고 view_all=True면 전체 조회 (user_id=None)
+    target_user_id = None if (view_all and current_user.role == "admin") else current_user.id
+
     return selfcheck_service.get_history(
         db=db,
-        user_id=current_user.id,
+        user_id=target_user_id,
         skip=skip,
         limit=limit,
         start_date=start_dt,

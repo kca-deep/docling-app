@@ -1961,16 +1961,22 @@ RULES:
     def get_history(
         self,
         db: Session,
-        user_id: int,
+        user_id: Optional[int] = None,
         skip: int = 0,
         limit: int = 20,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None
     ) -> SelfCheckHistoryResponse:
-        """사용자의 진단 이력 조회 (날짜 필터 지원)"""
-        query = db.query(SelfCheckSubmission).filter(
-            SelfCheckSubmission.user_id == user_id
-        )
+        """사용자의 진단 이력 조회 (날짜 필터 지원)
+
+        Args:
+            user_id: 사용자 ID (None이면 전체 조회 - 관리자용)
+        """
+        query = db.query(SelfCheckSubmission)
+
+        # user_id가 있으면 해당 사용자만, 없으면 전체 조회 (관리자)
+        if user_id is not None:
+            query = query.filter(SelfCheckSubmission.user_id == user_id)
 
         # 날짜 필터 적용
         if start_date:
