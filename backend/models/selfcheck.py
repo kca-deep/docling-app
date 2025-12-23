@@ -26,6 +26,7 @@ class SelfCheckSubmission(Base):
     analysis_result = Column(JSON, nullable=True)  # LLM 분석 결과 전체
     requires_review = Column(Boolean, default=False)  # 상위기관 검토 대상 여부
     review_reason = Column(Text, nullable=True)  # 검토 필요 사유
+    summary = Column(Text, nullable=True)  # AI 종합의견
     used_model = Column(String(50), nullable=True)  # 사용된 LLM 모델
     analysis_time_ms = Column(Integer, nullable=True)  # 분석 소요 시간
 

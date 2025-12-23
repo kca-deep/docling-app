@@ -785,6 +785,7 @@ class SelfCheckDetailResponse(BaseModel):
     project_description: Optional[str] = None
     requires_review: bool
     review_reason: Optional[str] = None
+    summary: Optional[str] = None  # AI 종합의견
     used_model: Optional[str] = None
     analysis_time_ms: Optional[int] = None
     status: str

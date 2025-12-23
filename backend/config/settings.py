@@ -159,9 +159,11 @@ class Settings(BaseSettings):
     SELFCHECK_BATCH_MAX_TOKENS: int = 2000  # 배치 호출 최대 토큰 (레거시)
     SELFCHECK_INDIVIDUAL_MAX_TOKENS: int = 1000  # 개별 항목 분석 최대 토큰 (방안 C)
     SELFCHECK_RECOVERY_MAX_TOKENS: int = 300  # 복구 호출 최대 토큰
+    SELFCHECK_SUMMARY_MAX_TOKENS: int = 500  # 종합의견 생성 최대 토큰
     SELFCHECK_TEMPERATURE: float = 0.3  # 셀프진단 LLM 온도
     SELFCHECK_DEFAULT_CONFIDENCE: float = 0.5  # 기본 신뢰도 값
     SELFCHECK_RETRY_DELAY: float = 0.5  # 재시도 딜레이 (초)
+    SELFCHECK_MAX_RETRIES: int = 3  # 최대 재시도 횟수
     SELFCHECK_TIMEOUT: int = 60  # 개별 호출 타임아웃 (초)
     SELFCHECK_RECOVERY_TIMEOUT: int = 30  # 복구 호출 타임아웃 (초)
 
@@ -172,6 +174,10 @@ class Settings(BaseSettings):
     SELFCHECK_SIMILARITY_MAX_RESULTS: int = 3  # 최대 유사과제 수
     SELFCHECK_SIMILARITY_DAYS: int = 180  # 검토 대상 기간 (일)
     SELFCHECK_SIMILARITY_MAX_TOKENS: int = 1000  # 유사성 판단 LLM 최대 토큰
+
+    # 셀프진단 Qdrant 설정 (유사과제 벡터 저장)
+    SELFCHECK_QDRANT_COLLECTION: str = "selfcheck_projects"  # 유사과제 검색용 컬렉션
+    SELFCHECK_QDRANT_ENABLED: bool = True  # Qdrant 기반 유사과제 검색 활성화
 
     # BGE Reranker v2-m3 설정
     # [개발 기본값] 프로덕션에서는 .env에서 실제 서버 URL로 변경

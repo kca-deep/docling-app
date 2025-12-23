@@ -30,6 +30,8 @@ from backend.models.schemas import (
 from backend.services.health_service import health_service
 from backend.services.http_client import http_manager
 from backend.services.embedding_service import EmbeddingService
+from backend.services.qdrant_service import QdrantService
+from backend.services.llm_service import LLMService
 
 logger = logging.getLogger(__name__)
 
@@ -58,11 +60,23 @@ class SelfCheckService:
         self.prompts_dir = Path(__file__).parent.parent / "prompts"
         self._similarity_prompt = None
         self._individual_prompt = None
+        self._summary_prompt = None
         self.client = http_manager.get_client("llm")
         # 임베딩 서비스 (유사과제 검토용)
         self.embedding_service = EmbeddingService(
             base_url=settings.EMBEDDING_URL,
             model=settings.EMBEDDING_MODEL
+        )
+        # Qdrant 서비스 (유사과제 벡터 저장용)
+        self.qdrant_service = QdrantService(
+            url=settings.QDRANT_URL,
+            api_key=settings.QDRANT_API_KEY
+        )
+        self._qdrant_collection_checked = False
+        # LLM 서비스 (종합의견 생성용 - reasoning_content 분리 처리)
+        self.llm_service = LLMService(
+            base_url=settings.LLM_BASE_URL,
+            model=settings.LLM_MODEL
         )
 
     def _load_prompt(self, filename: str) -> str:
@@ -87,6 +101,112 @@ class SelfCheckService:
             self._individual_prompt = self._load_prompt("selfcheck_individual.md")
         return self._individual_prompt
 
+    @property
+    def summary_prompt(self) -> str:
+        """종합의견 생성용 프롬프트"""
+        if self._summary_prompt is None:
+            self._summary_prompt = self._load_prompt("selfcheck_summary.md")
+        return self._summary_prompt
+
+    async def _ensure_selfcheck_collection(self) -> bool:
+        """
+        Selfcheck 프로젝트 컬렉션 존재 확인 및 생성 (Lazy Initialization)
+
+        Returns:
+            bool: 컬렉션 준비 완료 여부
+        """
+        if self._qdrant_collection_checked:
+            return True
+
+        if not settings.SELFCHECK_QDRANT_ENABLED:
+            return False
+
+        try:
+            collection_name = settings.SELFCHECK_QDRANT_COLLECTION
+            exists = await self.qdrant_service.collection_exists(collection_name)
+
+            if not exists:
+                await self.qdrant_service.create_collection(
+                    collection_name=collection_name,
+                    vector_size=settings.EMBEDDING_DIMENSION,
+                    distance="Cosine"
+                )
+                logger.info(f"[SelfCheck] Created Qdrant collection: {collection_name}")
+
+            self._qdrant_collection_checked = True
+            return True
+
+        except Exception as e:
+            logger.error(f"[SelfCheck] Failed to ensure Qdrant collection: {e}")
+            return False
+
+    async def _save_project_to_qdrant(
+        self,
+        submission_id: str,
+        project_name: str,
+        project_description: str,
+        department: str,
+        manager_name: str,
+        created_at: str
+    ) -> bool:
+        """
+        분석 완료된 프로젝트를 Qdrant에 저장
+
+        Args:
+            submission_id: 제출 ID
+            project_name: 과제명
+            project_description: 과제 설명
+            department: 부서명
+            manager_name: 담당자명
+            created_at: 생성 시간
+
+        Returns:
+            bool: 저장 성공 여부
+        """
+        if not settings.SELFCHECK_QDRANT_ENABLED:
+            return False
+
+        try:
+            # 컬렉션 확인
+            if not await self._ensure_selfcheck_collection():
+                return False
+
+            # 프로젝트 텍스트 구성
+            text = f"{project_name}\n{project_description or ''}"
+            if not text.strip():
+                logger.warning(f"[SelfCheck] Empty project text for {submission_id}")
+                return False
+
+            # 임베딩 생성
+            embeddings = await self.embedding_service.get_embeddings(text)
+            if not embeddings:
+                logger.error(f"[SelfCheck] Failed to generate embedding for {submission_id}")
+                return False
+
+            # 메타데이터 구성
+            metadata = {
+                "submission_id": submission_id,
+                "project_name": project_name,
+                "department": department or "",
+                "manager_name": manager_name or "",
+                "created_at": created_at or ""
+            }
+
+            # Qdrant에 저장
+            await self.qdrant_service.upsert_vectors(
+                collection_name=settings.SELFCHECK_QDRANT_COLLECTION,
+                vectors=[embeddings[0]],
+                texts=[text],
+                metadata_list=[metadata]
+            )
+
+            logger.info(f"[SelfCheck] Saved project to Qdrant: {submission_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"[SelfCheck] Failed to save project to Qdrant: {e}")
+            return False
+
     def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
         """코사인 유사도 계산"""
         import math
@@ -104,7 +224,7 @@ class SelfCheckService:
         exclude_submission_id: Optional[str] = None
     ) -> List[Tuple[SelfCheckSubmission, float]]:
         """
-        유사 과제 검색 (임베딩 기반)
+        유사 과제 검색 (Qdrant 또는 DB 기반)
 
         Args:
             db: 데이터베이스 세션
@@ -117,6 +237,113 @@ class SelfCheckService:
         if not settings.SELFCHECK_SIMILARITY_ENABLED:
             return []
 
+        # Qdrant 활성화 시 Qdrant 검색 사용
+        if settings.SELFCHECK_QDRANT_ENABLED:
+            qdrant_results = await self._find_similar_projects_qdrant(
+                db, current_project_text, exclude_submission_id
+            )
+            if qdrant_results:
+                return qdrant_results
+            # Qdrant 검색 실패 또는 결과 없음 → DB 폴백
+            logger.info("[SelfCheck] Qdrant search returned no results, falling back to DB")
+
+        # DB 기반 검색 (폴백)
+        return await self._find_similar_projects_db(
+            db, current_project_text, exclude_submission_id
+        )
+
+    async def _find_similar_projects_qdrant(
+        self,
+        db: Session,
+        current_project_text: str,
+        exclude_submission_id: Optional[str] = None
+    ) -> List[Tuple[SelfCheckSubmission, float]]:
+        """
+        Qdrant 기반 유사 과제 검색 (고성능)
+
+        Args:
+            db: 데이터베이스 세션 (메타데이터 조회용)
+            current_project_text: 현재 과제 텍스트
+            exclude_submission_id: 제외할 submission_id
+
+        Returns:
+            List of (SelfCheckSubmission, similarity_score) tuples
+        """
+        try:
+            # 컬렉션 확인
+            if not await self._ensure_selfcheck_collection():
+                logger.warning("[SelfCheck] Qdrant collection not available")
+                return []
+
+            # 현재 과제 임베딩 생성 (1회만!)
+            current_embeddings = await self.embedding_service.get_embeddings(current_project_text)
+            if not current_embeddings:
+                logger.warning("[SelfCheck] Failed to generate embedding for current project")
+                return []
+            current_embedding = current_embeddings[0]
+
+            # Qdrant 검색
+            threshold = settings.SELFCHECK_SIMILARITY_THRESHOLD / 100.0
+            search_results = await self.qdrant_service.search(
+                collection_name=settings.SELFCHECK_QDRANT_COLLECTION,
+                query_vector=current_embedding,
+                limit=settings.SELFCHECK_SIMILARITY_MAX_RESULTS * 3,  # 여유분
+                score_threshold=threshold
+            )
+
+            if not search_results:
+                logger.info("[SelfCheck] No similar projects found in Qdrant")
+                return []
+
+            # submission_id로 DB에서 상세 정보 조회
+            candidates = []
+            for result in search_results:
+                payload = result.get("payload", {})
+                submission_id = payload.get("submission_id")
+                score = result.get("score", 0.0)
+
+                # 자기 자신 제외
+                if submission_id == exclude_submission_id:
+                    continue
+
+                # DB에서 프로젝트 정보 조회
+                project = db.query(SelfCheckSubmission).filter(
+                    SelfCheckSubmission.submission_id == submission_id
+                ).first()
+
+                if project:
+                    candidates.append((project, score))
+
+            # 유사도 높은 순 정렬
+            candidates.sort(key=lambda x: x[1], reverse=True)
+
+            # 최대 결과 수 제한
+            candidates = candidates[:settings.SELFCHECK_SIMILARITY_MAX_RESULTS * 2]
+
+            logger.info(f"[SelfCheck] Found {len(candidates)} similar projects via Qdrant")
+            return candidates
+
+        except Exception as e:
+            logger.error(f"[SelfCheck] Qdrant similarity search failed: {e}")
+            return []
+
+    async def _find_similar_projects_db(
+        self,
+        db: Session,
+        current_project_text: str,
+        exclude_submission_id: Optional[str] = None
+    ) -> List[Tuple[SelfCheckSubmission, float]]:
+        """
+        DB 기반 유사 과제 검색 (폴백용, 저성능)
+
+        Args:
+            db: 데이터베이스 세션
+            current_project_text: 현재 과제 텍스트
+            exclude_submission_id: 제외할 submission_id
+
+        Returns:
+            List of (SelfCheckSubmission, similarity_score) tuples
+        """
         try:
             # 검토 기간 계산
             cutoff_date = datetime.now(timezone.utc) - timedelta(days=settings.SELFCHECK_SIMILARITY_DAYS)
@@ -132,7 +359,7 @@ class SelfCheckService:
             existing_projects = query.order_by(SelfCheckSubmission.created_at.desc()).limit(100).all()
 
             if not existing_projects:
-                logger.info("[SelfCheck] No existing projects found for similarity check")
+                logger.info("[SelfCheck] No existing projects found for similarity check (DB)")
                 return []
 
             # 현재 과제 임베딩 생성
@@ -149,7 +376,7 @@ class SelfCheckService:
                 name = (proj.project_name or "").strip()
                 desc = (proj.project_description or "").strip()
                 text = f"{name}\n{desc}".strip()
-                if text:  # 빈 텍스트가 아닌 경우만 포함
+                if text:
                     valid_projects.append(proj)
                     project_texts.append(text)
 
@@ -157,19 +384,16 @@ class SelfCheckService:
                 logger.info("[SelfCheck] No valid project texts for similarity check")
                 return []
 
-            # 임베딩 생성
+            # 임베딩 생성 (기존 방식 - 저성능)
             existing_embeddings = await self.embedding_service.get_embeddings(project_texts)
             if len(existing_embeddings) != len(valid_projects):
                 logger.warning(f"[SelfCheck] Embedding count mismatch: {len(existing_embeddings)} vs {len(valid_projects)}")
                 return []
 
-            # valid_projects 사용 (existing_projects 대신)
-            existing_projects = valid_projects
-
             # 유사도 계산
             candidates = []
             threshold = settings.SELFCHECK_SIMILARITY_THRESHOLD / 100.0
-            for proj, emb in zip(existing_projects, existing_embeddings):
+            for proj, emb in zip(valid_projects, existing_embeddings):
                 similarity = self._cosine_similarity(current_embedding, emb)
                 if similarity >= threshold:
                     candidates.append((proj, similarity))
@@ -178,13 +402,13 @@ class SelfCheckService:
             candidates.sort(key=lambda x: x[1], reverse=True)
 
             # 최대 결과 수 제한
-            candidates = candidates[:settings.SELFCHECK_SIMILARITY_MAX_RESULTS * 2]  # LLM 검증 위해 여유분
+            candidates = candidates[:settings.SELFCHECK_SIMILARITY_MAX_RESULTS * 2]
 
-            logger.info(f"[SelfCheck] Found {len(candidates)} similar project candidates")
+            logger.info(f"[SelfCheck] Found {len(candidates)} similar project candidates (DB fallback)")
             return candidates
 
         except Exception as e:
-            logger.error(f"[SelfCheck] Similarity search failed: {e}")
+            logger.error(f"[SelfCheck] DB similarity search failed: {e}")
             return []
 
     async def _verify_similarity_with_llm(
@@ -763,41 +987,64 @@ class SelfCheckService:
 
     def _sanitize_llm_response(self, content: str) -> str:
         """
-        LLM 응답에서 이상 문자 및 불필요한 텍스트 제거
+        LLM 응답에서 JSON 객체만 추출
 
         Args:
             content: LLM 원본 응답
 
         Returns:
-            정제된 응답 문자열
+            정제된 JSON 문자열
         """
         if not content:
             return ""
 
-        # 1. 연속된 물음표/이상 문자 제거
-        content = re.sub(r'\?{2,}', '', content)
-        content = re.sub(r'0x[0-9a-fA-F]+', '', content)
-
-        # 2. 제어 문자 제거 (탭, 줄바꿈 제외)
+        # 1. 제어 문자 제거 (탭, 줄바꿈 제외)
         content = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', content)
 
-        # 3. JSON 시작 전 텍스트 제거
+        # 2. ellipsis 패턴 제거 (JSON 내부 또는 끝에 있는 ...)
+        content = re.sub(r'\.{2,}', '', content)
+        content = re.sub(r'…', '', content)
+
+        # 3. JSON 객체 추출 (중괄호 매칭)
         json_start = content.find('{')
-        if json_start > 0:
-            # JSON 시작 전에 있는 설명 텍스트 제거
-            prefix = content[:json_start].lower()
-            if any(kw in prefix for kw in ['task', 'need', 'let', 'we ', 'the ', 'i ']):
-                content = content[json_start:]
+        if json_start == -1:
+            return content.strip()
 
-        # 4. JSON 끝 이후 텍스트 제거
-        # 마지막 } 찾기
-        json_end = content.rfind('}')
-        if json_end > 0 and json_end < len(content) - 1:
-            suffix = content[json_end + 1:].strip().lower()
-            if suffix and any(kw in suffix for kw in ['the ', 'we ', 'note', 'this']):
-                content = content[:json_end + 1]
+        # 중괄호 카운팅으로 JSON 끝 찾기
+        brace_count = 0
+        json_end = -1
+        in_string = False
+        escape_next = False
 
-        return content.strip()
+        for i in range(json_start, len(content)):
+            char = content[i]
+
+            if escape_next:
+                escape_next = False
+                continue
+
+            if char == '\\':
+                escape_next = True
+                continue
+
+            if char == '"' and not escape_next:
+                in_string = not in_string
+                continue
+
+            if not in_string:
+                if char == '{':
+                    brace_count += 1
+                elif char == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        json_end = i
+                        break
+
+        if json_end > json_start:
+            return content[json_start:json_end + 1].strip()
+
+        # JSON이 완전하지 않으면 원본 반환 (다른 로직에서 복구 시도)
+        return content[json_start:].strip()
 
     async def _call_llm_individual(
         self,
@@ -866,7 +1113,7 @@ RULES:
             "top_p": 0.9,
         }
 
-        max_retries = 2
+        max_retries = settings.SELFCHECK_MAX_RETRIES
         for attempt in range(max_retries + 1):
             try:
                 response = await self.client.post(url, json=payload, timeout=float(settings.SELFCHECK_TIMEOUT))
@@ -1187,6 +1434,159 @@ RULES:
             logger.error(f"[SelfCheck] Item {item_number} regex extraction failed: {e}")
             return None
 
+    async def _generate_summary_with_llm(
+        self,
+        model: str,
+        project_name: str,
+        project_description: str,
+        department: str,
+        requires_review: bool,
+        review_reason: Optional[str],
+        result_items: List["SelfCheckItemResult"],
+        similar_projects: List["SimilarProject"]
+    ) -> str:
+        """
+        LLM을 사용하여 종합의견 생성 (LLMService 사용)
+
+        LLMService가 GPT-OSS의 reasoning_content를 자동 분리하여
+        content에는 순수 응답만 포함됨.
+
+        Args:
+            model: 모델명
+            project_name: 과제명
+            project_description: 과제 설명
+            department: 부서명
+            requires_review: 보안성 검토 필요 여부
+            review_reason: 검토 필요 사유
+            result_items: 체크리스트 분석 결과
+            similar_projects: 유사과제 목록
+
+        Returns:
+            생성된 종합의견 문자열
+        """
+        # 체크리스트 결과 요약 구성 (match_status 포함)
+        checklist_summary = []
+        for item in result_items:
+            short_label = next(
+                (c["short_label"] for c in CHECKLIST_ITEMS if c["number"] == item.item_number),
+                f"항목{item.item_number}"
+            )
+            checklist_summary.append({
+                "item_number": item.item_number,
+                "category": item.item_category,  # required/optional
+                "short_label": short_label,
+                "user_answer": item.user_answer,
+                "llm_answer": item.llm_answer,
+                "match_status": item.match_status,  # match/mismatch/need_check
+                "llm_evidence": item.llm_evidence[:200] if item.llm_evidence else ""
+            })
+
+        # 유사과제 요약 구성
+        similar_summary = [
+            {
+                "project_name": sp.project_name,
+                "department": sp.department,
+                "similarity_score": sp.similarity_score,
+                "similarity_reason": sp.similarity_reason
+            }
+            for sp in similar_projects
+        ]
+
+        # 불일치 항목 추출
+        mismatch_items = [item for item in checklist_summary if item["match_status"] == "mismatch"]
+        mismatch_summary = ", ".join([f"{item['item_number']}번({item['short_label']})" for item in mismatch_items]) if mismatch_items else "없음"
+
+        # 필수항목 중 '예' 항목 추출
+        required_yes = [item for item in checklist_summary if item["category"] == "required" and item["llm_answer"] == "yes"]
+        required_summary = ", ".join([f"{item['item_number']}번({item['short_label']})" for item in required_yes]) if required_yes else "해당없음"
+
+        # 사용자 프롬프트 구성 (한글)
+        review_status = "필요" if requires_review else "불필요"
+        user_prompt = f"""다음 셀프진단 결과를 바탕으로 5줄 이상의 종합의견을 작성하세요.
+
+[과제 정보]
+- 과제명: {project_name}
+- 부서: {department or "미지정"}
+- 과제 설명: {project_description[:1000] if project_description else "설명 없음"}
+
+[보안성 검토 판정]
+- 검토 필요: {review_status}
+- 사유: {review_reason or "해당 없음"}
+
+[불일치 항목] (사용자 응답과 AI 판단이 다른 항목)
+{mismatch_summary}
+
+[필수항목 중 해당 사항]
+{required_summary}
+
+[전체 체크리스트 분석 결과]
+{json.dumps(checklist_summary, ensure_ascii=False, indent=2)}
+
+[유사과제]
+{json.dumps(similar_summary, ensure_ascii=False, indent=2) if similar_summary else "없음"}
+
+위 정보를 바탕으로 아래 5개 내용을 포함한 종합의견을 작성하세요:
+1. 보안성 검토 필요 여부와 핵심 사유
+2. 사용자 응답과 AI 분석 결과 비교 (불일치 항목 언급)
+3. 필수항목(1~5번) 점검 결과 요약
+4. 선택항목(6~10번) 주요 사항
+5. 다음 단계 권고사항
+
+최소 5줄 이상으로 작성하고, 영어나 분석 과정 없이 최종 의견만 출력하세요."""
+
+        messages = [
+            {"role": "system", "content": self.summary_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+
+        try:
+            # LLMService를 사용하여 reasoning_content 분리 처리
+            # llm_service.chat_completion()이 GPT-OSS의 reasoning_content를 자동 분리
+            result = await self.llm_service.chat_completion(
+                messages=messages,
+                model=model,
+                temperature=0.5,  # 더 일관된 출력을 위해 낮은 온도
+                max_tokens=settings.SELFCHECK_SUMMARY_MAX_TOKENS,
+                top_p=0.9
+            )
+
+            message = result["choices"][0]["message"]
+            # content는 llm_service에서 이미 reasoning 분리된 상태
+            content = message.get("content", "").strip()
+            reasoning_content = message.get("reasoning_content", "")
+
+            # 디버그 로그
+            if reasoning_content:
+                logger.info(f"[SelfCheck] Summary reasoning detected ({len(reasoning_content)} chars), using content")
+
+            # 마크다운 포맷 제거
+            content = re.sub(r'^```[a-z]*\n?', '', content)
+            content = re.sub(r'\n?```$', '', content)
+            content = content.strip()
+
+            if content and len(content) >= 20:
+                logger.info(f"[SelfCheck] Summary generated: {content[:100]}...")
+                return content
+            else:
+                logger.warning(f"[SelfCheck] Summary too short or empty: {content}")
+                return self._generate_fallback_summary(requires_review, review_reason, len(result_items))
+
+        except Exception as e:
+            logger.error(f"[SelfCheck] Summary generation failed: {e}")
+            return self._generate_fallback_summary(requires_review, review_reason, len(result_items))
+
+    def _generate_fallback_summary(
+        self,
+        requires_review: bool,
+        review_reason: Optional[str],
+        item_count: int
+    ) -> str:
+        """LLM 실패 시 폴백 종합의견 생성"""
+        if requires_review:
+            return f"본 과제는 {review_reason or '필수 항목 해당'}으로 인해 보안성 검토가 필요합니다. 정보보호팀에 검토를 요청하시기 바랍니다."
+        else:
+            return f"총 {item_count}개 항목 분석 결과, 현재 보안성 검토 대상에 해당하지 않습니다. 다만, 과제 내용 변경 시 재검토가 필요할 수 있습니다."
+
     async def _recover_missing_items(
         self,
         url: str,
@@ -1400,10 +1800,6 @@ RULES:
         # 7. 분석 시간 계산
         analysis_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
 
-        # 요약 메시지 생성
-        analyzed_count = len([i for i in result_items if i.llm_evidence and "분석하지 못했습니다" not in i.llm_evidence])
-        summary_msg = f"총 {len(result_items)}개 항목 중 {analyzed_count}개 항목 AI 분석 완료"
-
         # 8. 유사 과제 검토 (DB 세션이 있는 경우에만, DB 저장 전에 수행)
         similar_projects: List[SimilarProject] = []
         if db and settings.SELFCHECK_SIMILARITY_ENABLED:
@@ -1432,7 +1828,24 @@ RULES:
                 logger.error(f"[SelfCheck] Similar project check failed: {e}")
                 # 유사과제 검토 실패해도 분석 결과는 반환
 
-        # 9. DB 저장 (로그인한 경우)
+        # 9. AI 종합의견 생성 (LLMService 사용 - reasoning_content 자동 분리)
+        try:
+            summary_msg = await self._generate_summary_with_llm(
+                model=model,
+                project_name=request.project_name,
+                project_description=request.project_description or "",
+                department=request.department,
+                requires_review=requires_review,
+                review_reason=review_reason,
+                result_items=result_items,
+                similar_projects=similar_projects
+            )
+            logger.info(f"[SelfCheck] AI summary generated successfully")
+        except Exception as e:
+            logger.error(f"[SelfCheck] AI summary generation failed: {e}")
+            summary_msg = self._generate_fallback_summary(requires_review, review_reason, len(result_items))
+
+        # 10. DB 저장 (로그인한 경우)
         is_saved = False
         if db and user_id:
             try:
@@ -1477,6 +1890,7 @@ RULES:
                     analysis_result=analysis_result_json,
                     requires_review=requires_review,
                     review_reason=review_reason,
+                    summary=summary_msg,  # AI 종합의견
                     used_model=model_key,
                     analysis_time_ms=analysis_time_ms,
                     user_id=user_id,
@@ -1504,12 +1918,27 @@ RULES:
                 db.commit()
                 is_saved = True
                 logger.info(f"[SelfCheck] Submission saved: {submission_id}")
+
+                # 11. Qdrant에 프로젝트 저장 (유사과제 검색용)
+                if settings.SELFCHECK_QDRANT_ENABLED:
+                    try:
+                        await self._save_project_to_qdrant(
+                            submission_id=submission_id,
+                            project_name=request.project_name,
+                            project_description=request.project_description or "",
+                            department=request.department or "",
+                            manager_name=request.manager_name or "",
+                            created_at=datetime.now().isoformat()
+                        )
+                    except Exception as e:
+                        logger.warning(f"[SelfCheck] Failed to save to Qdrant (non-blocking): {e}")
+
             except Exception as e:
                 db.rollback()
                 logger.error(f"[SelfCheck] Failed to save submission: {e}")
                 # 저장 실패해도 분석 결과는 반환
 
-        # 10. 임베딩 캐시 정리 (GPU 메모리 절약)
+        # 12. 임베딩 캐시 정리 (GPU 메모리 절약)
         if settings.SELFCHECK_SIMILARITY_ENABLED:
             try:
                 await self.embedding_service.clear_cache()
@@ -1681,6 +2110,7 @@ RULES:
             project_description=submission.project_description,
             requires_review=submission.requires_review,
             review_reason=submission.review_reason,
+            summary=submission.summary,
             used_model=submission.used_model,
             analysis_time_ms=submission.analysis_time_ms,
             status=submission.status,
@@ -1688,6 +2118,126 @@ RULES:
             items=items,
             similar_projects=similar_projects
         )
+
+    async def migrate_projects_to_qdrant(
+        self,
+        db: Session,
+        batch_size: int = 20
+    ) -> Dict[str, Any]:
+        """
+        기존 DB 프로젝트를 Qdrant로 마이그레이션
+
+        Args:
+            db: 데이터베이스 세션
+            batch_size: 배치 크기
+
+        Returns:
+            {"total": int, "migrated": int, "failed": int, "skipped": int}
+        """
+        if not settings.SELFCHECK_QDRANT_ENABLED:
+            return {"error": "SELFCHECK_QDRANT_ENABLED is disabled"}
+
+        # 컬렉션 확인/생성
+        if not await self._ensure_selfcheck_collection():
+            return {"error": "Failed to create Qdrant collection"}
+
+        # 모든 완료된 프로젝트 조회
+        projects = db.query(SelfCheckSubmission).filter(
+            SelfCheckSubmission.status == "completed"
+        ).order_by(SelfCheckSubmission.created_at.desc()).all()
+
+        total = len(projects)
+        migrated = 0
+        failed = 0
+        skipped = 0
+
+        logger.info(f"[SelfCheck] Starting migration of {total} projects to Qdrant")
+
+        for i, proj in enumerate(projects):
+            try:
+                # 프로젝트 텍스트 구성
+                text = f"{proj.project_name or ''}\n{proj.project_description or ''}".strip()
+                if not text:
+                    skipped += 1
+                    continue
+
+                # 임베딩 생성
+                embeddings = await self.embedding_service.get_embeddings(text)
+                if not embeddings:
+                    failed += 1
+                    logger.warning(f"[SelfCheck] Failed to embed project {proj.submission_id}")
+                    continue
+
+                # 메타데이터 구성
+                metadata = {
+                    "submission_id": proj.submission_id,
+                    "project_name": proj.project_name or "",
+                    "department": proj.department or "",
+                    "manager_name": proj.manager_name or "",
+                    "created_at": proj.created_at.isoformat() if proj.created_at else ""
+                }
+
+                # Qdrant에 저장
+                await self.qdrant_service.upsert_vectors(
+                    collection_name=settings.SELFCHECK_QDRANT_COLLECTION,
+                    vectors=[embeddings[0]],
+                    texts=[text],
+                    metadata_list=[metadata]
+                )
+
+                migrated += 1
+
+                # 진행 상황 로그 (10개마다)
+                if (i + 1) % 10 == 0:
+                    logger.info(f"[SelfCheck] Migration progress: {i + 1}/{total}")
+
+            except Exception as e:
+                failed += 1
+                logger.error(f"[SelfCheck] Failed to migrate project {proj.submission_id}: {e}")
+
+        result = {
+            "total": total,
+            "migrated": migrated,
+            "failed": failed,
+            "skipped": skipped
+        }
+
+        logger.info(f"[SelfCheck] Migration completed: {result}")
+        return result
+
+    async def get_qdrant_collection_stats(self) -> Dict[str, Any]:
+        """
+        Qdrant selfcheck 컬렉션 통계 조회
+
+        Returns:
+            {"exists": bool, "points_count": int, "status": str}
+        """
+        if not settings.SELFCHECK_QDRANT_ENABLED:
+            return {"exists": False, "status": "disabled"}
+
+        try:
+            collection_name = settings.SELFCHECK_QDRANT_COLLECTION
+            exists = await self.qdrant_service.collection_exists(collection_name)
+
+            if not exists:
+                return {"exists": False, "status": "not_created"}
+
+            # 컬렉션 정보 조회
+            info = await self.qdrant_service._get_collection_info(collection_name)
+
+            return {
+                "exists": True,
+                "collection_name": collection_name,
+                "points_count": info.points_count,
+                "documents_count": info.documents_count,
+                "vector_size": info.vector_size,
+                "distance": info.distance,
+                "status": "ready"
+            }
+
+        except Exception as e:
+            logger.error(f"[SelfCheck] Failed to get Qdrant stats: {e}")
+            return {"exists": False, "status": f"error: {str(e)}"}
 
 
 # 싱글톤 인스턴스

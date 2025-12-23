@@ -440,6 +440,41 @@ class PDFService:
             elements.append(similar_table)
             elements.append(Spacer(1, 20))
 
+        # === AI 종합의견 ===
+        if hasattr(submission, 'summary') and submission.summary:
+            section_num += 1
+            elements.append(Paragraph(f"{section_num}. AI 종합의견", styles["heading1"]))
+
+            # 종합의견 박스 스타일
+            summary_box_style = ParagraphStyle(
+                "summary_box",
+                parent=styles["normal"],
+                fontName=self.font_name,
+                fontSize=10,
+                leading=16,
+                leftIndent=10,
+                rightIndent=10,
+                textColor=colors.HexColor("#1e293b")
+            )
+
+            # 줄바꿈 처리
+            safe_summary = submission.summary.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            safe_summary = safe_summary.replace('\n', '<br/>')
+
+            summary_data = [[Paragraph(safe_summary, summary_box_style)]]
+            summary_table = Table(summary_data, colWidths=[430])
+            summary_table.setStyle(TableStyle([
+                ("FONTNAME", (0, 0), (-1, -1), self.font_name),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f0f9ff")),  # blue-50
+                ("BOX", (0, 0), (-1, -1), 1.5, colors.HexColor("#3b82f6")),   # blue-500
+                ("LEFTPADDING", (0, 0), (-1, -1), 15),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 15),
+                ("TOPPADDING", (0, 0), (-1, -1), 15),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 15),
+            ]))
+            elements.append(summary_table)
+            elements.append(Spacer(1, 20))
+
         # === 다음 단계 안내 ===
         section_num += 1
         elements.append(Paragraph(f"{section_num}. 다음 단계 안내", styles["heading1"]))

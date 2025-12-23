@@ -28,6 +28,7 @@ import {
   Calendar,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { MarkdownMessage } from "@/components/markdown-message"
 import { apiEndpoints } from "@/lib/api-config"
 import type { AnalysisResult, AnalysisResultItem, SimilarProject } from "./analysis-progress"
 
@@ -167,193 +168,125 @@ export function ResultComparison({ result, projectInfo, onRestart }: ResultCompa
       <div className="text-center mb-6">
         <h2 className="text-2xl font-bold mb-4">분석 결과 확인</h2>
 
-        {/* AI 종합의견 */}
-        <Card className="mb-4 text-left">
-          <CardContent className="pt-4">
-            <div className="space-y-3">
-              <div className="flex items-start gap-2">
-                <Brain className="w-5 h-5 text-primary mt-0.5 shrink-0" />
-                <div>
-                  <p className="font-medium text-sm text-primary mb-2">AI 종합의견</p>
-                  <div className="text-sm text-muted-foreground space-y-1">
-                    {/* 필수항목 중 "예" 응답 항목 */}
-                    {result.items.filter(i => i.category === "required" && i.llmAnswer === "yes").length > 0 ? (
-                      <p>
-                        <span className="text-amber-600 dark:text-amber-400 font-medium">주의:</span>{" "}
-                        필수 항목 중{" "}
-                        {result.items
-                          .filter(i => i.category === "required" && i.llmAnswer === "yes")
-                          .map(i => `${i.number}번(${i.shortLabel})`)
-                          .join(", ")}
-                        이(가) "예"로 분석되어 상위기관 보안성 검토가 필요합니다.
-                      </p>
-                    ) : (
-                      <p>
-                        <span className="text-green-600 dark:text-green-400 font-medium">양호:</span>{" "}
-                        필수 항목(1~5번)에서 보안 검토가 필요한 항목이 발견되지 않았습니다.
-                      </p>
-                    )}
-                    {/* 선택항목 중 "예" 응답 항목 */}
-                    {result.items.filter(i => i.category === "optional" && i.llmAnswer === "yes").length > 0 && (
-                      <p>
-                        <span className="text-blue-600 dark:text-blue-400 font-medium">참고:</span>{" "}
-                        선택 항목 중{" "}
-                        {result.items
-                          .filter(i => i.category === "optional" && i.llmAnswer === "yes")
-                          .map(i => `${i.number}번(${i.shortLabel})`)
-                          .join(", ")}
-                        이(가) "예"로 분석되었습니다. 해당 사항에 대한 추가 검토를 권장합니다.
-                      </p>
-                    )}
-                    {/* 불일치 항목 */}
-                    {mismatchItems.length > 0 && (
-                      <p>
-                        <span className="text-amber-600 dark:text-amber-400 font-medium">확인필요:</span>{" "}
-                        {mismatchItems.length}개 항목에서 사용자 선택과 AI 분석 결과가 다릅니다.
-                        해당 항목의 AI 근거를 확인해주세요.
-                      </p>
-                    )}
+        {/* Consolidated Summary Panel - 검토대상, 유사과제, 불일치 통합 */}
+        <Card
+          className={cn(
+            "mb-4 border-2",
+            result.requiresReview
+              ? "border-amber-500 bg-amber-50/50 dark:bg-amber-950/20"
+              : "border-green-500 bg-green-50/50 dark:bg-green-950/20"
+          )}
+        >
+          <CardContent className="pt-4 pb-4">
+            {/* Main Review Status Row */}
+            <div className="flex items-center justify-between gap-4 mb-3">
+              <div className="flex items-center gap-3">
+                {result.requiresReview ? (
+                  <div className="p-2 rounded-full bg-amber-100 dark:bg-amber-900/50">
+                    <AlertTriangle className="w-6 h-6 text-amber-600 dark:text-amber-400" />
                   </div>
+                ) : (
+                  <div className="p-2 rounded-full bg-green-100 dark:bg-green-900/50">
+                    <CheckCircle2 className="w-6 h-6 text-green-600 dark:text-green-400" />
+                  </div>
+                )}
+                <div className="text-left">
+                  <p className="text-lg font-bold">
+                    검토 대상:{" "}
+                    <span
+                      className={
+                        result.requiresReview
+                          ? "text-amber-700 dark:text-amber-300"
+                          : "text-green-700 dark:text-green-300"
+                      }
+                    >
+                      {result.requiresReview ? "예" : "아니오"}
+                    </span>
+                  </p>
+                  {result.requiresReview && result.reviewReason && (
+                    <p className="text-xs text-amber-700 dark:text-amber-300">
+                      {result.reviewReason}
+                    </p>
+                  )}
                 </div>
               </div>
+
+              {/* Status Badges Row */}
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                {/* Similar Projects Badge */}
+                {result.similarProjects && result.similarProjects.length > 0 ? (
+                  <Badge variant="secondary" className="bg-orange-500 hover:bg-orange-500 text-white gap-1">
+                    <Copy className="w-3 h-3" />
+                    유사과제 {result.similarProjects.length}건
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-green-600 border-green-300 gap-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    유사과제 없음
+                  </Badge>
+                )}
+                {/* Mismatch Badge */}
+                {mismatchItems.length > 0 && (
+                  <Badge variant="secondary" className="bg-amber-500 hover:bg-amber-500 text-white gap-1">
+                    <AlertTriangle className="w-3 h-3" />
+                    불일치 {mismatchItems.length}건
+                  </Badge>
+                )}
+              </div>
             </div>
+
+            {/* Similar Projects Expandable Section */}
+            {result.similarProjects && result.similarProjects.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-orange-200 dark:border-orange-800">
+                <div className="space-y-2">
+                  {result.similarProjects.map((proj, idx) => (
+                    <div
+                      key={proj.submissionId}
+                      className={cn(
+                        "p-2 rounded-md text-left text-sm flex items-center justify-between gap-2",
+                        proj.similarityScore >= 85
+                          ? "bg-red-100 dark:bg-red-950/40"
+                          : "bg-orange-100 dark:bg-orange-950/40"
+                      )}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <span className="font-medium truncate block">{proj.projectName}</span>
+                        <span className="text-xs text-muted-foreground">{proj.department} | {proj.similarityReason}</span>
+                      </div>
+                      <Badge
+                        variant={proj.similarityScore >= 85 ? "destructive" : "secondary"}
+                        className={cn(
+                          "shrink-0 text-xs",
+                          proj.similarityScore >= 85
+                            ? "bg-red-500"
+                            : "bg-orange-500 text-white"
+                        )}
+                      >
+                        {proj.similarityScore}%
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Similar Projects Section */}
-        {result.similarProjects && result.similarProjects.length > 0 && (
-          <Card className="mb-4 text-left border-2 border-orange-400 bg-orange-50 dark:bg-orange-950/20">
-            <CardContent className="pt-4">
-              <div className="space-y-3">
-                <div className="flex items-start gap-2">
-                  <Copy className="w-5 h-5 text-orange-600 dark:text-orange-400 mt-0.5 shrink-0" />
-                  <div className="flex-1">
-                    <p className="font-medium text-sm text-orange-700 dark:text-orange-300 mb-2">
-                      유사 과제 발견 ({result.similarProjects.length}건)
-                    </p>
-                    <div className="space-y-2">
-                      {result.similarProjects.map((proj, idx) => (
-                        <div
-                          key={proj.submissionId}
-                          className={cn(
-                            "p-3 rounded-lg border",
-                            proj.similarityScore >= 85
-                              ? "bg-red-50 dark:bg-red-950/30 border-red-300 dark:border-red-700"
-                              : "bg-white dark:bg-gray-900 border-orange-200 dark:border-orange-800"
-                          )}
-                        >
-                          <div className="flex items-start justify-between gap-2 mb-1">
-                            <p className="font-medium text-sm">
-                              {idx + 1}. {proj.projectName}
-                              <span className="text-muted-foreground font-normal ml-1">
-                                ({proj.department}, {proj.managerName})
-                              </span>
-                            </p>
-                            <Badge
-                              variant={proj.similarityScore >= 85 ? "destructive" : "secondary"}
-                              className={cn(
-                                "shrink-0",
-                                proj.similarityScore >= 85
-                                  ? "bg-red-500 hover:bg-red-500"
-                                  : "bg-orange-500 hover:bg-orange-500 text-white"
-                              )}
-                            >
-                              {proj.similarityScore}%
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <Calendar className="w-3 h-3" />
-                              {proj.createdAt ? new Date(proj.createdAt).toLocaleDateString('ko-KR') : '-'}
-                            </span>
-                            <span className="flex-1">{proj.similarityReason}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
-                      * 유사한 과제가 이미 진행 중일 수 있습니다. 중복 추진 여부를 확인하시기 바랍니다.
-                    </p>
-                  </div>
+        {/* AI 종합의견 */}
+        <Card className="mb-4 text-left">
+          <CardContent className="pt-4">
+            <div className="flex items-start gap-3">
+              <Brain className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm text-primary mb-2">AI 종합의견</p>
+                <div className="text-sm text-foreground">
+                  <MarkdownMessage content={result.summary || ""} compact />
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* No Similar Projects Message */}
-        {(!result.similarProjects || result.similarProjects.length === 0) && (
-          <Card className="mb-4 text-left border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/20">
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 shrink-0" />
-                <p className="text-sm text-green-700 dark:text-green-300">
-                  유사 과제가 발견되지 않았습니다.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Review Status Card */}
-        <Card
-          className={cn(
-            "border-2",
-            result.requiresReview
-              ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20"
-              : "border-green-500 bg-green-50 dark:bg-green-950/20"
-          )}
-        >
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-center gap-3 mb-3">
-              {result.requiresReview ? (
-                <AlertTriangle className="w-8 h-8 text-amber-600 dark:text-amber-400" />
-              ) : (
-                <CheckCircle2 className="w-8 h-8 text-green-600 dark:text-green-400" />
-              )}
-              <div className="text-left">
-                <p className="text-lg font-bold">
-                  검토 대상:{" "}
-                  <span
-                    className={
-                      result.requiresReview
-                        ? "text-amber-700 dark:text-amber-300"
-                        : "text-green-700 dark:text-green-300"
-                    }
-                  >
-                    {result.requiresReview ? "예" : "아니오"}
-                  </span>
-                  <span className="font-normal text-base ml-2">
-                    {result.requiresReview
-                      ? "(상위기관 보안성 검토 필요)"
-                      : "(과제 추진 가능)"}
-                  </span>
-                </p>
-                {result.requiresReview && result.reviewReason && (
-                  <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-                    <span className="font-medium">사유:</span> {result.reviewReason}
-                  </p>
-                )}
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
-
-      {/* Mismatch Warning */}
-      {mismatchItems.length > 0 && (
-        <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/20">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-amber-700 dark:text-amber-300">
-              <AlertTriangle className="w-4 h-4" />
-              불일치 항목 ({mismatchItems.length}건)
-            </CardTitle>
-            <CardDescription className="text-amber-600 dark:text-amber-400">
-              사용자 선택과 AI 분석 결과가 다른 항목입니다. 해당 항목의 AI 근거를 확인해주세요.
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      )}
 
       {/* Result Table - Required Items */}
       <Card>
