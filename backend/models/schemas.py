@@ -454,7 +454,7 @@ class ChatRequest(BaseModel):
     score_threshold: Optional[float] = None
     chat_history: Optional[List[ChatMessage]] = None
     stream: bool = False
-    use_reranking: bool = False  # Reranking 사용 여부
+    use_reranking: bool = True  # Reranking 사용 여부 (P0: 기본 활성화)
     use_hybrid: bool = True  # 하이브리드 검색 사용 여부 (벡터 + BM25)
 
 

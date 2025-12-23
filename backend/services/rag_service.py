@@ -111,15 +111,27 @@ class RAGService:
                     if r.relevance_score >= settings.RERANK_SCORE_THRESHOLD:
                         filtered_docs.append(doc)
 
-                # threshold 통과 문서가 있으면 사용, 없으면 리랭킹 순서만 유지
+                # [P0-1] 최소 점수 체크 - 최고 점수가 MINIMUM_ANSWER_THRESHOLD 미만이면 거부
+                max_score = reordered_docs[0]["score"] if reordered_docs else 0
+                if max_score < settings.MINIMUM_ANSWER_THRESHOLD:
+                    logger.warning(
+                        f"[RERANK] Max score {max_score:.4f} below "
+                        f"MINIMUM_ANSWER_THRESHOLD {settings.MINIMUM_ANSWER_THRESHOLD}"
+                    )
+                    return []  # 빈 리스트 반환 -> 거부 응답 트리거
+
+                # threshold 통과 문서가 있으면 사용
                 if filtered_docs:
                     top_score = filtered_docs[0]["score"]
                     logger.info(f"Reranking completed: {len(filtered_docs)} docs passed threshold (>={settings.RERANK_SCORE_THRESHOLD}), top score={top_score:.4f}")
                     return filtered_docs
                 else:
-                    top_score = reordered_docs[0]["score"] if reordered_docs else 0
-                    logger.info(f"Reranking completed: no docs passed threshold, but using reranked order. top score={top_score:.4f}")
-                    return reordered_docs[:top_k]
+                    # [P0-2] 리랭킹 실패 시 거부 (기존: reordered_docs 반환)
+                    logger.warning(
+                        f"[RERANK] No docs passed RERANK_SCORE_THRESHOLD "
+                        f"{settings.RERANK_SCORE_THRESHOLD}, max_score={max_score:.4f}"
+                    )
+                    return []  # 빈 리스트 반환 -> 거부 응답 트리거
             else:
                 logger.warning("Reranking failed, using original vector search results")
                 return retrieved_docs[:top_k]
@@ -385,7 +397,7 @@ class RAGService:
         top_k: int = 5,
         score_threshold: Optional[float] = None,
         chat_history: Optional[List[Dict[str, str]]] = None,
-        use_reranking: bool = False,
+        use_reranking: bool = True,  # P0: 기본 활성화
         use_hybrid: bool = True,
         temp_collection_name: Optional[str] = None
     ) -> Dict[str, Any]:
@@ -470,7 +482,8 @@ class RAGService:
 
                 if not retrieved_docs:
                     return {
-                        "answer": "관련된 문서를 찾을 수 없습니다. 다른 질문을 시도해보세요.",
+                        "answer": "문서에서 관련 정보를 찾을 수 없습니다. "
+                                  "다른 키워드로 질문하시거나 담당 부서에 문의해 주세요.",
                         "retrieved_docs": [],
                         "usage": None
                     }
@@ -478,6 +491,15 @@ class RAGService:
             # 1.5. Reranking (선택)
             if use_reranking and self.reranker_service and retrieved_docs:
                 retrieved_docs = await self._apply_reranking(query, retrieved_docs, top_k)
+
+                # [P0-1/P0-2] 리랭킹 후 문서가 없으면 거부 응답
+                if not retrieved_docs:
+                    return {
+                        "answer": "문서에서 관련 정보를 찾을 수 없습니다. "
+                                  "다른 키워드로 질문하시거나 담당 부서에 문의해 주세요.",
+                        "retrieved_docs": [],
+                        "usage": None
+                    }
 
             # 2. Generate: 답변 생성
             llm_response = await self.generate(
@@ -531,7 +553,7 @@ class RAGService:
         top_k: int = 5,
         score_threshold: Optional[float] = None,
         chat_history: Optional[List[Dict[str, str]]] = None,
-        use_reranking: bool = False,
+        use_reranking: bool = True,  # P0: 기본 활성화
         use_hybrid: bool = True,
         temp_collection_name: Optional[str] = None
     ) -> AsyncGenerator[str, None]:
@@ -621,7 +643,7 @@ class RAGService:
 
                 if not retrieved_docs:
                     # 문서가 없을 경우 단일 메시지 전송
-                    yield 'data: {"error": "관련된 문서를 찾을 수 없습니다."}\n\n'
+                    yield 'data: {"error": "문서에서 관련 정보를 찾을 수 없습니다. 다른 키워드로 질문해 주세요."}\n\n'
                     return
 
             # 1.5. Reranking (선택) - RAG 모드에서만 적용
@@ -629,6 +651,11 @@ class RAGService:
                 # 단계 이벤트: 리랭킹 단계
                 yield f'data: {json.dumps({"type": "stage", "stage": "rerank"}, ensure_ascii=False)}\n\n'
                 retrieved_docs = await self._apply_reranking(query, retrieved_docs, top_k)
+
+                # [P0-1/P0-2] 리랭킹 후 문서가 없으면 거부 응답
+                if not retrieved_docs:
+                    yield 'data: {"error": "문서에서 관련 정보를 찾을 수 없습니다. 다른 키워드로 질문해 주세요."}\n\n'
+                    return
 
             # 2. 검색된 문서에 키워드 추출 후 전송 (스트리밍 시작 전)
             docs_with_keywords = extract_keywords_for_documents(query, retrieved_docs)

@@ -290,9 +290,10 @@ async def chat(
         response_time_ms = int((time.time() - start_time) * 1000)
 
         # 성능 메트릭 준비
+        usage_data = result.get("usage") or {}  # None이면 빈 dict로 대체
         performance_metrics = {
             "response_time_ms": response_time_ms,
-            "token_count": result.get("usage", {}).get("total_tokens", 0),
+            "token_count": usage_data.get("total_tokens", 0),
             "retrieval_time_ms": result.get("retrieval_time_ms")
         }
 
@@ -849,7 +850,7 @@ async def regenerate(
             },
             performance_metrics={
                 "response_time_ms": response_time_ms,
-                "token_count": result.get("usage", {}).get("total_tokens", 0),
+                "token_count": (result.get("usage") or {}).get("total_tokens", 0),
                 "retrieval_time_ms": None  # 재생성은 검색 없음
             },
             error_info=None

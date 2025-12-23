@@ -182,8 +182,12 @@ class Settings(BaseSettings):
     # 기존 5배에서 3배로 축소하여 속도 30% 향상 (top_k=5 → 15개 검색)
     RERANK_TOP_K_MULTIPLIER: int = 3
     # BGE Reranker 점수 분포: 관련 문서 0.2~0.5, 비관련 0.01 이하
-    # 0.5는 너무 높아 대부분 문서가 필터링되므로 0.15로 설정
-    RERANK_SCORE_THRESHOLD: float = 0.15
+    # P0-3: 0.15에서 0.2로 상향하여 저품질 문서 필터링 강화
+    RERANK_SCORE_THRESHOLD: float = 0.2
+    # P0-1: 최소 답변 생성 임계값
+    # max_score가 이 값 미만이면 "관련 정보를 찾을 수 없습니다" 응답
+    # 할루시네이션 방지를 위해 너무 낮은 점수의 문서로 답변 생성 방지
+    MINIMUM_ANSWER_THRESHOLD: float = 0.3
 
     # 하이브리드 검색 설정 (벡터 + BM25)
     USE_HYBRID_SEARCH: bool = True  # 하이브리드 검색 활성화

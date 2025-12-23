@@ -450,7 +450,15 @@ class LLMService:
                 else:
                     reference = f"[문서 {idx}]"
 
-                doc_part = f"{reference} (유사도: {score:.3f})\n{text}"
+                # P1-3: 신뢰도 레벨 결정 (할루시네이션 방지용)
+                if score >= 0.5:
+                    confidence = "높음"
+                elif score >= 0.3:
+                    confidence = "중간"
+                else:
+                    confidence = "낮음"
+
+                doc_part = f"{reference} (관련성: {confidence}, 점수: {score:.3f})\n{text}"
 
                 # 총 컨텍스트 한도 체크
                 if total_chars + len(doc_part) > MAX_CONTEXT_CHARS:
