@@ -2239,6 +2239,155 @@ RULES:
             logger.error(f"[SelfCheck] Failed to get Qdrant stats: {e}")
             return {"exists": False, "status": f"error: {str(e)}"}
 
+    async def delete_submission(
+        self,
+        submission_id: str,
+        db: Session
+    ) -> Dict[str, Any]:
+        """
+        셀프진단 결과 삭제 (DB + Qdrant)
+
+        Args:
+            submission_id: 삭제할 submission UUID
+            db: 데이터베이스 세션
+
+        Returns:
+            {"success": bool, "db_deleted": bool, "qdrant_deleted": bool, "error": str | None}
+        """
+        result = {
+            "success": False,
+            "db_deleted": False,
+            "qdrant_deleted": False,
+            "error": None
+        }
+
+        try:
+            # 1. DB에서 submission 조회
+            submission = db.query(SelfCheckSubmission).filter(
+                SelfCheckSubmission.submission_id == submission_id
+            ).first()
+
+            if not submission:
+                result["error"] = f"Submission not found: {submission_id}"
+                return result
+
+            # 2. DB에서 삭제 (CASCADE로 items도 삭제됨)
+            db.delete(submission)
+            db.commit()
+            result["db_deleted"] = True
+            logger.info(f"[SelfCheck] Deleted submission from DB: {submission_id}")
+
+            # 3. Qdrant에서 삭제
+            qdrant_deleted = await self._delete_from_qdrant(submission_id)
+            result["qdrant_deleted"] = qdrant_deleted
+
+            result["success"] = True
+            return result
+
+        except Exception as e:
+            db.rollback()
+            logger.error(f"[SelfCheck] Failed to delete submission {submission_id}: {e}")
+            result["error"] = str(e)
+            return result
+
+    async def _delete_from_qdrant(self, submission_id: str) -> bool:
+        """
+        Qdrant에서 submission 삭제
+
+        Args:
+            submission_id: 삭제할 submission UUID
+
+        Returns:
+            삭제 성공 여부
+        """
+        if not settings.SELFCHECK_QDRANT_ENABLED:
+            logger.info("[SelfCheck] Qdrant disabled, skipping Qdrant deletion")
+            return True  # Qdrant 비활성화 시 성공으로 처리
+
+        try:
+            collection_name = settings.SELFCHECK_QDRANT_COLLECTION
+
+            # submission_id로 포인트 검색
+            from qdrant_client.models import Filter, FieldCondition, MatchValue
+
+            # Qdrant 클라이언트 직접 접근
+            client = self.qdrant_service.client
+
+            # submission_id 필터로 포인트 검색
+            search_filter = Filter(
+                must=[
+                    FieldCondition(
+                        key="submission_id",
+                        match=MatchValue(value=submission_id)
+                    )
+                ]
+            )
+
+            # 해당 포인트 검색
+            scroll_result = client.scroll(
+                collection_name=collection_name,
+                scroll_filter=search_filter,
+                limit=10,
+                with_payload=False
+            )
+
+            points = scroll_result[0]
+            if not points:
+                logger.info(f"[SelfCheck] No Qdrant point found for {submission_id}")
+                return True  # 없으면 성공으로 처리
+
+            # 포인트 ID 추출 및 삭제
+            point_ids = [str(point.id) for point in points]
+            client.delete(
+                collection_name=collection_name,
+                points_selector=point_ids
+            )
+
+            logger.info(f"[SelfCheck] Deleted {len(point_ids)} points from Qdrant for {submission_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"[SelfCheck] Failed to delete from Qdrant: {e}")
+            return False
+
+    async def delete_submissions_bulk(
+        self,
+        submission_ids: List[str],
+        db: Session
+    ) -> Dict[str, Any]:
+        """
+        셀프진단 결과 일괄 삭제
+
+        Args:
+            submission_ids: 삭제할 submission UUID 목록
+            db: 데이터베이스 세션
+
+        Returns:
+            {"total": int, "success": int, "failed": int, "details": List}
+        """
+        result = {
+            "total": len(submission_ids),
+            "success": 0,
+            "failed": 0,
+            "details": []
+        }
+
+        for submission_id in submission_ids:
+            delete_result = await self.delete_submission(submission_id, db)
+            detail = {
+                "submission_id": submission_id,
+                **delete_result
+            }
+            result["details"].append(detail)
+
+            if delete_result["success"]:
+                result["success"] += 1
+            else:
+                result["failed"] += 1
+
+        logger.info(f"[SelfCheck] Bulk delete completed: {result['success']}/{result['total']} succeeded")
+        return result
+
 
 # 싱글톤 인스턴스
 selfcheck_service = SelfCheckService()

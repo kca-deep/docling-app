@@ -183,6 +183,93 @@ async def get_submission(
     )
 
 
+@router.delete("/{submission_id}")
+async def delete_submission(
+    submission_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    셀프진단 결과 삭제 (관리자 전용)
+
+    DB와 Qdrant 양쪽에서 삭제합니다.
+
+    Args:
+        submission_id: 삭제할 진단 ID (UUID)
+
+    Returns:
+        삭제 결과
+    """
+    # 관리자 권한 체크
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="관리자만 삭제할 수 있습니다"
+        )
+
+    result = await selfcheck_service.delete_submission(
+        submission_id=submission_id,
+        db=db
+    )
+
+    if not result["success"]:
+        raise HTTPException(
+            status_code=404 if "not found" in str(result.get("error", "")).lower() else 500,
+            detail=result.get("error", "삭제 실패")
+        )
+
+    return {
+        "success": True,
+        "message": f"삭제 완료: {submission_id}",
+        "db_deleted": result["db_deleted"],
+        "qdrant_deleted": result["qdrant_deleted"]
+    }
+
+
+@router.post("/bulk-delete")
+async def delete_submissions_bulk(
+    request: SelfCheckExportRequest,  # submission_ids 필드 재사용
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    셀프진단 결과 일괄 삭제 (관리자 전용)
+
+    선택된 여러 진단 결과를 DB와 Qdrant에서 삭제합니다.
+
+    Args:
+        request: 삭제할 submission_ids 목록
+
+    Returns:
+        삭제 결과 (성공/실패 건수)
+    """
+    # 관리자 권한 체크
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="관리자만 삭제할 수 있습니다"
+        )
+
+    if not request.submission_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="삭제할 항목을 선택해주세요"
+        )
+
+    result = await selfcheck_service.delete_submissions_bulk(
+        submission_ids=request.submission_ids,
+        db=db
+    )
+
+    return {
+        "success": result["failed"] == 0,
+        "message": f"총 {result['total']}건 중 {result['success']}건 삭제 완료",
+        "total": result["total"],
+        "deleted": result["success"],
+        "failed": result["failed"]
+    }
+
+
 @router.get("/{submission_id}/pdf")
 async def download_pdf(
     submission_id: str,

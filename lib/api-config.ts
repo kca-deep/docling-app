@@ -81,6 +81,7 @@ export const apiEndpoints = {
   selfcheckChecklist: `${API_BASE_URL}/api/selfcheck/checklist`,
   selfcheckAnalyze: `${API_BASE_URL}/api/selfcheck/analyze`,
   selfcheckHistory: `${API_BASE_URL}/api/selfcheck/history`,
+  selfcheckBulkDelete: `${API_BASE_URL}/api/selfcheck/bulk-delete`,
 } as const
 
 /**

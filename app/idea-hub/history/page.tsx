@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { toast } from "sonner"
 import { format } from "date-fns"
 import { ko } from "date-fns/locale"
 import { type DateRange } from "react-day-picker"
@@ -40,6 +41,16 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   History,
   Search,
@@ -101,7 +112,7 @@ const ITEMS_PER_PAGE = 15
 const PAGES_PER_BLOCK = 10
 
 export default function HistoryPage() {
-  const { isAuthenticated, isLoading } = useAuth()
+  const { user, isAuthenticated, isLoading } = useAuth()
   const [searchQuery, setSearchQuery] = useState("")
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
@@ -110,6 +121,14 @@ export default function HistoryPage() {
   const [isDownloading, setIsDownloading] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
+
+  // 삭제 관련 상태
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  // 관리자 여부
+  const isAdmin = user?.role === "admin"
 
   // Track mobile viewport for calendar
   useEffect(() => {
@@ -172,11 +191,11 @@ export default function HistoryPage() {
         document.body.removeChild(a)
         window.URL.revokeObjectURL(url)
       } else {
-        alert("PDF 다운로드에 실패했습니다.")
+        toast.error("PDF 다운로드에 실패했습니다.")
       }
     } catch (error) {
       console.error("PDF download error:", error)
-      alert("PDF 다운로드 중 오류가 발생했습니다.")
+      toast.error("PDF 다운로드 중 오류가 발생했습니다.")
     }
   }
 
@@ -211,7 +230,7 @@ export default function HistoryPage() {
   // Excel 다운로드
   const handleExcelDownload = async () => {
     if (selectedIds.size === 0) {
-      alert("내보낼 항목을 선택해주세요.")
+      toast.warning("내보낼 항목을 선택해주세요.")
       return
     }
 
@@ -235,11 +254,11 @@ export default function HistoryPage() {
         document.body.removeChild(a)
         window.URL.revokeObjectURL(url)
       } else {
-        alert("Excel 다운로드에 실패했습니다.")
+        toast.error("Excel 다운로드에 실패했습니다.")
       }
     } catch (error) {
       console.error("Excel download error:", error)
-      alert("Excel 다운로드 중 오류가 발생했습니다.")
+      toast.error("Excel 다운로드 중 오류가 발생했습니다.")
     } finally {
       setIsDownloading(false)
     }
@@ -248,7 +267,7 @@ export default function HistoryPage() {
   // PDF 일괄 다운로드
   const handleBulkPdfDownload = async (mode: "individual" | "merged") => {
     if (selectedIds.size === 0) {
-      alert("내보낼 항목을 선택해주세요.")
+      toast.warning("내보낼 항목을 선택해주세요.")
       return
     }
 
@@ -278,11 +297,11 @@ export default function HistoryPage() {
         document.body.removeChild(a)
         window.URL.revokeObjectURL(url)
       } else {
-        alert("PDF 다운로드에 실패했습니다.")
+        toast.error("PDF 다운로드에 실패했습니다.")
       }
     } catch (error) {
       console.error("PDF download error:", error)
-      alert("PDF 다운로드 중 오류가 발생했습니다.")
+      toast.error("PDF 다운로드 중 오류가 발생했습니다.")
     } finally {
       setIsDownloading(false)
     }
@@ -291,6 +310,75 @@ export default function HistoryPage() {
   // 날짜 필터 초기화
   const clearDateFilter = () => {
     setDateRange(undefined)
+  }
+
+  // 단일 삭제
+  const handleDelete = async (submissionId: string) => {
+    setIsDeleting(true)
+    try {
+      const response = await fetch(`${apiEndpoints.selfcheck}/${submissionId}`, {
+        method: "DELETE",
+        credentials: "include",
+      })
+
+      if (response.ok) {
+        // 목록에서 제거
+        setHistory((prev) => prev.filter((item) => item.submission_id !== submissionId))
+        setSelectedIds((prev) => {
+          const newSet = new Set(prev)
+          newSet.delete(submissionId)
+          return newSet
+        })
+        setDeleteTarget(null)
+        toast.success("삭제되었습니다.")
+      } else if (response.status === 403) {
+        toast.error("관리자만 삭제할 수 있습니다.")
+      } else {
+        const errorData = await response.json().catch(() => ({}))
+        toast.error(errorData.detail || "삭제에 실패했습니다.")
+      }
+    } catch (error) {
+      console.error("Delete error:", error)
+      toast.error("삭제 중 오류가 발생했습니다.")
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  // 일괄 삭제
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return
+
+    setIsDeleting(true)
+    try {
+      const response = await fetch(apiEndpoints.selfcheckBulkDelete, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ submission_ids: Array.from(selectedIds) }),
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        // 삭제된 항목 목록에서 제거
+        setHistory((prev) =>
+          prev.filter((item) => !selectedIds.has(item.submission_id))
+        )
+        setSelectedIds(new Set())
+        setShowBulkDeleteDialog(false)
+        toast.success(result.message)
+      } else if (response.status === 403) {
+        toast.error("관리자만 삭제할 수 있습니다.")
+      } else {
+        const errorData = await response.json().catch(() => ({}))
+        toast.error(errorData.detail || "삭제에 실패했습니다.")
+      }
+    } catch (error) {
+      console.error("Bulk delete error:", error)
+      toast.error("삭제 중 오류가 발생했습니다.")
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   const filteredHistory = history.filter(
@@ -554,6 +642,23 @@ export default function HistoryPage() {
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
+                    {/* 관리자 전용 삭제 버튼 */}
+                    {isAdmin && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs gap-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+                        onClick={() => setShowBulkDeleteDialog(true)}
+                        disabled={isDeleting}
+                      >
+                        {isDeleting ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-3 h-3" />
+                        )}
+                        삭제
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
@@ -657,6 +762,18 @@ export default function HistoryPage() {
                                 <Download className="w-4 h-4" />
                                 PDF 다운로드
                               </DropdownMenuItem>
+                              {isAdmin && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    className="gap-2 text-red-600 focus:text-red-600"
+                                    onClick={() => setDeleteTarget({ id: item.submission_id, name: item.project_name })}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                    삭제
+                                  </DropdownMenuItem>
+                                </>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
@@ -733,15 +850,27 @@ export default function HistoryPage() {
                           <CalendarIcon className="w-3 h-3" />
                           {item.created_at.slice(0, 16).replace("T", " ")}
                         </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2 text-xs gap-1"
-                          onClick={() => handleDownloadPdf(item.submission_id, item.project_name)}
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                          PDF
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs gap-1"
+                            onClick={() => handleDownloadPdf(item.submission_id, item.project_name)}
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            PDF
+                          </Button>
+                          {isAdmin && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs gap-1 text-red-600 hover:text-red-700"
+                              onClick={() => setDeleteTarget({ id: item.submission_id, name: item.project_name })}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -829,6 +958,72 @@ export default function HistoryPage() {
           </Card>
         )}
       </div>
+
+      {/* 단일 삭제 확인 다이얼로그 */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>진단 결과 삭제</AlertDialogTitle>
+            <AlertDialogDescription>
+              &quot;{deleteTarget?.name}&quot; 진단 결과를 삭제하시겠습니까?
+              <br />
+              <span className="text-red-500 font-medium">
+                이 작업은 되돌릴 수 없으며, DB와 벡터 DB에서 모두 삭제됩니다.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>취소</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => deleteTarget && handleDelete(deleteTarget.id)}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  삭제 중...
+                </>
+              ) : (
+                "삭제"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* 일괄 삭제 확인 다이얼로그 */}
+      <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>선택 항목 일괄 삭제</AlertDialogTitle>
+            <AlertDialogDescription>
+              선택한 <span className="font-semibold text-foreground">{selectedIds.size}건</span>의 진단 결과를 삭제하시겠습니까?
+              <br />
+              <span className="text-red-500 font-medium">
+                이 작업은 되돌릴 수 없으며, DB와 벡터 DB에서 모두 삭제됩니다.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>취소</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={handleBulkDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  삭제 중...
+                </>
+              ) : (
+                `${selectedIds.size}건 삭제`
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PageContainer>
   )
 }
