@@ -31,7 +31,7 @@ ExecStart=/models/llama.cpp/build/bin/llama-server \
   --n-predict 8192 \
   --threads 8 \
   --batch-size 4096 \
-  --ubatch-size 1024
+  --ubatch-size 2048
 Restart=always
 RestartSec=10
 StandardOutput=journal

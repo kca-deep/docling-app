@@ -16,6 +16,8 @@ ExecStart=/models/llama.cpp/build/bin/llama-server \
   --port 8084 \
   --ctx-size 8192 \
   --parallel 2 \
+  --cont-batching \
+  --defrag-thold 0.1 \
   --jinja \
   -fa 1 \
   -ngl 99 \
@@ -23,7 +25,7 @@ ExecStart=/models/llama.cpp/build/bin/llama-server \
   --top-p 0.9 \
   --repeat-penalty 1.1 \
   --n-predict 4096 \
-  --threads 4 \
+  --threads 8 \
   --batch-size 1024 \
   --ubatch-size 512
 Restart=always

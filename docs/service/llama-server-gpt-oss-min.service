@@ -30,8 +30,8 @@ ExecStart=/models/llama.cpp/build/bin/llama-server \
   --presence-penalty 0.4 \
   --frequency-penalty 0.6 \
   --n-predict 8192 \
-  --threads 4 \
-  --batch-size 1024 \
+  --threads 8 \
+  --batch-size 2048 \
   --ubatch-size 1024
 Restart=always
 RestartSec=10

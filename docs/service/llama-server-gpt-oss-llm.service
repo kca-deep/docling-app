@@ -1,7 +1,7 @@
 # /etc/systemd/system/llama-server-gpt-oss-llm.service
-# GPT Mode: ctx=96K, p=12, n=8K (VRAM optimized)
+# GPT Mode: ctx=128K, p=16, n=8K (VRAM optimized)
 [Unit]
-Description=Llama.cpp Server - GPT-OSS 20B (GPT Mode, ctx=96K p=12 n=8K)
+Description=Llama.cpp Server - GPT-OSS 20B (GPT Mode, ctx=128K p=16 n=8K)
 After=network.target
 Wants=network-online.target
 
@@ -14,8 +14,8 @@ ExecStart=/models/llama.cpp/build/bin/llama-server \
   -m /models/gpt-oss/openai_gpt-oss-20b-Q4_K_M.gguf \
   --host 0.0.0.0 \
   --port 8080 \
-  --ctx-size 98304 \
-  --parallel 12 \
+  --ctx-size 131072 \
+  --parallel 16 \
   --cont-batching \
   --defrag-thold 0.1 \
   --jinja \
@@ -30,9 +30,9 @@ ExecStart=/models/llama.cpp/build/bin/llama-server \
   --presence-penalty 0.4 \
   --frequency-penalty 0.6 \
   --n-predict 8192 \
-  --threads 8 \
-  --batch-size 4096 \
-  --ubatch-size 2048
+  --threads 12 \
+  --batch-size 8192 \
+  --ubatch-size 4096
 Restart=always
 RestartSec=10
 StandardOutput=journal

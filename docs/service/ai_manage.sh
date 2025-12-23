@@ -1343,31 +1343,31 @@ _print_mode_table_rows() {
     local suffix=$2  # CLEAR_LINE 또는 빈 문자열
     case "$mode" in
         rag|rag-partial)
-            echo -e "│ gpt-oss-20b  │ ${GREEN}16/2/8K${NC}   │ 96/12/8K  │ ${DIM}-${NC}         │ ${DIM}-${NC}         │${suffix}"
+            echo -e "│ gpt-oss-20b  │ ${GREEN}16/2/8K${NC}   │ 128/16/8K │ ${DIM}-${NC}         │ ${DIM}-${NC}         │${suffix}"
             echo -e "│ gemma3-27b   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ 16/2/8K   │${suffix}"
             echo -e "│ exaone-32b   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ 16/2/8K   │ ${DIM}-${NC}         │${suffix}"
             echo -e "│ qwen3-vl     │ ${GREEN}16/2/8K${NC}   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ ${DIM}-${NC}         │${suffix}"
             ;;
         gpt|gpt-partial)
-            echo -e "│ gpt-oss-20b  │ 16/2/8K   │ ${GREEN}96/12/8K${NC}  │ ${DIM}-${NC}         │ ${DIM}-${NC}         │${suffix}"
+            echo -e "│ gpt-oss-20b  │ 16/2/8K   │ ${GREEN}128/16/8K${NC} │ ${DIM}-${NC}         │ ${DIM}-${NC}         │${suffix}"
             echo -e "│ gemma3-27b   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ 16/2/8K   │${suffix}"
             echo -e "│ exaone-32b   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ 16/2/8K   │ ${DIM}-${NC}         │${suffix}"
             echo -e "│ qwen3-vl     │ 16/2/8K   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ ${DIM}-${NC}         │${suffix}"
             ;;
         exaone4|exaone4-partial)
-            echo -e "│ gpt-oss-20b  │ 16/2/8K   │ 96/12/8K  │ ${DIM}-${NC}         │ ${DIM}-${NC}         │${suffix}"
+            echo -e "│ gpt-oss-20b  │ 16/2/8K   │ 128/16/8K │ ${DIM}-${NC}         │ ${DIM}-${NC}         │${suffix}"
             echo -e "│ gemma3-27b   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ 16/2/8K   │${suffix}"
             echo -e "│ exaone-32b   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ ${GREEN}16/2/8K${NC}   │ ${DIM}-${NC}         │${suffix}"
             echo -e "│ qwen3-vl     │ 16/2/8K   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ ${DIM}-${NC}         │${suffix}"
             ;;
         gemma3|gemma3-partial)
-            echo -e "│ gpt-oss-20b  │ 16/2/8K   │ 96/12/8K  │ ${DIM}-${NC}         │ ${DIM}-${NC}         │${suffix}"
+            echo -e "│ gpt-oss-20b  │ 16/2/8K   │ 128/16/8K │ ${DIM}-${NC}         │ ${DIM}-${NC}         │${suffix}"
             echo -e "│ gemma3-27b   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ ${GREEN}16/2/8K${NC}   │${suffix}"
             echo -e "│ exaone-32b   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ 16/2/8K   │ ${DIM}-${NC}         │${suffix}"
             echo -e "│ qwen3-vl     │ 16/2/8K   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ ${DIM}-${NC}         │${suffix}"
             ;;
         *)
-            echo -e "│ gpt-oss-20b  │ 16/2/8K   │ 96/12/8K  │ ${DIM}-${NC}         │ ${DIM}-${NC}         │${suffix}"
+            echo -e "│ gpt-oss-20b  │ 16/2/8K   │ 128/16/8K │ ${DIM}-${NC}         │ ${DIM}-${NC}         │${suffix}"
             echo -e "│ gemma3-27b   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ 16/2/8K   │${suffix}"
             echo -e "│ exaone-32b   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ 16/2/8K   │ ${DIM}-${NC}         │${suffix}"
             echo -e "│ qwen3-vl     │ 16/2/8K   │ ${DIM}-${NC}         │ ${DIM}-${NC}         │ ${DIM}-${NC}         │${suffix}"
@@ -1499,8 +1499,8 @@ mode_gpt() {
         echo -e "${YELLOW}Warning: VRAM may be insufficient, attempting anyway...${NC}"
     fi
 
-    # 3. GPT-OSS GPT 모드 시작 (ctx=96K, p=12, n=8K, KV cache q8_0)
-    echo -ne "${BLUE}Starting${NC} GPT-OSS (GPT mode, ctx=96K p=12)... "
+    # 3. GPT-OSS GPT 모드 시작 (ctx=128K, p=16, n=8K, KV cache q8_0)
+    echo -ne "${BLUE}Starting${NC} GPT-OSS (GPT mode, ctx=128K p=16)... "
     sudo systemctl start llama-server-gpt-oss-llm
     sleep 10
     if systemctl is-active --quiet llama-server-gpt-oss-llm; then

@@ -125,7 +125,7 @@ class DocumentSelectorService:
         if not content:
             return ""
 
-        max_chars = max_tokens * self.CHARS_PER_TOKEN
+        max_chars = int(max_tokens * self.CHARS_PER_TOKEN)
 
         if len(content) <= max_chars:
             # 전체 내용이 제한보다 작으면 그대로 반환
@@ -288,7 +288,7 @@ class DocumentSelectorService:
 
             all_chunks = []
             seen_chunk_ids = set()
-            max_chars = max_tokens_total * self.CHARS_PER_TOKEN
+            max_chars = int(max_tokens_total * self.CHARS_PER_TOKEN)
 
             # 각 쿼리로 검색하여 다양한 관점의 청크 수집
             chunks_per_query = max(5, top_k // len(search_queries))

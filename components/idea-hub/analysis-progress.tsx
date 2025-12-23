@@ -2,7 +2,18 @@
 
 import { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { CheckCircle2, Loader2 } from "lucide-react"
+import {
+  CheckCircle2,
+  Loader2,
+  Shield,
+  ShieldCheck,
+  Lock,
+  KeyRound,
+  FileText,
+  FileCheck,
+  FileScan,
+  ClipboardCheck,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { ChecklistItem } from "./checklist-form"
 
@@ -88,6 +99,60 @@ const selfcheckTheme = {
   secondary: "#10B981",   // emerald-500
   accent: "#EF4444",      // red-500
   gradient: "conic-gradient(from 0deg, #3B82F6, #10B981, #EF4444, #3B82F6)",
+}
+
+// 떠다니는 아이콘 요소 정의 (문서/보안 관련)
+const FLOATING_ICONS = [
+  // 왼쪽 요소들 (보안 관련)
+  { icon: Shield, position: "left" as const, delay: 0, y: "10%", x: "12%" },
+  { icon: Lock, position: "left" as const, delay: 2.5, y: "35%", x: "16%" },
+  { icon: ShieldCheck, position: "left" as const, delay: 5, y: "58%", x: "10%" },
+  { icon: KeyRound, position: "left" as const, delay: 7.5, y: "80%", x: "14%" },
+  // 오른쪽 요소들 (문서 관련)
+  { icon: FileText, position: "right" as const, delay: 1.2, y: "15%", x: "14%" },
+  { icon: FileScan, position: "right" as const, delay: 3.7, y: "40%", x: "10%" },
+  { icon: ClipboardCheck, position: "right" as const, delay: 6, y: "62%", x: "16%" },
+  { icon: FileCheck, position: "right" as const, delay: 8.2, y: "85%", x: "12%" },
+]
+
+// 떠다니는 아이콘 컴포넌트
+function FloatingIcon({
+  icon: Icon,
+  position,
+  delay,
+  y,
+  x,
+}: {
+  icon: React.ComponentType<{ className?: string }>
+  position: "left" | "right"
+  delay: number
+  y: string
+  x: string
+}) {
+  return (
+    <motion.div
+      className="absolute"
+      style={{
+        top: y,
+        [position === "left" ? "left" : "right"]: x,
+      }}
+      initial={{ opacity: 0, scale: 0.5 }}
+      animate={{
+        opacity: [0, 0.5, 0.5, 0],
+        scale: [0.8, 1, 1, 0.8],
+        y: [0, -10, 10, 0],
+      }}
+      transition={{
+        duration: 5,
+        delay: delay,
+        repeat: Infinity,
+        repeatDelay: 5,
+        ease: "easeInOut",
+      }}
+    >
+      <Icon className="w-6 h-6 text-slate-400/60 dark:text-slate-500/50" />
+    </motion.div>
+  )
 }
 
 // 개선된 AnimatedLogo 컴포넌트 (챗봇과 동일한 스타일)
@@ -228,10 +293,132 @@ export function AnalysisProgress({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="flex flex-col items-center justify-center py-12 px-4"
+      className="relative flex flex-col items-center justify-center py-16 px-4 min-h-[400px] overflow-hidden rounded-lg"
     >
-      {/* 개선된 AnimatedLogo */}
-      <AnimatedLogo />
+      {/* Aurora Background */}
+      <div className="absolute inset-0 overflow-hidden">
+        {/* Base gradient for better dark mode visibility */}
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900" />
+
+        {/* Aurora wave 1 - Primary blue */}
+        <motion.div
+          className={cn(
+            "absolute -top-[30%] -left-[10%] w-[70%] h-[60%]",
+            "bg-gradient-to-br from-blue-400/30 via-indigo-400/25 to-cyan-400/20",
+            "dark:from-blue-500/25 dark:via-indigo-500/20 dark:to-cyan-500/15",
+            "blur-[80px] rounded-full"
+          )}
+          animate={{
+            x: [0, 50, 20, 0],
+            y: [0, 20, -10, 0],
+            scale: [1, 1.1, 0.95, 1],
+          }}
+          transition={{
+            duration: 15,
+            repeat: Infinity,
+            repeatType: "reverse",
+            ease: "easeInOut",
+          }}
+        />
+
+        {/* Aurora wave 2 - Secondary emerald */}
+        <motion.div
+          className={cn(
+            "absolute top-[20%] -right-[5%] w-[60%] h-[50%]",
+            "bg-gradient-to-l from-emerald-400/25 via-teal-400/20 to-green-400/15",
+            "dark:from-emerald-500/20 dark:via-teal-500/15 dark:to-green-500/12",
+            "blur-[70px] rounded-full"
+          )}
+          animate={{
+            x: [0, -40, -20, 0],
+            y: [0, 30, 10, 0],
+            scale: [1, 0.9, 1.05, 1],
+          }}
+          transition={{
+            duration: 18,
+            repeat: Infinity,
+            repeatType: "reverse",
+            ease: "easeInOut",
+            delay: 2,
+          }}
+        />
+
+        {/* Aurora wave 3 - Accent pink/purple */}
+        <motion.div
+          className={cn(
+            "absolute -bottom-[20%] left-[20%] w-[50%] h-[45%]",
+            "bg-gradient-to-tr from-purple-400/20 via-pink-400/15 to-rose-400/15",
+            "dark:from-purple-500/18 dark:via-pink-500/12 dark:to-rose-500/10",
+            "blur-[60px] rounded-full"
+          )}
+          animate={{
+            x: [0, 30, -20, 0],
+            y: [0, -20, 10, 0],
+            scale: [1, 1.15, 0.9, 1],
+          }}
+          transition={{
+            duration: 12,
+            repeat: Infinity,
+            repeatType: "reverse",
+            ease: "easeInOut",
+            delay: 1,
+          }}
+        />
+
+        {/* Aurora wave 4 - Extra amber glow for dark mode */}
+        <motion.div
+          className={cn(
+            "absolute top-[40%] left-[30%] w-[40%] h-[35%]",
+            "bg-gradient-to-br from-amber-300/15 via-orange-300/10 to-yellow-300/10",
+            "dark:from-amber-500/15 dark:via-orange-500/12 dark:to-yellow-500/10",
+            "blur-[50px] rounded-full"
+          )}
+          animate={{
+            x: [0, -20, 30, 0],
+            y: [0, 15, -15, 0],
+            scale: [1, 1.1, 0.9, 1],
+            opacity: [0.8, 1, 0.7, 0.8],
+          }}
+          transition={{
+            duration: 10,
+            repeat: Infinity,
+            repeatType: "reverse",
+            ease: "easeInOut",
+            delay: 0.5,
+          }}
+        />
+
+        {/* Radial gradient overlay for depth */}
+        <div
+          className={cn(
+            "absolute inset-0",
+            "bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(255,255,255,0.4)_100%)]",
+            "dark:bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(15,23,42,0.5)_100%)]"
+          )}
+        />
+
+        {/* Subtle noise texture for premium feel */}
+        <div className="absolute inset-0 opacity-[0.02] dark:opacity-[0.04] bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIj48ZmlsdGVyIGlkPSJhIiB4PSIwIiB5PSIwIj48ZmVUdXJidWxlbmNlIGJhc2VGcmVxdWVuY3k9Ii43NSIgc3RpdGNoVGlsZXM9InN0aXRjaCIgdHlwZT0iZnJhY3RhbE5vaXNlIi8+PC9maWx0ZXI+PHJlY3Qgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiIGZpbHRlcj0idXJsKCNhKSIgb3BhY2l0eT0iMSIvPjwvc3ZnPg==')]" />
+      </div>
+
+      {/* Floating Icons - 좌우 여백에 떠다니는 아이콘들 */}
+      <div className="absolute inset-0 pointer-events-none hidden md:block">
+        {FLOATING_ICONS.map((item, index) => (
+          <FloatingIcon
+            key={index}
+            icon={item.icon}
+            position={item.position}
+            delay={item.delay}
+            y={item.y}
+            x={item.x}
+          />
+        ))}
+      </div>
+
+      {/* Content - z-10 to stay above background */}
+      <div className="relative z-10 flex flex-col items-center">
+        {/* 개선된 AnimatedLogo */}
+        <AnimatedLogo />
 
       {/* 보안성검토 AI Agent 텍스트 */}
       <motion.p
@@ -300,6 +487,7 @@ export function AnalysisProgress({
           )
         })}
       </motion.div>
+      </div>
     </motion.div>
   )
 }

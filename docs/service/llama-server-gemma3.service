@@ -24,10 +24,11 @@ ExecStart=/models/llama.cpp/build/bin/llama-server \
   --temp 0.7 \
   --top-p 0.9 \
   --repeat-penalty 1.1 \
+  --repeat-last-n 256 \
   --n-predict 8192 \
   --threads 8 \
   --batch-size 2048 \
-  --ubatch-size 2048
+  --ubatch-size 1024
 Restart=always
 RestartSec=10
 StandardOutput=journal

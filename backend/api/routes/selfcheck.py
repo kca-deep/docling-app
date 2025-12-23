@@ -334,3 +334,47 @@ async def export_pdf(
                 "Content-Disposition": f"attachment; filename=\"{filename}\""
             }
         )
+
+
+# ===========================================
+# Qdrant 마이그레이션 API (관리자 전용)
+# ===========================================
+
+@router.get("/qdrant/stats")
+async def get_qdrant_stats(
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Qdrant selfcheck 컬렉션 통계 조회
+
+    Returns:
+        컬렉션 존재 여부, 포인트 수, 상태
+    """
+    return await selfcheck_service.get_qdrant_collection_stats()
+
+
+@router.post("/qdrant/migrate")
+async def migrate_to_qdrant(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    기존 DB 프로젝트를 Qdrant로 마이그레이션 (관리자 전용)
+
+    - 모든 완료된 프로젝트의 임베딩을 생성하여 Qdrant에 저장
+    - 이미 존재하는 프로젝트는 덮어쓰기 (upsert)
+    - 새 분석은 자동으로 Qdrant에 저장됨
+
+    Returns:
+        {"total": int, "migrated": int, "failed": int, "skipped": int}
+    """
+    # 관리자 권한 확인
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="관리자 권한이 필요합니다.")
+
+    result = await selfcheck_service.migrate_projects_to_qdrant(db)
+
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+
+    return result

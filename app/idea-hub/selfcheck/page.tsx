@@ -35,6 +35,7 @@ const itemVariants = {
 }
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth/auth-provider"
 import { apiEndpoints } from "@/lib/api-config"
 import { ProjectForm, type ProjectFormData } from "@/components/idea-hub/project-form"
@@ -114,7 +115,8 @@ const STEPS = [
 ]
 
 export default function SelfCheckPage() {
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth()
+  const { user, isAuthenticated, isLoading: authLoading, checkAuth } = useAuth()
+  const router = useRouter()
   const [currentStep, setCurrentStep] = useState(1)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
 
@@ -281,8 +283,9 @@ export default function SelfCheckPage() {
           }
           setAnalysisResult(result)
         } else if (response.status === 401) {
-          alert("로그인이 필요합니다.")
-          setCurrentStep(1)
+          // 인증 상태 갱신 후 로그인 페이지로 리다이렉트
+          await checkAuth()
+          router.push("/login?redirect=/idea-hub/selfcheck")
         } else if (response.status === 503) {
           alert("현재 AI 모델이 사용 불가능합니다. 잠시 후 다시 시도해주세요.")
           setCurrentStep(2)
@@ -301,7 +304,7 @@ export default function SelfCheckPage() {
     } else if (currentStep < 3) {
       setCurrentStep((prev) => prev + 1)
     }
-  }, [currentStep, checklistItems, projectForm])
+  }, [currentStep, checklistItems, projectForm, checkAuth, router])
 
   const handlePrev = useCallback(() => {
     if (currentStep > 1) {
