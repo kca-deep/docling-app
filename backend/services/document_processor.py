@@ -168,13 +168,13 @@ class DocumentProcessor:
         try:
             # 지연 임포트 (순환 참조 방지)
             from backend.services.temp_collection_manager import get_temp_collection_manager
-            from backend.services.docling_service import DoclingService
+            from backend.services.docling_service import get_docling_service
             from backend.services.chunking_service import ChunkingService
             from backend.services.embedding_service import EmbeddingService
             from backend.config.settings import settings
 
             temp_manager = get_temp_collection_manager()
-            docling_service = DoclingService()
+            docling_service = get_docling_service()
             chunking_service = ChunkingService(
                 base_url=settings.DOCLING_CHUNKING_URL,
                 poll_interval=settings.POLL_INTERVAL
@@ -211,10 +211,11 @@ class DocumentProcessor:
                 # Docling 서비스로 파싱
                 result = await docling_service.convert_document(file_content, filename)
 
-                # 파싱 완료 후 즉시 VRAM 해제 (Docling Serve 캐시 정리)
+                # 파싱 완료 후 VRAM 해제 시도 (다른 작업이 없을 때만)
                 try:
-                    await docling_service.clear_converters()
-                    logger.info(f"[{task_id}] Docling cache cleared after parsing")
+                    cleared = await docling_service.safe_clear_converters()
+                    if cleared:
+                        logger.info(f"[{task_id}] Docling cache cleared after parsing")
                 except Exception as cache_err:
                     logger.warning(f"[{task_id}] Failed to clear Docling cache: {cache_err}")
 

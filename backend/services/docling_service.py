@@ -503,3 +503,45 @@ class DoclingService:
                     "task_status": "unknown",
                     "error": f"상태 조회 실패: {response.status_code}"
                 }
+
+    def get_active_count(self) -> int:
+        """
+        현재 진행 중인 변환 작업 수 반환
+
+        Returns:
+            int: 사용 중인 Semaphore 슬롯 수 (동시 진행 중인 작업 수)
+        """
+        # Semaphore의 현재 값 = 남은 슬롯 수
+        # 진행 중인 작업 수 = 전체 슬롯 - 남은 슬롯
+        return settings.DOCLING_CONCURRENCY - self._semaphore._value
+
+    async def safe_clear_converters(self) -> bool:
+        """
+        안전한 캐시 정리 (진행 중인 작업이 없을 때만)
+
+        Returns:
+            bool: 정리 실행 여부
+        """
+        if self.get_active_count() == 0:
+            return await self.clear_converters()
+        else:
+            logger.debug(f"Skipping cache clear: {self.get_active_count()} active conversions")
+            return False
+
+
+# 싱글톤 인스턴스
+_docling_service: Optional[DoclingService] = None
+
+
+def get_docling_service() -> DoclingService:
+    """
+    DoclingService 싱글톤 반환
+
+    Returns:
+        DoclingService: 공유 인스턴스
+    """
+    global _docling_service
+    if _docling_service is None:
+        _docling_service = DoclingService()
+        logger.info("DoclingService 싱글톤 인스턴스 생성")
+    return _docling_service

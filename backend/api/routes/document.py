@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import Optional, List
 
-from backend.services.docling_service import DoclingService
+from backend.services.docling_service import get_docling_service
 from backend.services.qwen3_service import qwen3_service
 from backend.services import document_crud
 from backend.services.progress_tracker import progress_tracker
@@ -36,7 +36,7 @@ router = APIRouter(
     tags=["documents"],
     dependencies=[Depends(get_current_active_user)]  # 모든 엔드포인트 인증 필수
 )
-docling_service = DoclingService()
+docling_service = get_docling_service()
 
 
 async def _process_qwen3_background(
