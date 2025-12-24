@@ -211,6 +211,13 @@ class DocumentProcessor:
                 # Docling 서비스로 파싱
                 result = await docling_service.convert_document(file_content, filename)
 
+                # 파싱 완료 후 즉시 VRAM 해제 (Docling Serve 캐시 정리)
+                try:
+                    await docling_service.clear_converters()
+                    logger.info(f"[{task_id}] Docling cache cleared after parsing")
+                except Exception as cache_err:
+                    logger.warning(f"[{task_id}] Failed to clear Docling cache: {cache_err}")
+
                 if not result.document or not result.document.md_content:
                     error_msg = result.error if result.error else "문서 파싱 실패: 내용을 추출할 수 없습니다"
                     raise Exception(error_msg)
