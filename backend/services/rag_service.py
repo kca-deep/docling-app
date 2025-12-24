@@ -54,7 +54,8 @@ class RAGService:
         self,
         query: str,
         retrieved_docs: List[Dict[str, Any]],
-        top_k: int
+        top_k: int,
+        is_temp_only_mode: bool = False
     ) -> List[Dict[str, Any]]:
         """
         검색 결과에 리랭킹 적용 (공통 로직)
@@ -63,6 +64,7 @@ class RAGService:
             query: 검색 쿼리
             retrieved_docs: 검색된 문서 리스트
             top_k: 최종 반환할 문서 수
+            is_temp_only_mode: 임시 컬렉션 전용 모드 (threshold 완화)
 
         Returns:
             List[Dict[str, Any]]: 리랭킹된 문서 리스트
@@ -101,18 +103,29 @@ class RAGService:
             # Reranking 성공 시 재정렬
             if reranked_results:
                 reordered_docs = []
-                filtered_docs = []
 
                 for r in reranked_results:
                     doc = retrieved_docs[r.index].copy()
                     doc["score"] = r.relevance_score
                     reordered_docs.append(doc)
 
-                    if r.relevance_score >= settings.RERANK_SCORE_THRESHOLD:
-                        filtered_docs.append(doc)
+                max_score = reordered_docs[0]["score"] if reordered_docs else 0
+
+                # 임시 컬렉션 모드: threshold 미적용, 리랭킹 순서만 적용
+                if is_temp_only_mode:
+                    logger.info(
+                        f"[RERANK] Temp-only mode: returning {len(reordered_docs[:top_k])} docs "
+                        f"without threshold filter, top score={max_score:.4f}"
+                    )
+                    return reordered_docs[:top_k]
+
+                # 일반 모드: threshold 적용
+                filtered_docs = [
+                    doc for doc in reordered_docs
+                    if doc["score"] >= settings.RERANK_SCORE_THRESHOLD
+                ]
 
                 # [P0-1] 최소 점수 체크 - 최고 점수가 MINIMUM_ANSWER_THRESHOLD 미만이면 거부
-                max_score = reordered_docs[0]["score"] if reordered_docs else 0
                 if max_score < settings.MINIMUM_ANSWER_THRESHOLD:
                     logger.warning(
                         f"[RERANK] Max score {max_score:.4f} below "
@@ -123,10 +136,13 @@ class RAGService:
                 # threshold 통과 문서가 있으면 사용
                 if filtered_docs:
                     top_score = filtered_docs[0]["score"]
-                    logger.info(f"Reranking completed: {len(filtered_docs)} docs passed threshold (>={settings.RERANK_SCORE_THRESHOLD}), top score={top_score:.4f}")
+                    logger.info(
+                        f"Reranking completed: {len(filtered_docs)} docs passed "
+                        f"threshold (>={settings.RERANK_SCORE_THRESHOLD}), top score={top_score:.4f}"
+                    )
                     return filtered_docs
                 else:
-                    # [P0-2] 리랭킹 실패 시 거부 (기존: reordered_docs 반환)
+                    # [P0-2] 리랭킹 실패 시 거부
                     logger.warning(
                         f"[RERANK] No docs passed RERANK_SCORE_THRESHOLD "
                         f"{settings.RERANK_SCORE_THRESHOLD}, max_score={max_score:.4f}"
@@ -440,6 +456,10 @@ class RAGService:
             # 일상대화 모드 체크 (컬렉션이 하나도 없는 경우)
             is_casual_mode = len(target_collections) == 0
 
+            # 임시 컬렉션 전용 모드 체크 (temp_collection만 있고 collection은 없는 경우)
+            # 사용자가 직접 업로드한 문서만 검색하는 경우 threshold 완화 적용
+            is_temp_only_mode = bool(temp_collection_name) and not collection_name
+
             # 검색 시간 측정 시작
             retrieval_start = time.time()
             retrieval_time_ms = None
@@ -490,7 +510,10 @@ class RAGService:
 
             # 1.5. Reranking (선택)
             if use_reranking and self.reranker_service and retrieved_docs:
-                retrieved_docs = await self._apply_reranking(query, retrieved_docs, top_k)
+                retrieved_docs = await self._apply_reranking(
+                    query, retrieved_docs, top_k,
+                    is_temp_only_mode=is_temp_only_mode
+                )
 
                 # [P0-1/P0-2] 리랭킹 후 문서가 없으면 거부 응답
                 if not retrieved_docs:
@@ -593,6 +616,10 @@ class RAGService:
             # 일상대화 모드 체크 (컬렉션이 하나도 없는 경우)
             is_casual_mode = len(target_collections) == 0
 
+            # 임시 컬렉션 전용 모드 체크 (temp_collection만 있고 collection은 없는 경우)
+            # 사용자가 직접 업로드한 문서만 검색하는 경우 threshold 완화 적용
+            is_temp_only_mode = bool(temp_collection_name) and not collection_name
+
             # 검색 시간 측정 시작
             retrieval_start = time.time()
             retrieval_time_ms = None
@@ -642,19 +669,41 @@ class RAGService:
                 logger.info(f"[RAG] Stream retrieval took {retrieval_time_ms}ms for {len(retrieved_docs)} documents")
 
                 if not retrieved_docs:
-                    # 문서가 없을 경우 단일 메시지 전송
-                    yield 'data: {"error": "문서에서 관련 정보를 찾을 수 없습니다. 다른 키워드로 질문해 주세요."}\n\n'
+                    # 문서가 없을 경우 정상 응답 형식으로 에러 메시지 전송
+                    # (클라이언트가 choices.delta.content만 파싱하므로 동일 형식 사용)
+                    error_msg = "문서에서 관련 정보를 찾을 수 없습니다. 다른 키워드로 질문해 주세요."
+                    error_chunk = {
+                        "choices": [{
+                            "index": 0,
+                            "delta": {"content": error_msg},
+                            "finish_reason": "stop"
+                        }]
+                    }
+                    yield f'data: {json.dumps(error_chunk, ensure_ascii=False)}\n\n'
+                    yield 'data: [DONE]\n\n'
                     return
 
             # 1.5. Reranking (선택) - RAG 모드에서만 적용
             if not is_casual_mode and use_reranking and self.reranker_service and retrieved_docs:
                 # 단계 이벤트: 리랭킹 단계
                 yield f'data: {json.dumps({"type": "stage", "stage": "rerank"}, ensure_ascii=False)}\n\n'
-                retrieved_docs = await self._apply_reranking(query, retrieved_docs, top_k)
+                retrieved_docs = await self._apply_reranking(
+                    query, retrieved_docs, top_k,
+                    is_temp_only_mode=is_temp_only_mode
+                )
 
                 # [P0-1/P0-2] 리랭킹 후 문서가 없으면 거부 응답
                 if not retrieved_docs:
-                    yield 'data: {"error": "문서에서 관련 정보를 찾을 수 없습니다. 다른 키워드로 질문해 주세요."}\n\n'
+                    error_msg = "문서에서 관련 정보를 찾을 수 없습니다. 다른 키워드로 질문해 주세요."
+                    error_chunk = {
+                        "choices": [{
+                            "index": 0,
+                            "delta": {"content": error_msg},
+                            "finish_reason": "stop"
+                        }]
+                    }
+                    yield f'data: {json.dumps(error_chunk, ensure_ascii=False)}\n\n'
+                    yield 'data: [DONE]\n\n'
                     return
 
             # 2. 검색된 문서에 키워드 추출 후 전송 (스트리밍 시작 전)

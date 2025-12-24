@@ -128,7 +128,8 @@ export const InputArea = memo(function InputArea({
   };
 
   // 일상대화 모드에서는 disabled 무시하고 메시지만 있으면 전송 가능
-  const canSend = !isLoading && input.trim().length > 0;
+  // 문서 업로드 중에는 전송 불가 (업로드 완료 후에만 질문 가능)
+  const canSend = !isLoading && !isDocumentUploading && input.trim().length > 0;
 
   return (
     <div className="flex-shrink-0 px-4 md:px-6 py-4">
@@ -190,11 +191,13 @@ export const InputArea = memo(function InputArea({
               onCompositionStart={() => setIsComposing(true)}
               onCompositionEnd={() => setIsComposing(false)}
               placeholder={
-                isLoading
-                  ? "응답 생성 중..."
-                  : "메시지를 입력하세요..."
+                isDocumentUploading
+                  ? "문서 처리 중... 완료 후 질문하세요"
+                  : isLoading
+                    ? "응답 생성 중..."
+                    : "메시지를 입력하세요..."
               }
-              disabled={isLoading}
+              disabled={isLoading || isDocumentUploading}
               className={cn(
                 "min-h-[44px] sm:min-h-[60px] max-h-[150px] sm:max-h-[300px] resize-none border-0 focus-visible:ring-0 shadow-none pr-14 px-3 py-2 bg-transparent text-sm sm:text-base",
                 "placeholder:text-muted-foreground/60 selection:bg-primary/20",

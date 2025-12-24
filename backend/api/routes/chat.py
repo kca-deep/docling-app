@@ -615,6 +615,11 @@ async def chat_stream(
                                     collected_response["retrieved_docs"] = data['retrieved_docs']
                                 if 'usage' in data:
                                     collected_response["usage"] = data['usage']
+                                # 에러 필드 처리 (호환성 유지)
+                                if 'error' in data and data['error']:
+                                    error_message = data['error']
+                                    collected_response["answer"] = error_message
+                                    logger.warning(f"[STREAM] Error response received: {error_message[:100]}")
                         except json.JSONDecodeError:
                             pass
 
