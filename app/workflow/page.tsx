@@ -27,7 +27,6 @@ const itemVariants = {
 
 interface ServiceCardProps {
   name: string
-  port: string
   icon?: React.ReactNode
   description: string
   specs?: string
@@ -35,7 +34,7 @@ interface ServiceCardProps {
   className?: string
 }
 
-function ServiceCard({ name, port, icon, description, specs, accentColor, className }: ServiceCardProps) {
+function ServiceCard({ name, icon, description, specs, accentColor, className }: ServiceCardProps) {
   return (
     <div className={cn(
       "group relative p-3 rounded-xl border backdrop-blur-sm transition-all duration-300",
@@ -53,9 +52,6 @@ function ServiceCard({ name, port, icon, description, specs, accentColor, classN
           </div>
         )}
         <div className="font-bold text-sm">{name}</div>
-        <Badge variant="secondary" className="text-[9px] h-4 px-1.5 font-mono shadow-sm">
-          {port}
-        </Badge>
       </div>
       <p className="text-[11px] text-muted-foreground leading-relaxed">
         {description}
@@ -292,7 +288,6 @@ export default function WorkflowPage() {
                       <div className="space-y-2">
                         <ServiceCard
                           name="GPT-OSS 20B"
-                          port=":8080"
                           description="답변 생성 · 2.5초 응답 · 16GB · 96K ctx"
                           specs="llama.cpp 기반, Q4_K_M 양자화, 실시간 채팅 최적화"
                           accentColor="bg-gradient-to-r from-purple-500 to-violet-500"
@@ -300,7 +295,6 @@ export default function WorkflowPage() {
                         />
                         <ServiceCard
                           name="EXAONE 4.0 32B"
-                          port=":8081"
                           description="고품질 한국어 · 131K ctx · 20GB VRAM"
                           specs="LG AI Research 개발, 복잡한 규정 분석에 최적화"
                           accentColor="bg-gradient-to-r from-violet-500 to-purple-500"
@@ -322,7 +316,6 @@ export default function WorkflowPage() {
                       <div className="space-y-2">
                         <ServiceCard
                           name="BGE M3 Korean"
-                          port=":8083"
                           description="1024차원 · 13ms · 한국어 특화 · GPU"
                           specs="BAAI/bge-m3-korean 모델, CUDA 가속, 배치 처리"
                           accentColor="bg-gradient-to-r from-blue-500 to-cyan-500"
@@ -330,7 +323,6 @@ export default function WorkflowPage() {
                         />
                         <ServiceCard
                           name="BGE Reranker"
-                          port=":8006"
                           description="재순위화 · 정확도 +10% · Cross-encoder"
                           specs="BAAI/bge-reranker-v2-m3, FP16 추론, 정밀 스코어링"
                           accentColor="bg-gradient-to-r from-cyan-500 to-blue-500"
@@ -352,7 +344,6 @@ export default function WorkflowPage() {
                       <div className="space-y-2">
                         <ServiceCard
                           name="Docling Serve"
-                          port=":8007"
                           description="PDF/DOCX 파싱 · 테이블 인식 · Markdown"
                           specs="IBM 오픈소스, 비동기 처리, 문서 구조 추출"
                           accentColor="bg-gradient-to-r from-green-500 to-emerald-500"
@@ -360,7 +351,6 @@ export default function WorkflowPage() {
                         />
                         <ServiceCard
                           name="Qwen3-VL 8B"
-                          port=":8084"
                           description="OCR 폴백 · 스캔 문서 · 비전+언어"
                           specs="저품질 스캔/이미지 PDF 처리, 한글 OCR 특화"
                           accentColor="bg-gradient-to-r from-emerald-500 to-green-500"
@@ -386,7 +376,7 @@ export default function WorkflowPage() {
                             <div className="font-bold text-sm bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent flex items-center gap-2">
                               KCA 도메인지식 16종
                               <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[9px] border-amber-400/50">
-                                Qdrant :6333
+                                Qdrant Vector DB
                               </Badge>
                             </div>
                             <div className="text-[10px] text-amber-700/70 dark:text-amber-300/70">

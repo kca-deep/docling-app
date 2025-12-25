@@ -531,13 +531,12 @@ export default function HomePage() {
                 <Network className="h-5 w-5 text-[color:var(--chart-1)]" />
               </div>
               <h3 className="text-xl font-bold">LLM Models</h3>
-              <span className="text-sm text-muted-foreground ml-auto">Port 8080-8084</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { name: "GPT-OSS 20B", badge: "US", type: "General", port: "8080", vram: "16GB", healthKey: "gpt_oss" as const, colorVar: 1 },
-                { name: "Qwen3-VL 8B", badge: "CN", type: "Vision OCR", port: "8084", vram: "8GB", healthKey: "qwen3_vl" as const, colorVar: 2 },
-                { name: "EXAONE 4.0 32B", badge: "KR", type: "Long Context", port: "8081", vram: "20GB", healthKey: "exaone" as const, colorVar: 3 },
+                { name: "GPT-OSS 20B", badge: "US", type: "General", vram: "16GB", healthKey: "gpt_oss" as const, colorVar: 1 },
+                { name: "Qwen3-VL 8B", badge: "CN", type: "Vision OCR", vram: "8GB", healthKey: "qwen3_vl" as const, colorVar: 2 },
+                { name: "EXAONE 4.0 32B", badge: "KR", type: "Long Context", vram: "20GB", healthKey: "exaone" as const, colorVar: 3 },
               ].map((model, i) => {
                 const status = healthLoading
                   ? "loading"
@@ -574,15 +573,9 @@ export default function HomePage() {
                     </div>
 
                     {/* Tags */}
-                    <div className="flex flex-wrap gap-2 mb-4">
+                    <div className="flex flex-wrap gap-2">
                       <Badge variant="outline" className="text-xs font-medium">{model.badge}</Badge>
                       <Badge variant="secondary" className="text-xs font-mono">{model.vram}</Badge>
-                    </div>
-
-                    {/* Port */}
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Port</span>
-                      <span className="font-mono font-medium" style={{ color: `var(--chart-${model.colorVar})` }}>:{model.port}</span>
                     </div>
                   </motion.div>
                 )
@@ -609,10 +602,10 @@ export default function HomePage() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { name: "BGE-M3 Embedding", desc: "1024-dim Vector", port: "8083", icon: Database, healthKey: "embedding" as const, colorVar: 1 },
-                { name: "BGE Reranker", desc: "v2-m3 Model", port: "8006", icon: TrendingUp, healthKey: "reranker" as const, colorVar: 2 },
-                { name: "Docling API", desc: "Doc Parser", port: "8007", icon: FileCode, healthKey: "docling" as const, colorVar: 3 },
-                { name: "Qdrant DB", desc: "Vector Store", port: "6333", icon: Database, healthKey: "qdrant" as const, colorVar: 4 },
+                { name: "BGE-M3 Embedding", desc: "1024-dim Vector", icon: Database, healthKey: "embedding" as const, colorVar: 1 },
+                { name: "BGE Reranker", desc: "v2-m3 Model", icon: TrendingUp, healthKey: "reranker" as const, colorVar: 2 },
+                { name: "Docling API", desc: "Doc Parser", icon: FileCode, healthKey: "docling" as const, colorVar: 3 },
+                { name: "Qdrant DB", desc: "Vector Store", icon: Database, healthKey: "qdrant" as const, colorVar: 4 },
               ].map((svc, i) => {
                 const Icon = svc.icon
                 const chartColor = `var(--chart-${svc.colorVar})`
@@ -638,9 +631,8 @@ export default function HomePage() {
                     <h4 className="font-bold text-base mb-1">{svc.name}</h4>
                     <p className="text-sm text-muted-foreground mb-4">{svc.desc}</p>
 
-                    {/* Port & Status */}
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-sm" style={{ color: chartColor }}>:{svc.port}</span>
+                    {/* Status */}
+                    <div className="flex items-center justify-end">
                       <StatusBadge status={status} />
                     </div>
                   </motion.div>
