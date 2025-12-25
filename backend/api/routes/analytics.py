@@ -32,15 +32,8 @@ from backend.services.hybrid_logging_service import hybrid_logging_service
 logger = logging.getLogger(__name__)
 
 
-def _normalize_collection(collection_name: Optional[str]) -> Optional[str]:
-    """
-    컬렉션 이름 정규화
-    - "ALL", 빈 문자열, None → None (전체 조회)
-    - 그 외 → 그대로 반환
-    """
-    if collection_name in ("ALL", "", None):
-        return None
-    return collection_name
+# 공통 정규화 유틸리티 사용
+from backend.utils.normalize import normalize_collection as _normalize_collection
 
 router = APIRouter(
     prefix="/api/analytics",

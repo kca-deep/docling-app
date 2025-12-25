@@ -1,34 +1,29 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { MessageList } from "./MessageList";
 import { InputArea } from "./InputArea";
-import { SuggestedPrompts } from "./SuggestedPrompts";
 import { SourceArtifactPanel } from "./SourceArtifactPanel";
 import { ChatHeader } from "./ChatHeader";
 import { API_BASE_URL } from "@/lib/api-config";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import type {
   Message,
   Source,
   RetrievedDocument,
-  Collection,
   ChatSettings,
   ArtifactState,
+  Collection,
 } from "../types";
 import { mapRetrievedDocsToSources } from "../utils/source-mapper";
 import { parseSSEStream } from "../utils/sse-parser";
 import { useDocumentUpload } from "../hooks/useDocumentUpload";
+import { useChatSettings } from "../hooks/useChatSettings";
+import { useArtifactPanel } from "../hooks/useArtifactPanel";
+import { useCollections } from "../hooks/useCollections";
 import { DocumentDropZone } from "./DocumentDropZone";
 
 export function ChatContainer() {
@@ -40,11 +35,35 @@ export function ChatContainer() {
     setMounted(true);
   }, []);
 
+  // 커스텀 훅 호출 (상태 관리 위임)
+  const {
+    settings,
+    setSettings,
+    settingsLoaded,
+    deepThinkingEnabled,
+    setDeepThinkingEnabled,
+  } = useChatSettings();
+
+  const {
+    artifactState,
+    setArtifactState,
+    openArtifact,
+    closeArtifact,
+    selectSource,
+    updateSources,
+    resetArtifact,
+  } = useArtifactPanel();
+
+  const {
+    collections,
+    selectedCollection,
+    setSelectedCollection: setSelectedCollectionBase,
+    isLoadingCollections,
+  } = useCollections();
+
   const [messages, setMessages] = useState<Message[]>([]);
 
   const [input, setInput] = useState("");
-  const [selectedCollection, setSelectedCollection] = useState<string>("");
-  const [collections, setCollections] = useState<Collection[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [currentSources, setCurrentSources] = useState<Source[]>([]);
   // UUID 기반 세션 ID (충돌 방지)
@@ -71,14 +90,6 @@ export function ChatContainer() {
     flushScheduled: false,
   });
 
-  // 참조문서 아티팩트 패널 상태
-  const [artifactState, setArtifactState] = useState<ArtifactState>({
-    isOpen: false,
-    sources: [],
-    activeSourceId: null,
-    messageId: null,
-  });
-
   // 우측 패널 상태
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
 
@@ -87,51 +98,6 @@ export function ChatContainer() {
     const param = searchParams?.get('fullscreen');
     return param === 'true';
   });
-
-  // localStorage 키
-  const SETTINGS_STORAGE_KEY = "chat-settings";
-
-  // AI 설정 (기본값은 fallback용)
-  const [settings, setSettings] = useState<ChatSettings>(() => {
-    const defaults: ChatSettings = {
-      model: "gpt-oss-20b",
-      reasoningLevel: "medium",
-      temperature: 0.7,
-      maxTokens: 2000,
-      topP: 0.9,
-      topK: 5,
-      frequencyPenalty: 0,
-      presencePenalty: 0,
-      streamMode: true,
-      useReranking: true,
-    };
-    // 클라이언트에서 localStorage 설정 병합
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
-        if (saved) {
-          return { ...defaults, ...JSON.parse(saved) };
-        }
-      } catch (e) {
-        console.error("[Settings] Failed to load initial settings:", e);
-      }
-    }
-    return defaults;
-  });
-
-  const [settingsLoaded, setSettingsLoaded] = useState(false);
-  const [defaultReasoningLevel, setDefaultReasoningLevel] = useState<string>("medium"); // 백엔드에서 로드한 기본값
-  const [deepThinkingEnabled, setDeepThinkingEnabled] = useState(false); // 심층사고 토글 상태
-
-  // 설정 변경 시 localStorage에 저장
-  useEffect(() => {
-    if (!settingsLoaded) return; // 백엔드 로딩 완료 전에는 저장하지 않음
-    try {
-      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
-    } catch (e) {
-      console.error("[Settings] Failed to save to localStorage:", e);
-    }
-  }, [settings, settingsLoaded]);
 
   // 문서 업로드 훅 (다중 파일 지원)
   const {
@@ -217,7 +183,7 @@ export function ChatContainer() {
       if (e.key === "Escape") {
         // 아티팩트 패널이 열려있으면 먼저 닫기
         if (artifactState.isOpen) {
-          setArtifactState(prev => ({ ...prev, isOpen: false }));
+          closeArtifact();
           return;
         }
         // 전체화면이면 전체화면 종료
@@ -229,79 +195,9 @@ export function ChatContainer() {
 
     document.addEventListener("keydown", handleEscape);
     return () => document.removeEventListener("keydown", handleEscape);
-  }, [isFullscreen, artifactState.isOpen]);
+  }, [isFullscreen, artifactState.isOpen, closeArtifact]);
 
-  // 백엔드에서 기본 설정 로드
-  useEffect(() => {
-    const loadDefaultSettings = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/chat/default-settings`, {
-          credentials: 'include'
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setDefaultReasoningLevel(data.reasoning_level); // 기본값 저장
-          setSettings(prev => ({
-            ...prev,
-            model: data.model,
-            reasoningLevel: data.reasoning_level,
-            temperature: data.temperature,
-            maxTokens: data.max_tokens,
-            topP: data.top_p,
-            topK: data.top_k,
-            useReranking: data.use_reranking,
-          }));
-          setSettingsLoaded(true);
-          toast.success(`설정 로드 완료 (max_tokens: ${data.max_tokens})`);
-        } else {
-          console.error('[Settings] Failed to load, using fallback defaults');
-          setSettingsLoaded(true);
-        }
-      } catch (error) {
-        console.error('[Settings] Error loading settings:', error);
-        toast.error('설정 로드 실패 - 기본값 사용');
-        setSettingsLoaded(true); // fallback 값 사용
-      }
-    };
-
-    loadDefaultSettings();
-  }, []);
-
-  // 심층사고 토글 변경 시 reasoningLevel 업데이트
-  useEffect(() => {
-    setSettings(prev => ({
-      ...prev,
-      reasoningLevel: deepThinkingEnabled ? "medium" : defaultReasoningLevel,
-    }));
-  }, [deepThinkingEnabled, defaultReasoningLevel]);
-
-  // 컬렉션 목록 로드
-  useEffect(() => {
-    const fetchCollections = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/chat/collections`, {
-          credentials: 'include'
-        });
-        if (response.ok) {
-          const data = await response.json();
-          // 컬렉션명으로 오름차순 정렬
-          const sortedCollections = [...(data.collections || [])].sort((a, b) =>
-            a.name.localeCompare(b.name, 'ko-KR')
-          );
-          setCollections(sortedCollections);
-          // 초기에는 일상대화 모드 유지 (selectedCollection을 빈 문자열로)
-          if (sortedCollections.length > 0) {
-            toast.success(`${sortedCollections.length}개의 컬렉션을 불러왔습니다`);
-          }
-        }
-      } catch (error) {
-        console.error("Failed to fetch collections:", error);
-        toast.error("컬렉션 목록을 불러오는데 실패했습니다");
-      }
-    };
-
-    fetchCollections();
-  }, []);
+  // 설정 로드, 심층사고 토글, 컬렉션 로드는 커스텀 훅에서 처리됨
 
   // 메시지 전송 (비스트리밍)
   const handleNonStreamingSend = useCallback(async (userMessage: Message, quotedMsg: Message | null = null) => {
@@ -409,12 +305,7 @@ export function ChatContainer() {
 
       // 참조문서 패널이 열려있고 새 sources가 있으면 자동 업데이트
       if (artifactState.isOpen && sources.length > 0) {
-        setArtifactState({
-          isOpen: true,
-          sources,
-          activeSourceId: sources[0].id,
-          messageId: aiMessageId,
-        });
+        updateSources(sources, aiMessageId);
       }
     } catch (error) {
       console.error("Error sending message:", error);
@@ -459,7 +350,7 @@ export function ChatContainer() {
     } finally {
       setIsLoading(false);
     }
-  }, [messages, selectedCollection, tempCollectionName, settings, artifactState.isOpen]);
+  }, [messages, selectedCollection, tempCollectionName, settings, artifactState.isOpen, updateSources]);
 
   // 메시지 전송 (스트리밍)
   const handleStreamingSend = useCallback(async (userMessage: Message, quotedMsg: Message | null = null) => {
@@ -660,12 +551,7 @@ export function ChatContainer() {
 
       // 참조문서 패널이 열려있고 새 sources가 있으면 자동 업데이트
       if (artifactState.isOpen && sources.length > 0) {
-        setArtifactState({
-          isOpen: true,
-          sources,
-          activeSourceId: sources[0].id,
-          messageId: aiMessageId,
-        });
+        updateSources(sources, aiMessageId);
       }
 
       setIsLoading(false);
@@ -730,7 +616,7 @@ export function ChatContainer() {
       setCurrentStage(""); // 단계 상태 초기화
       setAbortController(null); // 에러 발생 시에도 AbortController 정리
     }
-  }, [messages, selectedCollection, tempCollectionName, settings, artifactState.isOpen]);
+  }, [messages, selectedCollection, tempCollectionName, settings, artifactState.isOpen, updateSources]);
 
   const handleSend = useCallback(async () => {
     if (!input.trim()) {
@@ -770,9 +656,9 @@ export function ChatContainer() {
     setMessages([]);
     setCurrentSources([]);
     // 아티팩트 패널도 닫기
-    setArtifactState({ isOpen: false, sources: [], activeSourceId: null, messageId: null });
+    resetArtifact();
     toast.success("대화가 초기화되었습니다");
-  }, []);
+  }, [resetArtifact]);
 
   // 재생성 핸들러 (스트리밍)
   const handleRegenerate = useCallback(async (messageIndex: number) => {
@@ -967,26 +853,8 @@ export function ChatContainer() {
     setInput(prompt);
   }, []);
 
-  // 아티팩트 패널 열기
-  const handleOpenArtifact = useCallback((sources: Source[], messageId: string) => {
-    if (sources.length === 0) return;
-    setArtifactState({
-      isOpen: true,
-      sources,
-      activeSourceId: sources[0].id,
-      messageId,
-    });
-  }, []);
-
-  // 아티팩트 패널 닫기
-  const handleCloseArtifact = useCallback(() => {
-    setArtifactState(prev => ({ ...prev, isOpen: false }));
-  }, []);
-
-  // 아티팩트 소스 선택
-  const handleSelectArtifactSource = useCallback((sourceId: string) => {
-    setArtifactState(prev => ({ ...prev, activeSourceId: sourceId }));
-  }, []);
+  // 아티팩트 핸들러는 useArtifactPanel 훅에서 제공됨:
+  // openArtifact, closeArtifact, selectSource
 
   // 스트리밍 중단 핸들러
   const handleStopStreaming = useCallback(() => {
@@ -1010,7 +878,8 @@ export function ChatContainer() {
   // 컬렉션 변경 핸들러
   const handleCollectionChange = useCallback((newCollection: string) => {
     // 컬렉션이 실제로 변경된 경우에만 초기화
-    if (newCollection !== selectedCollection) {
+    const isChanged = setSelectedCollectionBase(newCollection);
+    if (isChanged) {
       // 대화 초기화
       setMessages([]);
 
@@ -1021,10 +890,7 @@ export function ChatContainer() {
       setQuotedMessage(null);
 
       // 아티팩트 패널도 닫기
-      setArtifactState({ isOpen: false, sources: [], activeSourceId: null, messageId: null });
-
-      // 컬렉션 변경
-      setSelectedCollection(newCollection);
+      resetArtifact();
 
       // 사용자에게 알림 (일상대화 모드 전환 시 다른 메시지)
       if (newCollection) {
@@ -1033,7 +899,7 @@ export function ChatContainer() {
         toast.info("일상대화 모드로 전환되었습니다. RAG 검색 없이 자유롭게 대화할 수 있습니다.");
       }
     }
-  }, [selectedCollection]);
+  }, [setSelectedCollectionBase, resetArtifact]);
 
   const chatContent = (
     <DocumentDropZone
@@ -1127,7 +993,7 @@ export function ChatContainer() {
               onQuote={handleQuote}
               collectionName={selectedCollection}
               onPromptSelect={handlePromptSelect}
-              onOpenArtifact={handleOpenArtifact}
+              onOpenArtifact={openArtifact}
               currentStage={currentStage}
               // 문서 업로드 상태 표시
               documentUploadStatus={documentUploadStatus}
@@ -1185,8 +1051,8 @@ export function ChatContainer() {
             <SourceArtifactPanel
               sources={artifactState.sources}
               activeSourceId={artifactState.activeSourceId}
-              onSourceSelect={handleSelectArtifactSource}
-              onClose={handleCloseArtifact}
+              onSourceSelect={selectSource}
+              onClose={closeArtifact}
             />
           )}
         </div>

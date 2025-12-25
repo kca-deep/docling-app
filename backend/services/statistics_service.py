@@ -20,6 +20,7 @@ from collections import Counter
 from backend.models.chat_statistics import ChatStatistics
 from backend.models.chat_session import ChatSession
 from backend.utils.timezone import now_naive
+from backend.utils.normalize import normalize_collection
 
 logger = logging.getLogger(__name__)
 
@@ -535,8 +536,8 @@ class StatisticsService:
     ) -> List[Dict[str, Any]]:
         """JSONL 로그에서 직접 타임라인 계산 (ALL이면 전체 조회)"""
         try:
-            # ALL이면 전체 로그 조회 (collection_name=None)
-            filter_collection = None if collection_name == "ALL" else collection_name
+            # 컬렉션 이름 정규화 (ALL, "", None → None)
+            filter_collection = normalize_collection(collection_name)
             df = await self.query_logs_by_date_range(start_date, end_date, filter_collection)
 
             if df.empty:
