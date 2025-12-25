@@ -2,6 +2,7 @@
 셀프진단 서비스
 AI 과제 보안성 검토 셀프진단 비즈니스 로직
 """
+import asyncio
 import json
 import logging
 import re
@@ -147,7 +148,8 @@ class SelfCheckService:
         project_description: str,
         department: str,
         manager_name: str,
-        created_at: str
+        created_at: str,
+        embedding: Optional[List[float]] = None
     ) -> bool:
         """
         분석 완료된 프로젝트를 Qdrant에 저장
@@ -159,6 +161,7 @@ class SelfCheckService:
             department: 부서명
             manager_name: 담당자명
             created_at: 생성 시간
+            embedding: 미리 생성된 임베딩 벡터 (None이면 내부에서 생성)
 
         Returns:
             bool: 저장 성공 여부
@@ -177,11 +180,13 @@ class SelfCheckService:
                 logger.warning(f"[SelfCheck] Empty project text for {submission_id}")
                 return False
 
-            # 임베딩 생성
-            embeddings = await self.embedding_service.get_embeddings(text)
-            if not embeddings:
-                logger.error(f"[SelfCheck] Failed to generate embedding for {submission_id}")
-                return False
+            # 임베딩 생성 (미리 제공되지 않은 경우에만)
+            if embedding is None:
+                embeddings = await self.embedding_service.get_embeddings(text)
+                if not embeddings:
+                    logger.error(f"[SelfCheck] Failed to generate embedding for {submission_id}")
+                    return False
+                embedding = embeddings[0]
 
             # 메타데이터 구성
             metadata = {
@@ -195,7 +200,7 @@ class SelfCheckService:
             # Qdrant에 저장
             await self.qdrant_service.upsert_vectors(
                 collection_name=settings.SELFCHECK_QDRANT_COLLECTION,
-                vectors=[embeddings[0]],
+                vectors=[embedding],
                 texts=[text],
                 metadata_list=[metadata]
             )
@@ -295,24 +300,29 @@ class SelfCheckService:
                 logger.info("[SelfCheck] No similar projects found in Qdrant")
                 return []
 
-            # submission_id로 DB에서 상세 정보 조회
-            candidates = []
+            # submission_id와 score 수집 (자기 자신 제외)
+            id_score_map = {}
             for result in search_results:
                 payload = result.get("payload", {})
-                submission_id = payload.get("submission_id")
-                score = result.get("score", 0.0)
+                sid = payload.get("submission_id")
+                if sid and sid != exclude_submission_id:
+                    id_score_map[sid] = result.get("score", 0.0)
 
-                # 자기 자신 제외
-                if submission_id == exclude_submission_id:
-                    continue
+            if not id_score_map:
+                logger.info("[SelfCheck] No valid candidates after filtering")
+                return []
 
-                # DB에서 프로젝트 정보 조회
-                project = db.query(SelfCheckSubmission).filter(
-                    SelfCheckSubmission.submission_id == submission_id
-                ).first()
+            # 배치 쿼리로 한 번에 조회 (N+1 → 1)
+            projects = db.query(SelfCheckSubmission).filter(
+                SelfCheckSubmission.submission_id.in_(id_score_map.keys())
+            ).all()
 
-                if project:
-                    candidates.append((project, score))
+            # 결과 매핑
+            candidates = [
+                (proj, id_score_map[proj.submission_id])
+                for proj in projects
+                if proj.submission_id in id_score_map
+            ]
 
             # 유사도 높은 순 정렬
             candidates.sort(key=lambda x: x[1], reverse=True)
@@ -837,131 +847,6 @@ class SelfCheckService:
         except (ValueError, TypeError):
             return default
 
-    async def _call_llm_batch(
-        self,
-        url: str,
-        model: str,
-        system_prompt: str,
-        user_prompt: str,
-        batch_name: str
-    ) -> List[Dict[str, Any]]:
-        """단일 배치 LLM 호출"""
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
-        payload = {
-            "model": model,
-            "messages": messages,
-            "temperature": settings.SELFCHECK_TEMPERATURE,
-            "max_tokens": settings.SELFCHECK_BATCH_MAX_TOKENS,
-            "top_p": 0.9,
-        }
-
-        try:
-            response = await self.client.post(url, json=payload, timeout=float(settings.SELFCHECK_TIMEOUT))
-            response.raise_for_status()
-            result = response.json()
-            message = result["choices"][0]["message"]
-            # content가 비어있으면 reasoning_content 사용 (일부 모델 동작 방식)
-            content = message.get("content") or message.get("reasoning_content") or ""
-            logger.info(f"[SelfCheck] {batch_name} raw response ({len(content)} chars): {content[:500]}")
-
-            # JSON 파싱 시도
-            converted = self._parse_batch_response(content, batch_name)
-            if converted:
-                return converted
-
-        except Exception as e:
-            logger.error(f"[SelfCheck] {batch_name} request failed: {e}")
-
-        return []
-
-    def _parse_batch_response(self, content: str, batch_name: str) -> List[Dict[str, Any]]:
-        """배치 응답 파싱"""
-        # 1차 시도: 전체 JSON 파싱
-        try:
-            json_match = re.search(r'\{[\s\S]*\}', content)
-            if json_match:
-                parsed = json.loads(json_match.group(0))
-                items = parsed.get("items", [])
-                if items:
-                    return self._convert_items(items, batch_name)
-        except json.JSONDecodeError as e:
-            logger.warning(f"[SelfCheck] {batch_name} JSON parse failed: {e}")
-
-        # 2차 시도: 개별 항목 추출 (정규식)
-        try:
-            # {"n":1,"a":"no","c":0.9,"e":"..."} 패턴
-            item_pattern = r'\{\s*"n"\s*:\s*(\d+)\s*,\s*"a"\s*:\s*"([^"]*)"\s*,\s*"c"\s*:\s*([0-9.]+)\s*,\s*"e"\s*:\s*"([^"]*)"\s*\}'
-            matches = re.findall(item_pattern, content)
-            if matches:
-                converted = []
-                for match in matches:
-                    converted.append({
-                        "item_number": int(match[0]),
-                        "answer": self._normalize_answer(match[1]),
-                        "confidence": self._safe_float(match[2]),
-                        "evidence": match[3] or "분석 완료",
-                        "risk_level": "medium"
-                    })
-                logger.info(f"[SelfCheck] {batch_name} regex extracted {len(converted)} items")
-                return converted
-        except Exception as e:
-            logger.warning(f"[SelfCheck] {batch_name} regex extraction failed: {e}")
-
-        # 3차 시도: 더 유연한 패턴
-        try:
-            # 각 필드를 개별적으로 찾기
-            items = []
-            n_matches = re.findall(r'"n"\s*:\s*(\d+)', content)
-            a_matches = re.findall(r'"a"\s*:\s*"([^"]*)"', content)
-            e_matches = re.findall(r'"e"\s*:\s*"([^"]*)"', content)
-
-            for i, n in enumerate(n_matches):
-                items.append({
-                    "item_number": int(n),
-                    "answer": self._normalize_answer(a_matches[i] if i < len(a_matches) else ""),
-                    "confidence": 0.8,
-                    "evidence": e_matches[i] if i < len(e_matches) else "분석 완료",
-                    "risk_level": "medium"
-                })
-            if items:
-                logger.info(f"[SelfCheck] {batch_name} flexible extraction got {len(items)} items")
-                return items
-        except Exception as e:
-            logger.warning(f"[SelfCheck] {batch_name} flexible extraction failed: {e}")
-
-        logger.error(f"[SelfCheck] {batch_name} all parsing methods failed. Content: {content[:1000]}")
-        return []
-
-    def _convert_items(self, items: List[Dict], batch_name: str) -> List[Dict[str, Any]]:
-        """항목 변환"""
-        converted = []
-        for item in items:
-            try:
-                # 축약 필드명(n,a,c,e) 또는 정식 필드명 지원
-                item_num = item.get("n") or item.get("item_number")
-                answer = item.get("a") or item.get("answer") or ""
-                confidence = item.get("c") or item.get("confidence")
-                evidence = item.get("e") or item.get("evidence") or ""
-                risk = item.get("r") or item.get("risk_level") or "medium"
-
-                if item_num is not None:
-                    converted.append({
-                        "item_number": int(item_num),
-                        "answer": self._normalize_answer(answer),
-                        "confidence": self._safe_float(confidence),
-                        "evidence": evidence if evidence else "분석 완료",
-                        "risk_level": risk
-                    })
-            except Exception as e:
-                logger.warning(f"[SelfCheck] {batch_name} item conversion error: {e}, item: {item}")
-                continue
-
-        logger.info(f"[SelfCheck] {batch_name} converted {len(converted)} items")
-        return converted
-
     def _normalize_answer(self, answer: str) -> str:
         """답변 정규화"""
         if not answer:
@@ -1129,7 +1014,6 @@ RULES:
                 if len(content) < 15 or content == "{" or not content.startswith("{"):
                     if attempt < max_retries:
                         logger.warning(f"[SelfCheck] Item {item_number} empty/invalid response, retry {attempt + 1}/{max_retries}")
-                        import asyncio
                         await asyncio.sleep(settings.SELFCHECK_RETRY_DELAY)  # 짧은 딜레이 후 재시도
                         continue
                     else:
@@ -1150,7 +1034,6 @@ RULES:
 
                     if is_truncated and attempt < max_retries:
                         logger.warning(f"[SelfCheck] Item {item_number} truncated response detected (missing judgment/reasoning), retry {attempt + 1}/{max_retries}")
-                        import asyncio
                         await asyncio.sleep(settings.SELFCHECK_RETRY_DELAY)
                         continue
 
@@ -1159,14 +1042,12 @@ RULES:
                 # 파싱 실패 시 재시도
                 if attempt < max_retries:
                     logger.warning(f"[SelfCheck] Item {item_number} parse failed, retry {attempt + 1}/{max_retries}")
-                    import asyncio
                     await asyncio.sleep(settings.SELFCHECK_RETRY_DELAY)
                     continue
 
             except Exception as e:
                 if attempt < max_retries:
                     logger.warning(f"[SelfCheck] Item {item_number} request error, retry {attempt + 1}/{max_retries}: {e}")
-                    import asyncio
                     await asyncio.sleep(settings.SELFCHECK_RETRY_DELAY)
                     continue
                 logger.error(f"[SelfCheck] Item {item_number} request failed after {max_retries} retries: {e}")
@@ -1587,96 +1468,6 @@ RULES:
         else:
             return f"총 {item_count}개 항목 분석 결과, 현재 보안성 검토 대상에 해당하지 않습니다. 다만, 과제 내용 변경 시 재검토가 필요할 수 있습니다."
 
-    async def _recover_missing_items(
-        self,
-        url: str,
-        model: str,
-        user_prompt: str,
-        missing_items: List[int]
-    ) -> List[Dict[str, Any]]:
-        """누락된 항목을 개별 호출로 보완"""
-        import asyncio
-
-        # 체크리스트 질문 매핑 (필수: 1-5, 선택: 6-10)
-        questions = {
-            1: "내부시스템 연계 필요 여부",
-            2: "개인정보(성명, 연락처) 수집 여부",
-            3: "민감정보(건강, 정치) 활용 여부",
-            4: "비공개자료 AI 입력 여부",
-            5: "대국민 서비스 제공 예정 여부",
-            6: "외부 클라우드 AI(ChatGPT 등) 사용 여부",
-            7: "자체 AI 모델 구축/학습 계획 여부",
-            8: "외부 API 연동 필요 여부",
-            9: "생성 결과물 검증 절차 마련 여부",
-            10: "AI 이용약관/저작권 확인 여부",
-        }
-
-        async def recover_single(item_num: int) -> Optional[Dict[str, Any]]:
-            """단일 항목 복구"""
-            question = questions.get(item_num, "")
-            messages = [
-                {"role": "system", "content": "You are a JSON generator. Output ONLY valid JSON."},
-                {"role": "user", "content": f"""다음 과제를 분석하고 질문에 답하세요.
-
-과제 내용:
-{user_prompt}
-
-질문 {item_num}번: {question}
-
-답변 형식 (이 형식으로만 출력):
-{{"n":{item_num},"a":"yes","c":0.85,"e":"판단결과. 과제내용에서 관련 내용 인용 또는 미언급 명시"}}
-
-규칙:
-- a: "yes", "no", "unknown" 중 하나
-- e: 한국어 50-100자, 형식: "[판단결과]. [과제내용 인용 또는 미언급 명시]"
-- 예시: "내부시스템 연계 필요. 과제내용에 '업무포털 API 연동' 명시됨"
-- 예시: "개인정보 수집 없음. 과제내용에 개인정보 관련 언급 없음"
-- 예시: "판단 불가. 해당 사항에 대한 구체적 언급 없어 담당자 확인 필요"
-"""}
-            ]
-            payload = {
-                "model": model,
-                "messages": messages,
-                "temperature": settings.SELFCHECK_TEMPERATURE,
-                "max_tokens": settings.SELFCHECK_RECOVERY_MAX_TOKENS,
-                "top_p": 0.9,
-            }
-            try:
-                response = await self.client.post(url, json=payload, timeout=float(settings.SELFCHECK_RECOVERY_TIMEOUT))
-                response.raise_for_status()
-                result = response.json()
-                message = result["choices"][0]["message"]
-                # content가 비어있으면 reasoning_content 사용
-                content = (message.get("content") or message.get("reasoning_content") or "").strip()
-                logger.info(f"[SelfCheck] Recovery item {item_num} response: [{content[:150]}]")
-
-                # 파싱
-                json_match = re.search(r'\{[^}]+\}', content)
-                if json_match:
-                    parsed = json.loads(json_match.group(0))
-                    return {
-                        "item_number": int(parsed.get("n", item_num)),
-                        "answer": self._normalize_answer(parsed.get("a", "")),
-                        "confidence": self._safe_float(parsed.get("c")),
-                        "evidence": parsed.get("e", "보완 분석 완료"),
-                        "risk_level": "medium"
-                    }
-            except Exception as e:
-                logger.warning(f"[SelfCheck] Recovery failed for item {item_num}: {e}")
-            return None
-
-        # 병렬로 누락 항목 복구
-        tasks = [recover_single(n) for n in missing_items]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        recovered = []
-        for r in results:
-            if isinstance(r, dict):
-                recovered.append(r)
-
-        logger.info(f"[SelfCheck] Recovered {len(recovered)}/{len(missing_items)} items")
-        return recovered
-
     async def analyze(
         self,
         request: SelfCheckAnalyzeRequest,
@@ -1686,7 +1477,6 @@ RULES:
         """
         셀프진단 분석 실행 (방안 C: 10개 항목 개별 순차 처리 + 교차검증)
         """
-        import asyncio
         start_time = datetime.now()
         submission_id = str(uuid.uuid4())
 
@@ -1700,18 +1490,14 @@ RULES:
         # 2. 사용자 입력 매핑
         user_items = {item.item_number: item for item in request.checklist_items}
 
-        logger.info(f"[SelfCheck] Starting individual LLM calls (10 items sequential): {model_key}")
+        logger.info(f"[SelfCheck] Starting parallel LLM calls (10 items): {model_key}")
 
-        # 3. 10개 항목을 개별 순차 처리 (안정적인 LLM 호출)
-        all_results = []
-
-        for checklist_item in CHECKLIST_ITEMS:
+        # 3. 10개 항목 병렬 처리 (asyncio.gather)
+        async def process_item(checklist_item):
+            """개별 항목 처리 래퍼"""
             num = checklist_item["number"]
             user_input = user_items.get(num)
-
-            logger.info(f"[SelfCheck] Processing item {num}/10 ({checklist_item['short_label']})")
-
-            result = await self._call_llm_individual(
+            return await self._call_llm_individual(
                 url=url,
                 model=model,
                 item_number=num,
@@ -1720,7 +1506,18 @@ RULES:
                 user_answer=user_input.user_answer if user_input else None,
                 user_details=user_input.user_details if user_input else None
             )
-            all_results.append(result)
+
+        # 10개 작업 생성 및 병렬 실행
+        tasks = [process_item(item) for item in CHECKLIST_ITEMS]
+        all_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # 예외를 None으로 변환 (일부 실패해도 계속 진행)
+        failed_count = sum(1 for r in all_results if isinstance(r, Exception))
+        all_results = [
+            r if not isinstance(r, Exception) else None
+            for r in all_results
+        ]
+        logger.info(f"[SelfCheck] Parallel execution completed: {10 - failed_count}/10 succeeded")
 
         # 4. 결과 매핑
         llm_items = {}
@@ -1828,9 +1625,13 @@ RULES:
                 logger.error(f"[SelfCheck] Similar project check failed: {e}")
                 # 유사과제 검토 실패해도 분석 결과는 반환
 
-        # 9. AI 종합의견 생성 (LLMService 사용 - reasoning_content 자동 분리)
-        try:
-            summary_msg = await self._generate_summary_with_llm(
+        # 9. AI 종합의견 생성 + Qdrant 임베딩 생성 (병렬 처리)
+        project_text = f"{request.project_name}\n{request.project_description or ''}"
+        qdrant_embedding = None  # 미리 생성된 임베딩 저장용
+
+        # 종합의견 생성 태스크
+        async def generate_summary():
+            return await self._generate_summary_with_llm(
                 model=model,
                 project_name=request.project_name,
                 project_description=request.project_description or "",
@@ -1840,10 +1641,31 @@ RULES:
                 result_items=result_items,
                 similar_projects=similar_projects
             )
-            logger.info(f"[SelfCheck] AI summary generated successfully")
-        except Exception as e:
-            logger.error(f"[SelfCheck] AI summary generation failed: {e}")
+
+        # Qdrant 임베딩 생성 태스크 (활성화된 경우)
+        async def generate_embedding():
+            if settings.SELFCHECK_QDRANT_ENABLED and project_text.strip():
+                embeddings = await self.embedding_service.get_embeddings(project_text)
+                return embeddings[0] if embeddings else None
+            return None
+
+        # 병렬 실행
+        results = await asyncio.gather(
+            generate_summary(),
+            generate_embedding(),
+            return_exceptions=True
+        )
+
+        # 결과 처리
+        if isinstance(results[0], Exception):
+            logger.error(f"[SelfCheck] AI summary generation failed: {results[0]}")
             summary_msg = self._generate_fallback_summary(requires_review, review_reason, len(result_items))
+        else:
+            summary_msg = results[0]
+            logger.info(f"[SelfCheck] AI summary generated successfully")
+
+        if not isinstance(results[1], Exception):
+            qdrant_embedding = results[1]
 
         # 10. DB 저장 (로그인한 경우)
         is_saved = False
@@ -1919,7 +1741,7 @@ RULES:
                 is_saved = True
                 logger.info(f"[SelfCheck] Submission saved: {submission_id}")
 
-                # 11. Qdrant에 프로젝트 저장 (유사과제 검색용)
+                # 11. Qdrant에 프로젝트 저장 (미리 생성된 임베딩 사용)
                 if settings.SELFCHECK_QDRANT_ENABLED:
                     try:
                         await self._save_project_to_qdrant(
@@ -1928,7 +1750,8 @@ RULES:
                             project_description=request.project_description or "",
                             department=request.department or "",
                             manager_name=request.manager_name or "",
-                            created_at=datetime.now().isoformat()
+                            created_at=datetime.now().isoformat(),
+                            embedding=qdrant_embedding  # 병렬로 미리 생성된 임베딩
                         )
                     except Exception as e:
                         logger.warning(f"[SelfCheck] Failed to save to Qdrant (non-blocking): {e}")

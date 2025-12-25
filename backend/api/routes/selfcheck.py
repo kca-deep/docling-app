@@ -32,30 +32,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/selfcheck", tags=["selfcheck"])
 
 
-# 부서 목록
-DEPARTMENTS = [
-    # 본사
-    "경영기획본부",
-    "AI디지털심화팀",
-    "정보보호팀",
-    "고객지원팀",
-    "방송인프라본부",
-    "전파관리본부",
-    "디지털방송본부",
-    # 지방본부
-    "서울본부",
-    "부산본부",
-    "대구본부",
-    "광주본부",
-    "대전본부",
-    "강원본부",
-    "충청본부",
-    "전북본부",
-    "경북본부",
-    "경남본부",
-]
-
-
 @router.get("/llm-status", response_model=LLMStatusResponse)
 async def get_llm_status():
     """
@@ -65,17 +41,6 @@ async def get_llm_status():
         LLMStatusResponse: 선택된 모델 및 전체 모델 상태
     """
     return await selfcheck_service.get_llm_status()
-
-
-@router.get("/departments")
-async def get_departments():
-    """
-    부서 목록 조회
-
-    Returns:
-        list: 부서명 목록
-    """
-    return {"departments": DEPARTMENTS}
 
 
 @router.get("/checklist")
@@ -437,11 +402,15 @@ async def get_qdrant_stats(
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Qdrant selfcheck 컬렉션 통계 조회
+    Qdrant selfcheck 컬렉션 통계 조회 (관리자 전용)
 
     Returns:
         컬렉션 존재 여부, 포인트 수, 상태
     """
+    # 관리자 권한 확인
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="관리자 권한이 필요합니다.")
+
     return await selfcheck_service.get_qdrant_collection_stats()
 
 
