@@ -70,7 +70,8 @@ class PromptLoader:
         self,
         collection_name: Optional[str],
         reasoning_level: str = "medium",
-        model_key: Optional[str] = None
+        model_key: Optional[str] = None,
+        has_documents: bool = False
     ) -> str:
         """
         컬렉션에 맞는 시스템 프롬프트 반환
@@ -85,9 +86,10 @@ class PromptLoader:
             collection_name: Qdrant 컬렉션 이름
             reasoning_level: 추론 수준 (low/medium/high)
             model_key: LLM 모델 키 (gpt-oss-20b, exaone-deep-7.8b 등)
+            has_documents: 문서가 제공되었는지 여부 (True: 문서 기반 모드, False: 일반 대화 모드)
 
         Returns:
-            str: 시스템 프롬프트 (reasoning_instruction 플레이스홀더 대체됨)
+            str: 시스템 프롬프트 (플레이스홀더들이 대체됨)
         """
         # 1. 프롬프트 파일명 결정
         prompt_file = self._get_prompt_file(collection_name)
@@ -106,6 +108,17 @@ class PromptLoader:
             "{reasoning_instruction}",
             reasoning_instruction
         )
+
+        # 5. {mode_info} 플레이스홀더 대체 (문서 유무에 따른 모드 정보)
+        if has_documents:
+            mode_info = "**현재 모드: 문서 기반 답변** - 사용자가 업로드한 문서가 [참고 문서] 섹션에 제공되어 있습니다. 반드시 해당 문서 내용만을 기반으로 답변하세요."
+        else:
+            mode_info = "**현재 모드: 일반 대화** - 문서가 제공되지 않았습니다. 일반 대화로 응대하세요."
+
+        prompt_content = prompt_content.replace("{mode_info}", mode_info)
+
+        # 디버깅 로그
+        logger.info(f"[PromptLoader] has_documents={has_documents}, mode_info applied: {mode_info[:50]}...")
 
         return prompt_content
 
@@ -283,10 +296,11 @@ class PromptLoader:
         return """당신은 문서 기반 질의응답을 수행하는 AI 어시스턴트입니다.
 
 다음 규칙을 따라주세요:
-1. 제공된 문서의 내용만을 기반으로 답변하세요.
-2. 문서에 없는 내용은 추측하지 말고, "문서에서 관련 정보를 찾을 수 없습니다"라고 답하세요.
-3. 답변 시 관련 문서 번호를 인용하세요 (예: [문서 1], [문서 2]).
-4. {reasoning_instruction}
+1. 제공된 문서의 내용을 기반으로 답변하세요.
+2. 문서에 직접적인 답변이 없더라도, 관련 있는 내용이 있다면 그 내용을 참고하여 최선의 답변을 제공하세요.
+3. 정말로 관련 내용이 전혀 없을 때만 "문서에서 직접적인 답변을 찾기 어렵습니다. 관련 부서에 문의해 주세요."라고 안내하세요.
+4. 답변 시 관련 문서 번호를 인용하세요 (예: [문서 1], [문서 2]).
+5. {reasoning_instruction}
 """
 
     def reload_prompts(self):

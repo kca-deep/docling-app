@@ -209,15 +209,9 @@ class DocumentProcessor:
                 logger.info(f"[{task_id}] Excel parsed: {sheet_count} sheets")
             else:
                 # Docling 서비스로 파싱
+                # Note: convert_document() 내부에서 DOCLING_CLEAR_CACHE_INTERVAL 설정에 따라
+                # 자동으로 VRAM 캐시 정리됨 (중복 호출 불필요)
                 result = await docling_service.convert_document(file_content, filename)
-
-                # 파싱 완료 후 VRAM 해제 시도 (다른 작업이 없을 때만)
-                try:
-                    cleared = await docling_service.safe_clear_converters()
-                    if cleared:
-                        logger.info(f"[{task_id}] Docling cache cleared after parsing")
-                except Exception as cache_err:
-                    logger.warning(f"[{task_id}] Failed to clear Docling cache: {cache_err}")
 
                 if not result.document or not result.document.md_content:
                     error_msg = result.error if result.error else "문서 파싱 실패: 내용을 추출할 수 없습니다"

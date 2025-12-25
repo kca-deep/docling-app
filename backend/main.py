@@ -146,11 +146,15 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[WARN] Qdrant client shutdown error: {e}")
 
-    # DoclingService HTTP 클라이언트 연결 종료 (VRAM 최적화)
+    # DoclingService 종료 (VRAM 정리 + HTTP 클라이언트 종료)
     try:
         docling_service = get_docling_service()
-        await docling_service.close()
-        print("[OK] DoclingService client closed successfully")
+        active_count = docling_service.get_active_count()
+        if active_count > 0:
+            print(f"[INFO] DoclingService: {active_count} active conversions will be interrupted")
+        # close()는 이제 force_clear_converters()를 포함 (VRAM 정리)
+        await docling_service.close(clear_vram=True)
+        print("[OK] DoclingService VRAM cleared and client closed successfully")
     except Exception as e:
         print(f"[WARN] DoclingService shutdown error: {e}")
 

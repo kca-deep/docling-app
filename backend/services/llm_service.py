@@ -409,31 +409,86 @@ class LLMService:
         # chat_history truncate (토큰 한도 초과 방지)
         truncated_history = self._truncate_chat_history(chat_history) if chat_history else None
 
-        # PromptLoader에서 동적으로 프롬프트 가져오기 (모델별 reasoning instruction 적용)
-        system_content = self.prompt_loader.get_system_prompt(
-            collection_name=collection_name,
-            reasoning_level=reasoning_level,
-            model_key=model_key
-        )
-
         # EXAONE Deep 모델 여부 확인
         is_exaone = model_key and "exaone" in model_key.lower()
 
         # 일상대화 모드 체크: 검색된 문서가 없으면 일상대화 모드
         is_casual_mode = not retrieved_docs
+        has_documents = bool(retrieved_docs)
+
+        # 디버깅 로그
+        logger.info(f"[LLM] build_rag_messages: collection_name={collection_name}, has_documents={has_documents}, retrieved_docs_count={len(retrieved_docs) if retrieved_docs else 0}")
+
+        # PromptLoader에서 동적으로 프롬프트 가져오기 (모델별 reasoning instruction 적용)
+        # collection_name이 None이면 casual.md 사용
+        # has_documents로 문서 유무를 명시적으로 전달 (LLM이 판단할 필요 없음)
+        system_content = self.prompt_loader.get_system_prompt(
+            collection_name=collection_name,
+            reasoning_level=reasoning_level,
+            model_key=model_key,
+            has_documents=has_documents
+        )
 
         # 문서 컨텍스트 구성 (컨텍스트 한도 설정)
         MAX_CONTEXT_CHARS = settings.LLM_MAX_CONTEXT_CHARS
         MAX_DOC_CHARS = settings.LLM_MAX_DOC_CHARS
+        MIN_CONTEXT_SCORE = 0.2  # 할루시네이션 방지: 이 점수 미만 문서는 컨텍스트에서 제외
+
+        # 임시 컬렉션 여부 확인
+        # 1. collection_name이 temp_session_, temp_ 로 시작하면 임시 컬렉션
+        # 2. collection_name이 None이고 retrieved_docs가 있으면 임시 컬렉션 (일상대화 + 문서 업로드)
+        # 3. retrieved_docs의 source_collection이 temp_로 시작하면 임시 컬렉션
+        is_temp_collection = False
+        if collection_name and (
+            collection_name.startswith("temp_session_") or
+            collection_name.startswith("temp_")
+        ):
+            is_temp_collection = True
+        elif not collection_name and retrieved_docs:
+            # 일상대화 모드에서 문서가 있으면 사용자가 직접 업로드한 임시 문서로 간주
+            is_temp_collection = True
+            logger.info(f"[LLM] Detected temp collection: collection_name=None but has {len(retrieved_docs)} docs")
+        elif retrieved_docs:
+            # source_collection 메타데이터에서 임시 컬렉션 여부 확인
+            source_col = retrieved_docs[0].get("source_collection", "")
+            if source_col and (source_col.startswith("temp_session_") or source_col.startswith("temp_")):
+                is_temp_collection = True
+                logger.info(f"[LLM] Detected temp collection from source_collection: {source_col}")
 
         context = ""
         if not is_casual_mode:
             context_parts = []
             total_chars = 0
 
+            # 디버깅: 첫 문서 구조 확인
+            if retrieved_docs:
+                first_doc = retrieved_docs[0]
+                logger.info(f"[LLM] First doc keys: {list(first_doc.keys())}")
+                if "payload" in first_doc:
+                    logger.info(f"[LLM] Payload keys: {list(first_doc['payload'].keys()) if isinstance(first_doc['payload'], dict) else 'not a dict'}")
+
             for idx, doc in enumerate(retrieved_docs, 1):
                 text = doc.get("payload", {}).get("text", "")
                 score = doc.get("score", 0)
+
+                # 개별 문서의 출처 컬렉션 확인 (병합 검색 시 각 문서별로 다를 수 있음)
+                doc_source = doc.get("source_collection", "")
+                is_doc_from_temp = (
+                    is_temp_collection or  # 전체가 임시 컬렉션 모드이거나
+                    doc_source.startswith("temp_session_") or
+                    doc_source.startswith("temp_")
+                )
+
+                # 저점수 문서 필터링 (할루시네이션 방지)
+                # 임시 컬렉션 문서는 사용자가 직접 업로드한 문서이므로 필터링 제외
+                # 메인 컬렉션 문서만 MIN_CONTEXT_SCORE 기준 적용
+                if not is_doc_from_temp and score < MIN_CONTEXT_SCORE:
+                    logger.info(f"[LLM] Skipping low-score doc {idx} (source={doc_source}): score={score:.4f} < {MIN_CONTEXT_SCORE}")
+                    continue
+
+                # 저점수지만 임시 컬렉션 문서인 경우 로그
+                if is_doc_from_temp and score < MIN_CONTEXT_SCORE:
+                    logger.info(f"[LLM] Including temp doc {idx} despite low score: score={score:.4f}, source={doc_source}")
 
                 # 개별 문서 텍스트 truncate
                 text = self._truncate_text(text, MAX_DOC_CHARS)
@@ -469,6 +524,7 @@ class LLMService:
                 total_chars += len(doc_part) + 2  # +2 for "\n\n"
 
             context = "\n\n".join(context_parts)
+            logger.info(f"[LLM] Context built: {len(context_parts)} parts, {len(context)} chars")
 
         if is_exaone:
             # EXAONE Deep: 시스템 프롬프트 사용 금지 (공식 권장)
@@ -515,11 +571,12 @@ class LLMService:
             if is_casual_mode:
                 messages.append({"role": "user", "content": query})
             else:
-                user_message = f"""다음 문서들을 참고하여 질문에 답변해주세요.
-
+                # casual.md 프롬프트가 "[참고 문서]" 섹션을 인식할 수 있도록 명시적 표시
+                user_message = f"""[참고 문서]
 {context}
 
-질문: {query}"""
+[질문]
+{query}"""
                 messages.append({"role": "user", "content": user_message})
 
         return messages

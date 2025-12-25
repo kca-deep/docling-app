@@ -26,15 +26,38 @@ class DoclingService:
         self.result_api_url = f"{self.base_url}/v1/result"
         self.poll_interval = settings.POLL_INTERVAL
 
-        # 동시성 제어 (VRAM 관리)
-        self._semaphore = asyncio.Semaphore(settings.DOCLING_CONCURRENCY)
+        # 동시성 제어 (VRAM 관리) - Lazy 초기화로 이벤트 루프 바인딩 문제 방지
+        self._semaphore: Optional[asyncio.Semaphore] = None
 
         # 싱글톤 HTTP 클라이언트 (Lazy 초기화)
         self._client: Optional[httpx.AsyncClient] = None
 
-        # 캐시 정리 카운터
+        # 캐시 정리 카운터 - Lazy 초기화로 이벤트 루프 바인딩 문제 방지
         self._convert_count: int = 0
-        self._convert_lock: asyncio.Lock = asyncio.Lock()
+        self._convert_lock: Optional[asyncio.Lock] = None
+
+    def _get_semaphore(self) -> asyncio.Semaphore:
+        """
+        Semaphore Lazy 초기화 (이벤트 루프 바인딩 문제 방지)
+
+        Returns:
+            asyncio.Semaphore: 동시성 제어용 Semaphore
+        """
+        if self._semaphore is None:
+            self._semaphore = asyncio.Semaphore(settings.DOCLING_CONCURRENCY)
+            logger.debug(f"Semaphore 초기화: concurrency={settings.DOCLING_CONCURRENCY}")
+        return self._semaphore
+
+    def _get_lock(self) -> asyncio.Lock:
+        """
+        Lock Lazy 초기화 (이벤트 루프 바인딩 문제 방지)
+
+        Returns:
+            asyncio.Lock: 캐시 정리용 Lock
+        """
+        if self._convert_lock is None:
+            self._convert_lock = asyncio.Lock()
+        return self._convert_lock
 
     async def _get_client(self, timeout: float = 120.0) -> httpx.AsyncClient:
         """
@@ -56,8 +79,22 @@ class DoclingService:
             )
         return self._client
 
-    async def close(self):
-        """서비스 종료 시 클라이언트 정리"""
+    async def close(self, clear_vram: bool = True):
+        """
+        서비스 종료 시 리소스 정리
+
+        Args:
+            clear_vram: VRAM 캐시 정리 여부 (기본값: True)
+        """
+        # 1. VRAM 캐시 정리 (강제)
+        if clear_vram:
+            try:
+                await self.force_clear_converters()
+                logger.info("DoclingService VRAM 캐시 정리 완료")
+            except Exception as e:
+                logger.warning(f"VRAM 캐시 정리 실패 (무시됨): {e}")
+
+        # 2. HTTP 클라이언트 종료
         if self._client and not self._client.is_closed:
             await self._client.aclose()
             self._client = None
@@ -92,7 +129,7 @@ class DoclingService:
         if not settings.DOCLING_CLEAR_CACHE_AFTER_CONVERT:
             return
 
-        async with self._convert_lock:
+        async with self._get_lock():
             self._convert_count += 1
             if settings.DOCLING_CLEAR_CACHE_INTERVAL == 0 or \
                self._convert_count >= settings.DOCLING_CLEAR_CACHE_INTERVAL:
@@ -142,7 +179,7 @@ class DoclingService:
         """
         # Semaphore로 동시 요청 제어 (VRAM 관리)
         if settings.DOCLING_USE_SEMAPHORE:
-            async with self._semaphore:
+            async with self._get_semaphore():
                 logger.debug(f"Semaphore 획득: {filename} (동시 요청 제한: {settings.DOCLING_CONCURRENCY})")
                 result = await self._convert_document_impl(
                     file_content, filename, target_type, to_formats,
@@ -373,7 +410,7 @@ class DoclingService:
         """
         # Semaphore로 동시 요청 제어 (VRAM 관리)
         if settings.DOCLING_USE_SEMAPHORE:
-            async with self._semaphore:
+            async with self._get_semaphore():
                 logger.debug(f"Semaphore 획득 (URL): {url} (동시 요청 제한: {settings.DOCLING_CONCURRENCY})")
                 result = await self._convert_url_impl(
                     url, target_type, to_formats, do_ocr, do_table_structure,
@@ -511,6 +548,9 @@ class DoclingService:
         Returns:
             int: 사용 중인 Semaphore 슬롯 수 (동시 진행 중인 작업 수)
         """
+        # Semaphore가 아직 초기화되지 않았으면 0 반환
+        if self._semaphore is None:
+            return 0
         # Semaphore의 현재 값 = 남은 슬롯 수
         # 진행 중인 작업 수 = 전체 슬롯 - 남은 슬롯
         return settings.DOCLING_CONCURRENCY - self._semaphore._value
@@ -519,14 +559,34 @@ class DoclingService:
         """
         안전한 캐시 정리 (진행 중인 작업이 없을 때만)
 
+        Note: 작은 race condition 창이 존재하나 실제 영향은 미미함
+        (캐시 정리 직후 새 작업이 시작되면 모델 재로드)
+
         Returns:
             bool: 정리 실행 여부
         """
-        if self.get_active_count() == 0:
+        active_count = self.get_active_count()
+        if active_count == 0:
+            logger.info("No active conversions, clearing VRAM cache")
             return await self.clear_converters()
         else:
-            logger.debug(f"Skipping cache clear: {self.get_active_count()} active conversions")
+            logger.debug(f"Skipping cache clear: {active_count} active conversions")
             return False
+
+    async def force_clear_converters(self) -> bool:
+        """
+        강제 캐시 정리 (진행 중인 작업 무시)
+
+        서버 shutdown 시 사용. 진행 중인 작업이 있어도 정리.
+        해당 작업은 모델 재로드가 필요할 수 있음.
+
+        Returns:
+            bool: 정리 성공 여부
+        """
+        active_count = self.get_active_count()
+        if active_count > 0:
+            logger.warning(f"Force clearing VRAM cache with {active_count} active conversions")
+        return await self.clear_converters()
 
 
 # 싱글톤 인스턴스
