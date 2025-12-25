@@ -435,14 +435,11 @@ class LLMService:
         MIN_CONTEXT_SCORE = 0.2  # 할루시네이션 방지: 이 점수 미만 문서는 컨텍스트에서 제외
 
         # 임시 컬렉션 여부 확인
-        # 1. collection_name이 temp_session_, temp_ 로 시작하면 임시 컬렉션
+        # 1. collection_name이 temp_ 로 시작하면 임시 컬렉션
         # 2. collection_name이 None이고 retrieved_docs가 있으면 임시 컬렉션 (일상대화 + 문서 업로드)
         # 3. retrieved_docs의 source_collection이 temp_로 시작하면 임시 컬렉션
         is_temp_collection = False
-        if collection_name and (
-            collection_name.startswith("temp_session_") or
-            collection_name.startswith("temp_")
-        ):
+        if collection_name and collection_name.startswith("temp_"):
             is_temp_collection = True
         elif not collection_name and retrieved_docs:
             # 일상대화 모드에서 문서가 있으면 사용자가 직접 업로드한 임시 문서로 간주
@@ -451,7 +448,7 @@ class LLMService:
         elif retrieved_docs:
             # source_collection 메타데이터에서 임시 컬렉션 여부 확인
             source_col = retrieved_docs[0].get("source_collection", "")
-            if source_col and (source_col.startswith("temp_session_") or source_col.startswith("temp_")):
+            if source_col and source_col.startswith("temp_"):
                 is_temp_collection = True
                 logger.info(f"[LLM] Detected temp collection from source_collection: {source_col}")
 
@@ -475,7 +472,6 @@ class LLMService:
                 doc_source = doc.get("source_collection", "")
                 is_doc_from_temp = (
                     is_temp_collection or  # 전체가 임시 컬렉션 모드이거나
-                    doc_source.startswith("temp_session_") or
                     doc_source.startswith("temp_")
                 )
 

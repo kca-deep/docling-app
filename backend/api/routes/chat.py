@@ -71,6 +71,116 @@ rag_service = RAGService(
 )
 
 
+def process_llm_stream_chunk(
+    chunk: str,
+    is_exaone: bool,
+    collected_response: dict,
+    log_prefix: str = "[STREAM]",
+    debug_logging: bool = False
+) -> list:
+    """
+    LLM 스트리밍 청크 처리 - 공통 유틸리티
+
+    Args:
+        chunk: SSE 청크 문자열
+        is_exaone: EXAONE 모델 여부
+        collected_response: 응답 수집 딕셔너리 (mutated)
+        log_prefix: 로그 접두사
+        debug_logging: 디버그 로깅 활성화
+
+    Returns:
+        list: yield할 SSE 청크 목록
+    """
+    chunks_to_yield = []
+
+    if not chunk.startswith('data: '):
+        # [DONE] 처리
+        if 'data: [DONE]' in chunk:
+            rc_len = len(collected_response.get("reasoning_content", ""))
+            ans_len = len(collected_response.get("answer", ""))
+            logger.info(f"{log_prefix} [DONE] detected, reasoning: {rc_len} chars, answer: {ans_len} chars")
+            chunks_to_yield.append(chunk)
+        elif not is_exaone:
+            chunks_to_yield.append(chunk)
+        return chunks_to_yield
+
+    try:
+        data_str = chunk[6:]  # 'data: ' 제거
+        if not data_str.strip() or data_str == '[DONE]':
+            if 'data: [DONE]' in chunk:
+                chunks_to_yield.append(chunk)
+            return chunks_to_yield
+
+        data = json.loads(data_str)
+
+        # OpenAI 호환 API: choices[0].delta에서 추출
+        if 'choices' in data and data['choices']:
+            choice = data['choices'][0]
+            delta = choice.get('delta', {})
+            content = delta.get('content', '')
+            reasoning_content = delta.get('reasoning_content', '')
+
+            # 최종 message에서 reasoning_content 확인 (일부 서버에서 지원)
+            message = choice.get('message', {})
+            if message.get('reasoning_content'):
+                reasoning_content = message.get('reasoning_content', '')
+                logger.info(f"{log_prefix} Got reasoning_content from message: {len(reasoning_content)} chars")
+
+            # 디버그 로깅 (처음 3개 청크만)
+            if debug_logging and len(collected_response.get("answer", "")) < 50:
+                logger.info(f"{log_prefix} Full chunk: {data}")
+                logger.info(f"{log_prefix} choice keys: {list(choice.keys())}, delta keys: {list(delta.keys())}")
+
+            # EXAONE 모델 처리
+            if is_exaone:
+                if reasoning_content:
+                    collected_response["reasoning_content"] = collected_response.get("reasoning_content", "") + reasoning_content
+                    chunks_to_yield.append(f'data: {json.dumps({"type": "reasoning_chunk", "content": reasoning_content})}\n\n')
+
+                if content:
+                    clean_content = clean_thought_tags_simple(content)
+                    if clean_content:
+                        collected_response["answer"] = collected_response.get("answer", "") + clean_content
+                        chunks_to_yield.append(f'data: {json.dumps({"choices": [{"delta": {"content": clean_content}, "index": 0}]})}\n\n')
+            else:
+                # GPT-OSS 및 기타 모델
+                if content:
+                    collected_response["answer"] = collected_response.get("answer", "") + content
+                if reasoning_content:
+                    logger.info(f"{log_prefix} Got reasoning_content chunk: {len(reasoning_content)} chars")
+                    collected_response["reasoning_content"] = collected_response.get("reasoning_content", "") + reasoning_content
+                    chunks_to_yield.append(f'data: {json.dumps({"type": "reasoning_chunk", "content": reasoning_content})}\n\n')
+
+        # sources/retrieved_docs/usage/error 처리 (chat_stream 호환)
+        if 'sources' in data:
+            collected_response["retrieved_docs"] = data['sources']
+            if is_exaone:
+                chunks_to_yield.append(f'data: {json.dumps({"sources": data["sources"]})}\n\n')
+        if 'retrieved_docs' in data:
+            collected_response["retrieved_docs"] = data['retrieved_docs']
+        if 'usage' in data:
+            collected_response["usage"] = data['usage']
+        if 'error' in data and data['error']:
+            error_message = data['error']
+            collected_response["answer"] = error_message
+            logger.warning(f"{log_prefix} Error response received: {error_message[:100]}")
+
+    except json.JSONDecodeError:
+        pass
+
+    # [DONE] 처리 (chunk 내부에 포함된 경우)
+    if 'data: [DONE]' in chunk:
+        rc_len = len(collected_response.get("reasoning_content", ""))
+        ans_len = len(collected_response.get("answer", ""))
+        logger.info(f"{log_prefix} [DONE] detected, reasoning: {rc_len} chars, answer: {ans_len} chars")
+        chunks_to_yield.append(chunk)
+    elif not is_exaone and not chunks_to_yield:
+        # EXAONE이 아니고 아직 yield할 것이 없으면 원본 전달
+        chunks_to_yield.append(chunk)
+
+    return chunks_to_yield
+
+
 async def log_chat_interaction_task(
     session_id: str,
     conversation_id: str,
@@ -550,88 +660,16 @@ async def chat_stream(
                     use_hybrid=chat_request.use_hybrid,
                     temp_collection_name=chat_request.temp_collection_name
                 ):
-                    # SSE 포맷 파싱하여 응답 수집
-                    if chunk.startswith('data: '):
-                        try:
-                            data_str = chunk[6:]  # 'data: ' 제거
-                            if data_str.strip() and data_str != '[DONE]':
-                                data = json.loads(data_str)
-
-                                # OpenAI 호환 API: choices[0].delta에서 추출
-                                if 'choices' in data and data['choices']:
-                                    choice = data['choices'][0]
-                                    delta = choice.get('delta', {})
-                                    content = delta.get('content', '')
-                                    reasoning_content = delta.get('reasoning_content', '')
-
-                                    # 최종 message에서 reasoning_content 확인 (일부 서버에서 지원)
-                                    message = choice.get('message', {})
-                                    if message.get('reasoning_content'):
-                                        reasoning_content = message.get('reasoning_content', '')
-                                        logger.info(f"[STREAM DEBUG] Got reasoning_content from message: {len(reasoning_content)} chars")
-
-                                    # 디버그: delta/choice 내용 확인 (처음 3개 청크만)
-                                    if len(collected_response["answer"]) < 50:
-                                        logger.info(f"[STREAM DEBUG] Full chunk: {data}")
-                                        logger.info(f"[STREAM DEBUG] choice keys: {list(choice.keys())}, delta keys: {list(delta.keys())}, delta: {delta}")
-
-                                    # EXAONE 모델: reasoning_content 필드와 content 필드 분리 처리
-                                    # llama.cpp가 reasoning_content와 content를 별도 필드로 전송함
-                                    if is_exaone:
-                                        # reasoning_content 필드가 있으면 추론으로 처리
-                                        if reasoning_content:
-                                            collected_response["reasoning_content"] += reasoning_content
-                                            yield f'data: {json.dumps({"type": "reasoning_chunk", "content": reasoning_content})}\n\n'
-
-                                        # content 필드가 있으면 답변으로 처리 (태그 제거)
-                                        if content:
-                                            # 혹시 남아있는 태그 제거
-                                            clean_content = clean_thought_tags_simple(content)
-                                            if clean_content:
-                                                collected_response["answer"] += clean_content
-                                                yield f'data: {json.dumps({"choices": [{"delta": {"content": clean_content}, "index": 0}]})}\n\n'
-
-                                    elif not is_exaone:
-                                        # GPT-OSS 및 기타 모델
-                                        if content:
-                                            collected_response["answer"] += content
-                                        if reasoning_content:
-                                            logger.info(f"[STREAM DEBUG] Got reasoning_content chunk: {len(reasoning_content)} chars")
-                                            collected_response["reasoning_content"] += reasoning_content
-                                            # 실시간으로 reasoning_chunk 이벤트 전송
-                                            reasoning_chunk_event = {
-                                                "type": "reasoning_chunk",
-                                                "content": reasoning_content
-                                            }
-                                            yield f'data: {json.dumps(reasoning_chunk_event)}\n\n'
-
-                                # rag_service에서 'sources'로 보내므로 둘 다 처리
-                                if 'sources' in data:
-                                    collected_response["retrieved_docs"] = data['sources']
-                                    # EXAONE도 sources는 전달해야 함
-                                    if is_exaone:
-                                        yield f'data: {json.dumps({"sources": data["sources"]})}\n\n'
-                                if 'retrieved_docs' in data:
-                                    collected_response["retrieved_docs"] = data['retrieved_docs']
-                                if 'usage' in data:
-                                    collected_response["usage"] = data['usage']
-                                # 에러 필드 처리 (호환성 유지)
-                                if 'error' in data and data['error']:
-                                    error_message = data['error']
-                                    collected_response["answer"] = error_message
-                                    logger.warning(f"[STREAM] Error response received: {error_message[:100]}")
-                        except json.JSONDecodeError:
-                            pass
-
-                    # [DONE] 처리
-                    if 'data: [DONE]' in chunk:
-                        rc_len = len(collected_response["reasoning_content"])
-                        ans_len = len(collected_response["answer"])
-                        logger.info(f"[STREAM DEBUG] [DONE] detected, reasoning: {rc_len} chars, answer: {ans_len} chars")
-                        yield chunk  # [DONE] 전달
-                    elif not is_exaone:
-                        # EXAONE이 아닌 경우만 원본 chunk 전달
-                        yield chunk
+                    # 공통 유틸리티로 스트림 청크 처리
+                    chunks_to_yield = process_llm_stream_chunk(
+                        chunk=chunk,
+                        is_exaone=is_exaone,
+                        collected_response=collected_response,
+                        log_prefix="[STREAM DEBUG]",
+                        debug_logging=True
+                    )
+                    for output_chunk in chunks_to_yield:
+                        yield output_chunk
             except asyncio.CancelledError:
                 # 클라이언트 연결 끊김 시에도 기본 정보는 기록
                 logger.warning("[CHAT API] Stream cancelled by client")
@@ -865,7 +903,8 @@ async def regenerate(
             answer=answer,
             retrieved_docs=request.retrieved_docs,  # 원본 그대로 반환
             usage=result.get("usage"),
-            session_id=session_id
+            session_id=session_id,
+            conversation_id=conversation_id
         )
 
     except Exception as e:
@@ -925,6 +964,12 @@ async def regenerate_stream(request: RegenerateRequest):
     logger.info(f"[REGENERATE STREAM] Query: {request.query[:50]}...")
     logger.info("="*80)
 
+    # 세션/대화 ID 및 시간 추적
+    session_id = request.session_id or f"regen_stream_{int(time.time() * 1000)}"
+    conversation_id = str(uuid.uuid4())
+    start_time = time.time()
+    stream_error_info = None
+
     try:
         # 대화 기록 변환
         chat_history = None
@@ -982,60 +1027,58 @@ async def regenerate_stream(request: RegenerateRequest):
                     chat_history=chat_history,
                     collection_name=request.collection_name
                 ):
-                    # SSE 포맷 파싱하여 응답 수집
-                    if chunk.startswith('data: '):
-                        try:
-                            data_str = chunk[6:]  # 'data: ' 제거
-                            if data_str.strip() and data_str != '[DONE]':
-                                data = json.loads(data_str)
-
-                                # OpenAI 호환 API: choices[0].delta에서 추출
-                                if 'choices' in data and data['choices']:
-                                    choice = data['choices'][0]
-                                    delta = choice.get('delta', {})
-                                    content = delta.get('content', '')
-                                    reasoning_content = delta.get('reasoning_content', '')
-
-                                    # EXAONE 모델: reasoning_content 필드와 content 필드 분리 처리
-                                    # llama.cpp가 reasoning_content와 content를 별도 필드로 전송함
-                                    if is_exaone:
-                                        # reasoning_content 필드가 있으면 추론으로 처리
-                                        if reasoning_content:
-                                            collected_response["reasoning_content"] += reasoning_content
-                                            yield f'data: {json.dumps({"type": "reasoning_chunk", "content": reasoning_content})}\n\n'
-
-                                        # content 필드가 있으면 답변으로 처리 (태그 제거)
-                                        if content:
-                                            # 혹시 남아있는 태그 제거
-                                            clean_content = clean_thought_tags_simple(content)
-                                            if clean_content:
-                                                collected_response["answer"] += clean_content
-                                                yield f'data: {json.dumps({"choices": [{"delta": {"content": clean_content}, "index": 0}]})}\n\n'
-
-                                    elif not is_exaone:
-                                        # GPT-OSS 및 기타 모델
-                                        if content:
-                                            collected_response["answer"] += content
-                                        if reasoning_content:
-                                            logger.info(f"[REGENERATE STREAM] Got reasoning_content chunk: {len(reasoning_content)} chars")
-                                            collected_response["reasoning_content"] += reasoning_content
-                                            yield f'data: {json.dumps({"type": "reasoning_chunk", "content": reasoning_content})}\n\n'
-
-                        except json.JSONDecodeError:
-                            pass
-
-                    # [DONE] 처리
-                    if 'data: [DONE]' in chunk:
-                        rc_len = len(collected_response["reasoning_content"])
-                        ans_len = len(collected_response["answer"])
-                        logger.info(f"[REGENERATE STREAM] [DONE] detected, reasoning: {rc_len} chars, answer: {ans_len} chars")
-                        yield chunk  # [DONE] 전달
-                    elif not is_exaone:
-                        yield chunk
+                    # 공통 유틸리티로 스트림 청크 처리
+                    chunks_to_yield = process_llm_stream_chunk(
+                        chunk=chunk,
+                        is_exaone=is_exaone,
+                        collected_response=collected_response,
+                        log_prefix="[REGENERATE STREAM]",
+                        debug_logging=False
+                    )
+                    for output_chunk in chunks_to_yield:
+                        yield output_chunk
 
             except Exception as e:
+                nonlocal stream_error_info
                 logger.error(f"[REGENERATE STREAM] Generation failed: {e}")
+                stream_error_info = {
+                    "error_type": type(e).__name__,
+                    "error_message": str(e)
+                }
                 yield get_sse_error_response(e, "regenerate")
+            finally:
+                # 스트리밍 완료 후 로깅
+                final_response_time_ms = int((time.time() - start_time) * 1000)
+                final_performance_metrics = {
+                    "response_time_ms": final_response_time_ms,
+                    "token_count": 0,  # 스트리밍에서는 토큰 수 미확인
+                    "retrieval_time_ms": None  # 재생성은 검색 없음
+                }
+                final_llm_params = {
+                    "temperature": request.temperature,
+                    "max_tokens": request.max_tokens,
+                    "top_p": request.top_p
+                }
+                try:
+                    await asyncio.shield(log_chat_interaction_task(
+                        session_id=session_id,
+                        conversation_id=conversation_id,
+                        collection_name=request.collection_name or "regenerate",
+                        message=f"[REGENERATE] {request.query}",
+                        response_data={
+                            "answer": collected_response.get("answer", ""),
+                            "retrieved_docs": retrieved_docs_internal
+                        },
+                        reasoning_level=request.reasoning_level,
+                        model=request.model,
+                        llm_params=final_llm_params,
+                        performance_metrics=final_performance_metrics,
+                        error_info=stream_error_info
+                    ))
+                except asyncio.CancelledError:
+                    logger.warning("[REGENERATE STREAM] Logging interrupted")
+                except Exception as log_error:
+                    logger.error(f"[REGENERATE STREAM] Logging failed: {log_error}")
 
         return StreamingResponse(
             generate(),

@@ -142,15 +142,6 @@ class RerankerService:
             logger.warning(f"Reranking failed, using fallback: {e}")
             return None
 
-    def is_available(self) -> bool:
-        """
-        Reranker 서비스 사용 가능 여부 확인
-
-        Returns:
-            설정에서 USE_RERANKING이 True이면 True, 아니면 False
-        """
-        return settings.USE_RERANKING
-
 
 # 싱글톤 인스턴스
 reranker_service = RerankerService()
