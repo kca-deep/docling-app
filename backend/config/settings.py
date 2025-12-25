@@ -127,7 +127,7 @@ class Settings(BaseSettings):
     EXAONE_4_0_32B_TOP_P: float = 0.9
     EXAONE_4_0_32B_MAX_TOKENS: int = 8192
 
-    LLM_DEFAULT_TEMPERATURE: float = 0.7
+    LLM_DEFAULT_TEMPERATURE: float = 0.3  # 할루시네이션 방지를 위해 0.7 → 0.3 (2024-12)
     LLM_DEFAULT_MAX_TOKENS: int = 4096
     LLM_DEFAULT_TOP_P: float = 0.9
 
@@ -188,11 +188,12 @@ class Settings(BaseSettings):
     # 기존 5배에서 3배로 축소하여 속도 30% 향상 (top_k=5 → 15개 검색)
     RERANK_TOP_K_MULTIPLIER: int = 3
     # BGE Reranker 점수 분포: 관련 문서 0.2~0.5, 비관련 0.01 이하
-    RERANK_SCORE_THRESHOLD: float = 0.2
+    # 할루시네이션 방지를 위해 0.1 → 0.3으로 상향 (2024-12)
+    RERANK_SCORE_THRESHOLD: float = 0.3
     # P0-1: 최소 답변 생성 임계값
     # max_score가 이 값 미만이면 "관련 정보를 찾을 수 없습니다" 응답
-    # 할루시네이션 방지를 위해 너무 낮은 점수의 문서로 답변 생성 방지
-    MINIMUM_ANSWER_THRESHOLD: float = 0.2
+    # 할루시네이션 방지를 위해 0.1 → 0.25로 상향 (2024-12)
+    MINIMUM_ANSWER_THRESHOLD: float = 0.25
 
     # 하이브리드 검색 설정 (벡터 + BM25)
     USE_HYBRID_SEARCH: bool = True  # 하이브리드 검색 활성화
@@ -245,7 +246,9 @@ class Settings(BaseSettings):
     QWEN3_VL_MAX_TOKENS: int = 8192
     QWEN3_VL_TEMPERATURE: float = 0.1
     QWEN3_VL_CONCURRENCY: int = 2  # Qwen3-VL 페이지별 병렬 처리 수
-    QWEN3_VL_OCR_PROMPT: str = "이미지에 있는 모든 텍스트를 정확하게 추출해주세요. 표, 날짜, 숫자 등 모든 내용을 원본 형식 그대로 보존하여 추출해주세요. Extract all text from this image accurately, preserving tables, dates, numbers, and formatting."
+    # OCR 프롬프트는 backend/prompts/meta/ocr_prompt.md 파일에서 우선 로드
+    # 파일이 없을 경우 이 값을 fallback으로 사용
+    QWEN3_VL_OCR_PROMPT: str = "이미지의 모든 텍스트를 UTF-8 인코딩으로 정확히 추출하세요. 한글, 표, 날짜, 숫자 등 모든 내용을 원본 형식 그대로 보존하여 추출해주세요."
 
     # ===========================================
     # 배치 처리 설정

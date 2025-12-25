@@ -1938,13 +1938,6 @@ RULES:
                 logger.error(f"[SelfCheck] Failed to save submission: {e}")
                 # 저장 실패해도 분석 결과는 반환
 
-        # 12. 임베딩 캐시 정리 (GPU 메모리 절약)
-        if settings.SELFCHECK_SIMILARITY_ENABLED:
-            try:
-                await self.embedding_service.clear_cache()
-            except Exception as e:
-                logger.warning(f"[SelfCheck] Failed to clear embedding cache: {e}")
-
         return SelfCheckAnalyzeResponse(
             submission_id=submission_id,
             requires_review=requires_review,

@@ -133,27 +133,6 @@ class EmbeddingService:
         """
         return 1024
 
-    async def clear_cache(self) -> bool:
-        """
-        임베딩 서버 캐시 정리
-
-        분석 완료 후 GPU 메모리 절약을 위해 캐시를 정리합니다.
-
-        Returns:
-            bool: 캐시 정리 성공 여부
-        """
-        try:
-            url = f"{self.base_url}/v1/cache/clear"
-            response = await self.client.post(url)
-            response.raise_for_status()
-
-            result = response.json()
-            logger.info(f"[Embedding] Cache cleared: {result.get('message', 'success')}")
-            return True
-        except Exception as e:
-            logger.warning(f"[Embedding] Failed to clear cache: {e}")
-            return False
-
     async def close(self):
         """
         클라이언트 연결 종료

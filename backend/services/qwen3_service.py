@@ -9,11 +9,18 @@ import fitz  # PyMuPDF
 from PIL import Image
 import io
 import re
+import logging
+from pathlib import Path
 from typing import Optional
 
 from backend.config.settings import settings
 from backend.models.schemas import TaskStatus, ConvertResult, DocumentInfo
 from backend.services.progress_tracker import progress_tracker
+
+logger = logging.getLogger(__name__)
+
+# OCR 프롬프트 파일 경로
+OCR_PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "meta" / "ocr_prompt.md"
 
 
 class Qwen3Service:
@@ -27,7 +34,17 @@ class Qwen3Service:
         self.max_pages = settings.QWEN3_VL_MAX_PAGES
         self.max_tokens = settings.QWEN3_VL_MAX_TOKENS
         self.temperature = settings.QWEN3_VL_TEMPERATURE
-        self.ocr_prompt = settings.QWEN3_VL_OCR_PROMPT
+        self.ocr_prompt = self._load_ocr_prompt()
+
+    def _load_ocr_prompt(self) -> str:
+        """OCR 프롬프트 파일 로드"""
+        if OCR_PROMPT_PATH.exists():
+            prompt = OCR_PROMPT_PATH.read_text(encoding="utf-8")
+            logger.info(f"OCR prompt loaded from {OCR_PROMPT_PATH}")
+            return prompt
+        else:
+            logger.warning(f"OCR prompt file not found: {OCR_PROMPT_PATH}, using default")
+            return settings.QWEN3_VL_OCR_PROMPT
 
     def _image_to_base64(self, image: Image.Image) -> str:
         """PIL Image를 base64 문자열로 변환"""

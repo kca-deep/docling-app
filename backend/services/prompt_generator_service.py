@@ -36,20 +36,32 @@ class PromptGeneratorService:
         return meta_path.read_text(encoding="utf-8")
 
     def _load_template(self, template_type: str) -> str:
-        """템플릿 프롬프트 로드 (참고용)"""
+        """
+        템플릿 프롬프트 로드 (참고용)
+        meta 폴더의 템플릿 우선, 없으면 prompts 폴더에서 로드
+        """
         template_map = {
             "regulation": "regulation.md",
-            "budget": "budget.md",
-            "fund": "fund.md",
+            "faq": "default.md",
+            "hr": "regulation.md",
+            "finance": "regulation.md",
+            "audit": "regulation.md",
             "casual": "casual.md",
             "technical": "technical.md",
             "default": "default.md"
         }
         filename = template_map.get(template_type, "default.md")
-        template_path = PROMPTS_DIR / filename
 
+        # meta 폴더 우선 확인
+        template_path = META_PROMPTS_DIR / filename
         if template_path.exists():
             return template_path.read_text(encoding="utf-8")
+
+        # prompts 폴더 fallback
+        template_path = PROMPTS_DIR / filename
+        if template_path.exists():
+            return template_path.read_text(encoding="utf-8")
+
         return ""
 
     async def generate_system_prompt(
@@ -354,28 +366,40 @@ class PromptGeneratorService:
         """
         defaults = {
             "regulation": [
-                "신청하려면 어떻게 해야 하나요?",  # 신청/이용
-                "신청 절차는 어떻게 되나요?",  # 기준/방법
-                "신청 조건은 무엇인가요?",  # 조건/자격
-                "필요한 서류는 무엇인가요?",  # 서류/양식
+                "신청하려면 어떻게 해야 하나요?",
+                "신청 절차는 어떻게 되나요?",
+                "신청 조건은 무엇인가요?",
+                "필요한 서류는 무엇인가요?",
             ],
-            "budget": [
-                "비용 청구는 어떻게 하나요?",  # 신청/이용
-                "사용 가능 범위는 어떻게 되나요?",  # 기준/방법
-                "지급 조건은 무엇인가요?",  # 조건/자격
-                "필요한 증빙서류는 무엇인가요?",  # 서류/양식
+            "faq": [
+                "자주 묻는 질문은 무엇인가요?",
+                "이용 방법을 알려주세요.",
+                "신청 자격은 어떻게 되나요?",
+                "문의는 어디로 하면 되나요?",
             ],
-            "fund": [
-                "정산 절차는 어떻게 되나요?",  # 신청/이용
-                "사업비 집행 기준은 어떻게 되나요?",  # 기준/방법
-                "지원 조건은 무엇인가요?",  # 조건/자격
-                "제출 서류는 무엇인가요?",  # 서류/양식
+            "hr": [
+                "휴가 신청은 어떻게 하나요?",
+                "근태 관리 기준은 어떻게 되나요?",
+                "신청 절차는 무엇인가요?",
+                "필요한 서류는 무엇인가요?",
+            ],
+            "finance": [
+                "비용 청구는 어떻게 하나요?",
+                "사용 가능 범위는 어떻게 되나요?",
+                "지급 조건은 무엇인가요?",
+                "필요한 증빙서류는 무엇인가요?",
+            ],
+            "audit": [
+                "감사 절차는 어떻게 되나요?",
+                "준수해야 할 규정은 무엇인가요?",
+                "보고 기한은 언제인가요?",
+                "필요한 서류는 무엇인가요?",
             ],
             "technical": [
-                "사용하려면 어떻게 해야 하나요?",  # 신청/이용
-                "설정 방법은 어떻게 되나요?",  # 기준/방법
-                "사용 요건은 무엇인가요?",  # 조건/자격
-                "오류 발생 시 어떻게 해결하나요?",  # 문제해결
+                "사용하려면 어떻게 해야 하나요?",
+                "설정 방법은 어떻게 되나요?",
+                "사용 요건은 무엇인가요?",
+                "오류 발생 시 어떻게 해결하나요?",
             ],
             "casual": [
                 "어떻게 하면 되나요?",
@@ -384,10 +408,10 @@ class PromptGeneratorService:
                 "추천해주실 수 있나요?",
             ],
             "default": [
-                "신청하려면 어떻게 해야 하나요?",  # 신청/이용
-                "절차는 어떻게 되나요?",  # 기준/방법
-                "조건은 무엇인가요?",  # 조건/자격
-                "주의할 점이 있나요?",  # 주의/예외
+                "신청하려면 어떻게 해야 하나요?",
+                "절차는 어떻게 되나요?",
+                "조건은 무엇인가요?",
+                "주의할 점이 있나요?",
             ],
         }
         questions = defaults.get(template_type, defaults["default"])

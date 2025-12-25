@@ -125,13 +125,18 @@ class RAGService:
                     if doc["score"] >= settings.RERANK_SCORE_THRESHOLD
                 ]
 
-                # [P0-1] 최소 점수 체크 - 최고 점수가 MINIMUM_ANSWER_THRESHOLD 미만이면 거부
+                # [P0-1] 최소 점수 체크 - 최고 점수가 MINIMUM_ANSWER_THRESHOLD 미만이면 soft fallback
                 if max_score < settings.MINIMUM_ANSWER_THRESHOLD:
                     logger.warning(
                         f"[RERANK] Max score {max_score:.4f} below "
-                        f"MINIMUM_ANSWER_THRESHOLD {settings.MINIMUM_ANSWER_THRESHOLD}"
+                        f"MINIMUM_ANSWER_THRESHOLD {settings.MINIMUM_ANSWER_THRESHOLD}, "
+                        f"using soft fallback with top 2 docs"
                     )
-                    return []  # 빈 리스트 반환 -> 거부 응답 트리거
+                    # Soft fallback: 점수가 낮더라도 상위 2개 문서 반환 (거부 응답 최소화)
+                    fallback_docs = reordered_docs[:min(top_k, 2)]
+                    for doc in fallback_docs:
+                        doc["low_confidence"] = True  # 낮은 신뢰도 표시
+                    return fallback_docs
 
                 # threshold 통과 문서가 있으면 사용
                 if filtered_docs:
@@ -142,12 +147,17 @@ class RAGService:
                     )
                     return filtered_docs
                 else:
-                    # [P0-2] 리랭킹 실패 시 거부
+                    # [P0-2] 리랭킹 threshold 미통과 시 soft fallback
                     logger.warning(
                         f"[RERANK] No docs passed RERANK_SCORE_THRESHOLD "
-                        f"{settings.RERANK_SCORE_THRESHOLD}, max_score={max_score:.4f}"
+                        f"{settings.RERANK_SCORE_THRESHOLD}, max_score={max_score:.4f}, "
+                        f"using soft fallback with top 2 docs"
                     )
-                    return []  # 빈 리스트 반환 -> 거부 응답 트리거
+                    # Soft fallback: threshold 미통과해도 상위 2개 문서 반환
+                    fallback_docs = reordered_docs[:min(top_k, 2)]
+                    for doc in fallback_docs:
+                        doc["low_confidence"] = True  # 낮은 신뢰도 표시
+                    return fallback_docs
             else:
                 logger.warning("Reranking failed, using original vector search results")
                 return retrieved_docs[:top_k]
