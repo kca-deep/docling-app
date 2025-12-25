@@ -71,6 +71,138 @@ rag_service = RAGService(
 )
 
 
+# ============================================================================
+# 공통 헬퍼 함수들
+# ============================================================================
+
+def convert_chat_history(chat_history: Optional[list]) -> Optional[list]:
+    """채팅 기록을 내부 포맷으로 변환"""
+    if not chat_history:
+        return None
+    return [{"role": msg.role, "content": msg.content} for msg in chat_history]
+
+
+def build_llm_params(request) -> Dict[str, Any]:
+    """LLM 파라미터 딕셔너리 생성"""
+    return {
+        "temperature": request.temperature,
+        "max_tokens": request.max_tokens,
+        "top_p": request.top_p
+    }
+
+
+def convert_docs_to_internal(docs: list) -> list:
+    """RetrievedDocument 리스트를 내부 포맷으로 변환"""
+    result = []
+    for doc in docs:
+        payload = {"text": doc.text}
+        if doc.metadata:
+            payload.update(doc.metadata)
+        result.append({
+            "id": doc.id,
+            "score": doc.score,
+            "payload": payload
+        })
+    return result
+
+
+def prepare_chat_context(
+    chat_request: ChatRequest,
+    request: Request
+) -> Dict[str, Any]:
+    """
+    채팅 요청의 공통 컨텍스트 초기화
+    chat()와 chat_stream() 엔드포인트에서 공통 사용
+    """
+    # 추적 정보 추출
+    tracking_ids = get_tracking_ids(request)
+    client_info = extract_client_info(request)
+
+    # 컬렉션 결정: temp_collection_name > collection_name > None (일상대화)
+    effective_collection = chat_request.temp_collection_name or chat_request.collection_name
+    is_casual_mode = not effective_collection
+    is_temp_mode = bool(chat_request.temp_collection_name)
+
+    # conversation_id 처리
+    if not chat_request.conversation_id:
+        chat_request.conversation_id = str(uuid.uuid4())
+
+    # session_id 처리
+    session_id = chat_request.session_id or str(uuid.uuid4())
+
+    # 대화 시작
+    conversation_id = conversation_service.start_conversation(
+        conversation_id=chat_request.conversation_id,
+        collection_name=effective_collection or "casual"
+    )
+
+    return {
+        "tracking_ids": tracking_ids,
+        "client_info": client_info,
+        "effective_collection": effective_collection,
+        "is_casual_mode": is_casual_mode,
+        "is_temp_mode": is_temp_mode,
+        "session_id": session_id,
+        "conversation_id": conversation_id,
+        "collection_display": effective_collection or "(일상대화)",
+        "chat_history": convert_chat_history(chat_request.chat_history)
+    }
+
+
+def log_chat_request(context: Dict[str, Any], chat_request: ChatRequest, endpoint: str):
+    """채팅 요청 로깅"""
+    logger.info("=" * 80)
+    logger.info(f"[CHAT API] {endpoint} endpoint called")
+    logger.info(f"[CHAT API] Request ID: {context['tracking_ids'].get('request_id')}")
+    logger.info(f"[CHAT API] Requested model: {chat_request.model}")
+    logger.info(f"[CHAT API] Collection: {context['collection_display']}")
+    mode = 'Casual' if context['is_casual_mode'] else ('TempDoc' if context['is_temp_mode'] else 'RAG')
+    logger.info(f"[CHAT API] Mode: {mode}")
+    logger.info(f"[CHAT API] Message: {chat_request.message[:50]}...")
+    logger.info("=" * 80)
+
+
+def schedule_error_logging(
+    background_tasks: BackgroundTasks,
+    context: Dict[str, Any],
+    request,
+    error: Exception,
+    start_time: float
+):
+    """에러 발생 시 로깅 태스크 스케줄링"""
+    error_info = {
+        "error_type": type(error).__name__,
+        "error_message": str(error)
+    }
+
+    # request 타입에 따라 message 추출
+    message = getattr(request, 'message', None) or f"[REGENERATE] {getattr(request, 'query', '')}"
+    collection = context.get('effective_collection') or getattr(request, 'collection_name', None) or "casual"
+
+    background_tasks.add_task(
+        log_chat_interaction_task,
+        session_id=context.get('session_id', str(uuid.uuid4())),
+        conversation_id=context.get('conversation_id', str(uuid.uuid4())),
+        collection_name=collection,
+        message=message,
+        response_data={},
+        reasoning_level=request.reasoning_level,
+        model=request.model,
+        llm_params=build_llm_params(request),
+        performance_metrics={
+            "response_time_ms": int((time.time() - start_time) * 1000)
+        },
+        error_info=error_info,
+        request_id=context.get('tracking_ids', {}).get("request_id"),
+        trace_id=context.get('tracking_ids', {}).get("trace_id"),
+        client_info=context.get('client_info')
+    )
+
+
+# ============================================================================
+# 스트리밍 청크 처리 유틸리티
+# ============================================================================
+
 def process_llm_stream_chunk(
     chunk: str,
     is_exaone: bool,
@@ -287,82 +419,20 @@ async def chat(
     db: Session = Depends(get_db)
 ):
     """
-    RAG 기반 채팅
-
-    Args:
-        request: 채팅 요청
-            - conversation_id: 대화 ID (선택적)
-            - collection_name: Qdrant 컬렉션 이름
-            - message: 사용자 메시지
-            - reasoning_level: 추론 수준 (low/medium/high)
-            - temperature: 온도 (0~2)
-            - max_tokens: 최대 토큰 수
-            - top_p: Top P (0~1)
-            - frequency_penalty: 빈도 패널티 (-2~2)
-            - presence_penalty: 존재 패널티 (-2~2)
-            - top_k: 검색할 문서 수
-            - score_threshold: 최소 유사도 점수
-            - chat_history: 이전 대화 기록
-            - stream: 스트리밍 여부 (False)
-        background_tasks: 백그라운드 태스크
-        db: 데이터베이스 세션
+    RAG 기반 채팅 (Non-streaming)
 
     Returns:
-        ChatResponse: 채팅 응답
-            - conversation_id: 대화 ID
-            - answer: AI 답변
-            - retrieved_docs: 검색된 문서 리스트
-            - usage: 토큰 사용량
-
-    Raises:
-        HTTPException: 처리 실패 시
+        ChatResponse: conversation_id, answer, retrieved_docs, usage
     """
-    # 추적 정보 추출
-    tracking_ids = get_tracking_ids(request)
-    client_info = extract_client_info(request)
+    # 공통 컨텍스트 초기화
+    ctx = prepare_chat_context(chat_request, request)
+    log_chat_request(ctx, chat_request, "Non-streaming")
+    logger.info(f"[CHAT API] Client Type: {ctx['client_info'].get('user_agent', 'unknown')[:50]}")
 
-    # 컬렉션 결정: temp_collection_name > collection_name > None (일상대화)
-    effective_collection = chat_request.temp_collection_name or chat_request.collection_name
-    is_casual_mode = not effective_collection
-    is_temp_mode = bool(chat_request.temp_collection_name)
-    collection_display = effective_collection or "(일상대화)"
-
-    logger.info("="*80)
-    logger.info("[CHAT API] Non-streaming endpoint called")
-    logger.info(f"[CHAT API] Request ID: {tracking_ids.get('request_id')}")
-    logger.info(f"[CHAT API] Requested model: {chat_request.model}")
-    logger.info(f"[CHAT API] Collection: {collection_display}")
-    logger.info(f"[CHAT API] Mode: {'Casual' if is_casual_mode else ('TempDoc' if is_temp_mode else 'RAG')}")
-    logger.info(f"[CHAT API] Message: {chat_request.message[:50]}...")
-    logger.info(f"[CHAT API] Client Type: {client_info.get('user_agent', 'unknown')[:50]}")
-    logger.info("="*80)
-
-    # conversation_id 처리
-    if not chat_request.conversation_id:
-        chat_request.conversation_id = str(uuid.uuid4())
-
-    # session_id 처리 (요청에서 받거나 새로 생성)
-    session_id = chat_request.session_id or str(uuid.uuid4())
-
-    # 대화 시작 (일상대화 모드에서는 collection_name을 "casual"로 표시)
-    conversation_id = conversation_service.start_conversation(
-        conversation_id=chat_request.conversation_id,
-        collection_name=effective_collection or "casual"
-    )
-
-    # 시작 시간 기록
     start_time = time.time()
 
     try:
-        # 대화 기록 변환
-        chat_history = None
-        if chat_request.chat_history:
-            chat_history = [
-                {"role": msg.role, "content": msg.content}
-                for msg in chat_request.chat_history
-            ]
-
-        # RAG 채팅 수행 (두 컬렉션 모두 없으면 일상대화 모드)
+        # RAG 채팅 수행
         result = await rag_service.chat(
             collection_name=chat_request.collection_name,
             query=chat_request.message,
@@ -375,7 +445,7 @@ async def chat(
             presence_penalty=chat_request.presence_penalty,
             top_k=chat_request.top_k,
             score_threshold=chat_request.score_threshold,
-            chat_history=chat_history,
+            chat_history=ctx['chat_history'],
             use_reranking=chat_request.use_reranking,
             use_hybrid=chat_request.use_hybrid,
             temp_collection_name=chat_request.temp_collection_name
@@ -396,30 +466,21 @@ async def chat(
             for doc in docs_with_keywords
         ]
 
-        # 응답 시간 계산
+        # 응답 시간 및 성능 메트릭
         response_time_ms = int((time.time() - start_time) * 1000)
-
-        # 성능 메트릭 준비
-        usage_data = result.get("usage") or {}  # None이면 빈 dict로 대체
+        usage_data = result.get("usage") or {}
         performance_metrics = {
             "response_time_ms": response_time_ms,
             "token_count": usage_data.get("total_tokens", 0),
             "retrieval_time_ms": result.get("retrieval_time_ms")
         }
 
-        # LLM 파라미터 준비
-        llm_params = {
-            "temperature": chat_request.temperature,
-            "max_tokens": chat_request.max_tokens,
-            "top_p": chat_request.top_p
-        }
-
         # 백그라운드 태스크로 로깅 추가
         background_tasks.add_task(
             log_chat_interaction_task,
-            session_id=session_id,
-            conversation_id=conversation_id,
-            collection_name=effective_collection or "casual",
+            session_id=ctx['session_id'],
+            conversation_id=ctx['conversation_id'],
+            collection_name=ctx['effective_collection'] or "casual",
             message=chat_request.message,
             response_data={
                 "answer": result.get("answer", ""),
@@ -427,59 +488,26 @@ async def chat(
             },
             reasoning_level=chat_request.reasoning_level,
             model=chat_request.model,
-            llm_params=llm_params,
+            llm_params=build_llm_params(chat_request),
             performance_metrics=performance_metrics,
             error_info=None,
-            request_id=tracking_ids.get("request_id"),
-            trace_id=tracking_ids.get("trace_id"),
-            client_info=client_info
+            request_id=ctx['tracking_ids'].get("request_id"),
+            trace_id=ctx['tracking_ids'].get("trace_id"),
+            client_info=ctx['client_info']
         )
 
-        # session_id, conversation_id 포함하여 응답
-        response = ChatResponse(
-            session_id=session_id,
-            conversation_id=conversation_id,
+        return ChatResponse(
+            session_id=ctx['session_id'],
+            conversation_id=ctx['conversation_id'],
             answer=result.get("answer", ""),
             reasoning_content=result.get("reasoning_content"),
             retrieved_docs=retrieved_docs,
             usage=result.get("usage")
         )
 
-        return response
-
     except Exception as e:
         logger.error(f"[CHAT API] Chat failed: {e}")
-
-        # 에러 정보 준비
-        error_info = {
-            "error_type": type(e).__name__,
-            "error_message": str(e)
-        }
-
-        # 에러도 로깅
-        background_tasks.add_task(
-            log_chat_interaction_task,
-            session_id=session_id,
-            conversation_id=conversation_id,
-            collection_name=effective_collection or "casual",
-            message=chat_request.message,
-            response_data={},
-            reasoning_level=chat_request.reasoning_level,
-            model=chat_request.model,
-            llm_params={
-                "temperature": chat_request.temperature,
-                "max_tokens": chat_request.max_tokens,
-                "top_p": chat_request.top_p
-            },
-            performance_metrics={
-                "response_time_ms": int((time.time() - start_time) * 1000)
-            },
-            error_info=error_info,
-            request_id=tracking_ids.get("request_id"),
-            trace_id=tracking_ids.get("trace_id"),
-            client_info=client_info
-        )
-
+        schedule_error_logging(background_tasks, ctx, chat_request, e, start_time)
         raise HTTPException(
             status_code=500,
             detail=get_http_error_detail(e, "chat", "채팅 처리 실패")
@@ -496,67 +524,20 @@ async def chat_stream(
     """
     RAG 기반 스트리밍 채팅
 
-    Args:
-        chat_request: 채팅 요청 (stream 파라미터는 무시됨)
-        request: FastAPI Request 객체
-        background_tasks: 백그라운드 태스크
-        db: 데이터베이스 세션
-
     Returns:
         StreamingResponse: SSE 스트리밍 응답
-
-    Raises:
-        HTTPException: 처리 실패 시
     """
-    # 추적 정보 추출
-    tracking_ids = get_tracking_ids(request)
-    client_info = extract_client_info(request)
+    # 공통 컨텍스트 초기화
+    ctx = prepare_chat_context(chat_request, request)
+    log_chat_request(ctx, chat_request, "Stream")
 
-    # 컬렉션 결정: temp_collection_name > collection_name > None (일상대화)
-    effective_collection = chat_request.temp_collection_name or chat_request.collection_name
-    is_casual_mode = not effective_collection
-    is_temp_mode = bool(chat_request.temp_collection_name)
-    collection_display = effective_collection or "(일상대화)"
-
-    logger.info("="*80)
-    logger.info("[CHAT API] Stream endpoint called")
-    logger.info(f"[CHAT API] Request ID: {tracking_ids.get('request_id')}")
-    logger.info(f"[CHAT API] Requested model: {chat_request.model}")
-    logger.info(f"[CHAT API] Collection: {collection_display}")
-    logger.info(f"[CHAT API] Mode: {'Casual' if is_casual_mode else ('TempDoc' if is_temp_mode else 'RAG')}")
-    logger.info(f"[CHAT API] Message: {chat_request.message[:50]}...")
-    logger.info("="*80)
-
-    # conversation_id 처리
-    if not chat_request.conversation_id:
-        chat_request.conversation_id = str(uuid.uuid4())
-
-    # session_id 처리 (요청에서 받거나 새로 생성)
-    session_id = chat_request.session_id or str(uuid.uuid4())
-
-    # 대화 시작 (일상대화 모드에서는 collection_name을 "casual"로 표시)
-    conversation_id = conversation_service.start_conversation(
-        conversation_id=chat_request.conversation_id,
-        collection_name=effective_collection or "casual"
-    )
-
-    # 시작 시간 기록
     start_time = time.time()
 
     try:
-        # 대화 기록 변환
-        chat_history = None
-        if chat_request.chat_history:
-            chat_history = [
-                {"role": msg.role, "content": msg.content}
-                for msg in chat_request.chat_history
-            ]
-
         # llama.cpp는 스트리밍 모드에서도 delta.reasoning_content를 전송함
-        # non-streaming fallback 불필요 - 스트리밍에서 직접 수집
         use_non_streaming_for_reasoning = False
 
-        # 스트리밍 제너레이터 (collection_name이 None이면 일상대화 모드)
+        # 스트리밍 제너레이터
         collected_response = {"answer": "", "retrieved_docs": [], "usage": {}, "reasoning_content": ""}
         stream_error_info = None
 
@@ -579,7 +560,7 @@ async def chat_stream(
                         presence_penalty=chat_request.presence_penalty,
                         top_k=chat_request.top_k,
                         score_threshold=chat_request.score_threshold,
-                        chat_history=chat_history,
+                        chat_history=ctx['chat_history'],
                         use_reranking=chat_request.use_reranking,
                         use_hybrid=chat_request.use_hybrid,
                         temp_collection_name=chat_request.temp_collection_name
@@ -655,7 +636,7 @@ async def chat_stream(
                     presence_penalty=chat_request.presence_penalty,
                     top_k=chat_request.top_k,
                     score_threshold=chat_request.score_threshold,
-                    chat_history=chat_history,
+                    chat_history=ctx['chat_history'],
                     use_reranking=chat_request.use_reranking,
                     use_hybrid=chat_request.use_hybrid,
                     temp_collection_name=chat_request.temp_collection_name
@@ -712,28 +693,22 @@ async def chat_stream(
                     "retrieval_time_ms": None
                 }
 
-                final_llm_params = {
-                    "temperature": chat_request.temperature,
-                    "max_tokens": chat_request.max_tokens,
-                    "top_p": chat_request.top_p
-                }
-
                 # asyncio.shield()로 로깅 태스크 보호 (클라이언트 취소에도 완료 보장)
                 try:
                     await asyncio.shield(log_chat_interaction_task(
-                        session_id=session_id,
-                        conversation_id=conversation_id,
-                        collection_name=effective_collection or "casual",
+                        session_id=ctx['session_id'],
+                        conversation_id=ctx['conversation_id'],
+                        collection_name=ctx['effective_collection'] or "casual",
                         message=chat_request.message,
                         response_data=collected_response,
                         reasoning_level=chat_request.reasoning_level,
                         model=chat_request.model,
-                        llm_params=final_llm_params,
+                        llm_params=build_llm_params(chat_request),
                         performance_metrics=final_performance_metrics,
                         error_info=stream_error_info,
-                        request_id=tracking_ids.get("request_id"),
-                        trace_id=tracking_ids.get("trace_id"),
-                        client_info=client_info,
+                        request_id=ctx['tracking_ids'].get("request_id"),
+                        trace_id=ctx['tracking_ids'].get("trace_id"),
+                        client_info=ctx['client_info'],
                         use_reranking=chat_request.use_reranking
                     ))
                 except asyncio.CancelledError:
@@ -757,37 +732,7 @@ async def chat_stream(
 
     except Exception as e:
         logger.error(f"[CHAT API] Stream chat failed: {e}")
-
-        # 에러 정보 준비
-        error_info = {
-            "error_type": type(e).__name__,
-            "error_message": str(e)
-        }
-
-        # 에러도 로깅
-        background_tasks.add_task(
-            log_chat_interaction_task,
-            session_id=session_id,
-            conversation_id=conversation_id,
-            collection_name=effective_collection or "casual",
-            message=chat_request.message,
-            response_data={},
-            reasoning_level=chat_request.reasoning_level,
-            model=chat_request.model,
-            llm_params={
-                "temperature": chat_request.temperature,
-                "max_tokens": chat_request.max_tokens,
-                "top_p": chat_request.top_p
-            },
-            performance_metrics={
-                "response_time_ms": int((time.time() - start_time) * 1000)
-            },
-            error_info=error_info,
-            request_id=tracking_ids.get("request_id"),
-            trace_id=tracking_ids.get("trace_id"),
-            client_info=client_info
-        )
-
+        schedule_error_logging(background_tasks, ctx, chat_request, e, start_time)
         raise HTTPException(
             status_code=500,
             detail=get_http_error_detail(e, "stream", "스트리밍 채팅 실패")
@@ -803,54 +748,18 @@ async def regenerate(
     """
     AI 응답 재생성 (검색 결과 재사용)
 
-    Args:
-        request: 재생성 요청
-            - query: 원본 질문
-            - collection_name: 컬렉션 이름
-            - retrieved_docs: 이전에 검색된 문서들
-            - reasoning_level: 추론 수준
-            - temperature: 온도 (재생성 시 약간 높게 설정 권장)
-            - max_tokens: 최대 토큰 수
-            - top_p: Top P
-            - frequency_penalty: 빈도 패널티
-            - presence_penalty: 존재 패널티
-            - chat_history: 이전 대화 기록
-
     Returns:
-        ChatResponse: 재생성된 응답
-            - answer: 새로운 AI 답변
-            - retrieved_docs: 재사용된 검색 문서 리스트
-            - usage: 토큰 사용량
-
-    Raises:
-        HTTPException: 재생성 실패 시
+        ChatResponse: 재생성된 응답 (answer, retrieved_docs, usage)
     """
     start_time = time.time()
     session_id = request.session_id or f"regen_{int(time.time() * 1000)}"
     conversation_id = str(uuid.uuid4())
+    ctx = {"session_id": session_id, "conversation_id": conversation_id}
 
     try:
-        # 대화 기록 변환
-        chat_history = None
-        if request.chat_history:
-            chat_history = [
-                {"role": msg.role, "content": msg.content}
-                for msg in request.chat_history
-            ]
-
-        # RetrievedDocument -> 내부 포맷 변환
-        retrieved_docs_internal = []
-        for doc in request.retrieved_docs:
-            # metadata에서 text를 제외한 필드들 추출
-            payload = {"text": doc.text}
-            if doc.metadata:
-                payload.update(doc.metadata)
-
-            retrieved_docs_internal.append({
-                "id": doc.id,
-                "score": doc.score,
-                "payload": payload
-            })
+        # 공통 헬퍼로 변환
+        chat_history = convert_chat_history(request.chat_history)
+        retrieved_docs_internal = convert_docs_to_internal(request.retrieved_docs)
 
         # RAG 생성 수행 (검색 스킵, 생성만 수행)
         result = await rag_service.generate(
@@ -867,10 +776,8 @@ async def regenerate(
             chat_history=chat_history
         )
 
-        # 응답 포맷팅 (원본 검색 결과 재사용)
+        # 응답 포맷팅
         answer = result.get("choices", [{}])[0].get("message", {}).get("content", "응답을 생성할 수 없습니다.")
-
-        # 응답 시간 계산
         response_time_ms = int((time.time() - start_time) * 1000)
 
         # 로깅 추가
@@ -880,17 +787,10 @@ async def regenerate(
             conversation_id=conversation_id,
             collection_name=request.collection_name or "regenerate",
             message=f"[REGENERATE] {request.query}",
-            response_data={
-                "answer": answer,
-                "retrieved_docs": retrieved_docs_internal
-            },
+            response_data={"answer": answer, "retrieved_docs": retrieved_docs_internal},
             reasoning_level=request.reasoning_level,
             model=request.model,
-            llm_params={
-                "temperature": request.temperature,
-                "max_tokens": request.max_tokens,
-                "top_p": request.top_p
-            },
+            llm_params=build_llm_params(request),
             performance_metrics={
                 "response_time_ms": response_time_ms,
                 "token_count": (result.get("usage") or {}).get("total_tokens", 0),
@@ -909,26 +809,7 @@ async def regenerate(
 
     except Exception as e:
         logger.error(f"Regenerate failed: {e}")
-        # 에러 로깅
-        background_tasks.add_task(
-            log_chat_interaction_task,
-            session_id=session_id,
-            conversation_id=conversation_id,
-            collection_name=request.collection_name or "regenerate",
-            message=f"[REGENERATE] {request.query}",
-            response_data={},
-            reasoning_level=request.reasoning_level,
-            model=request.model,
-            llm_params={
-                "temperature": request.temperature,
-                "max_tokens": request.max_tokens,
-                "top_p": request.top_p
-            },
-            performance_metrics={
-                "response_time_ms": int((time.time() - start_time) * 1000)
-            },
-            error_info={"error": str(e), "type": "regenerate_error"}
-        )
+        schedule_error_logging(background_tasks, ctx, request, e, start_time)
         raise HTTPException(
             status_code=500,
             detail=get_http_error_detail(e, "regenerate", "응답 재생성 실패")
@@ -940,29 +821,14 @@ async def regenerate_stream(request: RegenerateRequest):
     """
     AI 응답 재생성 (스트리밍, 검색 결과 재사용)
 
-    Args:
-        request: 재생성 요청
-            - query: 원본 질문
-            - collection_name: 컬렉션 이름
-            - retrieved_docs: 이전에 검색된 문서들
-            - model: 사용할 모델
-            - reasoning_level: 추론 수준
-            - temperature: 온도
-            - max_tokens: 최대 토큰 수
-            - top_p: Top P
-            - frequency_penalty: 빈도 패널티
-            - presence_penalty: 존재 패널티
-            - chat_history: 이전 대화 기록
-
     Returns:
         StreamingResponse: SSE 스트림
     """
-    logger.info("="*80)
+    logger.info("=" * 80)
     logger.info("[REGENERATE STREAM] Endpoint called")
-    logger.info(f"[REGENERATE STREAM] Model: {request.model}")
-    logger.info(f"[REGENERATE STREAM] Collection: {request.collection_name}")
+    logger.info(f"[REGENERATE STREAM] Model: {request.model}, Collection: {request.collection_name}")
     logger.info(f"[REGENERATE STREAM] Query: {request.query[:50]}...")
-    logger.info("="*80)
+    logger.info("=" * 80)
 
     # 세션/대화 ID 및 시간 추적
     session_id = request.session_id or f"regen_stream_{int(time.time() * 1000)}"
@@ -971,25 +837,9 @@ async def regenerate_stream(request: RegenerateRequest):
     stream_error_info = None
 
     try:
-        # 대화 기록 변환
-        chat_history = None
-        if request.chat_history:
-            chat_history = [
-                {"role": msg.role, "content": msg.content}
-                for msg in request.chat_history
-            ]
-
-        # RetrievedDocument -> 내부 포맷 변환
-        retrieved_docs_internal = []
-        for doc in request.retrieved_docs:
-            payload = {"text": doc.text}
-            if doc.metadata:
-                payload.update(doc.metadata)
-            retrieved_docs_internal.append({
-                "id": doc.id,
-                "score": doc.score,
-                "payload": payload
-            })
+        # 공통 헬퍼로 변환
+        chat_history = convert_chat_history(request.chat_history)
+        retrieved_docs_internal = convert_docs_to_internal(request.retrieved_docs)
 
         # 스트리밍 응답 수집용
         collected_response = {"answer": "", "reasoning_content": ""}
@@ -1000,17 +850,12 @@ async def regenerate_stream(request: RegenerateRequest):
             try:
                 # 검색된 문서를 먼저 전송
                 sources_data = [
-                    {
-                        "id": doc.id,
-                        "text": doc.text,
-                        "score": doc.score,
-                        "metadata": doc.metadata
-                    }
+                    {"id": doc.id, "text": doc.text, "score": doc.score, "metadata": doc.metadata}
                     for doc in request.retrieved_docs
                 ]
                 yield f'data: {json.dumps({"sources": sources_data}, ensure_ascii=False)}\n\n'
 
-                # EXAONE 모델 감지 (llama.cpp가 reasoning_content와 content를 별도 필드로 전송)
+                # EXAONE 모델 감지
                 is_exaone = is_exaone_model(request.model)
 
                 # 스트리밍 생성
@@ -1048,16 +893,10 @@ async def regenerate_stream(request: RegenerateRequest):
                 yield get_sse_error_response(e, "regenerate")
             finally:
                 # 스트리밍 완료 후 로깅
-                final_response_time_ms = int((time.time() - start_time) * 1000)
                 final_performance_metrics = {
-                    "response_time_ms": final_response_time_ms,
-                    "token_count": 0,  # 스트리밍에서는 토큰 수 미확인
-                    "retrieval_time_ms": None  # 재생성은 검색 없음
-                }
-                final_llm_params = {
-                    "temperature": request.temperature,
-                    "max_tokens": request.max_tokens,
-                    "top_p": request.top_p
+                    "response_time_ms": int((time.time() - start_time) * 1000),
+                    "token_count": 0,
+                    "retrieval_time_ms": None
                 }
                 try:
                     await asyncio.shield(log_chat_interaction_task(
@@ -1071,7 +910,7 @@ async def regenerate_stream(request: RegenerateRequest):
                         },
                         reasoning_level=request.reasoning_level,
                         model=request.model,
-                        llm_params=final_llm_params,
+                        llm_params=build_llm_params(request),
                         performance_metrics=final_performance_metrics,
                         error_info=stream_error_info
                     ))
