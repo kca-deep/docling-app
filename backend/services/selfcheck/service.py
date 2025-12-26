@@ -114,9 +114,9 @@ class SelfCheckService:
         self,
         db: Session,
         submission_ids: List[str],
-        user_id: int
+        user_id: Optional[int] = None
     ) -> List[SelfCheckDetailResponse]:
-        """여러 submission 조회"""
+        """여러 submission 조회 (user_id=None이면 전체 조회)"""
         return self.repository.get_submissions_by_ids(db, submission_ids, user_id)
 
     def get_submission(

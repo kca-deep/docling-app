@@ -82,7 +82,7 @@ class SelfCheckRepository:
         self,
         db: Session,
         submission_ids: List[str],
-        user_id: int
+        user_id: Optional[int] = None
     ) -> List[SelfCheckDetailResponse]:
         """여러 submission을 ID로 조회"""
         results = []

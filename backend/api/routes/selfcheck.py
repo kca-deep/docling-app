@@ -257,11 +257,12 @@ async def download_pdf(
     """
     from urllib.parse import quote
 
-    # 진단 결과 조회
+    # 진단 결과 조회 (관리자는 모든 submission 조회 가능)
+    target_user_id = None if current_user.role == "admin" else current_user.id
     submission = selfcheck_service.get_submission(
         db=db,
         submission_id=submission_id,
-        user_id=current_user.id
+        user_id=target_user_id
     )
 
     # PDF 생성
@@ -308,11 +309,12 @@ async def export_excel(
     if not request.submission_ids:
         raise HTTPException(status_code=400, detail="내보낼 항목을 선택해주세요.")
 
-    # 선택한 submissions 조회
+    # 선택한 submissions 조회 (관리자는 모든 submission 조회 가능)
+    target_user_id = None if current_user.role == "admin" else current_user.id
     submissions = selfcheck_service.get_submissions_by_ids(
         db=db,
         submission_ids=request.submission_ids,
-        user_id=current_user.id
+        user_id=target_user_id
     )
 
     if not submissions:
@@ -355,11 +357,12 @@ async def export_pdf(
     if not request.submission_ids:
         raise HTTPException(status_code=400, detail="내보낼 항목을 선택해주세요.")
 
-    # 선택한 submissions 조회
+    # 선택한 submissions 조회 (관리자는 모든 submission 조회 가능)
+    target_user_id = None if current_user.role == "admin" else current_user.id
     submissions = selfcheck_service.get_submissions_by_ids(
         db=db,
         submission_ids=request.submission_ids,
-        user_id=current_user.id
+        user_id=target_user_id
     )
 
     if not submissions:
