@@ -383,7 +383,8 @@ class LLMService:
         reasoning_level: str = "medium",
         chat_history: Optional[List[Dict[str, str]]] = None,
         collection_name: Optional[str] = None,
-        model_key: Optional[str] = None
+        model_key: Optional[str] = None,
+        available_documents: Optional[List[str]] = None
     ) -> List[Dict[str, str]]:
         """
         RAG 프롬프트 구성 (일상대화 모드 및 EXAONE Deep 지원)
@@ -402,6 +403,7 @@ class LLMService:
             chat_history: 이전 대화 기록 (선택사항)
             collection_name: Qdrant 컬렉션 이름 (None이면 일상대화 모드)
             model_key: 모델 키 (EXAONE Deep 여부 판단용)
+            available_documents: 컬렉션에 임베딩된 문서 이름 목록 (선택사항)
 
         Returns:
             List[Dict[str, str]]: 메시지 리스트
@@ -426,7 +428,8 @@ class LLMService:
             collection_name=collection_name,
             reasoning_level=reasoning_level,
             model_key=model_key,
-            has_documents=has_documents
+            has_documents=has_documents,
+            available_documents=available_documents
         )
 
         # 문서 컨텍스트 구성 (컨텍스트 한도 설정)

@@ -6,7 +6,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,8 @@ class PromptLoader:
         collection_name: Optional[str],
         reasoning_level: str = "medium",
         model_key: Optional[str] = None,
-        has_documents: bool = False
+        has_documents: bool = False,
+        available_documents: Optional[List[str]] = None
     ) -> str:
         """
         컬렉션에 맞는 시스템 프롬프트 반환
@@ -87,6 +88,7 @@ class PromptLoader:
             reasoning_level: 추론 수준 (low/medium/high)
             model_key: LLM 모델 키 (gpt-oss-20b, exaone-deep-7.8b 등)
             has_documents: 문서가 제공되었는지 여부 (True: 문서 기반 모드, False: 일반 대화 모드)
+            available_documents: 컬렉션에 임베딩된 문서 이름 목록 (optional)
 
         Returns:
             str: 시스템 프롬프트 (플레이스홀더들이 대체됨)
@@ -116,6 +118,26 @@ class PromptLoader:
             mode_info = "**현재 모드: 일반 대화** - 문서가 제공되지 않았습니다. 일반 대화로 응대하세요."
 
         prompt_content = prompt_content.replace("{mode_info}", mode_info)
+
+        # 6. {available_documents} 플레이스홀더 대체 또는 문서 목록 추가
+        if available_documents:
+            # 중복 제거 및 최대 10개 제한
+            unique_docs = list(dict.fromkeys(available_documents))[:10]
+            doc_list = "\n".join([f"  - {doc}" for doc in unique_docs])
+            more_text = f"\n  - ... 외 {len(available_documents) - 10}개 문서" if len(available_documents) > 10 else ""
+
+            documents_section = f"""
+---
+**[현재 컬렉션에 등록된 문서 목록]**
+{doc_list}{more_text}
+
+**중요 지시사항:**
+- 사용자가 "어떤 지식", "어떤 문서", "지식파일", "뭘 알고 있어", "무슨 정보" 등을 물으면 **반드시** 위 문서 목록을 안내하세요.
+- 위 문서들에 관련된 질문에만 답변할 수 있습니다.
+- 문서에서 정보를 찾을 수 없을 때는 "위 문서 관련 질문을 해주시면 답변 드리겠습니다"라고 안내하세요.
+"""
+            prompt_content += documents_section
+            logger.info(f"[PromptLoader] Appended {len(unique_docs)} documents to prompt")
 
         # 디버깅 로그
         logger.info(f"[PromptLoader] has_documents={has_documents}, mode_info applied: {mode_info[:50]}...")

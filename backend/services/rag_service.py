@@ -50,6 +50,46 @@ class RAGService:
         self.reranker_service = reranker_service
         self.hybrid_search_service = hybrid_search_service
 
+    async def _build_no_results_message(
+        self,
+        target_collections: List[str]
+    ) -> str:
+        """
+        검색 결과가 없을 때 문서 목록을 포함한 안내 메시지 생성
+
+        Args:
+            target_collections: 검색 대상 컬렉션 리스트
+
+        Returns:
+            str: 문서 목록 포함 안내 메시지
+        """
+        if not target_collections:
+            return "문서에서 관련 정보를 찾을 수 없습니다. 담당 부서에 문의해 주세요."
+
+        try:
+            all_docs = []
+            for coll_name in target_collections:
+                docs = await self.qdrant_service.get_documents_in_collection(coll_name)
+                all_docs.extend([d.get("filename", "Unknown") for d in docs])
+
+            # 중복 제거 (순서 유지) 및 최대 10개
+            unique_docs = list(dict.fromkeys(all_docs))[:10]
+
+            if not unique_docs:
+                return "문서에서 관련 정보를 찾을 수 없습니다. 담당 부서에 문의해 주세요."
+
+            doc_list = "\n".join([f"• {name}" for name in unique_docs])
+            more_text = f"\n• ... 외 {len(all_docs) - 10}개" if len(all_docs) > 10 else ""
+
+            return (
+                f"이 질문에 대한 정보를 찾기 어렵습니다.\n\n"
+                f"**현재 답변 가능한 문서:**\n{doc_list}{more_text}\n\n"
+                f"위 문서 관련 질문을 해주시면 답변 드리겠습니다."
+            )
+        except Exception as e:
+            logger.warning(f"Failed to get document list for no-results message: {e}")
+            return "문서에서 관련 정보를 찾을 수 없습니다. 다른 키워드로 질문해 주세요."
+
     async def _apply_reranking(
         self,
         query: str,
@@ -291,7 +331,8 @@ class RAGService:
         frequency_penalty: float = 0.0,
         presence_penalty: float = 0.0,
         chat_history: Optional[List[Dict[str, str]]] = None,
-        collection_name: Optional[str] = None
+        collection_name: Optional[str] = None,
+        available_documents: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         검색된 문서 기반 답변 생성
@@ -307,6 +348,7 @@ class RAGService:
             presence_penalty: 존재 패널티
             chat_history: 이전 대화 기록
             collection_name: Qdrant 컬렉션 이름 (프롬프트 선택에 사용)
+            available_documents: 컬렉션에 임베딩된 문서 이름 목록 (선택사항)
 
         Returns:
             Dict[str, Any]: LLM 응답
@@ -324,7 +366,8 @@ class RAGService:
                 reasoning_level=reasoning_level,
                 chat_history=chat_history,
                 collection_name=collection_name,
-                model_key=model
+                model_key=model,
+                available_documents=available_documents
             )
 
             # 2. LLM으로 답변 생성
@@ -358,7 +401,8 @@ class RAGService:
         frequency_penalty: float = 0.0,
         presence_penalty: float = 0.0,
         chat_history: Optional[List[Dict[str, str]]] = None,
-        collection_name: Optional[str] = None
+        collection_name: Optional[str] = None,
+        available_documents: Optional[List[str]] = None
     ) -> AsyncGenerator[str, None]:
         """
         검색된 문서 기반 스트리밍 답변 생성
@@ -374,6 +418,7 @@ class RAGService:
             presence_penalty: 존재 패널티
             chat_history: 이전 대화 기록
             collection_name: Qdrant 컬렉션 이름 (프롬프트 선택에 사용)
+            available_documents: 컬렉션에 임베딩된 문서 이름 목록 (선택사항)
 
         Yields:
             str: SSE 이벤트 라인
@@ -389,7 +434,8 @@ class RAGService:
                 reasoning_level=reasoning_level,
                 chat_history=chat_history,
                 collection_name=collection_name,
-                model_key=model
+                model_key=model,
+                available_documents=available_documents
             )
 
             # 2. LLM으로 스트리밍 답변 생성
@@ -511,9 +557,9 @@ class RAGService:
                 logger.info(f"[RAG] Retrieval took {retrieval_time_ms}ms for {len(retrieved_docs)} documents")
 
                 if not retrieved_docs:
+                    no_results_msg = await self._build_no_results_message(target_collections)
                     return {
-                        "answer": "문서에서 관련 정보를 찾을 수 없습니다. "
-                                  "다른 키워드로 질문하시거나 담당 부서에 문의해 주세요.",
+                        "answer": no_results_msg,
                         "retrieved_docs": [],
                         "usage": None
                     }
@@ -527,12 +573,25 @@ class RAGService:
 
                 # [P0-1/P0-2] 리랭킹 후 문서가 없으면 거부 응답
                 if not retrieved_docs:
+                    no_results_msg = await self._build_no_results_message(target_collections)
                     return {
-                        "answer": "문서에서 관련 정보를 찾을 수 없습니다. "
-                                  "다른 키워드로 질문하시거나 담당 부서에 문의해 주세요.",
+                        "answer": no_results_msg,
                         "retrieved_docs": [],
                         "usage": None
                     }
+
+            # 1.6. 컬렉션 문서 목록 조회 (프롬프트에 주입용)
+            available_documents = []
+            if target_collections:
+                try:
+                    for coll_name in target_collections:
+                        docs = await self.qdrant_service.get_documents_in_collection(coll_name)
+                        available_documents.extend([d.get("filename", "Unknown") for d in docs])
+                    # 중복 제거 (순서 유지)
+                    available_documents = list(dict.fromkeys(available_documents))
+                    logger.info(f"[RAG] Available documents for prompt: {len(available_documents)}")
+                except Exception as e:
+                    logger.warning(f"[RAG] Failed to get document list for prompt: {e}")
 
             # 2. Generate: 답변 생성
             llm_response = await self.generate(
@@ -546,7 +605,8 @@ class RAGService:
                 frequency_penalty=frequency_penalty,
                 presence_penalty=presence_penalty,
                 chat_history=chat_history,
-                collection_name=collection_name
+                collection_name=collection_name,
+                available_documents=available_documents if available_documents else None
             )
 
             # 3. 응답 포맷팅
@@ -679,9 +739,9 @@ class RAGService:
                 logger.info(f"[RAG] Stream retrieval took {retrieval_time_ms}ms for {len(retrieved_docs)} documents")
 
                 if not retrieved_docs:
-                    # 문서가 없을 경우 정상 응답 형식으로 에러 메시지 전송
+                    # 문서가 없을 경우 정상 응답 형식으로 문서 목록 포함 메시지 전송
                     # (클라이언트가 choices.delta.content만 파싱하므로 동일 형식 사용)
-                    error_msg = "문서에서 관련 정보를 찾을 수 없습니다. 다른 키워드로 질문해 주세요."
+                    error_msg = await self._build_no_results_message(target_collections)
                     error_chunk = {
                         "choices": [{
                             "index": 0,
@@ -704,7 +764,7 @@ class RAGService:
 
                 # [P0-1/P0-2] 리랭킹 후 문서가 없으면 거부 응답
                 if not retrieved_docs:
-                    error_msg = "문서에서 관련 정보를 찾을 수 없습니다. 다른 키워드로 질문해 주세요."
+                    error_msg = await self._build_no_results_message(target_collections)
                     error_chunk = {
                         "choices": [{
                             "index": 0,
@@ -724,6 +784,19 @@ class RAGService:
             # 단계 이벤트: 생성 단계
             yield f'data: {json.dumps({"type": "stage", "stage": "generate"}, ensure_ascii=False)}\n\n'
 
+            # 2.5. 컬렉션 문서 목록 조회 (프롬프트에 주입용)
+            available_documents = []
+            if target_collections:
+                try:
+                    for coll_name in target_collections:
+                        docs = await self.qdrant_service.get_documents_in_collection(coll_name)
+                        available_documents.extend([d.get("filename", "Unknown") for d in docs])
+                    # 중복 제거 (순서 유지)
+                    available_documents = list(dict.fromkeys(available_documents))
+                    logger.info(f"[RAG-Stream] Available documents for prompt: {len(available_documents)}")
+                except Exception as e:
+                    logger.warning(f"[RAG-Stream] Failed to get document list for prompt: {e}")
+
             # 3. Generate: 스트리밍 답변 생성 (응답 내용 수집)
             response_parts = []  # 리스트로 수집 (문자열 연결보다 효율적)
             async for chunk in self.generate_stream(
@@ -737,7 +810,8 @@ class RAGService:
                 frequency_penalty=frequency_penalty,
                 presence_penalty=presence_penalty,
                 chat_history=chat_history,
-                collection_name=collection_name
+                collection_name=collection_name,
+                available_documents=available_documents if available_documents else None
             ):
                 yield chunk
                 # 응답 내용 추출하여 수집 (리스트 append는 O(1))
