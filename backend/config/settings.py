@@ -109,8 +109,8 @@ class Settings(BaseSettings):
     # Docling Serve 청킹 서버 설정
     # [개발 기본값] 프로덕션에서는 .env에서 실제 서버 URL로 변경
     DOCLING_CHUNKING_URL: str = "http://localhost:8007"
-    DEFAULT_CHUNK_SIZE: int = 500
-    DEFAULT_CHUNK_OVERLAP: int = 50
+    DEFAULT_CHUNK_SIZE: int = 1000
+    DEFAULT_CHUNK_OVERLAP: int = 200
 
     # BGE-M3 임베딩 서버 설정
     # [개발 기본값] 프로덕션에서는 .env에서 실제 서버 URL로 변경
