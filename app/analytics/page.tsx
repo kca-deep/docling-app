@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
 import {
   RefreshCw, TrendingUp, Users, MessageSquare,
-  Clock, Zap, Download, BarChart3
+  Clock, Zap, Download, BarChart3, AlertTriangle
 } from "lucide-react"
 import { motion } from "framer-motion"
 import {
@@ -286,6 +286,7 @@ export default function AnalyticsPage() {
 
   // Excel 다운로드 상태
   const [downloading, setDownloading] = useState(false)
+  const [downloadingErrors, setDownloadingErrors] = useState(false)
 
   // Excel 다운로드 함수
   const handleExcelDownload = useCallback(async () => {
@@ -326,6 +327,43 @@ export default function AnalyticsPage() {
       setDownloading(false)
     }
   }, [selectedCollection, dateRange])
+
+  // 오류 로그 다운로드 함수
+  const handleErrorLogDownload = useCallback(async () => {
+    setDownloadingErrors(true)
+    try {
+      const dateFromStr = format(dateRange.from, "yyyy-MM-dd")
+      const dateToStr = format(dateRange.to, "yyyy-MM-dd")
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/analytics/errors/download?date_from=${dateFromStr}&date_to=${dateToStr}`,
+        { credentials: 'include' }
+      )
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.detail || "다운로드 실패")
+      }
+
+      // Blob으로 변환 후 다운로드
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `error_logs_${dateFromStr}_${dateToStr}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+
+      toast.success("오류 로그 다운로드 완료")
+    } catch (error) {
+      console.error("오류 로그 다운로드 오류:", error)
+      toast.error(error instanceof Error ? error.message : "다운로드 중 오류가 발생했습니다")
+    } finally {
+      setDownloadingErrors(false)
+    }
+  }, [dateRange])
 
   // 히트맵 색상 계산 (CSS 변수 기반)
   const getHeatmapColor = (intensity: number): string => {
@@ -486,9 +524,14 @@ export default function AnalyticsPage() {
                 <span className="hidden sm:inline">새로고침</span>
               </Button>
 
-              <Button onClick={handleExcelDownload} disabled={downloading || loading} size="sm" variant="ghost" className="h-8 w-8 sm:h-9 sm:w-auto rounded-lg hover:bg-background/80" title="다운로드">
+              <Button onClick={handleExcelDownload} disabled={downloading || loading} size="sm" variant="ghost" className="h-8 w-8 sm:h-9 sm:w-auto rounded-lg hover:bg-background/80" title="대화 다운로드">
                 <Download className={cn("h-4 w-4 sm:mr-1.5", downloading && "animate-bounce text-[color:var(--chart-1)]")} />
                 <span className="hidden sm:inline">다운로드</span>
+              </Button>
+
+              <Button onClick={handleErrorLogDownload} disabled={downloadingErrors || loading} size="sm" variant="ghost" className="h-8 w-8 sm:h-9 sm:w-auto rounded-lg hover:bg-background/80 text-destructive hover:text-destructive" title="오류 로그 다운로드">
+                <AlertTriangle className={cn("h-4 w-4 sm:mr-1.5", downloadingErrors && "animate-bounce")} />
+                <span className="hidden sm:inline">오류</span>
               </Button>
 
               {/* 실시간 활성 세션 */}

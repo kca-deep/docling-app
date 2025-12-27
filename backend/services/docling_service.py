@@ -109,16 +109,28 @@ class DoclingService:
             bool: 성공 여부
         """
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=15.0) as client:
                 response = await client.get(
                     f"{self.base_url}/v1/clear/converters"
                 )
                 if response.status_code == 200:
-                    logger.info("Docling Serve 변환기 캐시 정리 완료")
+                    # 응답 본문 검증
+                    try:
+                        data = response.json()
+                        status = data.get("status", "unknown")
+                        if status == "ok":
+                            logger.info("Docling Serve VRAM 캐시 정리 완료 (status=ok)")
+                        else:
+                            logger.info(f"Docling Serve 캐시 정리 응답: {data}")
+                    except Exception:
+                        logger.info("Docling Serve 캐시 정리 완료 (응답 파싱 생략)")
                     return True
                 else:
-                    logger.warning(f"캐시 정리 응답 코드: {response.status_code}")
+                    logger.warning(f"캐시 정리 응답 코드: {response.status_code}, body: {response.text[:200]}")
                     return False
+        except httpx.TimeoutException:
+            logger.warning("캐시 정리 타임아웃 (Docling Serve 응답 지연)")
+            return False
         except Exception as e:
             # 캐시 정리 실패는 무시 (변환 성공이 더 중요)
             logger.warning(f"캐시 정리 실패 (무시됨): {e}")
@@ -181,24 +193,29 @@ class DoclingService:
         if settings.DOCLING_USE_SEMAPHORE:
             async with self._get_semaphore():
                 logger.debug(f"Semaphore 획득: {filename} (동시 요청 제한: {settings.DOCLING_CONCURRENCY})")
+                try:
+                    result = await self._convert_document_impl(
+                        file_content, filename, target_type, to_formats,
+                        do_ocr, do_table_structure, include_images, table_mode,
+                        image_export_mode, page_range_start, page_range_end,
+                        do_formula_enrichment, pipeline, vlm_pipeline_model
+                    )
+                    return result
+                finally:
+                    # 변환 성공/실패 무관하게 캐시 정리 (VRAM 해제 보장)
+                    await self._maybe_clear_cache()
+        else:
+            try:
                 result = await self._convert_document_impl(
                     file_content, filename, target_type, to_formats,
                     do_ocr, do_table_structure, include_images, table_mode,
                     image_export_mode, page_range_start, page_range_end,
                     do_formula_enrichment, pipeline, vlm_pipeline_model
                 )
-                # 변환 후 캐시 정리
-                await self._maybe_clear_cache()
                 return result
-        else:
-            result = await self._convert_document_impl(
-                file_content, filename, target_type, to_formats,
-                do_ocr, do_table_structure, include_images, table_mode,
-                image_export_mode, page_range_start, page_range_end,
-                do_formula_enrichment, pipeline, vlm_pipeline_model
-            )
-            await self._maybe_clear_cache()
-            return result
+            finally:
+                # 변환 성공/실패 무관하게 캐시 정리 (VRAM 해제 보장)
+                await self._maybe_clear_cache()
 
     async def _convert_document_impl(
         self,
@@ -412,23 +429,29 @@ class DoclingService:
         if settings.DOCLING_USE_SEMAPHORE:
             async with self._get_semaphore():
                 logger.debug(f"Semaphore 획득 (URL): {url} (동시 요청 제한: {settings.DOCLING_CONCURRENCY})")
+                try:
+                    result = await self._convert_url_impl(
+                        url, target_type, to_formats, do_ocr, do_table_structure,
+                        include_images, table_mode, image_export_mode,
+                        page_range_start, page_range_end, do_formula_enrichment,
+                        pipeline, vlm_pipeline_model
+                    )
+                    return result
+                finally:
+                    # 변환 성공/실패 무관하게 캐시 정리 (VRAM 해제 보장)
+                    await self._maybe_clear_cache()
+        else:
+            try:
                 result = await self._convert_url_impl(
                     url, target_type, to_formats, do_ocr, do_table_structure,
                     include_images, table_mode, image_export_mode,
                     page_range_start, page_range_end, do_formula_enrichment,
                     pipeline, vlm_pipeline_model
                 )
-                await self._maybe_clear_cache()
                 return result
-        else:
-            result = await self._convert_url_impl(
-                url, target_type, to_formats, do_ocr, do_table_structure,
-                include_images, table_mode, image_export_mode,
-                page_range_start, page_range_end, do_formula_enrichment,
-                pipeline, vlm_pipeline_model
-            )
-            await self._maybe_clear_cache()
-            return result
+            finally:
+                # 변환 성공/실패 무관하게 캐시 정리 (VRAM 해제 보장)
+                await self._maybe_clear_cache()
 
     async def _convert_url_impl(
         self,

@@ -1165,3 +1165,147 @@ async def export_conversations_to_excel(
     except Exception as e:
         logger.error(f"Excel 내보내기 실패: {e}")
         raise HTTPException(status_code=500, detail=f"Excel 내보내기 실패: {str(e)}")
+
+
+# ============================================================
+# 8. 오류 로그 다운로드 API
+# ============================================================
+
+@router.get("/errors/download")
+async def download_error_logs(
+    date_from: Optional[date] = Query(None, description="시작 날짜"),
+    date_to: Optional[date] = Query(None, description="종료 날짜"),
+    db: Session = Depends(get_db)
+):
+    """
+    오류 로그를 Excel 파일로 다운로드
+
+    Args:
+        date_from: 시작 날짜 (선택, 기본값: 7일 전)
+        date_to: 종료 날짜 (선택, 기본값: 오늘)
+        db: 데이터베이스 세션
+
+    Returns:
+        StreamingResponse: Excel 파일 스트림
+    """
+    try:
+        # 날짜 기본값 설정
+        if not date_to:
+            date_to = date.today()
+        if not date_from:
+            date_from = date_to - timedelta(days=7)
+
+        # 로그 데이터 조회
+        df = await statistics_service.query_logs_by_date_range(date_from, date_to, None)
+
+        if df.empty:
+            # 빈 Excel 반환
+            wb = Workbook(write_only=True)
+            ws = wb.create_sheet(title="오류 로그")
+            ws.append(["오류 데이터가 없습니다."])
+            output = io.BytesIO()
+            wb.save(output)
+            output.seek(0)
+
+            filename = f"error_logs_{date_from.isoformat()}_{date_to.isoformat()}.xlsx"
+            encoded_filename = quote(filename, safe='')
+
+            return StreamingResponse(
+                output,
+                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"}
+            )
+
+        # error_info가 있는 항목만 필터링
+        error_logs = []
+
+        for _, row in df.iterrows():
+            error_info = row.get('error_info')
+            if error_info and isinstance(error_info, dict) and error_info:
+                # 사용자 메시지만 (assistant 응답이 아닌)
+                if row.get('message_type') == 'user':
+                    # 날짜/시간 형식 변환
+                    timestamp_raw = row.get('created_at', '')
+                    try:
+                        if isinstance(timestamp_raw, str) and timestamp_raw:
+                            dt = datetime.fromisoformat(timestamp_raw.replace("Z", "+00:00"))
+                            formatted_timestamp = dt.strftime("%Y-%m-%d %H:%M:%S")
+                        else:
+                            formatted_timestamp = str(timestamp_raw)
+                    except (ValueError, TypeError):
+                        formatted_timestamp = str(timestamp_raw)
+
+                    # 클라이언트 정보
+                    client_info = row.get('client_info', {}) or {}
+
+                    error_logs.append({
+                        "발생일시": formatted_timestamp,
+                        "세션ID": str(row.get('session_id', ''))[:12],
+                        "컬렉션": row.get('collection_name', ''),
+                        "사용자 질문": str(row.get('message_content', ''))[:500],
+                        "모델": row.get('llm_model', ''),
+                        "오류유형": error_info.get('type', error_info.get('error_type', 'Unknown')),
+                        "오류메시지": str(error_info.get('message', error_info.get('error_message', str(error_info))))[:1000],
+                        "IP해시": client_info.get('ip_hash', '')[:16] if client_info.get('ip_hash') else '',
+                    })
+
+        # Excel 워크북 생성
+        wb = Workbook(write_only=True)
+        ws = wb.create_sheet(title="오류 로그")
+
+        # 헤더 정의
+        headers = ["발생일시", "세션ID", "컬렉션", "사용자 질문", "모델", "오류유형", "오류메시지", "IP해시"]
+
+        # 스타일 정의
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="C0504D", end_color="C0504D", fill_type="solid")  # 빨간색
+        header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell_alignment = Alignment(vertical="top", wrap_text=True)
+
+        # 헤더 행 작성
+        header_row = []
+        for header in headers:
+            cell = WriteOnlyCell(ws, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            header_row.append(cell)
+        ws.append(header_row)
+
+        # 데이터 작성
+        for row_data in error_logs:
+            data_row = []
+            for header in headers:
+                value = row_data.get(header, "")
+                cell = WriteOnlyCell(ws, value=value)
+                cell.alignment = cell_alignment
+                data_row.append(cell)
+            ws.append(data_row)
+
+        # 요약 시트 추가
+        summary_ws = wb.create_sheet(title="요약")
+        summary_ws.append(["항목", "값"])
+        summary_ws.append(["조회 기간", f"{date_from.isoformat()} ~ {date_to.isoformat()}"])
+        summary_ws.append(["총 오류 건수", len(error_logs)])
+        summary_ws.append(["생성 일시", datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
+
+        # 메모리 스트림에 저장
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        # 파일명 생성
+        filename = f"error_logs_{date_from.isoformat()}_{date_to.isoformat()}.xlsx"
+        encoded_filename = quote(filename, safe='')
+
+        logger.info(f"오류 로그 Excel 다운로드: {len(error_logs)}건, 기간: {date_from} ~ {date_to}")
+
+        return StreamingResponse(
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"}
+        )
+
+    except Exception as e:
+        logger.error(f"오류 로그 다운로드 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"오류 로그 다운로드 실패: {str(e)}")
