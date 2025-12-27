@@ -317,18 +317,12 @@ class SelfCheckService:
                 review_reason = f"필수 항목 {item.item_number}번({item.short_label})이 '예'로 판정됨"
                 break
 
-        # 7. 다음 단계 안내
-        if requires_review:
-            next_steps = [
-                "보안성 검토 서류 6종 작성",
-                "정보보호팀 제출 (security@kca.kr)",
-                "CAIO/BAIO 추진과제 선정 회의 상정"
-            ]
-        else:
-            next_steps = [
-                "과제 추진 가능",
-                "필요 시 정보보호팀 사전 상담 권장"
-            ]
+        # 7. 다음 단계 안내 (상위기관 검토 여부와 무관하게 동일한 절차 필요)
+        next_steps = [
+            "보안성 검토 서류 6종 작성",
+            "정보보호팀 제출 (security@kca.kr)",
+            "CAIO/BAIO 추진과제 선정 회의 상정 (월 1회)"
+        ]
 
         analysis_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
 

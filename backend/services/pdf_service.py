@@ -324,13 +324,13 @@ class PDFService:
         if submission.requires_review:
             review_bg = colors.HexColor("#fef3c7")  # amber-100
             review_border = colors.HexColor("#f59e0b")  # amber-500
-            review_text = "검토 대상: 예 (상위기관 보안성 검토 필요)"
+            review_text = "상위기관 검토: 예 (상위기관 보안성 검토 필요)"
             review_text_color = colors.HexColor("#b45309")  # amber-700
         else:
-            review_bg = colors.HexColor("#dcfce7")  # green-100
-            review_border = colors.HexColor("#22c55e")  # green-500
-            review_text = "검토 대상: 아니오 (과제 추진 가능)"
-            review_text_color = colors.HexColor("#166534")  # green-700
+            review_bg = colors.HexColor("#dbeafe")  # blue-100
+            review_border = colors.HexColor("#3b82f6")  # blue-500
+            review_text = "상위기관 검토: 해당없음 (정보보호팀 보안성 검토 필요)"
+            review_text_color = colors.HexColor("#1d4ed8")  # blue-700
 
         review_inline_style = ParagraphStyle(
             "review_inline",
@@ -459,17 +459,12 @@ class PDFService:
         section_num += 1
         elements.append(Paragraph(f"{section_num}. 다음 단계 안내", styles["heading1"]))
 
-        if submission.requires_review:
-            steps = [
-                "1. 보안성 검토 서류 6종 작성",
-                "2. 정보보호팀 제출 (security@kca.kr)",
-                "3. CAIO/BAIO 추진과제 선정 회의 상정"
-            ]
-        else:
-            steps = [
-                "1. 과제 추진 가능",
-                "2. 필요 시 정보보호팀 사전 상담 권장"
-            ]
+        # 상위기관 검토 여부와 무관하게 동일한 보안성 검토 절차 필요
+        steps = [
+            "1. 보안성 검토 서류 6종 작성",
+            "2. 정보보호팀 제출 (security@kca.kr)",
+            "3. CAIO/BAIO 추진과제 선정 회의 상정 (월 1회)"
+        ]
 
         for step in steps:
             elements.append(Paragraph(f"  {step}", styles["normal"]))
