@@ -17,11 +17,11 @@ from backend.database import get_db
 from backend.middleware.request_tracking import get_tracking_ids
 from backend.utils.client_info import extract_client_info
 from backend.models.schemas import ChatRequest, ChatResponse, RetrievedDocument, RegenerateRequest, DefaultSettingsResponse
-from backend.services.embedding_service import EmbeddingService
-from backend.services.qdrant_service import QdrantService
-from backend.services.llm_service import LLMService
+from backend.services.embedding_service import embedding_service
+from backend.services.qdrant_service import qdrant_service
+from backend.services.llm_service import llm_service
 from backend.services.rag_service import RAGService
-from backend.services.reranker_service import RerankerService
+from backend.services.reranker_service import reranker_service as _reranker_service
 from backend.services.hybrid_search_service import HybridSearchService
 from backend.config.settings import settings
 from backend.services.hybrid_logging_service import hybrid_logging_service
@@ -40,24 +40,11 @@ logger = logging.getLogger("uvicorn")
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
-# 서비스 인스턴스 생성
-embedding_service = EmbeddingService(
-    base_url=settings.EMBEDDING_URL,
-    model=settings.EMBEDDING_MODEL
-)
+# 싱글톤 서비스 사용 (중복 인스턴스 제거)
+# embedding_service, qdrant_service, llm_service는 import로 가져옴
 
-qdrant_service = QdrantService(
-    url=settings.QDRANT_URL,
-    api_key=settings.QDRANT_API_KEY
-)
-
-llm_service = LLMService(
-    base_url=settings.LLM_BASE_URL,
-    model=settings.LLM_MODEL
-)
-
-# Reranker 서비스 초기화 (USE_RERANKING 설정에 따라)
-reranker_service = RerankerService() if settings.USE_RERANKING else None
+# Reranker 서비스 (USE_RERANKING 설정에 따라)
+reranker_service = _reranker_service if settings.USE_RERANKING else None
 
 # 하이브리드 검색 서비스 초기화 (USE_HYBRID_SEARCH 설정에 따라)
 hybrid_search_service = HybridSearchService(qdrant_service=qdrant_service) if settings.USE_HYBRID_SEARCH else None

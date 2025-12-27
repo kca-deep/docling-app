@@ -17,20 +17,14 @@ from backend.services.document_selector_service import document_selector_service
 from backend.services.prompt_generator_service import prompt_generator_service
 from backend.services.prompt_validator import prompt_validator
 from backend.services.file_manager_service import file_manager_service
-from backend.services.embedding_service import EmbeddingService
-from backend.services.qdrant_service import QdrantService
+from backend.services.embedding_service import embedding_service
+from backend.services.qdrant_service import qdrant_service
 
 logger = logging.getLogger(__name__)
 
-# 청크 기반 샘플링용 서비스 인스턴스
-embedding_service = EmbeddingService(
-    base_url=settings.EMBEDDING_URL,
-    model=settings.EMBEDDING_MODEL
-)
-qdrant_service = QdrantService(
-    url=settings.QDRANT_URL,
-    api_key=settings.QDRANT_API_KEY
-)
+# 싱글톤 서비스 사용 (중복 인스턴스 제거)
+# embedding_service, qdrant_service는 import로 가져옴
+
 router = APIRouter(prefix="/api/prompts", tags=["prompts"])
 
 # 진행 중인 작업 저장소 (메모리)
@@ -61,6 +55,8 @@ class TaskStatusResponse(BaseModel):
     task_id: str
     status: str
     progress: int
+    phase: str = ""  # 현재 단계: sampling, generating, questions, validating, completed
+    message: str = ""  # 상세 진행 메시지
     result: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
 
@@ -96,6 +92,17 @@ class RollbackRequest(BaseModel):
 
 # ================== 백그라운드 작업 ==================
 
+def update_task_progress(task_id: str, progress: int, phase: str, message: str):
+    """작업 진행도 업데이트 헬퍼 함수"""
+    if task_id in task_storage:
+        task_storage[task_id].update({
+            "progress": progress,
+            "phase": phase,
+            "message": message
+        })
+        logger.debug(f"Task {task_id}: {progress}% - {phase} - {message}")
+
+
 async def generate_prompt_task(
     task_id: str,
     collection_name: str,
@@ -108,18 +115,19 @@ async def generate_prompt_task(
     try:
         # 상태 업데이트: 처리 중
         task_storage[task_id]["status"] = "processing"
-        task_storage[task_id]["progress"] = 10
+        update_task_progress(task_id, 5, "sampling", "컬렉션 정보 확인 중...")
 
         # DB 세션 생성
         db = db_session_maker()
 
         try:
-            # 1. 문서 샘플링 (20%) - 청크 기반 샘플링 우선 시도
-            task_storage[task_id]["progress"] = 20
+            # 1. 문서 샘플링 (5% ~ 25%)
+            update_task_progress(task_id, 10, "sampling", "문서 샘플 추출 중...")
             document_sample = ""
 
             # 청크 기반 샘플링 시도 (Qdrant에서 의미론적 검색)
             try:
+                update_task_progress(task_id, 15, "sampling", "Qdrant에서 청크 검색 중...")
                 logger.info(f"청크 기반 샘플링 시작: collection={collection_name}, docs={document_ids}")
                 document_sample = await document_selector_service.sample_documents_from_chunks(
                     collection_name=collection_name,
@@ -131,25 +139,42 @@ async def generate_prompt_task(
                 )
                 if document_sample:
                     logger.info(f"청크 기반 샘플링 성공: {len(document_sample)}자")
+                    update_task_progress(task_id, 25, "sampling", "문서 샘플링 완료")
             except Exception as e:
                 logger.warning(f"청크 기반 샘플링 실패, 기존 방식으로 폴백: {e}")
                 document_sample = ""
 
             # 청크 기반 실패 시 기존 위치 기반 샘플링으로 폴백
             if not document_sample:
+                update_task_progress(task_id, 20, "sampling", "위치 기반 샘플링으로 전환...")
                 logger.info("기존 위치 기반 샘플링 사용")
                 document_sample = document_selector_service.sample_multiple_documents(
                     db=db,
                     document_ids=document_ids,
                     max_tokens_total=4000
                 )
+                update_task_progress(task_id, 25, "sampling", "문서 샘플링 완료")
 
             if not document_sample:
                 raise ValueError("문서 샘플을 생성할 수 없습니다.")
 
-            # 2. 프롬프트 생성 (60%)
-            task_storage[task_id]["progress"] = 40
-            result = await prompt_generator_service.generate_all(
+            # 2. 시스템 프롬프트 생성 (25% ~ 50%)
+            update_task_progress(task_id, 30, "generating", "메타 프롬프트 로드 중...")
+            update_task_progress(task_id, 35, "generating", "시스템 프롬프트 생성 중...")
+
+            prompt_result = await prompt_generator_service.generate_system_prompt(
+                collection_name=collection_name,
+                document_sample=document_sample,
+                template_type=template_type,
+                model=model
+            )
+
+            update_task_progress(task_id, 50, "generating", "시스템 프롬프트 완료")
+
+            # 3. 추천 질문 생성 (50% ~ 75%)
+            update_task_progress(task_id, 55, "questions", "추천 질문 생성 중...")
+
+            questions_result = await prompt_generator_service.generate_suggested_questions(
                 collection_name=collection_name,
                 document_sample=document_sample,
                 template_type=template_type,
@@ -157,21 +182,24 @@ async def generate_prompt_task(
                 model=model
             )
 
-            task_storage[task_id]["progress"] = 80
+            update_task_progress(task_id, 75, "questions", "추천 질문 완료")
 
-            # 3. 검증 (90%)
+            # 4. 검증 (75% ~ 100%)
+            update_task_progress(task_id, 80, "validating", "결과 검증 중...")
             validation = prompt_validator.validate_all(
-                prompt_content=result["prompt_content"],
-                questions=result["suggested_questions"]
+                prompt_content=prompt_result["content"],
+                questions=questions_result["questions"]
             )
 
-            task_storage[task_id]["progress"] = 100
+            update_task_progress(task_id, 90, "validating", "최종 검토 중...")
+            update_task_progress(task_id, 100, "completed", "생성 완료!")
+
             task_storage[task_id]["status"] = "completed"
             task_storage[task_id]["result"] = {
-                "prompt_content": result["prompt_content"],
-                "suggested_questions": result["suggested_questions"],
-                "template_used": result["template_used"],
-                "tokens_used": result["total_tokens_used"],
+                "prompt_content": prompt_result["content"],
+                "suggested_questions": questions_result["questions"],
+                "template_used": prompt_result["template_used"],
+                "tokens_used": prompt_result["tokens_used"] + questions_result["tokens_used"],
                 "validation": validation
             }
 
@@ -183,6 +211,8 @@ async def generate_prompt_task(
     except Exception as e:
         logger.error(f"프롬프트 생성 실패: {e}")
         task_storage[task_id]["status"] = "failed"
+        task_storage[task_id]["phase"] = "error"
+        task_storage[task_id]["message"] = str(e)
         task_storage[task_id]["error"] = str(e)
 
 
@@ -207,6 +237,8 @@ async def generate_prompt(
     task_storage[task_id] = {
         "status": "pending",
         "progress": 0,
+        "phase": "pending",
+        "message": "생성 준비 중...",
         "result": None,
         "error": None,
         "created_at": now_iso()
@@ -250,6 +282,8 @@ async def get_task_status(task_id: str):
         task_id=task_id,
         status=task["status"],
         progress=task["progress"],
+        phase=task.get("phase", ""),
+        message=task.get("message", ""),
         result=task.get("result"),
         error=task.get("error")
     )

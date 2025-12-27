@@ -14,9 +14,9 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional, AsyncGenerator
 
-from backend.services.qdrant_service import QdrantService
+from backend.services.qdrant_service import qdrant_service
 from backend.services.chunking_service import ChunkingService
-from backend.services.embedding_service import EmbeddingService
+from backend.services.embedding_service import embedding_service
 from backend.services import document_crud, qdrant_history_crud, collection_crud
 
 # 분리된 유틸리티 모듈
@@ -67,16 +67,9 @@ router = APIRouter(
     # 인증은 엔드포인트별로 처리
 )
 
-# 서비스 인스턴스 생성
-qdrant_service = QdrantService(
-    url=settings.QDRANT_URL,
-    api_key=settings.QDRANT_API_KEY
-)
+# 싱글톤 서비스 사용 (중복 인스턴스 제거)
+# qdrant_service, embedding_service는 import로 가져옴
 chunking_service = ChunkingService(base_url=settings.DOCLING_CHUNKING_URL)
-embedding_service = EmbeddingService(
-    base_url=settings.EMBEDDING_URL,
-    model=settings.EMBEDDING_MODEL
-)
 
 
 @router.get("/config", response_model=QdrantConfigResponse)

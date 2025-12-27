@@ -141,3 +141,12 @@ class EmbeddingService:
         앱 종료 시 http_manager.close_all()에서 일괄 처리됨
         """
         pass  # HTTP 클라이언트 매니저에서 관리
+
+
+# 싱글톤 인스턴스 (모듈 로드 시 1회 생성)
+from backend.config.settings import settings
+
+embedding_service = EmbeddingService(
+    base_url=settings.EMBEDDING_URL,
+    model=settings.EMBEDDING_MODEL
+)

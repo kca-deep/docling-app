@@ -588,3 +588,12 @@ class LLMService:
         앱 종료 시 http_manager.close_all()에서 일괄 처리됨
         """
         pass  # HTTP 클라이언트 매니저에서 관리
+
+
+# 싱글톤 인스턴스 (모듈 로드 시 1회 생성)
+from backend.config.settings import settings
+
+llm_service = LLMService(
+    base_url=settings.LLM_BASE_URL,
+    model=settings.LLM_MODEL
+)

@@ -618,3 +618,12 @@ class QdrantService:
     async def close(self):
         """클라이언트 연결 종료"""
         await self.client.close()
+
+
+# 싱글톤 인스턴스 (모듈 로드 시 1회 생성)
+from backend.config.settings import settings
+
+qdrant_service = QdrantService(
+    url=settings.QDRANT_URL,
+    api_key=settings.QDRANT_API_KEY
+)
