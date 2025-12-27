@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { useAuth } from "@/components/auth/auth-provider"
+import { UserPermissions } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { motion } from "framer-motion"
@@ -52,6 +53,10 @@ interface NavItem {
   icon: LucideIcon
   requiresAuth?: boolean
   adminOnly?: boolean
+  permission?: {
+    category: keyof UserPermissions
+    action: string
+  }
 }
 
 interface NavGroup {
@@ -63,7 +68,7 @@ interface NavGroup {
 
 export function NavHeader() {
   const pathname = usePathname()
-  const { isAuthenticated, isLoading, logout, user } = useAuth()
+  const { isAuthenticated, isLoading, logout, user, hasPermission } = useAuth()
   const [isScrolled, setIsScrolled] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [pendingCount, setPendingCount] = useState(0)
@@ -135,7 +140,7 @@ export function NavHeader() {
     requiresAuth: false,
     items: [
       { href: "/idea-hub", label: "셀프진단", icon: Shield, requiresAuth: false },
-      { href: "/idea-hub/history", label: "진단 이력", icon: History, requiresAuth: true },
+      { href: "/idea-hub/history", label: "진단 이력", icon: History, requiresAuth: true, permission: { category: "selfcheck", action: "history" } },
     ],
   }
 
@@ -151,9 +156,9 @@ export function NavHeader() {
     icon: FileStack,
     requiresAuth: true,
     items: [
-      { href: "/parse", label: "문서변환", icon: FileText, requiresAuth: true, adminOnly: true },
-      { href: "/upload", label: "벡터임베딩", icon: Database, requiresAuth: true, adminOnly: true },
-      { href: "/excel-embedding", label: "엑셀임베딩", icon: SheetIcon, requiresAuth: true, adminOnly: true },
+      { href: "/parse", label: "문서변환", icon: FileText, requiresAuth: true, adminOnly: true, permission: { category: "documents", action: "parse" } },
+      { href: "/upload", label: "벡터임베딩", icon: Database, requiresAuth: true, adminOnly: true, permission: { category: "qdrant", action: "upload" } },
+      { href: "/excel-embedding", label: "엑셀임베딩", icon: SheetIcon, requiresAuth: true, adminOnly: true, permission: { category: "excel", action: "upload" } },
     ],
   }
 
@@ -163,9 +168,9 @@ export function NavHeader() {
     icon: Settings,
     requiresAuth: true,
     items: [
-      { href: "/collections", label: "컬렉션", icon: FolderCog, requiresAuth: true, adminOnly: true },
-      { href: "/analytics", label: "통계", icon: BarChart3, requiresAuth: true, adminOnly: true },
-      { href: "/admin/users", label: "사용자 관리", icon: Users, requiresAuth: true, adminOnly: true },
+      { href: "/collections", label: "컬렉션", icon: FolderCog, requiresAuth: true, adminOnly: true, permission: { category: "qdrant", action: "collections" } },
+      { href: "/analytics", label: "통계", icon: BarChart3, requiresAuth: true, adminOnly: true, permission: { category: "analytics", action: "view" } },
+      { href: "/admin/users", label: "사용자 관리", icon: Users, requiresAuth: true, adminOnly: true, permission: { category: "admin", action: "users" } },
     ],
   }
 
@@ -174,6 +179,8 @@ export function NavHeader() {
     return items.filter((item) => {
       if (item.requiresAuth && !isAuthenticated) return false
       if (item.adminOnly && user?.role !== "admin") return false
+      // 권한 기반 필터링 (관리자는 항상 접근 가능)
+      if (item.permission && user?.role !== "admin" && !hasPermission(item.permission.category, item.permission.action)) return false
       return true
     })
   }

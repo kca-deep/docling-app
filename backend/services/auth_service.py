@@ -13,7 +13,7 @@ from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from backend.config.settings import settings
-from backend.models.user import User, UserStatus
+from backend.models.user import User, UserStatus, get_default_permissions, get_admin_permissions
 
 logger = logging.getLogger(__name__)
 
@@ -604,6 +604,118 @@ class AuthService:
             logger.info(f"Default admin user '{settings.ADMIN_USERNAME}' created")
         else:
             logger.debug(f"Admin user '{settings.ADMIN_USERNAME}' already exists")
+
+    # =========================================
+    # 권한 관리 메서드
+    # =========================================
+
+    def get_user_permissions(self, db: Session, user_id: int) -> Optional[dict]:
+        """
+        사용자 권한 조회
+
+        Args:
+            db: 데이터베이스 세션
+            user_id: 사용자 ID
+
+        Returns:
+            dict: 사용자 권한 또는 None (사용자 없음)
+        """
+        user = self.get_user_by_id(db, user_id)
+        if not user:
+            return None
+        return user.get_permissions()
+
+    def update_user_permissions(
+        self,
+        db: Session,
+        user_id: int,
+        permissions: dict,
+        admin_id: int
+    ) -> User:
+        """
+        사용자 권한 업데이트
+
+        Args:
+            db: 데이터베이스 세션
+            user_id: 권한을 변경할 사용자 ID
+            permissions: 새 권한 설정
+            admin_id: 변경을 수행하는 관리자 ID
+
+        Returns:
+            User: 업데이트된 사용자 객체
+
+        Raises:
+            AuthenticationError: 사용자를 찾을 수 없는 경우
+        """
+        user = self.get_user_by_id(db, user_id)
+        if not user:
+            raise AuthenticationError("사용자를 찾을 수 없습니다.", "USER_NOT_FOUND")
+
+        # 관리자 권한은 수정 불가 (역할 기반으로 자동 적용)
+        if user.role == "admin":
+            raise AuthenticationError(
+                "관리자 계정의 권한은 역할에 의해 자동으로 결정됩니다.",
+                "ADMIN_PERMISSION_IMMUTABLE"
+            )
+
+        # 권한 유효성 검사
+        valid_categories = {"selfcheck", "documents", "qdrant", "dify", "chat", "analytics", "excel", "admin"}
+        for category in permissions.keys():
+            if category not in valid_categories:
+                raise AuthenticationError(
+                    f"유효하지 않은 권한 카테고리: {category}",
+                    "INVALID_PERMISSION_CATEGORY"
+                )
+
+        user.permissions = permissions
+        db.commit()
+        db.refresh(user)
+
+        logger.info(f"User '{user.username}' permissions updated by admin ID {admin_id}")
+        return user
+
+    def reset_user_permissions(self, db: Session, user_id: int, admin_id: int) -> User:
+        """
+        사용자 권한을 기본값으로 초기화
+
+        Args:
+            db: 데이터베이스 세션
+            user_id: 사용자 ID
+            admin_id: 관리자 ID
+
+        Returns:
+            User: 업데이트된 사용자 객체
+        """
+        user = self.get_user_by_id(db, user_id)
+        if not user:
+            raise AuthenticationError("사용자를 찾을 수 없습니다.", "USER_NOT_FOUND")
+
+        if user.role == "admin":
+            raise AuthenticationError(
+                "관리자 계정의 권한은 역할에 의해 자동으로 결정됩니다.",
+                "ADMIN_PERMISSION_IMMUTABLE"
+            )
+
+        user.permissions = get_default_permissions()
+        db.commit()
+        db.refresh(user)
+
+        logger.info(f"User '{user.username}' permissions reset to default by admin ID {admin_id}")
+        return user
+
+    def has_permission(self, user: User, category: str, action: str) -> bool:
+        """
+        사용자 권한 확인
+
+        Args:
+            user: 사용자 객체
+            category: 권한 카테고리 (documents, qdrant, dify 등)
+            action: 권한 액션 (parse, upload, view 등)
+
+        Returns:
+            bool: 권한 보유 여부
+        """
+        return user.has_permission(category, action)
 
 
 # 싱글톤 인스턴스

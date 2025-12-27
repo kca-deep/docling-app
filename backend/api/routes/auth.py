@@ -149,6 +149,48 @@ class PendingCountResponse(BaseModel):
     pending_count: int
 
 
+# === 권한 스키마 ===
+
+class PermissionCategory(BaseModel):
+    """권한 카테고리"""
+    model_config = ConfigDict(extra='allow')
+
+
+class UserPermissions(BaseModel):
+    """사용자 권한"""
+    selfcheck: Optional[dict] = None
+    documents: Optional[dict] = None
+    qdrant: Optional[dict] = None
+    dify: Optional[dict] = None
+    chat: Optional[dict] = None
+    analytics: Optional[dict] = None
+    excel: Optional[dict] = None
+    admin: Optional[dict] = None
+
+    model_config = ConfigDict(extra='forbid')
+
+
+class PermissionsResponse(BaseModel):
+    """권한 응답"""
+    user_id: int
+    username: str
+    role: str
+    permissions: dict
+
+
+class UpdatePermissionsRequest(BaseModel):
+    """권한 업데이트 요청"""
+    permissions: dict
+
+
+class PermissionsUpdateResponse(BaseModel):
+    """권한 업데이트 응답"""
+    success: bool
+    user_id: int
+    message: str
+    permissions: dict
+
+
 # === 엔드포인트 ===
 
 @router.post("/login", response_model=UserResponse)
@@ -634,3 +676,134 @@ async def delete_user(
     logger.info(f"User ID {user_id} deleted by admin {admin.username}")
 
     return MessageResponse(message="사용자가 삭제되었습니다.")
+
+
+# =========================================
+# 권한 관리 엔드포인트
+# =========================================
+
+@router.get("/users/{user_id}/permissions", response_model=PermissionsResponse)
+async def get_user_permissions(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin)
+):
+    """
+    사용자 권한 조회 (관리자 전용)
+
+    Args:
+        user_id: 조회할 사용자 ID
+
+    Returns:
+        PermissionsResponse: 사용자 권한 정보
+    """
+    user = auth_service.get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="사용자를 찾을 수 없습니다."
+        )
+
+    return PermissionsResponse(
+        user_id=user.id,
+        username=user.username,
+        role=user.role,
+        permissions=user.get_permissions()
+    )
+
+
+@router.put("/users/{user_id}/permissions", response_model=PermissionsUpdateResponse)
+async def update_user_permissions(
+    user_id: int,
+    request: UpdatePermissionsRequest,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin)
+):
+    """
+    사용자 권한 업데이트 (관리자 전용)
+
+    Args:
+        user_id: 권한을 변경할 사용자 ID
+        request: 새 권한 설정
+
+    Returns:
+        PermissionsUpdateResponse: 업데이트 결과
+    """
+    try:
+        user = auth_service.update_user_permissions(
+            db=db,
+            user_id=user_id,
+            permissions=request.permissions,
+            admin_id=admin.id
+        )
+    except AuthenticationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"message": e.message, "error_code": e.error_code}
+        )
+
+    logger.info(f"User {user.username} permissions updated by admin {admin.username}")
+
+    return PermissionsUpdateResponse(
+        success=True,
+        user_id=user.id,
+        message=f"사용자 '{user.username}'의 권한이 업데이트되었습니다.",
+        permissions=user.get_permissions()
+    )
+
+
+@router.post("/users/{user_id}/permissions/reset", response_model=PermissionsUpdateResponse)
+async def reset_user_permissions(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin)
+):
+    """
+    사용자 권한 초기화 (관리자 전용)
+
+    기본 권한 템플릿으로 초기화
+
+    Args:
+        user_id: 권한을 초기화할 사용자 ID
+
+    Returns:
+        PermissionsUpdateResponse: 초기화 결과
+    """
+    try:
+        user = auth_service.reset_user_permissions(
+            db=db,
+            user_id=user_id,
+            admin_id=admin.id
+        )
+    except AuthenticationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"message": e.message, "error_code": e.error_code}
+        )
+
+    logger.info(f"User {user.username} permissions reset by admin {admin.username}")
+
+    return PermissionsUpdateResponse(
+        success=True,
+        user_id=user.id,
+        message=f"사용자 '{user.username}'의 권한이 기본값으로 초기화되었습니다.",
+        permissions=user.get_permissions()
+    )
+
+
+@router.get("/me/permissions", response_model=PermissionsResponse)
+async def get_my_permissions(
+    user: User = Depends(get_current_active_user)
+):
+    """
+    현재 로그인한 사용자의 권한 조회
+
+    Returns:
+        PermissionsResponse: 현재 사용자 권한 정보
+    """
+    return PermissionsResponse(
+        user_id=user.id,
+        username=user.username,
+        role=user.role,
+        permissions=user.get_permissions()
+    )

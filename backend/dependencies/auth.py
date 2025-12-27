@@ -117,5 +117,57 @@ async def require_admin(
     return user
 
 
+def require_permission(category: str, action: str):
+    """
+    특정 권한 필수 의존성 팩토리
+
+    Args:
+        category: 권한 카테고리 (documents, qdrant, dify 등)
+        action: 권한 액션 (parse, upload, view 등)
+
+    Returns:
+        Dependency function that checks the permission
+
+    Usage:
+        @router.post("/parse")
+        async def parse_document(
+            user: User = Depends(require_permission("documents", "parse"))
+        ):
+            ...
+    """
+    async def permission_checker(
+        user: User = Depends(get_current_active_user)
+    ) -> User:
+        if not user.has_permission(category, action):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permission denied: {category}:{action}"
+            )
+        return user
+
+    return permission_checker
+
+
+async def get_current_user_with_permissions(
+    request: Request,
+    db: Session = Depends(get_db)
+) -> Optional[User]:
+    """
+    현재 인증된 사용자와 권한 정보 조회 (Optional)
+
+    쿠키에서 JWT 토큰을 읽어 사용자 정보와 권한을 함께 반환
+    인증되지 않은 경우 None 반환 (예외 발생 안 함)
+
+    Args:
+        request: FastAPI Request 객체
+        db: 데이터베이스 세션
+
+    Returns:
+        User: 인증된 사용자 또는 None (권한 정보 포함)
+    """
+    user = await get_current_user(request, db)
+    return user
+
+
 # Alias for get_current_user to make optional authentication explicit
 get_current_user_optional = get_current_user

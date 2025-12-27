@@ -4,8 +4,37 @@
 """
 from datetime import datetime, timezone
 from enum import Enum
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text
+from typing import Dict, Any
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, JSON
 from backend.database import Base
+
+
+def get_default_permissions() -> Dict[str, Any]:
+    """기본 사용자 권한 템플릿 반환"""
+    return {
+        "selfcheck": {"execute": True, "history": True},
+        "documents": {"parse": True, "view": True, "delete": False},
+        "qdrant": {"upload": True, "collections": False},
+        "dify": {"upload": True, "config": False},
+        "chat": {"use": True, "all_collections": False},
+        "analytics": {"view": False},
+        "excel": {"upload": True},
+        "admin": {"users": False, "system": False}
+    }
+
+
+def get_admin_permissions() -> Dict[str, Any]:
+    """관리자 권한 템플릿 반환 (모든 권한 활성화)"""
+    return {
+        "selfcheck": {"execute": True, "history": True},
+        "documents": {"parse": True, "view": True, "delete": True},
+        "qdrant": {"upload": True, "collections": True},
+        "dify": {"upload": True, "config": True},
+        "chat": {"use": True, "all_collections": True},
+        "analytics": {"view": True},
+        "excel": {"upload": True},
+        "admin": {"users": True, "system": True}
+    }
 
 
 class UserStatus(str, Enum):
@@ -37,6 +66,9 @@ class User(Base):
     # 브루트포스 공격 방어 필드
     failed_login_attempts = Column(Integer, default=0, nullable=False)
     locked_until = Column(DateTime, nullable=True)  # 계정 잠금 해제 시간
+
+    # 세분화된 권한 관리 필드
+    permissions = Column(JSON, nullable=True, default=get_default_permissions)
 
     def __repr__(self):
         return f"<User(id={self.id}, username='{self.username}', email='{self.email}', status='{self.status}')>"
@@ -78,3 +110,20 @@ class User(Base):
             locked = locked.replace(tzinfo=timezone.utc)
         remaining = (locked - now).total_seconds()
         return max(0, int(remaining))
+
+    def get_permissions(self) -> Dict[str, Any]:
+        """사용자 권한 반환 (admin은 모든 권한)"""
+        if self.role == "admin":
+            return get_admin_permissions()
+        if self.permissions is None:
+            return get_default_permissions()
+        return self.permissions
+
+    def has_permission(self, category: str, action: str) -> bool:
+        """특정 권한 보유 여부 확인"""
+        # 관리자는 모든 권한 보유
+        if self.role == "admin":
+            return True
+        permissions = self.get_permissions()
+        category_permissions = permissions.get(category, {})
+        return category_permissions.get(action, False)

@@ -11,11 +11,16 @@ import {
 import { useRouter, usePathname } from "next/navigation"
 import {
   User,
+  UserPermissions,
   AuthStatus,
   LoginCredentials,
   login as apiLogin,
   logout as apiLogout,
   verifyAuth,
+  getMyPermissions,
+  hasPermission as checkPermission,
+  getDefaultPermissions,
+  getAdminPermissions,
 } from "@/lib/auth"
 
 // === 타입 정의 ===
@@ -24,9 +29,12 @@ interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
   isLoading: boolean
+  isGuest: boolean
+  permissions: UserPermissions | null
   login: (credentials: LoginCredentials) => Promise<void>
   logout: () => Promise<void>
   checkAuth: () => Promise<void>
+  hasPermission: (category: keyof UserPermissions, action: string) => boolean
 }
 
 // === Context 생성 ===
@@ -71,11 +79,13 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null)
+  const [permissions, setPermissions] = useState<UserPermissions | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
   const pathname = usePathname()
 
   const isAuthenticated = user !== null
+  const isGuest = !isAuthenticated
 
   /**
    * 인증 상태 확인
@@ -87,12 +97,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       if (status.authenticated && status.user) {
         setUser(status.user)
+
+        // 권한 정보 조회
+        try {
+          const permResponse = await getMyPermissions()
+          setPermissions(permResponse.permissions)
+          // 사용자 객체에도 권한 정보 추가
+          setUser({ ...status.user, permissions: permResponse.permissions })
+        } catch {
+          // 권한 조회 실패 시 기본값 사용
+          const defaultPerms = status.user.role === 'admin'
+            ? getAdminPermissions()
+            : getDefaultPermissions()
+          setPermissions(defaultPerms)
+          setUser({ ...status.user, permissions: defaultPerms })
+        }
       } else {
         setUser(null)
+        setPermissions(null)
       }
     } catch (error) {
       console.error("Auth check failed:", error)
       setUser(null)
+      setPermissions(null)
     } finally {
       setIsLoading(false)
     }
@@ -104,6 +131,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const login = useCallback(async (credentials: LoginCredentials) => {
     const loggedInUser = await apiLogin(credentials)
     setUser(loggedInUser)
+
+    // 로그인 후 권한 정보 조회
+    try {
+      const permResponse = await getMyPermissions()
+      setPermissions(permResponse.permissions)
+      setUser({ ...loggedInUser, permissions: permResponse.permissions })
+    } catch {
+      const defaultPerms = loggedInUser.role === 'admin'
+        ? getAdminPermissions()
+        : getDefaultPermissions()
+      setPermissions(defaultPerms)
+      setUser({ ...loggedInUser, permissions: defaultPerms })
+    }
   }, [])
 
   /**
@@ -114,9 +154,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await apiLogout()
     } finally {
       setUser(null)
+      setPermissions(null)
       router.push("/login")
     }
   }, [router])
+
+  /**
+   * 권한 확인
+   */
+  const hasPermission = useCallback((category: keyof UserPermissions, action: string): boolean => {
+    return checkPermission(user, category, action)
+  }, [user])
 
   /**
    * 초기 인증 상태 확인
@@ -145,9 +193,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
     user,
     isAuthenticated,
     isLoading,
+    isGuest,
+    permissions,
     login,
     logout,
     checkAuth,
+    hasPermission,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

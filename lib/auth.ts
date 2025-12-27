@@ -5,6 +5,17 @@ import { API_BASE_URL } from './api-config'
 
 // === 타입 정의 ===
 
+export interface UserPermissions {
+  selfcheck: { execute: boolean; history: boolean }
+  documents: { parse: boolean; view: boolean; delete: boolean }
+  qdrant: { upload: boolean; collections: boolean }
+  dify: { upload: boolean; config: boolean }
+  chat: { use: boolean; all_collections: boolean }
+  analytics: { view: boolean }
+  excel: { upload: boolean }
+  admin: { users: boolean; system: boolean }
+}
+
 export interface User {
   id: number
   username: string
@@ -14,6 +25,7 @@ export interface User {
   role: string
   status: string
   is_active: boolean
+  permissions?: UserPermissions
 }
 
 export interface AuthStatus {
@@ -320,4 +332,153 @@ export async function deleteUser(userId: number): Promise<void> {
     const error = await response.json()
     throw new Error(error.detail || 'Failed to delete user')
   }
+}
+
+// === 권한 관련 API ===
+
+export interface PermissionsResponse {
+  user_id: number
+  username: string
+  role: string
+  permissions: UserPermissions
+}
+
+export interface PermissionsUpdateResult {
+  success: boolean
+  user_id: number
+  message: string
+  permissions: UserPermissions
+}
+
+/**
+ * 내 권한 조회
+ */
+export async function getMyPermissions(): Promise<PermissionsResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/auth/me/permissions`, {
+    method: 'GET',
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to get permissions')
+  }
+
+  return response.json()
+}
+
+/**
+ * 사용자 권한 조회 (관리자)
+ */
+export async function getUserPermissions(userId: number): Promise<PermissionsResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/auth/users/${userId}/permissions`, {
+    method: 'GET',
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to get user permissions')
+  }
+
+  return response.json()
+}
+
+/**
+ * 사용자 권한 업데이트 (관리자)
+ */
+export async function updateUserPermissions(
+  userId: number,
+  permissions: UserPermissions
+): Promise<PermissionsUpdateResult> {
+  const response = await fetch(`${API_BASE_URL}/api/auth/users/${userId}/permissions`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({ permissions }),
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json()
+    if (errorData.detail && typeof errorData.detail === 'object') {
+      throw new Error(errorData.detail.message || 'Failed to update permissions')
+    }
+    throw new Error(errorData.detail || 'Failed to update permissions')
+  }
+
+  return response.json()
+}
+
+/**
+ * 사용자 권한 초기화 (관리자)
+ */
+export async function resetUserPermissions(userId: number): Promise<PermissionsUpdateResult> {
+  const response = await fetch(`${API_BASE_URL}/api/auth/users/${userId}/permissions/reset`, {
+    method: 'POST',
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json()
+    if (errorData.detail && typeof errorData.detail === 'object') {
+      throw new Error(errorData.detail.message || 'Failed to reset permissions')
+    }
+    throw new Error(errorData.detail || 'Failed to reset permissions')
+  }
+
+  return response.json()
+}
+
+/**
+ * 기본 사용자 권한 템플릿
+ */
+export function getDefaultPermissions(): UserPermissions {
+  return {
+    selfcheck: { execute: true, history: true },
+    documents: { parse: true, view: true, delete: false },
+    qdrant: { upload: true, collections: false },
+    dify: { upload: true, config: false },
+    chat: { use: true, all_collections: false },
+    analytics: { view: false },
+    excel: { upload: true },
+    admin: { users: false, system: false }
+  }
+}
+
+/**
+ * 관리자 권한 템플릿
+ */
+export function getAdminPermissions(): UserPermissions {
+  return {
+    selfcheck: { execute: true, history: true },
+    documents: { parse: true, view: true, delete: true },
+    qdrant: { upload: true, collections: true },
+    dify: { upload: true, config: true },
+    chat: { use: true, all_collections: true },
+    analytics: { view: true },
+    excel: { upload: true },
+    admin: { users: true, system: true }
+  }
+}
+
+/**
+ * 권한 체크 헬퍼 함수
+ */
+export function hasPermission(
+  user: User | null,
+  category: keyof UserPermissions,
+  action: string
+): boolean {
+  if (!user) return false
+  if (user.role === 'admin') return true
+
+  const permissions = user.permissions
+  if (!permissions) return false
+
+  const categoryPermissions = permissions[category] as Record<string, boolean> | undefined
+  if (!categoryPermissions) return false
+
+  return categoryPermissions[action] ?? false
 }
