@@ -31,16 +31,20 @@ import {
   ChevronLeft,
   ChevronRight,
   Check,
+  CheckCircle2,
   FileCode,
   MessageSquare,
   Save,
   AlertCircle,
   Cpu,
   Zap,
+  RefreshCw,
+  ArrowLeft,
 } from "lucide-react"
 import { toast } from "sonner"
 import { API_BASE_URL } from "@/lib/api-config"
 import { cn } from "@/lib/utils"
+import { AnimatedKcaLogo } from "@/components/ui/animated-kca-logo"
 import { PromptEditor } from "./PromptEditor"
 import { SuggestedQuestionsEditor } from "./SuggestedQuestionsEditor"
 
@@ -175,6 +179,9 @@ export function PromptGeneratorModal({
   // Step 4: Generation and editing
   const [generating, setGenerating] = useState(false)
   const [generationProgress, setGenerationProgress] = useState(0)
+  const [generationPhase, setGenerationPhase] = useState("")
+  const [generationMessage, setGenerationMessage] = useState("")
+  const [generationError, setGenerationError] = useState<string | null>(null)
   const [generatedPrompt, setGeneratedPrompt] = useState<GeneratedPrompt | null>(null)
   const [editedPrompt, setEditedPrompt] = useState("")
   const [editedQuestions, setEditedQuestions] = useState<string[]>([])
@@ -223,6 +230,9 @@ export function PromptGeneratorModal({
       setEditedPrompt("")
       setEditedQuestions([])
       setGenerationProgress(0)
+      setGenerationPhase("")
+      setGenerationMessage("")
+      setGenerationError(null)
     }
   }, [open, collectionName])
 
@@ -268,6 +278,9 @@ export function PromptGeneratorModal({
   const generatePrompt = async () => {
     setGenerating(true)
     setGenerationProgress(0)
+    setGenerationPhase("pending")
+    setGenerationMessage("생성 준비 중...")
+    setGenerationError(null)
 
     try {
       // 1. Start generation task
@@ -291,10 +304,10 @@ export function PromptGeneratorModal({
 
       const { task_id } = await startResponse.json()
 
-      // 2. Poll for status
+      // 2. Poll for status (500ms interval for smoother updates)
       let completed = false
       while (!completed) {
-        await new Promise((resolve) => setTimeout(resolve, 1000))
+        await new Promise((resolve) => setTimeout(resolve, 500))
 
         const statusResponse = await fetch(
           `${API_BASE_URL}/api/prompts/generate/${task_id}`,
@@ -307,6 +320,8 @@ export function PromptGeneratorModal({
 
         const status = await statusResponse.json()
         setGenerationProgress(status.progress)
+        setGenerationPhase(status.phase || "")
+        setGenerationMessage(status.message || "")
 
         if (status.status === "completed") {
           completed = true
@@ -321,15 +336,26 @@ export function PromptGeneratorModal({
 
           toast.success("프롬프트가 생성되었습니다")
         } else if (status.status === "failed") {
-          throw new Error(status.error || "프롬프트 생성 실패")
+          const errorMsg = status.error || "프롬프트 생성 실패"
+          setGenerationError(errorMsg)
+          throw new Error(errorMsg)
         }
       }
     } catch (error) {
       console.error("Failed to generate prompt:", error)
-      toast.error(error instanceof Error ? error.message : "프롬프트 생성에 실패했습니다")
+      const errorMsg = error instanceof Error ? error.message : "프롬프트 생성에 실패했습니다"
+      setGenerationError(errorMsg)
+      toast.error(errorMsg)
     } finally {
       setGenerating(false)
     }
+  }
+
+  // Retry generation
+  const retryGeneration = () => {
+    setGenerationError(null)
+    setGeneratedPrompt(null)
+    generatePrompt()
   }
 
   // Generate mock prompt based on template
@@ -581,67 +607,45 @@ export function PromptGeneratorModal({
           </div>
         </DialogHeader>
 
-        {/* Step indicator - Progress bar style */}
-        <div className="py-4 space-y-3">
-          {/* Step labels */}
-          <div className="flex justify-between px-2">
-            {STEPS.map((step) => (
-              <div key={step.id} className="flex flex-col items-center flex-1">
-                <span
-                  className={cn(
-                    "text-xs font-medium transition-colors",
-                    currentStep === step.id
-                      ? "text-[color:var(--chart-1)]"
-                      : currentStep > step.id
-                      ? "text-foreground"
-                      : "text-muted-foreground"
-                  )}
-                >
-                  {step.name}
-                </span>
-                {/* Step summary - show below current/completed steps */}
-                <span className="text-[10px] text-muted-foreground mt-0.5 h-4">
-                  {currentStep > step.id && step.id === 1 && selectedDocIds.length > 0 && (
-                    `${selectedDocIds.length}개 선택`
-                  )}
-                  {currentStep > step.id && step.id === 2 && (
-                    `${modelOptions.find(m => m.key === selectedModel)?.label?.split(" ")[0] || "LLM"}`
-                  )}
-                  {currentStep > step.id && step.id === 3 && promptFilename && (
-                    `${promptFilename}.md`
-                  )}
-                  {currentStep === step.id && "진행 중"}
-                </span>
-              </div>
-            ))}
-          </div>
-          {/* Progress bar */}
-          <div className="relative h-2 bg-muted rounded-full overflow-hidden">
-            <div
-              className="absolute inset-y-0 left-0 bg-gradient-to-r from-[color:var(--chart-1)] to-[color:var(--chart-2)] rounded-full transition-all duration-500"
-              style={{ width: `${((currentStep - 1) / (STEPS.length - 1)) * 100}%` }}
-            />
-            {/* Step dots */}
-            <div className="absolute inset-0 flex justify-between items-center px-0">
-              {STEPS.map((step) => (
+        {/* Step indicator - 브레드크럼 스타일 (AI검증과 통일) */}
+        <div className="flex items-center gap-1 px-4 py-2 mx-4 rounded-lg bg-muted/50 border">
+          {STEPS.map((step, index) => {
+            // Step 4에서 생성 완료 시 모든 단계 완료로 표시
+            const isCompleted = currentStep > step.id || (currentStep === 4 && generatedPrompt !== null)
+            const isCurrent = currentStep === step.id && !(currentStep === 4 && generatedPrompt !== null)
+
+            return (
+              <div key={step.id} className="flex items-center">
                 <div
-                  key={step.id}
                   className={cn(
-                    "w-4 h-4 rounded-full border-2 transition-all flex items-center justify-center",
-                    currentStep > step.id
-                      ? "bg-[color:var(--chart-1)] border-[color:var(--chart-1)]"
-                      : currentStep === step.id
-                      ? "bg-background border-[color:var(--chart-1)] ring-4 ring-[color:var(--chart-1)]/20"
-                      : "bg-background border-muted-foreground/30"
+                    "flex items-center gap-1.5 text-sm transition-colors",
+                    isCompleted && "text-green-600 dark:text-green-400",
+                    isCurrent && "text-primary font-medium",
+                    !isCompleted && !isCurrent && "text-muted-foreground"
                   )}
                 >
-                  {currentStep > step.id && (
-                    <Check className="h-2.5 w-2.5 text-white" />
+                  {isCompleted ? (
+                    <CheckCircle2 className="w-4 h-4" />
+                  ) : isCurrent ? (
+                    generating ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <div className="w-4 h-4 rounded-full border-2 border-primary flex items-center justify-center">
+                        <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                      </div>
+                    )
+                  ) : (
+                    <div className="w-4 h-4 rounded-full border-2 border-muted-foreground/30" />
                   )}
+                  <span className="hidden sm:inline">{step.name}</span>
+                  <span className="sm:hidden">{step.id}</span>
                 </div>
-              ))}
-            </div>
-          </div>
+                {index < STEPS.length - 1 && (
+                  <ChevronRight className="w-4 h-4 text-muted-foreground/50 mx-1" />
+                )}
+              </div>
+            )
+          })}
         </div>
 
         {/* Step content */}
@@ -856,83 +860,68 @@ export function PromptGeneratorModal({
           {currentStep === 4 && (
             <div className="space-y-4 h-full">
               {generating ? (
-                <div className="flex flex-col items-center justify-center py-8">
-                  {/* Animated icon */}
-                  <div className="relative mb-6">
-                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[color:var(--chart-1)] to-[color:var(--chart-2)] flex items-center justify-center shadow-lg">
-                      <Sparkles className="h-10 w-10 text-white animate-pulse" />
-                    </div>
-                    <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-background border-2 border-[color:var(--chart-1)] flex items-center justify-center">
-                      <Loader2 className="h-3 w-3 animate-spin text-[color:var(--chart-1)]" />
-                    </div>
+                <div className="flex flex-col items-center justify-center py-6">
+                  {/* KCA-i 애니메이션 로고 (축소) */}
+                  <div className="scale-75 mb-4">
+                    <AnimatedKcaLogo />
                   </div>
 
-                  {/* Progress bar */}
-                  <div className="w-64 space-y-2 mb-4">
-                    <div className="relative h-3 bg-muted rounded-full overflow-hidden">
+                  {/* Progress bar + message (단순화) */}
+                  <div className="w-full max-w-xs space-y-2">
+                    <div className="relative h-2.5 bg-muted rounded-full overflow-hidden">
                       <div
-                        className="absolute inset-y-0 left-0 bg-gradient-to-r from-[color:var(--chart-1)] to-[color:var(--chart-2)] rounded-full transition-all duration-500"
+                        className="absolute inset-y-0 left-0 bg-gradient-to-r from-[color:var(--chart-1)] to-[color:var(--chart-2)] rounded-full transition-all duration-300 ease-out"
                         style={{ width: `${generationProgress}%` }}
                       />
                     </div>
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>
-                        {generationProgress < 30 ? "문서 분석 중..." :
-                         generationProgress < 60 ? "프롬프트 생성 중..." :
-                         generationProgress < 90 ? "추천 질문 생성 중..." : "마무리 중..."}
+                    <div className="flex justify-between items-center text-xs text-muted-foreground">
+                      <span className="truncate max-w-[180px]">
+                        {generationMessage || "준비 중..."}
                       </span>
-                      <span className="font-mono">{generationProgress}%</span>
+                      <span className="font-mono ml-2 tabular-nums">{generationProgress}%</span>
                     </div>
                   </div>
-
-                  {/* Generation steps */}
-                  <div className="flex gap-3 text-xs">
-                    {[
-                      { label: "문서 분석", threshold: 30 },
-                      { label: "프롬프트 생성", threshold: 60 },
-                      { label: "추천 질문", threshold: 90 },
-                    ].map((phase, i) => (
-                      <div
-                        key={phase.label}
-                        className={cn(
-                          "flex items-center gap-1.5 px-2 py-1 rounded-full transition-colors",
-                          generationProgress >= phase.threshold
-                            ? "bg-[color:var(--chart-1)]/10 text-[color:var(--chart-1)]"
-                            : "bg-muted text-muted-foreground"
-                        )}
-                      >
-                        {generationProgress >= phase.threshold ? (
-                          <Check className="h-3 w-3" />
-                        ) : generationProgress >= phase.threshold - 30 ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <div className="w-3 h-3 rounded-full border border-current" />
-                        )}
-                        <span>{phase.label}</span>
-                      </div>
-                    ))}
+                </div>
+              ) : generationError ? (
+                /* Error state */
+                <div className="flex flex-col items-center justify-center py-8">
+                  <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center mb-4">
+                    <AlertCircle className="h-8 w-8 text-destructive" />
+                  </div>
+                  <h4 className="text-lg font-semibold text-destructive mb-2">생성 실패</h4>
+                  <p className="text-sm text-muted-foreground text-center max-w-sm mb-4">
+                    {generationError}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setCurrentStep(2)}>
+                      <ArrowLeft className="h-4 w-4 mr-2" />
+                      이전 단계로
+                    </Button>
+                    <Button onClick={retryGeneration}>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      다시 시도
+                    </Button>
                   </div>
                 </div>
               ) : generatedPrompt ? (
-                <Tabs defaultValue="prompt" className="w-full h-full">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="prompt" className="flex items-center gap-2">
-                      <FileCode className="h-4 w-4" />
-                      시스템 프롬프트
+                <Tabs defaultValue="prompt" className="w-full h-full flex flex-col">
+                  {/* 간소화된 세그먼트 스타일 탭 */}
+                  <TabsList className="h-8 w-fit">
+                    <TabsTrigger value="prompt" className="h-7 text-xs px-3">
+                      프롬프트
                     </TabsTrigger>
-                    <TabsTrigger value="questions" className="flex items-center gap-2">
-                      <MessageSquare className="h-4 w-4" />
-                      추천 질문
+                    <TabsTrigger value="questions" className="h-7 text-xs px-3">
+                      추천질문
                     </TabsTrigger>
                   </TabsList>
-                  <TabsContent value="prompt" className="mt-4">
+                  <TabsContent value="prompt" className="mt-3 flex-1">
                     <PromptEditor
                       value={editedPrompt}
                       onChange={setEditedPrompt}
-                      className="h-[280px]"
+                      className="h-[340px]"
                     />
                   </TabsContent>
-                  <TabsContent value="questions" className="mt-4">
+                  <TabsContent value="questions" className="mt-3 flex-1">
                     <SuggestedQuestionsEditor
                       questions={editedQuestions}
                       onChange={setEditedQuestions}
