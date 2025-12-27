@@ -452,6 +452,16 @@ class AuthService:
         user.approved_at = datetime.now(timezone.utc)
         user.approved_by = admin_id
 
+        # 템플릿 사용자(zephyr23)의 권한 복사
+        template_user = self.get_user_by_username(db, "zephyr23")
+        if template_user and template_user.permissions:
+            user.permissions = template_user.permissions.copy()
+            logger.info(f"Copied permissions from template user 'zephyr23' to '{user.username}'")
+        else:
+            # 템플릿 사용자가 없으면 기본 권한 사용
+            user.permissions = get_default_permissions()
+            logger.warning(f"Template user 'zephyr23' not found, using default permissions for '{user.username}'")
+
         db.commit()
         db.refresh(user)
 
