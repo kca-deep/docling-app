@@ -18,6 +18,12 @@ import logging
 
 from backend.config.settings import settings
 from backend.utils.timezone import now, now_iso, format_date
+from backend.utils.log_path import (
+    ensure_date_directory,
+    iter_all_files,
+    cleanup_empty_directories,
+    parse_date_from_filename
+)
 
 logger = logging.getLogger(__name__)
 
@@ -213,10 +219,12 @@ class ConversationService:
         return False
 
     async def save_conversation(self, conversation: Conversation):
-        """대화를 JSONL 파일로 저장"""
+        """대화를 JSONL 파일로 저장 (yyyy/mm 구조)"""
         try:
-            date_str = format_date()
-            file_path = self.conv_dir / f"{date_str}.jsonl"
+            today = now().date()
+            # yyyy/mm 하위 디렉토리에 저장
+            date_dir = ensure_date_directory(self.conv_dir, today)
+            file_path = date_dir / f"{today.isoformat()}.jsonl"
 
             # 대화 데이터 준비
             conv_data = conversation.to_dict()
@@ -265,16 +273,23 @@ class ConversationService:
         collection_name: Optional[str] = None,
         limit: Optional[int] = None
     ) -> List[Dict[str, Any]]:
-        """저장된 대화 읽기 (압축 파일 포함)"""
+        """저장된 대화 읽기 (압축 파일 포함, flat + yyyy/mm 구조 모두 지원)"""
         conversations = []
 
-        # 날짜 범위의 파일 찾기 (.jsonl 및 .jsonl.gz 파일 모두)
-        for file_path in sorted(self.conv_dir.glob("*.jsonl*")):
+        # 모든 .jsonl* 파일 수집 후 날짜순 정렬
+        all_files = list(iter_all_files(self.conv_dir, pattern="*.jsonl*"))
+        sorted_files = sorted(
+            all_files,
+            key=lambda p: parse_date_from_filename(p.name) or datetime.min.date()
+        )
+
+        for file_path in sorted_files:
             try:
                 # 날짜 파싱
-                file_date_str = file_path.stem.replace(".jsonl", "")  # .jsonl.gz의 경우 처리
-                file_date_str = file_date_str.split(".")[0]  # YYYY-MM-DD만 추출
-                file_date = datetime.strptime(file_date_str, "%Y-%m-%d").date()
+                file_date = parse_date_from_filename(file_path.name)
+                if file_date is None:
+                    logger.warning(f"파일 이름 파싱 실패: {file_path}")
+                    continue
 
                 # 날짜 필터링
                 if start_date and file_date < start_date.date():
@@ -338,19 +353,17 @@ class ConversationService:
         return len(self.active_conversations)
 
     async def compress_old_files(self):
-        """오래된 파일 압축 (gzip)"""
+        """오래된 파일 압축 (gzip) - flat + yyyy/mm 구조 모두 지원"""
         compress_after_date = now().date() - timedelta(days=self.compress_after_days)
         compressed_count = 0
 
-        for file_path in self.conv_dir.glob("*.jsonl"):
+        # 모든 .jsonl 파일 순회 (flat + hierarchy)
+        for file_path in iter_all_files(self.conv_dir, pattern="*.jsonl"):
             try:
-                # 이미 압축된 파일은 건너뛰기
-                if file_path.suffix == ".gz":
-                    continue
-
                 # 파일 날짜 파싱
-                file_date_str = file_path.stem
-                file_date = datetime.strptime(file_date_str, "%Y-%m-%d").date()
+                file_date = parse_date_from_filename(file_path.name)
+                if file_date is None:
+                    continue
 
                 # 압축 대상 체크
                 if file_date <= compress_after_date:
@@ -375,7 +388,7 @@ class ConversationService:
         return compressed_count
 
     async def cleanup_old_conversations(self, retention_days: Optional[int] = None):
-        """오래된 대화 파일 정리 및 압축"""
+        """오래된 대화 파일 정리 및 압축 - flat + yyyy/mm 구조 모두 지원"""
         if retention_days is None:
             retention_days = self.retention_days
 
@@ -386,11 +399,13 @@ class ConversationService:
         cutoff_date = now().date() - timedelta(days=retention_days)
         deleted_count = 0
 
-        for file_path in self.conv_dir.glob("*.jsonl*"):  # .jsonl 및 .jsonl.gz 파일 모두 확인
+        # 모든 .jsonl* 파일 순회 (flat + hierarchy)
+        for file_path in iter_all_files(self.conv_dir, pattern="*.jsonl*"):
             try:
                 # 파일 날짜 파싱
-                file_date_str = file_path.stem.replace(".jsonl", "")  # .jsonl.gz의 경우 처리
-                file_date = datetime.strptime(file_date_str.split(".")[0], "%Y-%m-%d").date()
+                file_date = parse_date_from_filename(file_path.name)
+                if file_date is None:
+                    continue
 
                 # 보존 기간 체크
                 if file_date < cutoff_date:
@@ -402,7 +417,10 @@ class ConversationService:
             except Exception as e:
                 logger.error(f"파일 정리 오류 {file_path}: {e}")
 
-        logger.info(f"총 {deleted_count}개 파일 삭제됨")
+        # 빈 디렉토리 정리
+        empty_dirs_deleted = cleanup_empty_directories(self.conv_dir)
+
+        logger.info(f"총 {deleted_count}개 파일 삭제됨, {empty_dirs_deleted}개 빈 디렉토리 삭제됨")
         return deleted_count
 
 

@@ -15,6 +15,15 @@ import uuid
 import logging
 
 from backend.utils.timezone import now, now_iso, format_date, format_datetime
+from backend.utils.log_path import (
+    ensure_date_directory,
+    get_file_path_for_date,
+    find_file_for_date,
+    iter_all_files,
+    iter_files_in_date_range,
+    cleanup_empty_directories,
+    parse_date_from_filename
+)
 from backend.config.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -138,16 +147,18 @@ class HybridLoggingService:
             logger.error(f"로그 추가 실패 (dropped: {self._dropped_count}): {e}")
 
     async def _save_to_overflow(self, logs: List[Dict[str, Any]]):
-        """오버플로우 로그를 별도 파일에 저장"""
+        """오버플로우 로그를 별도 파일에 저장 (yyyy/mm 구조)"""
         try:
-            today = format_date(now())
-            file_path = self.overflow_dir / f"overflow_{today}.jsonl"
+            today = now().date()
+            # yyyy/mm 하위 디렉토리에 저장
+            date_dir = ensure_date_directory(self.overflow_dir, today)
+            file_path = date_dir / f"overflow_{today.isoformat()}.jsonl"
 
             async with aiofiles.open(file_path, 'a', encoding='utf-8') as f:
                 for log in logs:
                     await f.write(json.dumps(log, ensure_ascii=False) + "\n")
 
-            logger.debug(f"오버플로우 로그 저장: {len(logs)}건")
+            logger.debug(f"오버플로우 로그 저장: {len(logs)}건 -> {file_path}")
         except Exception as e:
             logger.error(f"오버플로우 저장 실패: {e}")
 
@@ -193,10 +204,12 @@ class HybridLoggingService:
             await self._save_to_jsonl(batch)
 
     async def _save_to_jsonl(self, batch: List[Dict[str, Any]]):
-        """일별 JSONL 파일에 추가"""
+        """일별 JSONL 파일에 추가 (yyyy/mm 구조)"""
         try:
-            date_str = format_date()
-            file_path = self.log_dir / f"{date_str}.jsonl"
+            today = now().date()
+            # yyyy/mm 하위 디렉토리에 저장
+            date_dir = ensure_date_directory(self.log_dir, today)
+            file_path = date_dir / f"{today.isoformat()}.jsonl"
 
             # 비동기 파일 쓰기
             async with aiofiles.open(file_path, 'a', encoding='utf-8') as f:
@@ -282,31 +295,31 @@ class HybridLoggingService:
             logger.info(f"플러시 완료: {len(remaining)}개 아이템 저장")
 
     def get_log_files(self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> List[Path]:
-        """날짜 범위의 로그 파일 목록 반환"""
+        """날짜 범위의 로그 파일 목록 반환 (flat + yyyy/mm 구조 모두 지원)"""
         files = []
-        for file_path in sorted(self.log_dir.glob("*.jsonl")):
+
+        # 모든 .jsonl 파일 순회 (flat + hierarchy)
+        for file_path in iter_all_files(self.log_dir, pattern="*.jsonl"):
             # emergency 파일 제외
             if file_path.name.startswith("emergency_"):
                 continue
 
             # 날짜 파싱
-            try:
-                file_date_str = file_path.stem  # YYYY-MM-DD
-                file_date = datetime.strptime(file_date_str, "%Y-%m-%d").date()
-
-                # 날짜 필터링
-                if start_date and file_date < start_date.date():
-                    continue
-                if end_date and file_date > end_date.date():
-                    continue
-
-                files.append(file_path)
-
-            except ValueError:
+            file_date = parse_date_from_filename(file_path.name)
+            if file_date is None:
                 logger.warning(f"파일 이름 파싱 실패: {file_path}")
                 continue
 
-        return files
+            # 날짜 필터링
+            if start_date and file_date < start_date.date():
+                continue
+            if end_date and file_date > end_date.date():
+                continue
+
+            files.append(file_path)
+
+        # 날짜순 정렬
+        return sorted(files, key=lambda p: parse_date_from_filename(p.name) or datetime.min.date())
 
     async def read_logs(
         self,
@@ -528,6 +541,116 @@ class HybridLoggingService:
             "session_update_errors": self._session_update_errors,
             "running": self._running
         }
+
+    async def compress_old_logs(self, compress_after_days: int = 7) -> int:
+        """
+        오래된 로그 파일 압축 (gzip) - flat + yyyy/mm 구조 모두 지원
+
+        Args:
+            compress_after_days: 압축 대상 일수 (기본 7일)
+
+        Returns:
+            압축된 파일 수
+        """
+        import gzip
+        from datetime import timedelta
+        from backend.utils.timezone import now
+
+        compress_after_date = now().date() - timedelta(days=compress_after_days)
+        compressed_count = 0
+
+        # 모든 .jsonl 파일 순회 (flat + hierarchy)
+        for file_path in iter_all_files(self.log_dir, pattern="*.jsonl"):
+            try:
+                # 파일 날짜 파싱
+                file_date = parse_date_from_filename(file_path.name)
+                if file_date is None:
+                    continue
+
+                # 압축 대상 체크
+                if file_date <= compress_after_date:
+                    gz_path = file_path.with_suffix(".jsonl.gz")
+
+                    with open(file_path, 'rb') as f_in:
+                        with gzip.open(gz_path, 'wb', compresslevel=6) as f_out:
+                            f_out.writelines(f_in)
+
+                    file_path.unlink()
+                    compressed_count += 1
+                    logger.info(f"로그 파일 압축 완료: {file_path} -> {gz_path}")
+
+            except Exception as e:
+                logger.error(f"로그 파일 압축 오류 {file_path}: {e}")
+
+        if compressed_count > 0:
+            logger.info(f"총 {compressed_count}개 로그 파일 압축됨")
+
+        return compressed_count
+
+    async def cleanup_old_logs(self, retention_days: int = 30) -> Dict[str, int]:
+        """
+        오래된 로그 파일 정리 (압축 후 삭제) - flat + yyyy/mm 구조 모두 지원
+
+        Args:
+            retention_days: 보존 일수 (기본 30일)
+
+        Returns:
+            삭제된 파일 수 (디렉토리별)
+        """
+        from datetime import timedelta
+        from backend.utils.timezone import now
+        from backend.config.settings import settings
+
+        # 먼저 압축 처리
+        compress_days = getattr(settings, 'CONVERSATION_COMPRESS_AFTER_DAYS', 7)
+        await self.compress_old_logs(compress_after_days=compress_days)
+
+        cutoff_date = now().date() - timedelta(days=retention_days)
+        deleted_counts = {"data": 0, "overflow": 0, "empty_dirs": 0}
+
+        # ./logs/data/ 디렉토리 정리 (flat + hierarchy)
+        for file_path in iter_all_files(self.log_dir, pattern="*.jsonl*"):
+            try:
+                file_date = parse_date_from_filename(file_path.name)
+                if file_date is None:
+                    continue
+
+                if file_date < cutoff_date:
+                    file_path.unlink()
+                    deleted_counts["data"] += 1
+                    logger.info(f"오래된 로그 파일 삭제: {file_path}")
+
+            except Exception as e:
+                logger.error(f"로그 파일 정리 오류 {file_path}: {e}")
+
+        # ./logs/overflow/ 디렉토리 정리 (flat + hierarchy)
+        for file_path in iter_all_files(self.overflow_dir, pattern="*.jsonl*"):
+            try:
+                file_date = parse_date_from_filename(file_path.name)
+                if file_date is None:
+                    continue
+
+                if file_date < cutoff_date:
+                    file_path.unlink()
+                    deleted_counts["overflow"] += 1
+                    logger.info(f"오래된 overflow 파일 삭제: {file_path}")
+
+            except Exception as e:
+                logger.error(f"overflow 파일 정리 오류 {file_path}: {e}")
+
+        # 빈 디렉토리 정리
+        deleted_counts["empty_dirs"] += cleanup_empty_directories(self.log_dir)
+        deleted_counts["empty_dirs"] += cleanup_empty_directories(self.overflow_dir)
+
+        total_deleted = deleted_counts["data"] + deleted_counts["overflow"]
+        if total_deleted > 0 or deleted_counts["empty_dirs"] > 0:
+            logger.info(
+                f"로그 정리 완료: data={deleted_counts['data']}개, "
+                f"overflow={deleted_counts['overflow']}개 삭제, "
+                f"빈 디렉토리={deleted_counts['empty_dirs']}개 삭제"
+            )
+
+        return deleted_counts
 
 
 # 싱글톤 인스턴스

@@ -2,10 +2,13 @@
 Dify 연동 API 라우트
 인증 필수: 관리자만 접근 가능
 """
+import logging
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from typing import List
 import httpx
+
+logger = logging.getLogger(__name__)
 
 from backend.services.dify_service import DifyService
 from backend.services import document_crud, dify_history_crud, dify_config_crud
@@ -328,7 +331,7 @@ async def get_dify_datasets(
     Returns:
         DifyDatasetListResponse: 데이터셋 목록
     """
-    print(f"[DEBUG] Request received - API Key: {config.api_key[:10]}..., Base URL: {config.base_url}")
+    logger.debug(f"Dify datasets 요청 - Base URL: {config.base_url}")
 
     try:
         datasets = await dify_service.get_datasets(
@@ -338,7 +341,7 @@ async def get_dify_datasets(
             limit=limit
         )
 
-        print(f"[DEBUG] Returning datasets response with {len(datasets.data)} items")
+        logger.debug(f"Dify datasets 조회 완료: {len(datasets.data)}개")
 
         # 응답을 dict로 변환하여 반환 (response_model 검증 우회)
         return {
@@ -351,16 +354,14 @@ async def get_dify_datasets(
 
     except httpx.HTTPStatusError as e:
         # HTTP 에러 (401, 403, 404 등)
-        print(f"[ERROR] HTTP Status Error: {e.response.status_code}")
+        logger.warning(f"Dify API HTTP 에러: {e.response.status_code}")
         raise HTTPException(
             status_code=e.response.status_code,
             detail=f"Dify API 에러: {e.response.text}"
         )
     except Exception as e:
         # 기타 에러
-        import traceback
-        error_detail = f"Dify 데이터셋 조회 중 오류 발생: {str(e)}\n{traceback.format_exc()}"
-        print(f"[ERROR] {error_detail}")
+        logger.exception(f"Dify 데이터셋 조회 중 오류 발생: {e}")
         raise HTTPException(
             status_code=500,
             detail=str(e)

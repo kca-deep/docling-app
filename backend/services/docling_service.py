@@ -137,7 +137,12 @@ class DoclingService:
             return False
 
     async def _maybe_clear_cache(self):
-        """설정된 간격에 따라 캐시 정리 수행"""
+        """
+        설정된 간격에 따라 캐시 정리 수행 (Idle 상태일 때만)
+
+        진행 중인 다른 변환 작업에 영향을 주지 않도록
+        active_count == 0일 때만 실제 캐시 정리를 수행합니다.
+        """
         if not settings.DOCLING_CLEAR_CACHE_AFTER_CONVERT:
             return
 
@@ -145,8 +150,15 @@ class DoclingService:
             self._convert_count += 1
             if settings.DOCLING_CLEAR_CACHE_INTERVAL == 0 or \
                self._convert_count >= settings.DOCLING_CLEAR_CACHE_INTERVAL:
-                await self.clear_converters()
-                self._convert_count = 0
+                # 진행 중인 작업이 없을 때만 캐시 정리 (다른 클라이언트 영향 방지)
+                if self.get_active_count() == 0:
+                    await self.clear_converters()
+                    self._convert_count = 0
+                else:
+                    logger.debug(
+                        f"캐시 정리 지연: {self.get_active_count()}개 작업 진행 중, "
+                        f"대기 중인 정리 카운트: {self._convert_count}"
+                    )
 
     async def convert_document(
         self,
@@ -195,29 +207,24 @@ class DoclingService:
         if settings.DOCLING_USE_SEMAPHORE:
             async with self._get_semaphore():
                 logger.debug(f"Semaphore 획득: {filename} (동시 요청 제한: {settings.DOCLING_CONCURRENCY})")
-                try:
-                    result = await self._convert_document_impl(
-                        file_content, filename, target_type, to_formats,
-                        do_ocr, do_table_structure, include_images, table_mode,
-                        image_export_mode, page_range_start, page_range_end,
-                        do_formula_enrichment, pipeline, vlm_pipeline_model
-                    )
-                    return result
-                finally:
-                    # 변환 성공/실패 무관하게 캐시 정리 (VRAM 해제 보장)
-                    await self._maybe_clear_cache()
-        else:
-            try:
                 result = await self._convert_document_impl(
                     file_content, filename, target_type, to_formats,
                     do_ocr, do_table_structure, include_images, table_mode,
                     image_export_mode, page_range_start, page_range_end,
                     do_formula_enrichment, pipeline, vlm_pipeline_model
                 )
-                return result
-            finally:
-                # 변환 성공/실패 무관하게 캐시 정리 (VRAM 해제 보장)
-                await self._maybe_clear_cache()
+            # Semaphore 해제 후 캐시 정리 (다른 클라이언트에 영향 없음)
+            await self._maybe_clear_cache()
+            return result
+        else:
+            result = await self._convert_document_impl(
+                file_content, filename, target_type, to_formats,
+                do_ocr, do_table_structure, include_images, table_mode,
+                image_export_mode, page_range_start, page_range_end,
+                do_formula_enrichment, pipeline, vlm_pipeline_model
+            )
+            await self._maybe_clear_cache()
+            return result
 
     async def _convert_document_impl(
         self,
@@ -436,29 +443,24 @@ class DoclingService:
         if settings.DOCLING_USE_SEMAPHORE:
             async with self._get_semaphore():
                 logger.debug(f"Semaphore 획득 (URL): {url} (동시 요청 제한: {settings.DOCLING_CONCURRENCY})")
-                try:
-                    result = await self._convert_url_impl(
-                        url, target_type, to_formats, do_ocr, do_table_structure,
-                        include_images, table_mode, image_export_mode,
-                        page_range_start, page_range_end, do_formula_enrichment,
-                        pipeline, vlm_pipeline_model
-                    )
-                    return result
-                finally:
-                    # 변환 성공/실패 무관하게 캐시 정리 (VRAM 해제 보장)
-                    await self._maybe_clear_cache()
-        else:
-            try:
                 result = await self._convert_url_impl(
                     url, target_type, to_formats, do_ocr, do_table_structure,
                     include_images, table_mode, image_export_mode,
                     page_range_start, page_range_end, do_formula_enrichment,
                     pipeline, vlm_pipeline_model
                 )
-                return result
-            finally:
-                # 변환 성공/실패 무관하게 캐시 정리 (VRAM 해제 보장)
-                await self._maybe_clear_cache()
+            # Semaphore 해제 후 캐시 정리 (다른 클라이언트에 영향 없음)
+            await self._maybe_clear_cache()
+            return result
+        else:
+            result = await self._convert_url_impl(
+                url, target_type, to_formats, do_ocr, do_table_structure,
+                include_images, table_mode, image_export_mode,
+                page_range_start, page_range_end, do_formula_enrichment,
+                pipeline, vlm_pipeline_model
+            )
+            await self._maybe_clear_cache()
+            return result
 
     async def _convert_url_impl(
         self,
@@ -592,21 +594,46 @@ class DoclingService:
 
     async def safe_clear_converters(self) -> bool:
         """
-        안전한 캐시 정리 (진행 중인 작업이 없을 때만)
+        안전한 캐시 정리 (모든 Semaphore 슬롯 확보 후)
 
-        Note: 작은 race condition 창이 존재하나 실제 영향은 미미함
-        (캐시 정리 직후 새 작업이 시작되면 모델 재로드)
+        Race condition 완전 방지: 모든 Semaphore 슬롯을 획득하여
+        새 변환 요청을 차단한 후 캐시를 정리합니다.
+
+        Note: DOCLING_CONCURRENCY 개의 슬롯을 순차적으로 획득하므로
+        현재 진행 중인 모든 작업이 완료될 때까지 대기합니다.
 
         Returns:
-            bool: 정리 실행 여부
+            bool: 정리 성공 여부
         """
-        active_count = self.get_active_count()
-        if active_count == 0:
-            logger.info("No active conversions, clearing VRAM cache")
+        if not settings.DOCLING_USE_SEMAPHORE:
+            # Semaphore 미사용 시 단순 정리
             return await self.clear_converters()
-        else:
-            logger.debug(f"Skipping cache clear: {active_count} active conversions")
-            return False
+
+        semaphore = self._get_semaphore()
+        acquired_count = 0
+
+        try:
+            # 모든 Semaphore 슬롯 획득 (진행 중인 작업 완료 대기)
+            for i in range(settings.DOCLING_CONCURRENCY):
+                await semaphore.acquire()
+                acquired_count += 1
+                logger.debug(f"Cache clear: acquired slot {acquired_count}/{settings.DOCLING_CONCURRENCY}")
+
+            # 모든 슬롯 확보 완료 - 안전하게 캐시 정리
+            logger.info("All semaphore slots acquired, clearing VRAM cache safely")
+            result = await self.clear_converters()
+
+            # 카운터 리셋
+            async with self._get_lock():
+                self._convert_count = 0
+
+            return result
+
+        finally:
+            # 획득한 슬롯 모두 반환
+            for _ in range(acquired_count):
+                semaphore.release()
+            logger.debug(f"Cache clear: released {acquired_count} slots")
 
     async def force_clear_converters(self) -> bool:
         """

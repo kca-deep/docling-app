@@ -145,8 +145,8 @@ class Settings(BaseSettings):
     EXAONE_4_0_32B_TOP_P: float = 0.9
     EXAONE_4_0_32B_MAX_TOKENS: int = 8192
 
-    LLM_DEFAULT_TEMPERATURE: float = 0.3  # 할루시네이션 방지를 위해 0.7 → 0.3 (2024-12)
-    LLM_DEFAULT_MAX_TOKENS: int = 4096
+    LLM_DEFAULT_TEMPERATURE: float = 0.7
+    LLM_DEFAULT_MAX_TOKENS: int = 6144
     LLM_DEFAULT_TOP_P: float = 0.9
 
     # LLM 컨텍스트 제한 설정
@@ -158,7 +158,7 @@ class Settings(BaseSettings):
     # BGE-M3 Cosine 유사도 기준, 0.4 이상만 검색 (저품질 문서 필터링)
     RAG_DEFAULT_SCORE_THRESHOLD: Optional[float] = 0.4
     RAG_DEFAULT_REASONING_LEVEL: str = "medium"
-    RAG_DEEP_THINKING_LEVEL: str = "medium"  # low, medium, high
+    RAG_DEEP_THINKING_LEVEL: str = "high"  # low, medium, high
     # 인용 추출 활성화 (참조문서 하이라이팅용, 성능에 영향)
     RAG_CITATION_EXTRACTION: bool = True
     # 문서 선택 최소 스코어 임계값
@@ -170,7 +170,7 @@ class Settings(BaseSettings):
     # 프롬프트 자동 생성 설정
     PROMPT_GEN_MAX_TOKENS: int = 4096  # 시스템 프롬프트 생성 시 최대 출력 토큰
     PROMPT_GEN_QUESTIONS_MAX_TOKENS: int = 4096  # 추천 질문 생성 시 최대 출력 토큰 (reasoning 모드 고려)
-    PROMPT_GEN_SAMPLE_LIMIT: int = 4096  # 문서 샘플 최대 문자수 (입력 토큰 절약)
+    PROMPT_GEN_SAMPLE_LIMIT: int = 3000  # 문서 샘플 최대 문자수 (입력 토큰 절약)
 
     # 셀프진단 설정
     SELFCHECK_MAX_TOKENS: int = 4000  # 셀프진단 LLM 분석 최대 토큰
@@ -206,12 +206,10 @@ class Settings(BaseSettings):
     # 기존 5배에서 3배로 축소하여 속도 30% 향상 (top_k=5 → 15개 검색)
     RERANK_TOP_K_MULTIPLIER: int = 3
     # BGE Reranker 점수 분포: 관련 문서 0.2~0.5, 비관련 0.01 이하
-    # 할루시네이션 방지를 위해 0.1 → 0.3으로 상향 (2024-12)
-    RERANK_SCORE_THRESHOLD: float = 0.3
+    RERANK_SCORE_THRESHOLD: float = 0.2
     # P0-1: 최소 답변 생성 임계값
     # max_score가 이 값 미만이면 "관련 정보를 찾을 수 없습니다" 응답
-    # 할루시네이션 방지를 위해 0.1 → 0.25로 상향 (2024-12)
-    MINIMUM_ANSWER_THRESHOLD: float = 0.25
+    MINIMUM_ANSWER_THRESHOLD: float = 0.2
 
     # 하이브리드 검색 설정 (벡터 + BM25)
     USE_HYBRID_SEARCH: bool = True  # 하이브리드 검색 활성화
@@ -226,6 +224,15 @@ class Settings(BaseSettings):
     # 대화 품질 분류 임계값
     CONVERSATION_LOW_SCORE_THRESHOLD: float = 0.5  # 낮은 검색 스코어 판정 임계값
     CONVERSATION_ERROR_SCORE_THRESHOLD: float = 0.3  # 에러 수준 스코어 판정 임계값
+
+    # ===========================================
+    # 통계 처리 설정
+    # ===========================================
+    # 통계 집계 시 청크 크기 (0 = 청크 없이 전체 로드, 양수 = 해당 라인 수 단위로 청크 처리)
+    # 대용량 JSONL 파일 처리 시 메모리 효율을 위해 사용
+    STATS_CHUNK_SIZE: int = 10000
+    # 대용량 파일 경고 임계값 (라인 수)
+    STATS_LARGE_FILE_THRESHOLD: int = 50000
 
     # ===========================================
     # Rate Limiting 설정
@@ -277,7 +284,7 @@ class Settings(BaseSettings):
     # ===========================================
     # 임시 컬렉션 설정 (채팅 문서 업로드용)
     # ===========================================
-    TEMP_COLLECTION_TTL_MINUTES: int = 60  # 임시 컬렉션 TTL (분)
+    TEMP_COLLECTION_TTL_MINUTES: int = 15  # 임시 컬렉션 TTL (분)
     TEMP_COLLECTION_CLEANUP_INTERVAL: int = 300  # 정리 스케줄러 실행 간격 (초)
 
     # === Computed Properties ===

@@ -21,8 +21,29 @@ from backend.models.chat_statistics import ChatStatistics
 from backend.models.chat_session import ChatSession
 from backend.utils.timezone import now_naive
 from backend.utils.normalize import normalize_collection
+from backend.utils.log_path import find_file_for_date_with_extensions, iter_all_files
+from backend.config.settings import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _count_lines_in_file(file_path: Path) -> int:
+    """파일의 라인 수를 효율적으로 카운트 (gzip 지원)"""
+    import gzip
+
+    count = 0
+    try:
+        if file_path.suffix == '.gz':
+            with gzip.open(file_path, 'rt', encoding='utf-8') as f:
+                for _ in f:
+                    count += 1
+        else:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                for _ in f:
+                    count += 1
+    except Exception as e:
+        logger.error(f"라인 카운트 오류 {file_path}: {e}")
+    return count
 
 
 class StatisticsService:
@@ -38,13 +59,17 @@ class StatisticsService:
         target_date: date,
         db: Session
     ) -> Dict[str, Any]:
-        """일별 통계 집계 - JSONL 파일 기반"""
+        """일별 통계 집계 - JSONL 파일 기반 (flat + yyyy/mm 구조 모두 지원)"""
         try:
-            # JSONL 파일 읽기
-            file_path = self.log_dir / f"{target_date.isoformat()}.jsonl"
+            # JSONL 파일 찾기 (hierarchy 우선, flat fallback)
+            file_path = find_file_for_date_with_extensions(
+                self.log_dir,
+                target_date,
+                filename_format="{date}.jsonl"
+            )
 
-            if not file_path.exists():
-                logger.warning(f"로그 파일 없음: {file_path}")
+            if file_path is None:
+                logger.warning(f"로그 파일 없음: {target_date.isoformat()}")
                 return {"date": target_date.isoformat(), "status": "no_data"}
 
             # pandas로 로그 읽기
@@ -82,11 +107,48 @@ class StatisticsService:
             logger.error(f"통계 집계 오류: {e}")
             return {"date": target_date.isoformat(), "status": "error", "error": str(e)}
 
-    def _read_jsonl_to_dataframe(self, file_path: Path) -> pd.DataFrame:
-        """JSONL 파일을 DataFrame으로 읽기"""
-        data = []
+    def _read_jsonl_to_dataframe(
+        self,
+        file_path: Path,
+        chunk_size: Optional[int] = None
+    ) -> pd.DataFrame:
+        """JSONL 파일을 DataFrame으로 읽기 (압축 파일 지원, 청크 기반 처리)
+
+        Args:
+            file_path: JSONL 파일 경로
+            chunk_size: 청크 크기 (None이면 settings에서 가져옴, 0이면 전체 로드)
+
+        Returns:
+            pd.DataFrame: 로그 데이터
+        """
+        import gzip
+
+        # 청크 크기 결정
+        if chunk_size is None:
+            chunk_size = settings.STATS_CHUNK_SIZE
+
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            # 대용량 파일 경고
+            line_count = _count_lines_in_file(file_path)
+            if line_count > settings.STATS_LARGE_FILE_THRESHOLD:
+                logger.warning(
+                    f"대용량 로그 파일 감지: {file_path} ({line_count:,} lines). "
+                    f"청크 크기: {chunk_size if chunk_size > 0 else '전체 로드'}"
+                )
+
+            # 압축 파일인 경우 gzip으로 열기
+            if file_path.suffix == '.gz':
+                open_func = lambda p: gzip.open(p, 'rt', encoding='utf-8')
+            else:
+                open_func = lambda p: open(p, 'r', encoding='utf-8')
+
+            # 청크 기반 읽기 (chunk_size > 0)
+            if chunk_size > 0:
+                return self._read_jsonl_chunked(file_path, open_func, chunk_size)
+
+            # 전체 로드 (chunk_size == 0 또는 작은 파일)
+            data = []
+            with open_func(file_path) as f:
                 for line in f:
                     if line.strip():
                         try:
@@ -97,23 +159,90 @@ class StatisticsService:
 
             if data:
                 df = pd.DataFrame(data)
-                # 타임스탬프 파싱 및 KST 기준 통일
-                if 'created_at' in df.columns:
-                    df['created_at'] = pd.to_datetime(df['created_at'], format='mixed')
-
-                    # 타임존 처리: KST 기준 naive datetime으로 통일
-                    # - naive datetime: 이미 KST로 저장된 것으로 간주 (변환 없음)
-                    # - timezone-aware datetime: KST로 변환 후 타임존 정보 제거
-                    if df['created_at'].dt.tz is not None:
-                        kst = ZoneInfo('Asia/Seoul')
-                        df['created_at'] = df['created_at'].dt.tz_convert(kst).dt.tz_localize(None)
-                return df
+                return self._normalize_timestamps(df)
             else:
                 return pd.DataFrame()
 
         except Exception as e:
             logger.error(f"파일 읽기 오류 {file_path}: {e}")
             return pd.DataFrame()
+
+    def _read_jsonl_chunked(
+        self,
+        file_path: Path,
+        open_func,
+        chunk_size: int
+    ) -> pd.DataFrame:
+        """청크 단위로 JSONL 파일 읽기 (메모리 효율적)
+
+        Args:
+            file_path: 파일 경로
+            open_func: 파일 열기 함수 (일반/gzip)
+            chunk_size: 한 번에 읽을 라인 수
+
+        Returns:
+            pd.DataFrame: 통합된 데이터프레임
+        """
+        chunks = []
+        current_chunk = []
+        processed_lines = 0
+
+        try:
+            with open_func(file_path) as f:
+                for line in f:
+                    if line.strip():
+                        try:
+                            current_chunk.append(json.loads(line))
+                        except json.JSONDecodeError as e:
+                            logger.error(f"JSON 파싱 오류: {e}")
+                            continue
+
+                    # 청크 크기에 도달하면 DataFrame으로 변환
+                    if len(current_chunk) >= chunk_size:
+                        chunk_df = pd.DataFrame(current_chunk)
+                        chunk_df = self._normalize_timestamps(chunk_df)
+                        chunks.append(chunk_df)
+                        processed_lines += len(current_chunk)
+                        logger.debug(f"청크 처리 완료: {processed_lines:,} lines")
+                        current_chunk = []
+
+            # 남은 데이터 처리
+            if current_chunk:
+                chunk_df = pd.DataFrame(current_chunk)
+                chunk_df = self._normalize_timestamps(chunk_df)
+                chunks.append(chunk_df)
+                processed_lines += len(current_chunk)
+
+            if chunks:
+                result = pd.concat(chunks, ignore_index=True)
+                logger.debug(f"청크 기반 읽기 완료: 총 {processed_lines:,} lines")
+                return result
+            else:
+                return pd.DataFrame()
+
+        except Exception as e:
+            logger.error(f"청크 읽기 오류 {file_path}: {e}")
+            return pd.DataFrame()
+
+    def _normalize_timestamps(self, df: pd.DataFrame) -> pd.DataFrame:
+        """타임스탬프 정규화 (KST naive datetime으로 통일)
+
+        Args:
+            df: 데이터프레임
+
+        Returns:
+            pd.DataFrame: 타임스탬프가 정규화된 데이터프레임
+        """
+        if 'created_at' in df.columns:
+            df['created_at'] = pd.to_datetime(df['created_at'], format='mixed')
+
+            # 타임존 처리: KST 기준 naive datetime으로 통일
+            # - naive datetime: 이미 KST로 저장된 것으로 간주 (변환 없음)
+            # - timezone-aware datetime: KST로 변환 후 타임존 정보 제거
+            if df['created_at'].dt.tz is not None:
+                kst = ZoneInfo('Asia/Seoul')
+                df['created_at'] = df['created_at'].dt.tz_convert(kst).dt.tz_localize(None)
+        return df
 
     def _calculate_collection_stats(
         self,
@@ -596,7 +725,7 @@ class StatisticsService:
         end_date: date,
         collection_name: Optional[str] = None
     ) -> pd.DataFrame:
-        """날짜 범위로 로그 조회 (pandas DataFrame 반환)
+        """날짜 범위로 로그 조회 (pandas DataFrame 반환, flat + yyyy/mm 구조 모두 지원)
 
         Args:
             start_date: 시작 날짜
@@ -614,9 +743,14 @@ class StatisticsService:
         current_date = start_date
 
         while current_date <= end_date:
-            file_path = self.log_dir / f"{current_date.isoformat()}.jsonl"
+            # 파일 찾기 (hierarchy 우선, flat fallback, 압축 파일 포함)
+            file_path = find_file_for_date_with_extensions(
+                self.log_dir,
+                current_date,
+                filename_format="{date}.jsonl"
+            )
 
-            if file_path.exists():
+            if file_path is not None:
                 df = self._read_jsonl_to_dataframe(file_path)
 
                 # 컬렉션 필터링
@@ -712,6 +846,126 @@ class StatisticsService:
         except Exception as e:
             logger.error(f"리포트 생성 오류: {e}")
             return {"status": "error", "error": str(e)}
+
+    async def find_missing_dates(
+        self,
+        db: Session,
+        days_back: int = 30
+    ) -> List[date]:
+        """
+        누락된 통계 날짜 찾기
+
+        ChatStatistics 테이블과 JSONL 로그 파일을 비교하여
+        로그는 있지만 통계가 집계되지 않은 날짜를 반환
+
+        Args:
+            db: 데이터베이스 세션
+            days_back: 확인할 과거 일수 (기본 30일)
+
+        Returns:
+            List[date]: 누락된 날짜 목록 (오래된 순)
+        """
+        try:
+            # 어제까지 확인 (오늘은 아직 진행 중이므로 제외)
+            end_date = date.today() - timedelta(days=1)
+            start_date = end_date - timedelta(days=days_back - 1)
+
+            # ChatStatistics에서 기존 집계된 날짜 조회 (일별 집계만)
+            existing_stats = db.query(ChatStatistics.date).filter(
+                ChatStatistics.date >= start_date,
+                ChatStatistics.date <= end_date,
+                ChatStatistics.hour.is_(None)  # 일별 집계만
+            ).distinct().all()
+            existing_dates = {row[0] for row in existing_stats}
+
+            # 누락된 날짜 찾기
+            missing = []
+            current_date = start_date
+
+            while current_date <= end_date:
+                if current_date not in existing_dates:
+                    # 해당 날짜의 로그 파일이 존재하는지 확인
+                    log_file = find_file_for_date_with_extensions(
+                        self.log_dir,
+                        current_date,
+                        filename_format="{date}.jsonl"
+                    )
+                    if log_file is not None:
+                        missing.append(current_date)
+
+                current_date += timedelta(days=1)
+
+            if missing:
+                logger.info(f"누락된 통계 날짜 발견: {len(missing)}개 ({missing[0]} ~ {missing[-1]})")
+
+            return sorted(missing)
+
+        except Exception as e:
+            logger.error(f"누락 날짜 탐지 오류: {e}")
+            return []
+
+    async def backfill_missing_stats(
+        self,
+        db: Session,
+        max_dates: int = 7
+    ) -> Dict[str, Any]:
+        """
+        누락된 통계 보충 집계
+
+        서버 다운타임 등으로 누락된 통계를 자동으로 보충
+        한 번에 max_dates개까지만 처리하여 서버 시작 지연 방지
+
+        Args:
+            db: 데이터베이스 세션
+            max_dates: 한 번에 처리할 최대 날짜 수 (기본 7)
+
+        Returns:
+            Dict: 처리 결과 {status, processed, remaining, results}
+        """
+        try:
+            missing_dates = await self.find_missing_dates(db)
+
+            if not missing_dates:
+                logger.debug("누락된 통계 없음")
+                return {
+                    "status": "no_missing",
+                    "processed": 0,
+                    "remaining": 0
+                }
+
+            # 최대 max_dates개만 처리 (서버 시작 지연 방지)
+            dates_to_process = missing_dates[:max_dates]
+            remaining_count = len(missing_dates) - len(dates_to_process)
+
+            results = []
+            for target_date in dates_to_process:
+                logger.info(f"누락 통계 보충 중: {target_date}")
+                result = await self.aggregate_daily_stats(target_date, db)
+                results.append({
+                    "date": target_date.isoformat(),
+                    "status": result.get("status", "unknown")
+                })
+
+            logger.info(
+                f"누락 통계 보충 완료: {len(dates_to_process)}개 처리, "
+                f"{remaining_count}개 남음"
+            )
+
+            return {
+                "status": "success",
+                "processed": len(dates_to_process),
+                "remaining": remaining_count,
+                "results": results
+            }
+
+        except Exception as e:
+            logger.error(f"누락 통계 보충 오류: {e}")
+            return {
+                "status": "error",
+                "error": str(e),
+                "processed": 0,
+                "remaining": 0
+            }
 
 
 # 싱글톤 인스턴스
