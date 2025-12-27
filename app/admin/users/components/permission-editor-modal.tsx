@@ -241,7 +241,7 @@ export function PermissionEditorModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
+      <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col overflow-x-hidden">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Shield className="h-5 w-5 text-primary" />
@@ -282,39 +282,32 @@ export function PermissionEditorModal({
             ))}
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto py-2 pr-2 -mr-2">
-            <div className="space-y-6">
+          <div className="flex-1 overflow-y-auto py-2">
+            <div className="space-y-4">
               {PERMISSION_CATEGORIES.map((category, idx) => (
                 <div key={category.key}>
-                  {idx > 0 && <Separator className="mb-6" />}
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <div className="p-1.5 rounded-md bg-muted text-muted-foreground">
+                  {idx > 0 && <Separator className="mb-4" />}
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 mb-2" title={category.description}>
+                      <div className="p-1 rounded bg-muted text-muted-foreground">
                         {category.icon}
                       </div>
-                      <div>
-                        <h4 className="font-medium text-sm">{category.label}</h4>
-                        <p className="text-xs text-muted-foreground">{category.description}</p>
-                      </div>
+                      <h4 className="font-medium text-sm">{category.label}</h4>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 ml-8">
+                    <div className="flex flex-col gap-0.5 ml-6">
                       {category.actions.map((action) => (
                         <div
                           key={`${category.key}-${action.key}`}
-                          className="flex items-center justify-between p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
+                          className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-muted/50 transition-colors"
+                          title={action.description}
                         >
-                          <div className="space-y-0.5">
-                            <Label
-                              htmlFor={`${category.key}-${action.key}`}
-                              className="text-sm font-medium cursor-pointer"
-                            >
-                              {action.label}
-                            </Label>
-                            <p className="text-xs text-muted-foreground">
-                              {action.description}
-                            </p>
-                          </div>
+                          <Label
+                            htmlFor={`${category.key}-${action.key}`}
+                            className="text-sm cursor-pointer"
+                          >
+                            {action.label}
+                          </Label>
                           <Switch
                             id={`${category.key}-${action.key}`}
                             checked={getPermissionValue(category.key, action.key)}
@@ -331,42 +324,47 @@ export function PermissionEditorModal({
           </div>
         )}
 
-        <DialogFooter className="flex-shrink-0 pt-4 border-t gap-2">
+        <DialogFooter className="flex-shrink-0 pt-3 border-t">
           {user?.role !== "admin" && (
-            <>
+            <div className="flex w-full items-center justify-between gap-2">
               <Button
-                variant="outline"
+                variant="ghost"
+                size="sm"
                 onClick={handleReset}
                 disabled={isSaving || isLoading}
-                className="gap-2"
+                className="gap-1.5 text-muted-foreground hover:text-foreground"
+                title="기본값으로 초기화"
               >
-                <RotateCcw className="h-4 w-4" />
-                기본값으로 초기화
+                <RotateCcw className="h-3.5 w-3.5" />
+                초기화
               </Button>
-              <div className="flex-1" />
-              <Button
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={isSaving}
-              >
-                취소
-              </Button>
-              <Button
-                onClick={handleSave}
-                disabled={isSaving || isLoading || !hasChanges}
-                className="gap-2"
-              >
-                {isSaving ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Save className="h-4 w-4" />
-                )}
-                저장
-              </Button>
-            </>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onOpenChange(false)}
+                  disabled={isSaving}
+                >
+                  취소
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleSave}
+                  disabled={isSaving || isLoading || !hasChanges}
+                  className="gap-1.5"
+                >
+                  {isSaving ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Save className="h-3.5 w-3.5" />
+                  )}
+                  저장
+                </Button>
+              </div>
+            </div>
           )}
           {user?.role === "admin" && (
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
               닫기
             </Button>
           )}

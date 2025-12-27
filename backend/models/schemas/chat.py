@@ -66,6 +66,7 @@ class RegenerateRequest(BaseModel):
     frequency_penalty: float = 0.0
     presence_penalty: float = 0.0
     chat_history: Optional[List[ChatMessage]] = None
+    session_id: Optional[str] = None  # 세션 ID (로깅용)
 
 
 class DefaultSettingsResponse(BaseModel):
