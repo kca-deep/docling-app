@@ -70,7 +70,7 @@ async def convert_document(
     table_mode: str = Form(default="accurate"),
     image_export_mode: str = Form(default="embedded"),
     page_range_start: str = Form(default="1"),
-    page_range_end: str = Form(default="9223372036854776000"),
+    page_range_end: str = Form(default=""),  # 빈 값이면 settings.DOCLING_MAX_PAGE_RANGE 사용
     do_formula_enrichment: str = Form(default="false"),
     pipeline: str = Form(default="standard"),
     vlm_pipeline_model: Optional[str] = Form(default=None)
@@ -121,7 +121,7 @@ async def convert_document(
         do_formula_bool = do_formula_enrichment.lower() == "true"
 
         page_start = int(page_range_start) if page_range_start else 1
-        page_end = int(page_range_end) if page_range_end else 9223372036854776000
+        page_end = int(page_range_end) if page_range_end else settings.DOCLING_MAX_PAGE_RANGE
 
         # 파싱 전략에 따라 서비스 선택
         if strategy == "qwen3-vl":

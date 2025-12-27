@@ -69,6 +69,20 @@ class Settings(BaseSettings):
     # 캐시 정리 주기 (요청 수 기준, 0이면 매번)
     DOCLING_CLEAR_CACHE_INTERVAL: int = 0  # 0=매 변환마다 캐시 정리 (VRAM 즉시 회수)
 
+    # ===========================================
+    # Docling 타임아웃 설정
+    # ===========================================
+    # Standard 파이프라인 타임아웃 (초)
+    DOCLING_STANDARD_TIMEOUT: float = 120.0
+    # VLM 파이프라인 타임아웃 (초) - 더 긴 처리 시간 필요
+    DOCLING_VLM_TIMEOUT: float = 300.0
+    # 결과 조회 타임아웃 - Standard (초)
+    DOCLING_RESULT_TIMEOUT: float = 30.0
+    # 결과 조회 타임아웃 - VLM (초)
+    DOCLING_VLM_RESULT_TIMEOUT: float = 60.0
+    # 최대 페이지 범위 (전체 문서 처리 시 사용)
+    DOCLING_MAX_PAGE_RANGE: int = 9223372036854775807  # sys.maxsize (int64 max)
+
     # API 설정
     API_TITLE: str = "Docling Parse API"
     API_VERSION: str = "1.0.0"

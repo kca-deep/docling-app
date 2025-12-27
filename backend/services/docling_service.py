@@ -160,13 +160,15 @@ class DoclingService:
         table_mode: str = "accurate",
         image_export_mode: str = "embedded",
         page_range_start: int = 1,
-        page_range_end: int = 9223372036854776000,
+        page_range_end: Optional[int] = None,
         do_formula_enrichment: bool = False,
         pipeline: str = "standard",
         vlm_pipeline_model: Optional[str] = None
     ) -> ConvertResult:
         """
         문서 변환 (비동기 방식, VRAM 최적화 적용)
+
+        Note: page_range_end가 None이면 settings.DOCLING_MAX_PAGE_RANGE 사용
 
         동시성 제어: DOCLING_USE_SEMAPHORE=true 시 DOCLING_CONCURRENCY 개수만큼만 동시 처리
         캐시 정리: DOCLING_CLEAR_CACHE_AFTER_CONVERT=true 시 변환 후 GPU 캐시 정리
@@ -229,14 +231,18 @@ class DoclingService:
         table_mode: str,
         image_export_mode: str,
         page_range_start: int,
-        page_range_end: int,
+        page_range_end: Optional[int],
         do_formula_enrichment: bool,
         pipeline: str,
         vlm_pipeline_model: Optional[str]
     ) -> ConvertResult:
         """문서 변환 실제 구현 (내부 메서드)"""
+        # 페이지 범위 기본값 적용
+        if page_range_end is None:
+            page_range_end = settings.DOCLING_MAX_PAGE_RANGE
+
         # VLM 파이프라인은 더 긴 타임아웃 필요
-        timeout_value = 300.0 if pipeline == "vlm" else 120.0
+        timeout_value = settings.DOCLING_VLM_TIMEOUT if pipeline == "vlm" else settings.DOCLING_STANDARD_TIMEOUT
         client = await self._get_client(timeout_value)
         try:
             # 1단계: 비동기 변환 작업 시작
@@ -338,7 +344,7 @@ class DoclingService:
     ) -> ConvertResult:
         """Task 결과 조회"""
         # VLM 파이프라인은 더 긴 결과 조회 타임아웃 필요
-        result_timeout = 60 if pipeline == "vlm" else 30
+        result_timeout = settings.DOCLING_VLM_RESULT_TIMEOUT if pipeline == "vlm" else settings.DOCLING_RESULT_TIMEOUT
         result_response = await client.get(
             f"{self.result_api_url}/{task_id}",
             timeout=result_timeout
@@ -400,7 +406,7 @@ class DoclingService:
         table_mode: str = "accurate",
         image_export_mode: str = "embedded",
         page_range_start: int = 1,
-        page_range_end: int = 9223372036854776000,
+        page_range_end: Optional[int] = None,
         do_formula_enrichment: bool = False,
         pipeline: str = "standard",
         vlm_pipeline_model: Optional[str] = None
@@ -470,8 +476,12 @@ class DoclingService:
         vlm_pipeline_model: Optional[str]
     ) -> ConvertResult:
         """URL 문서 변환 실제 구현 (내부 메서드)"""
+        # 페이지 범위 기본값 적용
+        if page_range_end is None:
+            page_range_end = settings.DOCLING_MAX_PAGE_RANGE
+
         # VLM 파이프라인은 더 긴 타임아웃 필요
-        timeout_value = 300.0 if pipeline == "vlm" else 120.0
+        timeout_value = settings.DOCLING_VLM_TIMEOUT if pipeline == "vlm" else settings.DOCLING_STANDARD_TIMEOUT
         client = await self._get_client(timeout_value)
         try:
             # 1단계: 비동기 변환 작업 시작 (JSON 형식)
