@@ -6,6 +6,8 @@ import logging
 import time
 from typing import List, Dict, Any
 
+from backend.config.settings import settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -76,7 +78,7 @@ class ChunkingService:
                 "chunking_options": {
                     "chunker": "hybrid",
                     "max_tokens": max_tokens,
-                    "tokenizer": "BAAI/bge-m3",
+                    "tokenizer": settings.CHUNKING_TOKENIZER,
                     "merge_peers": True,
                     "use_markdown_tables": True,
                     "include_raw_text": False

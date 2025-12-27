@@ -111,6 +111,8 @@ class Settings(BaseSettings):
     DOCLING_CHUNKING_URL: str = "http://localhost:8007"
     DEFAULT_CHUNK_SIZE: int = 1000
     DEFAULT_CHUNK_OVERLAP: int = 200
+    # 청킹 토크나이저 (임베딩 모델과 일치해야 함)
+    CHUNKING_TOKENIZER: str = "BAAI/bge-m3"
 
     # BGE-M3 임베딩 서버 설정
     # [개발 기본값] 프로덕션에서는 .env에서 실제 서버 URL로 변경
