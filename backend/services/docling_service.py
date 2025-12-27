@@ -257,7 +257,8 @@ class DoclingService:
                 "image_export_mode": image_export_mode,
                 "page_range": [page_range_start, page_range_end],
                 "do_formula_enrichment": do_formula_enrichment,
-                "pipeline": pipeline
+                "pipeline": pipeline,
+                "md_page_break_placeholder": settings.DOCLING_PAGE_BREAK_PLACEHOLDER
             }
 
             # VLM 파이프라인 사용 시 모델 지정
@@ -494,7 +495,8 @@ class DoclingService:
                 "table_mode": table_mode,
                 "page_range": [page_range_start, page_range_end],
                 "do_formula_enrichment": do_formula_enrichment,
-                "pipeline": pipeline
+                "pipeline": pipeline,
+                "md_page_break_placeholder": settings.DOCLING_PAGE_BREAK_PLACEHOLDER
             }
 
             # VLM 파이프라인 사용 시 모델 지정

@@ -82,6 +82,8 @@ class Settings(BaseSettings):
     DOCLING_VLM_RESULT_TIMEOUT: float = 60.0
     # 최대 페이지 범위 (전체 문서 처리 시 사용)
     DOCLING_MAX_PAGE_RANGE: int = 9223372036854775807  # sys.maxsize (int64 max)
+    # 마크다운 페이지 구분자 (빈 문자열이면 구분자 없음)
+    DOCLING_PAGE_BREAK_PLACEHOLDER: str = "\n\n---\n\n"
 
     # API 설정
     API_TITLE: str = "Docling Parse API"
