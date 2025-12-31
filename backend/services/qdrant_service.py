@@ -469,7 +469,6 @@ class QdrantService:
             - filename: str
             - chunk_count: int
             - source_type: str ("document" or "excel")
-            - source_file: str (Excel의 경우)
         """
         try:
             documents = {}
@@ -480,6 +479,7 @@ class QdrantService:
                     collection_name=collection_name,
                     limit=1000,
                     offset=offset,
+                    # filename 통일, source_file은 하위호환용
                     with_payload=["document_id", "filename", "source_file"],
                     with_vectors=False
                 )
@@ -487,11 +487,12 @@ class QdrantService:
                 for point in results:
                     payload = point.payload or {}
                     doc_id = payload.get("document_id")
+                    # filename 우선, 없으면 source_file (하위호환)
+                    file_name = payload.get("filename") or payload.get("source_file", "unknown")
 
-                    # document_id가 없는 경우 source_file로 그룹핑 (Excel 데이터)
+                    # document_id가 없는 경우 filename으로 그룹핑 (Excel 데이터)
                     if doc_id is None:
-                        source = payload.get("source_file", "unknown")
-                        key = f"excel:{source}"
+                        key = f"excel:{file_name}"
                         source_type = "excel"
                     else:
                         key = f"doc:{doc_id}"
@@ -500,10 +501,9 @@ class QdrantService:
                     if key not in documents:
                         documents[key] = {
                             "document_id": doc_id,
-                            "filename": payload.get("filename") or payload.get("source_file", "Unknown"),
+                            "filename": file_name,
                             "chunk_count": 0,
-                            "source_type": source_type,
-                            "source_file": payload.get("source_file")
+                            "source_type": source_type
                         }
                     documents[key]["chunk_count"] += 1
 
@@ -549,36 +549,41 @@ class QdrantService:
             logger.warning(f"Failed to count points for document_id {document_id}: {e}")
             return 0
 
-    async def _count_points_by_source_file(
+    async def _count_points_by_filename(
         self,
         collection_name: str,
-        source_file: str
+        filename: str
     ) -> int:
         """
-        source_file 기준 포인트 수 조회
+        filename 기준 포인트 수 조회 (source_file 하위호환 포함)
 
         Args:
             collection_name: Collection 이름
-            source_file: 소스 파일명
+            filename: 파일명
 
         Returns:
             int: 포인트 수
         """
         try:
+            # filename 또는 source_file(하위호환)로 검색
             count_result = await self.client.count(
                 collection_name=collection_name,
                 count_filter=models.Filter(
-                    must=[
+                    should=[
+                        models.FieldCondition(
+                            key="filename",
+                            match=models.MatchValue(value=filename)
+                        ),
                         models.FieldCondition(
                             key="source_file",
-                            match=models.MatchValue(value=source_file)
+                            match=models.MatchValue(value=filename)
                         )
                     ]
                 )
             )
             return count_result.count
         except Exception as e:
-            logger.warning(f"Failed to count points for source_file {source_file}: {e}")
+            logger.warning(f"Failed to count points for filename {filename}: {e}")
             return 0
 
     async def delete_document_points(
@@ -629,46 +634,50 @@ class QdrantService:
     async def delete_excel_points(
         self,
         collection_name: str,
-        source_file: str
+        filename: str
     ) -> int:
         """
-        source_file로 해당 Excel 데이터의 모든 포인트 삭제
+        filename으로 해당 Excel 데이터의 모든 포인트 삭제 (source_file 하위호환)
 
         Args:
             collection_name: Collection 이름
-            source_file: 삭제할 Excel 파일명
+            filename: 삭제할 Excel 파일명
 
         Returns:
             int: 삭제된 포인트 수
         """
         try:
             # 삭제 전 포인트 수 확인
-            count_before = await self._count_points_by_source_file(collection_name, source_file)
+            count_before = await self._count_points_by_filename(collection_name, filename)
 
             if count_before == 0:
-                logger.info(f"No points found for source_file {source_file}")
+                logger.info(f"No points found for filename {filename}")
                 return 0
 
-            # 필터 기반 삭제
+            # 필터 기반 삭제 (filename 또는 source_file 하위호환)
             await self.client.delete(
                 collection_name=collection_name,
                 points_selector=models.FilterSelector(
                     filter=models.Filter(
-                        must=[
+                        should=[
+                            models.FieldCondition(
+                                key="filename",
+                                match=models.MatchValue(value=filename)
+                            ),
                             models.FieldCondition(
                                 key="source_file",
-                                match=models.MatchValue(value=source_file)
+                                match=models.MatchValue(value=filename)
                             )
                         ]
                     )
                 )
             )
 
-            logger.info(f"Deleted {count_before} points for source_file '{source_file}' from '{collection_name}'")
+            logger.info(f"Deleted {count_before} points for filename '{filename}' from '{collection_name}'")
             return count_before
 
         except Exception as e:
-            logger.error(f"Failed to delete points for source_file {source_file}: {e}")
+            logger.error(f"Failed to delete points for filename {filename}: {e}")
             raise QdrantServiceError(f"Excel 포인트 삭제 실패: {str(e)}") from e
 
     async def close(self):

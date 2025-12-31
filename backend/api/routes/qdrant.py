@@ -497,12 +497,12 @@ async def delete_collection_documents(
     """
     컬렉션에서 문서 삭제 API
 
-    document_ids 또는 source_files 중 하나 이상 필수
+    document_ids 또는 filenames 중 하나 이상 필수
     소유자 또는 관리자만 삭제 가능
 
     Args:
         collection_name: Collection 이름
-        request: 삭제 요청 (document_ids 또는 source_files)
+        request: 삭제 요청 (document_ids 또는 filenames)
         db: DB 세션
         current_user: 현재 로그인 사용자
 
@@ -510,11 +510,14 @@ async def delete_collection_documents(
         DeleteDocumentResponse: 삭제 결과
     """
     try:
+        # filenames 또는 source_files (하위호환) 통합
+        target_filenames = request.filenames or request.source_files
+
         # 요청 유효성 검사
-        if not request.document_ids and not request.source_files:
+        if not request.document_ids and not target_filenames:
             raise HTTPException(
                 status_code=400,
-                detail="document_ids 또는 source_files 중 하나 이상 필요합니다"
+                detail="document_ids 또는 filenames 중 하나 이상 필요합니다"
             )
 
         # 컬렉션 존재 확인
@@ -549,10 +552,10 @@ async def delete_collection_documents(
                     db, doc_id, collection_name
                 )
 
-        # source_file로 삭제 (Excel)
-        if request.source_files:
-            for source_file in request.source_files:
-                deleted = await qdrant_service.delete_excel_points(collection_name, source_file)
+        # filename으로 삭제 (Excel)
+        if target_filenames:
+            for filename in target_filenames:
+                deleted = await qdrant_service.delete_excel_points(collection_name, filename)
                 total_deleted += deleted
 
         logger.info(f"Deleted {total_deleted} points from collection '{collection_name}'")
@@ -1405,7 +1408,7 @@ async def embed_excel_dynamic(
                 metadata_list = []
                 for row in batch_rows:
                     metadata = {
-                        "source_file": request.file_name,
+                        "filename": request.file_name,  # source_file → filename 통일
                         "row_index": row.row_index
                     }
 
@@ -1618,34 +1621,35 @@ async def migrate_excel_collection(
                 detail=f"Collection '{collection_name}'에 데이터가 없습니다"
             )
 
-        # 4. source_file 기준 그룹핑
+        # 4. filename 기준 그룹핑 (source_file 하위호환)
         grouped = {}
         for point in all_points:
             payload = point.payload or {}
-            source = payload.get("source_file", "unknown.xlsx")
-            if source not in grouped:
-                grouped[source] = {
+            # filename 우선, 없으면 source_file (하위호환)
+            file_name = payload.get("filename") or payload.get("source_file", "unknown.xlsx")
+            if file_name not in grouped:
+                grouped[file_name] = {
                     "texts": [],
                     "vector_ids": [],
                     "row_indices": [],
                     "sample_payload": payload
                 }
-            grouped[source]["texts"].append(payload.get("text", ""))
-            grouped[source]["vector_ids"].append(str(point.id))
-            grouped[source]["row_indices"].append(payload.get("row_index", 0))
+            grouped[file_name]["texts"].append(payload.get("text", ""))
+            grouped[file_name]["vector_ids"].append(str(point.id))
+            grouped[file_name]["row_indices"].append(payload.get("row_index", 0))
 
-        # 5. 각 source_file에 대해 Document 생성
+        # 5. 각 filename에 대해 Document 생성
         created_docs = []
-        for source_file, data in grouped.items():
+        for file_name, data in grouped.items():
             from backend.services.excel_document_service import generate_preview
 
             # 메타정보 생성
             sample = data["sample_payload"]
             text_columns = [k for k in sample.keys() if k not in [
-                "source_file", "row_index", "id", "tags", "headings", "text"
+                "filename", "source_file", "row_index", "id", "tags", "headings", "text"
             ]]
 
-            md_content = f"""# {source_file}
+            md_content = f"""# {file_name}
 
 ## 문서 정보
 - **유형**: Excel 데이터 (마이그레이션됨)
@@ -1662,7 +1666,7 @@ async def migrate_excel_collection(
 
             doc = Document(
                 task_id=f"excel-migrated-{uuid.uuid4().hex[:8]}",
-                original_filename=source_file,
+                original_filename=file_name,
                 file_type="xlsx",
                 status="success",
                 content_length=sum(len(t) for t in data["texts"]),
@@ -1689,7 +1693,7 @@ async def migrate_excel_collection(
             db.add(history)
             created_docs.append({
                 "document_id": doc.id,
-                "filename": source_file,
+                "filename": file_name,
                 "rows": len(data["texts"])
             })
 

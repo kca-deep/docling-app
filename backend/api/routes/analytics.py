@@ -1049,7 +1049,8 @@ async def export_conversations_to_excel(
                     scores_list = []
                     for idx, doc in enumerate(retrieved_docs, 1):
                         doc_metadata = doc.get("metadata", {})
-                        source_name = doc_metadata.get("source_file", doc_metadata.get("source", "Unknown"))
+                        # filename 우선, 없으면 source_file (하위호환)
+                        source_name = doc_metadata.get("filename") or doc_metadata.get("source_file", doc_metadata.get("source", "Unknown"))
                         page_num = doc_metadata.get("page_number", doc_metadata.get("page", "-"))
                         section = doc_metadata.get("section", doc_metadata.get("headings", ""))
                         score = doc.get("score", 0)

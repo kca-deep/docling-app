@@ -120,10 +120,9 @@ class DuplicateCheckResponse(BaseModel):
 class CollectionDocumentInfo(BaseModel):
     """컬렉션 내 문서 정보"""
     document_id: Optional[int] = None  # 일반 문서의 경우 ID, Excel의 경우 None
-    filename: str
+    filename: str  # 통일된 파일명 필드 (PDF, Excel 모두)
     chunk_count: int
     source_type: str  # "document" or "excel"
-    source_file: Optional[str] = None  # Excel의 경우 파일명
 
 
 class CollectionDocumentsResponse(BaseModel):
@@ -136,7 +135,8 @@ class CollectionDocumentsResponse(BaseModel):
 class DeleteDocumentRequest(BaseModel):
     """문서 삭제 요청"""
     document_ids: Optional[List[int]] = None  # 일반 문서 ID 목록
-    source_files: Optional[List[str]] = None  # Excel 파일명 목록
+    filenames: Optional[List[str]] = None  # Excel 파일명 목록 (filename 기준)
+    source_files: Optional[List[str]] = None  # 하위호환: filenames와 동일
 
 
 class DeleteDocumentResponse(BaseModel):
