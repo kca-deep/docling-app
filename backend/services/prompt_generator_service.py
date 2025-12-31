@@ -42,7 +42,7 @@ class PromptGeneratorService:
         """
         template_map = {
             "regulation": "regulation.md",
-            "faq": "default.md",
+            "faq": "faq.md",
             "hr": "regulation.md",
             "finance": "regulation.md",
             "audit": "regulation.md",
