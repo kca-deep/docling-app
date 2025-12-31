@@ -165,12 +165,25 @@ export default function HomePage() {
     },
   ]
 
-  // 활성 서비스 수 계산
-  const activeServiceCount = healthData
-    ? Object.values(healthData.services).filter(
-        (s) => s.status === "healthy" || s.status === "degraded"
-      ).length
+  // 활성 서비스 수 계산 (LLM / Core 분리)
+  const llmHealthKeys = ["gpt_oss", "qwen3_vl", "exaone"] as const
+  const coreHealthKeys = ["embedding", "reranker", "docling", "qdrant"] as const
+
+  const activeLlmCount = healthData
+    ? llmHealthKeys.filter(key => {
+        const status = healthData.services[key]?.status
+        return status === "healthy" || status === "degraded"
+      }).length
     : 0
+
+  const activeCoreCount = healthData
+    ? coreHealthKeys.filter(key => {
+        const status = healthData.services[key]?.status
+        return status === "healthy" || status === "degraded"
+      }).length
+    : 0
+
+  const activeServiceCount = activeLlmCount + activeCoreCount
 
   const stats = [
     { icon: Zap, label: "처리 속도", value: "<3", unit: "초/문서" },
@@ -531,6 +544,9 @@ export default function HomePage() {
                 <Network className="h-5 w-5 text-[color:var(--chart-1)]" />
               </div>
               <h3 className="text-xl font-bold">LLM Models</h3>
+              <span className="text-sm text-muted-foreground ml-auto">
+                {healthLoading ? "Checking..." : `${activeLlmCount} Active`}
+              </span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {[
@@ -597,43 +613,53 @@ export default function HomePage() {
               </div>
               <h3 className="text-xl font-bold">Core Services</h3>
               <span className="text-sm text-muted-foreground ml-auto">
-                {healthLoading ? "Checking..." : `${activeServiceCount} Active`}
+                {healthLoading ? "Checking..." : `${activeCoreCount} Active`}
               </span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { name: "BGE-M3 Embedding", desc: "1024-dim Vector", icon: Database, healthKey: "embedding" as const, colorVar: 1 },
-                { name: "BGE Reranker", desc: "v2-m3 Model", icon: TrendingUp, healthKey: "reranker" as const, colorVar: 2 },
-                { name: "Docling API", desc: "Doc Parser", icon: FileCode, healthKey: "docling" as const, colorVar: 3 },
-                { name: "Qdrant DB", desc: "Vector Store", icon: Database, healthKey: "qdrant" as const, colorVar: 4 },
+                { name: "BGE-M3 Embedding", badge: "Vector", type: "1024-dim", healthKey: "embedding" as const },
+                { name: "BGE Reranker", badge: "Rank", type: "v2-m3 Model", healthKey: "reranker" as const },
+                { name: "Docling API", badge: "Parse", type: "Doc Parser", healthKey: "docling" as const },
+                { name: "Qdrant DB", badge: "Store", type: "Vector DB", healthKey: "qdrant" as const },
               ].map((svc, i) => {
-                const Icon = svc.icon
-                const chartColor = `var(--chart-${svc.colorVar})`
                 const status = healthLoading
                   ? "loading"
                   : healthData?.services[svc.healthKey]?.status || "unhealthy"
+                const isActive = status === "healthy" || status === "degraded"
 
                 return (
                   <motion.div
                     key={i}
-                    whileHover={{ y: -4 }}
-                    className="group relative bg-background dark:bg-card border border-border rounded-2xl p-5 shadow-sm hover:shadow-lg transition-all duration-300"
+                    whileHover={{ y: -4, scale: 1.02 }}
+                    className={`relative rounded-2xl p-5 transition-all duration-300 ${
+                      isActive
+                        ? 'bg-background dark:bg-card border border-border shadow-lg hover:shadow-xl'
+                        : 'bg-muted/30 dark:bg-muted/20 border border-border/50 opacity-60'
+                    }`}
                   >
-                    {/* Icon */}
-                    <div
-                      className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-colors"
-                      style={{ backgroundColor: `color-mix(in srgb, ${chartColor} 10%, transparent)` }}
-                    >
-                      <Icon className="h-6 w-6" style={{ color: chartColor }} />
+                    {/* Status Indicator */}
+                    <div className="absolute top-4 right-4">
+                      {healthLoading ? (
+                        <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+                      ) : (
+                        <div className={`w-3 h-3 rounded-full ${
+                          status === "healthy" ? 'bg-green-500 animate-pulse shadow-lg shadow-green-500/50' :
+                          status === "degraded" ? 'bg-yellow-500 shadow-lg shadow-yellow-500/50' :
+                          'bg-muted-foreground/50'
+                        }`} />
+                      )}
                     </div>
 
-                    {/* Info */}
-                    <h4 className="font-bold text-base mb-1">{svc.name}</h4>
-                    <p className="text-sm text-muted-foreground mb-4">{svc.desc}</p>
+                    {/* Service Info */}
+                    <div className="mb-4">
+                      <h4 className="font-bold text-base mb-1">{svc.name}</h4>
+                      <p className="text-sm text-muted-foreground">{svc.type}</p>
+                    </div>
 
-                    {/* Status */}
-                    <div className="flex items-center justify-end">
-                      <StatusBadge status={status} />
+                    {/* Tags */}
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="outline" className="text-xs font-medium">{svc.badge}</Badge>
                     </div>
                   </motion.div>
                 )
