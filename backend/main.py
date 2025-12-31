@@ -17,11 +17,15 @@ from backend.config.settings import settings
 LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
+# 로그 레벨 환경변수에서 읽기 (기본값: INFO)
+import os
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+
 # 루트 로거 설정
 logging.basicConfig(
     format=LOG_FORMAT,
     datefmt=LOG_DATE_FORMAT,
-    level=logging.INFO
+    level=getattr(logging, LOG_LEVEL, logging.INFO)
 )
 from backend.api.routes import document, dify, qdrant, chat, analytics, auth, prompts, selfcheck, chat_documents
 from backend.database import init_db, get_db, SessionLocal
