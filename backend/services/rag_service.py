@@ -26,6 +26,9 @@ logger = logging.getLogger("uvicorn")
 class RAGService:
     """RAG 파이프라인을 담당하는 서비스"""
 
+    # [P0-2] 컬렉션 문서 목록 캐시 TTL (초)
+    DOCUMENT_CACHE_TTL = 300  # 5분
+
     def __init__(
         self,
         embedding_service: EmbeddingService,
@@ -49,6 +52,50 @@ class RAGService:
         self.llm_service = llm_service
         self.reranker_service = reranker_service
         self.hybrid_search_service = hybrid_search_service
+        # [P0-2] 컬렉션 문서 목록 캐시 (N+1 쿼리 방지)
+        self._document_list_cache: Dict[str, Dict] = {}
+
+    async def _get_cached_documents(self, collection_name: str) -> List[str]:
+        """
+        컬렉션의 문서 목록을 캐시에서 조회 (TTL 캐싱)
+
+        Args:
+            collection_name: 컬렉션 이름
+
+        Returns:
+            List[str]: 문서 파일명 목록
+        """
+        now = time.time()
+        cached = self._document_list_cache.get(collection_name)
+
+        if cached and cached["expires_at"] > now:
+            logger.debug(f"[RAG] Document list cache HIT for {collection_name}")
+            return cached["documents"]
+
+        # 캐시 미스 또는 만료 - Qdrant 조회
+        logger.debug(f"[RAG] Document list cache MISS for {collection_name}")
+        docs = await self.qdrant_service.get_documents_in_collection(collection_name)
+        doc_names = [d.get("filename", "Unknown") for d in docs]
+
+        self._document_list_cache[collection_name] = {
+            "documents": doc_names,
+            "expires_at": now + self.DOCUMENT_CACHE_TTL
+        }
+        return doc_names
+
+    def invalidate_document_cache(self, collection_name: Optional[str] = None) -> None:
+        """
+        문서 목록 캐시 무효화
+
+        Args:
+            collection_name: 특정 컬렉션 캐시만 무효화. None이면 전체 무효화
+        """
+        if collection_name:
+            self._document_list_cache.pop(collection_name, None)
+            logger.debug(f"[RAG] Invalidated document cache for {collection_name}")
+        else:
+            self._document_list_cache.clear()
+            logger.debug("[RAG] Invalidated all document caches")
 
     async def _build_no_results_message(
         self,
@@ -67,10 +114,11 @@ class RAGService:
             return "문서에서 관련 정보를 찾을 수 없습니다. 담당 부서에 문의해 주세요."
 
         try:
+            # [P0-2] 캐시된 문서 목록 사용
             all_docs = []
             for coll_name in target_collections:
-                docs = await self.qdrant_service.get_documents_in_collection(coll_name)
-                all_docs.extend([d.get("filename", "Unknown") for d in docs])
+                doc_names = await self._get_cached_documents(coll_name)
+                all_docs.extend(doc_names)
 
             # 중복 제거 (순서 유지) 및 최대 10개
             unique_docs = list(dict.fromkeys(all_docs))[:10]
@@ -629,13 +677,13 @@ class RAGService:
                         "usage": None
                     }
 
-            # 1.6. 컬렉션 문서 목록 조회 (프롬프트에 주입용)
+            # 1.6. 컬렉션 문서 목록 조회 (프롬프트에 주입용) - [P0-2] 캐시 사용
             available_documents = []
             if target_collections:
                 try:
                     for coll_name in target_collections:
-                        docs = await self.qdrant_service.get_documents_in_collection(coll_name)
-                        available_documents.extend([d.get("filename", "Unknown") for d in docs])
+                        doc_names = await self._get_cached_documents(coll_name)
+                        available_documents.extend(doc_names)
                     # 중복 제거 (순서 유지)
                     available_documents = list(dict.fromkeys(available_documents))
                     logger.info(f"[RAG] Available documents for prompt: {len(available_documents)}")
@@ -845,13 +893,13 @@ class RAGService:
             # 단계 이벤트: 생성 단계
             yield f'data: {json.dumps({"type": "stage", "stage": "generate"}, ensure_ascii=False)}\n\n'
 
-            # 2.5. 컬렉션 문서 목록 조회 (프롬프트에 주입용)
+            # 2.5. 컬렉션 문서 목록 조회 (프롬프트에 주입용) - [P0-2] 캐시 사용
             available_documents = []
             if target_collections:
                 try:
                     for coll_name in target_collections:
-                        docs = await self.qdrant_service.get_documents_in_collection(coll_name)
-                        available_documents.extend([d.get("filename", "Unknown") for d in docs])
+                        doc_names = await self._get_cached_documents(coll_name)
+                        available_documents.extend(doc_names)
                     # 중복 제거 (순서 유지)
                     available_documents = list(dict.fromkeys(available_documents))
                     logger.info(f"[RAG-Stream] Available documents for prompt: {len(available_documents)}")

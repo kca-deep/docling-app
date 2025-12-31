@@ -128,6 +128,10 @@ class QdrantService:
         """
         컬렉션 내 고유 문서 수 집계 (TTL 캐싱 적용)
 
+        [P0-3] Qdrant facet API 사용으로 효율화
+        - 기존: scroll로 모든 포인트 순회 (O(n))
+        - 개선: facet API로 서버 측 집계 (O(1) 네트워크 호출)
+
         Args:
             collection_name: Collection 이름
 
@@ -143,28 +147,7 @@ class QdrantService:
                     return count
 
             # 캐시 미스 또는 만료: 새로 계산
-            unique_doc_ids = set()
-            offset = None
-
-            # scroll API로 모든 포인트의 document_id를 수집
-            while True:
-                results, next_offset = await self.client.scroll(
-                    collection_name=collection_name,
-                    limit=1000,
-                    offset=offset,
-                    with_payload=["document_id"],  # document_id만 가져오기
-                    with_vectors=False
-                )
-
-                for point in results:
-                    if point.payload and "document_id" in point.payload:
-                        unique_doc_ids.add(point.payload["document_id"])
-
-                if next_offset is None:
-                    break
-                offset = next_offset
-
-            count = len(unique_doc_ids)
+            count = await self._count_unique_documents_facet(collection_name)
 
             # 캐시 업데이트
             self._doc_count_cache[collection_name] = (count, datetime.now() + CACHE_TTL)
@@ -174,6 +157,63 @@ class QdrantService:
         except Exception as e:
             logger.warning(f"Failed to count unique documents in '{collection_name}': {e}")
             return 0  # 실패 시 0 반환
+
+    async def _count_unique_documents_facet(self, collection_name: str) -> int:
+        """
+        Qdrant facet API를 사용하여 고유 문서 수 계산
+
+        Args:
+            collection_name: Collection 이름
+
+        Returns:
+            int: 고유 문서 수
+        """
+        try:
+            # facet API로 document_id 고유값 집계
+            result = await self.client.facet(
+                collection_name=collection_name,
+                key="document_id",
+                exact=True,
+                limit=100000  # 충분히 큰 값 (실제 문서 수보다 크게)
+            )
+            return len(result.hits)
+        except Exception as e:
+            # facet API 실패 시 scroll 방식으로 fallback
+            logger.debug(f"Facet API failed for '{collection_name}', falling back to scroll: {e}")
+            return await self._count_unique_documents_scroll(collection_name)
+
+    async def _count_unique_documents_scroll(self, collection_name: str) -> int:
+        """
+        scroll API를 사용하여 고유 문서 수 계산 (fallback)
+
+        Args:
+            collection_name: Collection 이름
+
+        Returns:
+            int: 고유 문서 수
+        """
+        unique_doc_ids = set()
+        offset = None
+
+        # scroll API로 모든 포인트의 document_id를 수집
+        while True:
+            results, next_offset = await self.client.scroll(
+                collection_name=collection_name,
+                limit=1000,
+                offset=offset,
+                with_payload=["document_id"],  # document_id만 가져오기
+                with_vectors=False
+            )
+
+            for point in results:
+                if point.payload and "document_id" in point.payload:
+                    unique_doc_ids.add(point.payload["document_id"])
+
+            if next_offset is None:
+                break
+            offset = next_offset
+
+        return len(unique_doc_ids)
 
     def invalidate_cache(self, collection_name: Optional[str] = None) -> None:
         """
@@ -233,6 +273,22 @@ class QdrantService:
                     distance=qdrant_distance
                 )
             )
+
+            # [P0-3] Facet API 지원을 위한 document_id 인덱스 자동 생성
+            try:
+                await self.client.create_payload_index(
+                    collection_name=collection_name,
+                    field_name="document_id",
+                    field_schema=models.PayloadSchemaType.INTEGER,
+                    field_index_params=models.IntegerIndexParams(
+                        type=models.IntegerIndexType.INTEGER,
+                        lookup=True,  # Facet API 지원의 핵심
+                        range=False
+                    )
+                )
+                logger.info(f"Created document_id index for facet support: {collection_name}")
+            except Exception as idx_err:
+                logger.warning(f"Failed to create document_id index (non-critical): {idx_err}")
 
             logger.info(f"Successfully created collection: {collection_name}")
             return True

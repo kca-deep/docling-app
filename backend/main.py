@@ -41,9 +41,8 @@ from backend.middleware.rate_limit import limiter, rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from backend.services.health_service import health_service
 from backend.services.http_client import http_manager
-# Qdrant 서비스 인스턴스 import (연결 종료용)
-from backend.api.routes.qdrant import qdrant_service as qdrant_service_main
-from backend.api.routes.chat import qdrant_service as qdrant_service_chat
+# Qdrant 서비스 싱글톤 인스턴스 import (연결 종료용)
+from backend.services.qdrant_service import qdrant_service
 # DoclingService 인스턴스 import (VRAM 최적화 - 연결 종료용)
 from backend.services.docling_service import get_docling_service
 
@@ -138,11 +137,10 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[WARN] Hybrid logging service shutdown error: {e}")
 
-    # Qdrant 클라이언트 연결 종료
+    # Qdrant 클라이언트 연결 종료 (싱글톤)
     try:
-        await qdrant_service_main.close()
-        await qdrant_service_chat.close()
-        print("[OK] Qdrant client connections closed successfully")
+        await qdrant_service.close()
+        print("[OK] Qdrant client connection closed successfully")
     except Exception as e:
         print(f"[WARN] Qdrant client shutdown error: {e}")
 
