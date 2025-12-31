@@ -141,12 +141,10 @@ export default function WorkflowPage() {
   return (
     <PageContainer maxWidth="wide" className="space-y-3">
       {/* Page Header */}
-      <div className="flex items-center gap-3">
-        <div className="p-2 rounded-xl bg-gradient-to-br from-primary to-purple-600 shadow-lg shadow-primary/25">
-          <Sparkles className="w-5 h-5 text-white" />
-        </div>
-        <h1 className="text-xl font-bold bg-gradient-to-r from-primary via-purple-600 to-pink-600 bg-clip-text text-transparent">
-          KCA 도메인지식(RAG) 기반 AI Assistant
+      <div className="flex items-center">
+        <h1 className="text-lg font-semibold flex items-center gap-2">
+          <Sparkles className="h-5 w-5 text-muted-foreground" />
+          시스템 구성도
         </h1>
       </div>
 
@@ -167,24 +165,24 @@ export default function WorkflowPage() {
               <div className="absolute inset-0 bg-gradient-to-b from-green-500/5 via-transparent to-amber-500/5 pointer-events-none" />
 
               {/* GPU Header Bar - Compact */}
-              <div className="relative border-b border-white/10 px-5 py-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-gradient-to-br from-green-400 to-emerald-600 shadow-lg shadow-green-500/30">
-                      <Cpu className="w-5 h-5 text-white" />
+              <div className="relative border-b border-white/10 px-4 sm:px-5 py-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-gradient-to-br from-green-400 to-emerald-600 shadow-lg shadow-green-500/30">
+                      <Cpu className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                     </div>
-                    <div className="font-black text-lg text-white tracking-tight">
+                    <div className="font-black text-base sm:text-lg text-white tracking-tight">
                       NVIDIA RTX 5090
                     </div>
-                    <Badge className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-300 text-[10px] border border-green-500/30 gap-1">
-                      <Shield className="w-3 h-3" />
+                    <Badge className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-300 text-[9px] sm:text-[10px] border border-green-500/30 gap-1">
+                      <Shield className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                       Self-hosted
                     </Badge>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge className="bg-white/10 text-white/90 text-[10px] border-0 backdrop-blur-sm">32GB VRAM</Badge>
-                    <Badge className="bg-white/10 text-white/90 text-[10px] border-0 backdrop-blur-sm">Intel Ultra 9</Badge>
-                    <Badge className="bg-white/10 text-white/90 text-[10px] border-0 backdrop-blur-sm">64GB DDR5</Badge>
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pl-7 sm:pl-0">
+                    <Badge className="bg-white/10 text-white/90 text-[9px] sm:text-[10px] border-0 backdrop-blur-sm">32GB VRAM</Badge>
+                    <Badge className="bg-white/10 text-white/90 text-[9px] sm:text-[10px] border-0 backdrop-blur-sm">Intel Ultra 9</Badge>
+                    <Badge className="bg-white/10 text-white/90 text-[9px] sm:text-[10px] border-0 backdrop-blur-sm">64GB DDR5</Badge>
                   </div>
                 </div>
               </div>
@@ -194,7 +192,7 @@ export default function WorkflowPage() {
                 {/* Semi-transparent inner container */}
                 <div className="bg-background/95 dark:bg-background/90 rounded-xl p-5 space-y-5 shadow-inner border border-white/5">
 
-                  {/* RAG Pipeline Flow - Card Based */}
+                  {/* RAG Pipeline Flow */}
                   <div className="bg-gradient-to-r from-muted/30 via-background to-muted/30 rounded-xl p-4 border shadow-inner">
                     <div className="flex items-center justify-between mb-3">
                       <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
@@ -203,72 +201,78 @@ export default function WorkflowPage() {
                       </div>
                       <Badge variant="outline" className="text-[9px]">7 Steps</Badge>
                     </div>
-                    <div className="flex items-center justify-center overflow-x-auto overflow-y-visible pt-3 pb-2">
-                      <div className="flex items-center gap-0 min-w-max">
-                        <ProcessCard
-                          step={1}
-                          icon={<Upload className="w-4 h-4 text-white" />}
-                          label="입력"
-                          sublabel="문서/질의"
-                          gradientFrom="from-slate-600"
-                          gradientTo="to-slate-800"
-                          bgClass="bg-slate-50/80 dark:bg-slate-900/60 border-slate-300/50 dark:border-slate-700/50"
-                        />
-                        <ProcessCard
-                          step={2}
-                          icon={<FileSearch className="w-4 h-4 text-white" />}
-                          label="Docling"
-                          sublabel="문서 파싱"
-                          gradientFrom="from-green-500"
-                          gradientTo="to-emerald-600"
-                          bgClass="bg-green-50/80 dark:bg-green-950/60 border-green-300/50 dark:border-green-700/50"
-                        />
-                        <ProcessCard
-                          step={3}
-                          icon={<Layers className="w-4 h-4 text-white" />}
-                          label="Embed"
-                          sublabel="벡터 변환"
-                          gradientFrom="from-purple-500"
-                          gradientTo="to-violet-600"
-                          bgClass="bg-purple-50/80 dark:bg-purple-950/60 border-purple-300/50 dark:border-purple-700/50"
-                        />
-                        <ProcessCard
-                          step={4}
-                          icon={<Database className="w-4 h-4 text-white" />}
-                          label="Qdrant"
-                          sublabel="검색/저장"
-                          gradientFrom="from-amber-500"
-                          gradientTo="to-orange-600"
-                          bgClass="bg-amber-50/80 dark:bg-amber-950/60 border-amber-300/50 dark:border-amber-700/50"
-                        />
-                        <ProcessCard
-                          step={5}
-                          icon={<RotateCcw className="w-4 h-4 text-white" />}
-                          label="Rerank"
-                          sublabel="재순위화"
-                          gradientFrom="from-blue-500"
-                          gradientTo="to-cyan-600"
-                          bgClass="bg-blue-50/80 dark:bg-blue-950/60 border-blue-300/50 dark:border-blue-700/50"
-                        />
-                        <ProcessCard
-                          step={6}
-                          icon={<Brain className="w-4 h-4 text-white" />}
-                          label="LLM"
-                          sublabel="답변 생성"
-                          gradientFrom="from-purple-600"
-                          gradientTo="to-pink-600"
-                          bgClass="bg-pink-50/80 dark:bg-pink-950/60 border-pink-300/50 dark:border-pink-700/50"
-                        />
-                        <ProcessCard
-                          step={7}
-                          icon={<MessageCircle className="w-4 h-4 text-white" />}
-                          label="응답"
-                          sublabel="출처 포함"
-                          gradientFrom="from-teal-500"
-                          gradientTo="to-green-600"
-                          bgClass="bg-teal-50/80 dark:bg-teal-950/60 border-teal-300/50 dark:border-teal-700/50"
-                          isLast
-                        />
+
+                    {/* Desktop: 홈화면 스타일 타임라인 */}
+                    <div className="hidden md:block pt-4 pb-2">
+                      <div className="relative">
+                        {/* Timeline connector line */}
+                        <div className="absolute top-5 left-0 right-0 h-0.5 bg-gradient-to-r from-slate-400 via-purple-500 to-teal-500 opacity-30" />
+
+                        {/* Timeline steps - 7열 그리드 */}
+                        <div className="relative grid grid-cols-7 gap-2 lg:gap-4">
+                          {[
+                            { step: 1, icon: <Upload className="w-3.5 h-3.5 text-white" />, label: "입력", sublabel: "문서/질의", gradientFrom: "from-slate-600", gradientTo: "to-slate-800" },
+                            { step: 2, icon: <FileSearch className="w-3.5 h-3.5 text-white" />, label: "Docling", sublabel: "문서 파싱", gradientFrom: "from-green-500", gradientTo: "to-emerald-600" },
+                            { step: 3, icon: <Layers className="w-3.5 h-3.5 text-white" />, label: "Embed", sublabel: "벡터 변환", gradientFrom: "from-purple-500", gradientTo: "to-violet-600" },
+                            { step: 4, icon: <Database className="w-3.5 h-3.5 text-white" />, label: "Qdrant", sublabel: "검색/저장", gradientFrom: "from-amber-500", gradientTo: "to-orange-600" },
+                            { step: 5, icon: <RotateCcw className="w-3.5 h-3.5 text-white" />, label: "Rerank", sublabel: "재순위화", gradientFrom: "from-blue-500", gradientTo: "to-cyan-600" },
+                            { step: 6, icon: <Brain className="w-3.5 h-3.5 text-white" />, label: "LLM", sublabel: "답변 생성", gradientFrom: "from-purple-600", gradientTo: "to-pink-600" },
+                            { step: 7, icon: <MessageCircle className="w-3.5 h-3.5 text-white" />, label: "응답", sublabel: "출처 포함", gradientFrom: "from-teal-500", gradientTo: "to-green-600" },
+                          ].map((item, idx) => (
+                            <div key={idx} className="group flex flex-col items-center">
+                              {/* Step circle */}
+                              <div className={cn(
+                                "relative z-10 w-10 h-10 rounded-xl flex items-center justify-center shadow-lg transition-all duration-300",
+                                "group-hover:scale-110 group-hover:-translate-y-0.5 group-hover:shadow-xl",
+                                `bg-gradient-to-br ${item.gradientFrom} ${item.gradientTo}`
+                              )}>
+                                {item.icon}
+                                {/* Step number badge */}
+                                <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-background border border-border text-[9px] font-bold flex items-center justify-center shadow-sm">
+                                  {item.step}
+                                </div>
+                              </div>
+                              {/* Step title */}
+                              <div className="mt-3 text-center">
+                                <span className="block text-xs font-bold group-hover:text-primary transition-colors">{item.label}</span>
+                                <span className="hidden lg:block text-[10px] text-muted-foreground">{item.sublabel}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Mobile: 세로 레이아웃 */}
+                    <div className="md:hidden pt-3 pb-2">
+                      <div className="relative pl-6">
+                        {/* 세로 연결선 */}
+                        <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-gradient-to-b from-slate-500 via-purple-500 to-teal-500 opacity-50" />
+
+                        <div className="space-y-3">
+                          {[
+                            { step: 1, icon: <Upload className="w-3 h-3 text-white" />, label: "입력", sublabel: "문서/질의", gradientFrom: "from-slate-600", gradientTo: "to-slate-800" },
+                            { step: 2, icon: <FileSearch className="w-3 h-3 text-white" />, label: "Docling", sublabel: "문서 파싱", gradientFrom: "from-green-500", gradientTo: "to-emerald-600" },
+                            { step: 3, icon: <Layers className="w-3 h-3 text-white" />, label: "Embed", sublabel: "벡터 변환", gradientFrom: "from-purple-500", gradientTo: "to-violet-600" },
+                            { step: 4, icon: <Database className="w-3 h-3 text-white" />, label: "Qdrant", sublabel: "검색/저장", gradientFrom: "from-amber-500", gradientTo: "to-orange-600" },
+                            { step: 5, icon: <RotateCcw className="w-3 h-3 text-white" />, label: "Rerank", sublabel: "재순위화", gradientFrom: "from-blue-500", gradientTo: "to-cyan-600" },
+                            { step: 6, icon: <Brain className="w-3 h-3 text-white" />, label: "LLM", sublabel: "답변 생성", gradientFrom: "from-purple-600", gradientTo: "to-pink-600" },
+                            { step: 7, icon: <MessageCircle className="w-3 h-3 text-white" />, label: "응답", sublabel: "출처 포함", gradientFrom: "from-teal-500", gradientTo: "to-green-600" },
+                          ].map((item, idx) => (
+                            <div key={idx} className="flex items-center gap-3">
+                              <div className={cn(
+                                "relative z-10 w-6 h-6 rounded-lg flex items-center justify-center shadow-md flex-shrink-0",
+                                `bg-gradient-to-br ${item.gradientFrom} ${item.gradientTo}`
+                              )}>
+                                {item.icon}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold">{item.label}</span>
+                                <span className="text-[10px] text-muted-foreground">{item.sublabel}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -365,7 +369,7 @@ export default function WorkflowPage() {
                     {/* Glow effect */}
                     <div className="absolute -inset-1 bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-500 rounded-2xl blur opacity-20" />
 
-                    <div className="relative bg-gradient-to-br from-amber-50 via-orange-50/80 to-yellow-50 dark:from-amber-950/60 dark:via-orange-950/40 dark:to-yellow-950/60 rounded-xl border-2 border-amber-400/50 dark:border-amber-600/50 shadow-xl overflow-hidden">
+                    <div className="relative bg-gradient-to-br from-amber-50 via-orange-50/80 to-yellow-50 dark:from-amber-950/60 dark:via-orange-950/40 dark:to-yellow-950/60 rounded-xl border-2 border-amber-400/50 dark:border-amber-600/50 shadow-xl overflow-hidden transition-all duration-300 hover:scale-[1.01] hover:-translate-y-1 hover:shadow-2xl">
                       {/* Header */}
                       <div className="flex items-center justify-between px-4 py-3 border-b border-amber-300/50 dark:border-amber-700/50 bg-gradient-to-r from-amber-100/50 to-orange-100/50 dark:from-amber-900/30 dark:to-orange-900/30">
                         <div className="flex items-center gap-3">
