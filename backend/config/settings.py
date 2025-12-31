@@ -153,6 +153,11 @@ class Settings(BaseSettings):
     LLM_MAX_CONTEXT_CHARS: int = 12000  # RAG 전체 컨텍스트 최대 문자수 (약 4000~6000 토큰)
     LLM_MAX_DOC_CHARS: int = 2000  # 개별 문서당 최대 문자수
 
+    # [P1-2] LLM 컨텍스트 필터링 설정
+    LLM_MIN_CONTEXT_SCORE: float = 0.2  # 할루시네이션 방지: 이 점수 미만 문서는 컨텍스트에서 제외
+    LLM_MAX_CHAT_HISTORY_MESSAGES: int = 6  # 채팅 히스토리 최대 메시지 수
+    LLM_MAX_CHARS_PER_MESSAGE: int = 500  # 채팅 히스토리 메시지당 최대 문자 수
+
     # RAG 설정
     RAG_DEFAULT_TOP_K: int = 5
     # BGE-M3 Cosine 유사도 기준, 0.4 이상만 검색 (저품질 문서 필터링)

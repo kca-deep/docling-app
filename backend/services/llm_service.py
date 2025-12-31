@@ -9,6 +9,7 @@ from typing import List, Dict, Any, Optional, AsyncGenerator
 from backend.services.prompt_loader import PromptLoader
 from backend.config.settings import settings
 from backend.services.http_client import http_manager
+from backend.utils.collection_utils import is_temp_collection, is_doc_from_temp_collection
 
 # 로거 설정
 logger = logging.getLogger("uvicorn")
@@ -16,6 +17,16 @@ logger = logging.getLogger("uvicorn")
 
 class LLMService:
     """LLM API와의 통신을 담당하는 서비스"""
+
+    # [P1-3] 클래스 레벨에서 한 번만 컴파일 (인스턴스 생성마다 재컴파일 방지)
+    _EXAONE_CLEANUP_PATTERNS = [
+        re.compile(r'</?thought[^>]*>', re.IGNORECASE),
+        re.compile(r'</?think[^>]*>', re.IGNORECASE),
+        re.compile(r'</?ref[^>]*>', re.IGNORECASE),
+        re.compile(r'</?span[^>]*>', re.IGNORECASE),
+        re.compile(r'\[?\|?endofturn\|?\]?', re.IGNORECASE),
+        re.compile(r'<신설\s*\d*\?*>', re.IGNORECASE),
+    ]
 
     def __init__(
         self,
@@ -37,16 +48,6 @@ class LLMService:
         self.client = http_manager.get_client("llm")
         # 프롬프트 로더 (기본값으로 fallback)
         self.prompt_loader = prompt_loader or PromptLoader()
-
-        # EXAONE Deep 모델의 태그 정리용 패턴 (컴파일하여 재사용)
-        self._exaone_cleanup_patterns = [
-            re.compile(r'</?thought[^>]*>', re.IGNORECASE),
-            re.compile(r'</?think[^>]*>', re.IGNORECASE),
-            re.compile(r'</?ref[^>]*>', re.IGNORECASE),
-            re.compile(r'</?span[^>]*>', re.IGNORECASE),
-            re.compile(r'\[?\|?endofturn\|?\]?', re.IGNORECASE),
-            re.compile(r'<신설\s*\d*\?*>', re.IGNORECASE),
-        ]
 
     def _clean_model_response(self, content: str, model_key: str) -> str:
         """
@@ -80,7 +81,7 @@ class LLMService:
                 content = parts[1]
 
         # 2. 남은 태그들 정리
-        for pattern in self._exaone_cleanup_patterns:
+        for pattern in self._EXAONE_CLEANUP_PATTERNS:
             content = pattern.sub('', content)
 
         return content.strip()
@@ -142,7 +143,7 @@ class LLMService:
         Returns:
             str: 태그가 제거된 텍스트
         """
-        for pattern in self._exaone_cleanup_patterns:
+        for pattern in self._EXAONE_CLEANUP_PATTERNS:
             content = pattern.sub('', content)
         return content
 
@@ -346,22 +347,28 @@ class LLMService:
     def _truncate_chat_history(
         self,
         chat_history: List[Dict[str, str]],
-        max_messages: int = 6,
-        max_chars_per_message: int = 500
+        max_messages: Optional[int] = None,
+        max_chars_per_message: Optional[int] = None
     ) -> List[Dict[str, str]]:
         """
         chat_history를 최대 메시지 수와 문자 수로 제한
 
         Args:
             chat_history: 이전 대화 기록
-            max_messages: 최대 메시지 수 (기본값: 6)
-            max_chars_per_message: 메시지당 최대 문자 수 (기본값: 500)
+            max_messages: 최대 메시지 수 (기본값: settings.LLM_MAX_CHAT_HISTORY_MESSAGES)
+            max_chars_per_message: 메시지당 최대 문자 수 (기본값: settings.LLM_MAX_CHARS_PER_MESSAGE)
 
         Returns:
             List[Dict[str, str]]: truncate된 대화 기록
         """
         if not chat_history:
             return []
+
+        # [P1-2] settings에서 기본값 사용
+        if max_messages is None:
+            max_messages = settings.LLM_MAX_CHAT_HISTORY_MESSAGES
+        if max_chars_per_message is None:
+            max_chars_per_message = settings.LLM_MAX_CHARS_PER_MESSAGE
 
         # 최근 메시지만 유지
         recent_history = chat_history[-max_messages:]
@@ -375,6 +382,190 @@ class LLMService:
             })
 
         return truncated
+
+    def _build_context_from_docs(
+        self,
+        retrieved_docs: List[Dict[str, Any]],
+        collection_name: Optional[str] = None
+    ) -> str:
+        """
+        [P1-1] 검색된 문서들로부터 LLM 컨텍스트 문자열 구성
+
+        Args:
+            retrieved_docs: 검색된 문서 리스트
+            collection_name: 컬렉션 이름 (임시 컬렉션 여부 판단용)
+
+        Returns:
+            str: 포맷된 컨텍스트 문자열
+        """
+        if not retrieved_docs:
+            return ""
+
+        MAX_CONTEXT_CHARS = settings.LLM_MAX_CONTEXT_CHARS
+        MAX_DOC_CHARS = settings.LLM_MAX_DOC_CHARS
+        MIN_CONTEXT_SCORE = settings.LLM_MIN_CONTEXT_SCORE
+
+        # 임시 컬렉션 여부 확인
+        is_temp_collection_mode = is_temp_collection(collection_name, retrieved_docs)
+
+        context_parts = []
+        total_chars = 0
+
+        # 디버깅: 첫 문서 구조 확인
+        first_doc = retrieved_docs[0]
+        logger.debug(f"[LLM] First doc keys: {list(first_doc.keys())}")
+        if "payload" in first_doc:
+            logger.debug(f"[LLM] Payload keys: {list(first_doc['payload'].keys()) if isinstance(first_doc['payload'], dict) else 'not a dict'}")
+
+        for idx, doc in enumerate(retrieved_docs, 1):
+            text = doc.get("payload", {}).get("text", "")
+            score = doc.get("score", 0)
+
+            # 개별 문서의 임시 컬렉션 여부 확인
+            doc_source = doc.get("source_collection", "")
+            is_doc_from_temp = is_doc_from_temp_collection(doc, is_temp_collection_mode)
+
+            # 저점수 문서 필터링 (할루시네이션 방지)
+            if not is_doc_from_temp and score < MIN_CONTEXT_SCORE:
+                logger.info(f"[LLM] Skipping low-score doc {idx} (source={doc_source}): score={score:.4f} < {MIN_CONTEXT_SCORE}")
+                continue
+
+            # 저점수지만 임시 컬렉션 문서인 경우 로그
+            if is_doc_from_temp and score < MIN_CONTEXT_SCORE:
+                logger.info(f"[LLM] Including temp doc {idx} despite low score: score={score:.4f}, source={doc_source}")
+
+            # 개별 문서 텍스트 truncate
+            text = self._truncate_text(text, MAX_DOC_CHARS)
+
+            payload = doc.get("payload", {})
+            headings = payload.get("headings") or []
+
+            if len(headings) >= 2:
+                filename = headings[0]
+                page_info = headings[1]
+                reference = f"[{filename}, {page_info}]"
+            elif len(headings) == 1:
+                reference = f"[{headings[0]}]"
+            else:
+                reference = f"[문서 {idx}]"
+
+            # 신뢰도 레벨 결정
+            if score >= 0.5:
+                confidence = "높음"
+            elif score >= 0.3:
+                confidence = "중간"
+            else:
+                confidence = "낮음"
+
+            doc_part = f"{reference} (관련성: {confidence}, 점수: {score:.3f})\n{text}"
+
+            # 총 컨텍스트 한도 체크
+            if total_chars + len(doc_part) > MAX_CONTEXT_CHARS:
+                logger.warning(f"[LLM] Context limit reached at doc {idx}, truncating remaining docs")
+                break
+
+            context_parts.append(doc_part)
+            total_chars += len(doc_part) + 2  # +2 for "\n\n"
+
+        context = "\n\n".join(context_parts)
+        logger.info(f"[LLM] Context built: {len(context_parts)} parts, {len(context)} chars")
+        return context
+
+    def _build_exaone_messages(
+        self,
+        query: str,
+        system_content: str,
+        context: str,
+        is_casual_mode: bool,
+        truncated_history: Optional[List[Dict[str, str]]] = None
+    ) -> List[Dict[str, str]]:
+        """
+        [P1-1] EXAONE Deep 모델용 메시지 구성
+
+        EXAONE Deep은 시스템 프롬프트를 사용하지 않음 (공식 권장)
+        지시사항을 사용자 메시지에 포함
+
+        Args:
+            query: 사용자 질문
+            system_content: 시스템 프롬프트 내용
+            context: 문서 컨텍스트
+            is_casual_mode: 일상대화 모드 여부
+            truncated_history: truncate된 대화 기록
+
+        Returns:
+            List[Dict[str, str]]: 메시지 리스트
+        """
+        messages = []
+
+        # 대화 기록 추가 (truncated)
+        if truncated_history:
+            messages.extend(truncated_history)
+
+        if is_casual_mode:
+            user_content = f"""[지시사항]
+{system_content}
+
+[질문]
+{query}
+
+위 지시사항에 따라 질문에 답변해주세요. 반드시 한국어로 답변하세요."""
+        else:
+            user_content = f"""[지시사항]
+{system_content}
+
+[참고 문서]
+{context}
+
+[질문]
+{query}
+
+위 문서를 기반으로 질문에 답변해주세요. 반드시 한국어로 답변하세요. 문서에 없는 내용은 추측하지 마세요."""
+
+        messages.append({"role": "user", "content": user_content})
+        return messages
+
+    def _build_default_messages(
+        self,
+        query: str,
+        system_content: str,
+        context: str,
+        is_casual_mode: bool,
+        truncated_history: Optional[List[Dict[str, str]]] = None
+    ) -> List[Dict[str, str]]:
+        """
+        [P1-1] 기본 모델용 메시지 구성 (GPT-OSS 등)
+
+        시스템 프롬프트를 별도 메시지로 사용
+
+        Args:
+            query: 사용자 질문
+            system_content: 시스템 프롬프트 내용
+            context: 문서 컨텍스트
+            is_casual_mode: 일상대화 모드 여부
+            truncated_history: truncate된 대화 기록
+
+        Returns:
+            List[Dict[str, str]]: 메시지 리스트
+        """
+        messages = [
+            {"role": "system", "content": system_content}
+        ]
+
+        # 대화 기록 추가 (truncated)
+        if truncated_history:
+            messages.extend(truncated_history)
+
+        if is_casual_mode:
+            messages.append({"role": "user", "content": query})
+        else:
+            user_message = f"""[참고 문서]
+{context}
+
+[질문]
+{query}"""
+            messages.append({"role": "user", "content": user_message})
+
+        return messages
 
     def build_rag_messages(
         self,
@@ -432,153 +623,14 @@ class LLMService:
             available_documents=available_documents
         )
 
-        # 문서 컨텍스트 구성 (컨텍스트 한도 설정)
-        MAX_CONTEXT_CHARS = settings.LLM_MAX_CONTEXT_CHARS
-        MAX_DOC_CHARS = settings.LLM_MAX_DOC_CHARS
-        MIN_CONTEXT_SCORE = 0.2  # 할루시네이션 방지: 이 점수 미만 문서는 컨텍스트에서 제외
+        # [P1-1] 문서 컨텍스트 구성 (헬퍼 메서드 사용)
+        context = self._build_context_from_docs(retrieved_docs, collection_name) if not is_casual_mode else ""
 
-        # 임시 컬렉션 여부 확인
-        # 1. collection_name이 temp_ 로 시작하면 임시 컬렉션
-        # 2. collection_name이 None이고 retrieved_docs가 있으면 임시 컬렉션 (일상대화 + 문서 업로드)
-        # 3. retrieved_docs의 source_collection이 temp_로 시작하면 임시 컬렉션
-        is_temp_collection = False
-        if collection_name and collection_name.startswith("temp_"):
-            is_temp_collection = True
-        elif not collection_name and retrieved_docs:
-            # 일상대화 모드에서 문서가 있으면 사용자가 직접 업로드한 임시 문서로 간주
-            is_temp_collection = True
-            logger.info(f"[LLM] Detected temp collection: collection_name=None but has {len(retrieved_docs)} docs")
-        elif retrieved_docs:
-            # source_collection 메타데이터에서 임시 컬렉션 여부 확인
-            source_col = retrieved_docs[0].get("source_collection", "")
-            if source_col and source_col.startswith("temp_"):
-                is_temp_collection = True
-                logger.info(f"[LLM] Detected temp collection from source_collection: {source_col}")
-
-        context = ""
-        if not is_casual_mode:
-            context_parts = []
-            total_chars = 0
-
-            # 디버깅: 첫 문서 구조 확인
-            if retrieved_docs:
-                first_doc = retrieved_docs[0]
-                logger.info(f"[LLM] First doc keys: {list(first_doc.keys())}")
-                if "payload" in first_doc:
-                    logger.info(f"[LLM] Payload keys: {list(first_doc['payload'].keys()) if isinstance(first_doc['payload'], dict) else 'not a dict'}")
-
-            for idx, doc in enumerate(retrieved_docs, 1):
-                text = doc.get("payload", {}).get("text", "")
-                score = doc.get("score", 0)
-
-                # 개별 문서의 출처 컬렉션 확인 (병합 검색 시 각 문서별로 다를 수 있음)
-                doc_source = doc.get("source_collection", "")
-                is_doc_from_temp = (
-                    is_temp_collection or  # 전체가 임시 컬렉션 모드이거나
-                    doc_source.startswith("temp_")
-                )
-
-                # 저점수 문서 필터링 (할루시네이션 방지)
-                # 임시 컬렉션 문서는 사용자가 직접 업로드한 문서이므로 필터링 제외
-                # 메인 컬렉션 문서만 MIN_CONTEXT_SCORE 기준 적용
-                if not is_doc_from_temp and score < MIN_CONTEXT_SCORE:
-                    logger.info(f"[LLM] Skipping low-score doc {idx} (source={doc_source}): score={score:.4f} < {MIN_CONTEXT_SCORE}")
-                    continue
-
-                # 저점수지만 임시 컬렉션 문서인 경우 로그
-                if is_doc_from_temp and score < MIN_CONTEXT_SCORE:
-                    logger.info(f"[LLM] Including temp doc {idx} despite low score: score={score:.4f}, source={doc_source}")
-
-                # 개별 문서 텍스트 truncate
-                text = self._truncate_text(text, MAX_DOC_CHARS)
-
-                payload = doc.get("payload", {})
-                headings = payload.get("headings") or []
-
-                if len(headings) >= 2:
-                    filename = headings[0]
-                    page_info = headings[1]
-                    reference = f"[{filename}, {page_info}]"
-                elif len(headings) == 1:
-                    reference = f"[{headings[0]}]"
-                else:
-                    reference = f"[문서 {idx}]"
-
-                # P1-3: 신뢰도 레벨 결정 (할루시네이션 방지용)
-                if score >= 0.5:
-                    confidence = "높음"
-                elif score >= 0.3:
-                    confidence = "중간"
-                else:
-                    confidence = "낮음"
-
-                doc_part = f"{reference} (관련성: {confidence}, 점수: {score:.3f})\n{text}"
-
-                # 총 컨텍스트 한도 체크
-                if total_chars + len(doc_part) > MAX_CONTEXT_CHARS:
-                    logger.warning(f"[LLM] Context limit reached at doc {idx}, truncating remaining docs")
-                    break
-
-                context_parts.append(doc_part)
-                total_chars += len(doc_part) + 2  # +2 for "\n\n"
-
-            context = "\n\n".join(context_parts)
-            logger.info(f"[LLM] Context built: {len(context_parts)} parts, {len(context)} chars")
-
+        # [P1-1] 모델별 메시지 구성 (헬퍼 메서드 사용)
         if is_exaone:
-            # EXAONE Deep: 시스템 프롬프트 사용 금지 (공식 권장)
-            # 지시사항을 사용자 메시지에 포함
-            messages = []
-
-            # 대화 기록 추가 (truncated)
-            if truncated_history:
-                messages.extend(truncated_history)
-
-            if is_casual_mode:
-                # 일상대화 모드
-                user_content = f"""[지시사항]
-{system_content}
-
-[질문]
-{query}
-
-위 지시사항에 따라 질문에 답변해주세요. 반드시 한국어로 답변하세요."""
-            else:
-                # RAG 모드
-                user_content = f"""[지시사항]
-{system_content}
-
-[참고 문서]
-{context}
-
-[질문]
-{query}
-
-위 문서를 기반으로 질문에 답변해주세요. 반드시 한국어로 답변하세요. 문서에 없는 내용은 추측하지 마세요."""
-
-            messages.append({"role": "user", "content": user_content})
+            return self._build_exaone_messages(query, system_content, context, is_casual_mode, truncated_history)
         else:
-            # 기존 모델 (GPT-OSS 등): 시스템 프롬프트 사용
-            messages = [
-                {"role": "system", "content": system_content}
-            ]
-
-            # 대화 기록 추가 (truncated)
-            if truncated_history:
-                messages.extend(truncated_history)
-
-            if is_casual_mode:
-                messages.append({"role": "user", "content": query})
-            else:
-                # casual.md 프롬프트가 "[참고 문서]" 섹션을 인식할 수 있도록 명시적 표시
-                user_message = f"""[참고 문서]
-{context}
-
-[질문]
-{query}"""
-                messages.append({"role": "user", "content": user_message})
-
-        return messages
+            return self._build_default_messages(query, system_content, context, is_casual_mode, truncated_history)
 
     async def close(self):
         """
