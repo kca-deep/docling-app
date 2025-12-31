@@ -15,6 +15,7 @@ ERROR_MESSAGES = {
     "stream": "스트리밍 처리 중 오류가 발생했습니다.",
     "regenerate": "응답 재생성 중 오류가 발생했습니다.",
     "collection": "컬렉션 조회 중 오류가 발생했습니다.",
+    "collection_expired": "업로드한 문서가 만료되었습니다. 문서를 다시 업로드해 주세요.",
     "prompts": "추천 질문 조회 중 오류가 발생했습니다.",
     "settings": "설정 조회 중 오류가 발생했습니다.",
     "timeout": "응답 시간이 초과되었습니다.",
@@ -89,5 +90,13 @@ def get_sse_error_response(
     # 로그에는 항상 상세 에러 기록
     logger.error(f"[{context.upper()}] SSE Error: {error}")
 
+    error_str = str(error)
+    error_type = "error"
+
+    # COLLECTION_EXPIRED 에러 감지
+    if "COLLECTION_EXPIRED" in error_str:
+        context = "collection_expired"
+        error_type = "collection_expired"
+
     message = get_safe_error_message(error, context)
-    return f'data: {json.dumps({"error": message}, ensure_ascii=False)}\n\n'
+    return f'data: {json.dumps({"error": message, "error_type": error_type}, ensure_ascii=False)}\n\n'

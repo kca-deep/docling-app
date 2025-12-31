@@ -33,6 +33,7 @@ export interface Message {
   model?: string;
   sources?: Source[];
   reasoningContent?: string;
+  isError?: boolean;  // 에러 메시지 여부 (컬렉션 만료 등)
   metadata?: {
     tokens?: number;
     processingTime?: number;

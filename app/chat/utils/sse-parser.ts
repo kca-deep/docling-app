@@ -4,7 +4,7 @@
 /**
  * SSE 이벤트 타입
  */
-export type SSEEventType = "stage" | "sources" | "sources_update" | "reasoning" | "content" | "done" | "unknown";
+export type SSEEventType = "stage" | "sources" | "sources_update" | "reasoning" | "content" | "done" | "error" | "unknown";
 
 /**
  * SSE 이벤트 인터페이스
@@ -16,6 +16,8 @@ export interface SSEEvent {
   sourcesUpdate?: any[];    // type === "sources_update" 일 때 인용 정보가 추가된 문서 목록
   reasoning?: string;       // type === "reasoning" 일 때 추론 텍스트 청크
   content?: string;         // type === "content" 일 때 답변 텍스트 청크
+  error?: string;           // type === "error" 일 때 에러 메시지
+  errorType?: string;       // type === "error" 일 때 에러 타입 (collection_expired 등)
   raw?: any;                // 원본 파싱 데이터
 }
 
@@ -23,6 +25,16 @@ export interface SSEEvent {
  * 파싱된 JSON 데이터를 SSEEvent로 변환
  */
 function parseSSEData(parsed: any): SSEEvent {
+  // 0. error 이벤트 (에러 응답)
+  if (parsed.error) {
+    return {
+      type: "error",
+      error: parsed.error,
+      errorType: parsed.error_type || "error",
+      raw: parsed
+    };
+  }
+
   // 1. stage 이벤트 (RAG 파이프라인 단계)
   if (parsed.type === "stage" && parsed.stage) {
     return { type: "stage", stage: parsed.stage, raw: parsed };

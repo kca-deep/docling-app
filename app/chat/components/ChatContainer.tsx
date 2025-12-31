@@ -523,6 +523,37 @@ export function ChatContainer() {
               flushBatch();
             }
             break;
+
+          case "error":
+            // 에러 이벤트 처리
+            const errorMessage = event.error || "알 수 없는 오류가 발생했습니다.";
+            const isCollectionExpired = event.errorType === "collection_expired";
+
+            // AI 메시지에 에러 표시
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === aiMessageId
+                  ? {
+                      ...msg,
+                      content: isCollectionExpired
+                        ? "업로드한 문서가 만료되었습니다. 문서를 다시 업로드해 주세요."
+                        : errorMessage,
+                      isError: true,
+                    }
+                  : msg
+              )
+            );
+
+            // 토스트 알림
+            if (isCollectionExpired) {
+              toast.error("문서가 만료되었습니다", {
+                description: "문서를 다시 업로드해 주세요.",
+                duration: 5000,
+              });
+            } else {
+              toast.error(errorMessage);
+            }
+            break;
         }
       }
 

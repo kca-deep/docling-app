@@ -131,10 +131,9 @@ class PromptLoader:
 **[현재 컬렉션에 등록된 문서 목록]**
 {doc_list}{more_text}
 
-**중요 지시사항:**
-- 사용자가 "어떤 지식", "어떤 문서", "지식파일", "뭘 알고 있어", "무슨 정보" 등을 물으면 **반드시** 위 문서 목록을 안내하세요.
-- 위 문서들에 관련된 질문에만 답변할 수 있습니다.
-- 문서에서 정보를 찾을 수 없을 때는 "위 문서 관련 질문을 해주시면 답변 드리겠습니다"라고 안내하세요.
+**지시사항:**
+- 사용자가 "어떤 문서", "뭘 알고 있어" 등을 물으면 위 문서 목록을 안내하세요.
+- 문서 내용을 기반으로 분석, 개선안 제시, 비교 등 적극적으로 수행하세요.
 """
             prompt_content += documents_section
             logger.info(f"[PromptLoader] Appended {len(unique_docs)} documents to prompt")
@@ -184,10 +183,10 @@ class PromptLoader:
         Returns:
             str: 프롬프트 파일명 (예: "regulation.md", "default.md", "casual.md")
         """
-        # collection_name이 None이면 casual.md (일상대화 모드)
+        # collection_name이 None이면 default.md (일상대화/fallback 통합)
         if not collection_name:
-            logger.info("No collection specified, using casual.md for casual conversation")
-            return "casual.md"
+            logger.info("No collection specified, using default.md")
+            return "default.md"
 
         # mapping.json 로드
         mapping = self._load_mapping()

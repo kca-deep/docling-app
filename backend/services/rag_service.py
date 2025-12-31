@@ -90,6 +90,51 @@ class RAGService:
             logger.warning(f"Failed to get document list for no-results message: {e}")
             return "문서에서 관련 정보를 찾을 수 없습니다. 다른 키워드로 질문해 주세요."
 
+    def _build_empty_response_fallback(
+        self,
+        query: str,
+        retrieved_docs: List[Dict[str, Any]]
+    ) -> str:
+        """
+        LLM이 빈 응답을 생성했을 때 친절한 fallback 메시지 생성
+
+        Args:
+            query: 사용자 질문
+            retrieved_docs: 검색된 문서 리스트
+
+        Returns:
+            str: 친절한 안내 메시지
+        """
+        # 검색된 문서가 있지만 관련 내용이 없는 경우
+        if retrieved_docs:
+            # 검색된 문서의 주제 추출 (headings에서)
+            doc_topics = []
+            for doc in retrieved_docs[:3]:
+                payload = doc.get("payload", {})
+                headings = payload.get("headings", [])
+                if headings and len(headings) > 0:
+                    doc_topics.append(headings[0])
+
+            if doc_topics:
+                topics_text = ", ".join(list(dict.fromkeys(doc_topics))[:3])
+                return (
+                    f"죄송합니다. '{query}'에 대한 직접적인 답변을 찾기 어렵습니다.\n\n"
+                    f"관련 문서({topics_text})를 검색했으나 해당 질문에 맞는 구체적인 내용이 없습니다.\n\n"
+                    f"**도움 받으실 수 있는 방법:**\n"
+                    f"• 질문을 더 구체적으로 해주세요 (예: 어떤 상황인지, 어떤 종목인지 등)\n"
+                    f"• 다른 키워드로 질문해 주세요\n"
+                    f"• 담당 부서에 직접 문의해 주세요"
+                )
+
+        # 일반적인 fallback
+        return (
+            f"죄송합니다. '{query}'에 대한 정보를 찾기 어렵습니다.\n\n"
+            f"**도움 받으실 수 있는 방법:**\n"
+            f"• 질문을 더 구체적으로 해주세요\n"
+            f"• 다른 키워드로 질문해 주세요\n"
+            f"• 담당 부서에 직접 문의해 주세요"
+        )
+
     async def _apply_reranking(
         self,
         query: str,
@@ -271,7 +316,11 @@ class RAGService:
 
         except Exception as e:
             logger.error(f"[RAG] Retrieve failed: {e}")
-            raise Exception(f"문서 검색 실패: {str(e)}")
+            error_str = str(e)
+            # 임시 컬렉션 만료 (404 에러) 감지
+            if "404" in error_str and "doesn't exist" in error_str:
+                raise Exception("COLLECTION_EXPIRED:업로드한 문서가 만료되었습니다. 문서를 다시 업로드해 주세요.")
+            raise Exception(f"문서 검색 실패: {error_str}")
 
     async def retrieve_from_multiple(
         self,
@@ -615,6 +664,11 @@ class RAGService:
             reasoning_content = message.get("reasoning_content", "")
             usage = llm_response.get("usage", {})
 
+            # 3.5. 빈 응답 감지 및 친절한 fallback 처리
+            if not answer.strip():
+                logger.warning(f"[RAG] Empty response detected for query: {query[:50]}...")
+                answer = self._build_empty_response_fallback(query, retrieved_docs)
+
             result = {
                 "answer": answer,
                 "retrieved_docs": retrieved_docs,
@@ -630,7 +684,14 @@ class RAGService:
 
         except Exception as e:
             logger.error(f"RAG chat failed: {e}")
-            raise Exception(f"RAG 채팅 실패: {str(e)}") from e
+            # 스트리밍 모드와 동일하게 예외 발생 시에도 친절한 fallback 메시지 반환
+            fallback_message = self._build_empty_response_fallback(query, [])
+            return {
+                "answer": fallback_message,
+                "retrieved_docs": [],
+                "usage": None,
+                "error": str(e)
+            }
 
     async def chat_stream(
         self,
@@ -799,6 +860,7 @@ class RAGService:
 
             # 3. Generate: 스트리밍 답변 생성 (응답 내용 수집)
             response_parts = []  # 리스트로 수집 (문자열 연결보다 효율적)
+            done_marker = None  # [DONE] 마커 보류용 (fallback 처리 후 전송)
             async for chunk in self.generate_stream(
                 query=query,
                 retrieved_docs=retrieved_docs,
@@ -813,6 +875,12 @@ class RAGService:
                 collection_name=collection_name,
                 available_documents=available_documents if available_documents else None
             ):
+                # [DONE] 마커 감지 및 보류 (fallback 처리 후 전송)
+                chunk_stripped = chunk.strip()
+                if chunk_stripped == "data: [DONE]" or chunk_stripped.endswith("[DONE]"):
+                    done_marker = chunk
+                    continue  # 아직 전송하지 않음
+
                 yield chunk
                 # 응답 내용 추출하여 수집 (리스트 append는 O(1))
                 if chunk.startswith("data: "):
@@ -828,6 +896,24 @@ class RAGService:
 
             # 리스트를 문자열로 합침 (O(n))
             full_response = "".join(response_parts)
+
+            # 3.5. 빈 응답 감지 및 친절한 fallback 처리
+            if not full_response.strip():
+                logger.warning(f"[RAG] Empty response detected for query: {query[:50]}...")
+                fallback_message = self._build_empty_response_fallback(query, retrieved_docs)
+                fallback_chunk = {
+                    "choices": [{
+                        "index": 0,
+                        "delta": {"content": fallback_message},
+                        "finish_reason": "stop"
+                    }]
+                }
+                yield f'data: {json.dumps(fallback_chunk, ensure_ascii=False)}\n\n'
+                full_response = fallback_message  # 로깅용
+
+            # [DONE] 마커 전송 (fallback 처리 후)
+            if done_marker:
+                yield done_marker
 
             # 4. 스트리밍 완료 후 인용 추출 및 sources_update 전송 (설정에 따라)
             if settings.RAG_CITATION_EXTRACTION and full_response and docs_with_keywords:
