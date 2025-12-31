@@ -85,6 +85,11 @@ export const MessageList = memo(function MessageList({
   useEffect(() => {
     if (prevLoadingRef.current && !isLoading) {
       scrollToBottom(true);
+      // sources 애니메이션 완료 후 재스크롤 (300ms 애니메이션 + 100ms 여유)
+      const timer = setTimeout(() => {
+        scrollToBottom(true);
+      }, 400);
+      return () => clearTimeout(timer);
     }
     prevLoadingRef.current = isLoading;
   }, [isLoading, scrollToBottom]);

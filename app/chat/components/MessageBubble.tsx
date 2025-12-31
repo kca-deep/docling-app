@@ -8,6 +8,7 @@ import { Wand2, User, FileText, Copy, Check, RefreshCw, Reply, StopCircle, Chevr
 import { MarkdownMessage } from "@/components/markdown-message";
 import { cn } from "@/lib/utils";
 import { useState, memo, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Collapsible,
   CollapsibleContent,
@@ -228,11 +229,18 @@ export const MessageBubble = memo(function MessageBubble({
             )}
           </div>
 
-          {/* 참조 문서 표시 (스트리밍 중에는 숨김) */}
-          {!isStreaming && sources && sources.length > 0 && (
-            <>
-              {/* 모바일: 간단한 버튼으로 모달 열기 */}
-              <div className="mt-4 pt-3 border-t border-border/30 sm:hidden">
+          {/* 참조 문서 표시 (스트리밍 완료 시 애니메이션) */}
+          <AnimatePresence>
+            {!isStreaming && sources && sources.length > 0 && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+                className="overflow-hidden"
+              >
+                {/* 모바일: 간단한 버튼으로 모달 열기 */}
+                <div className="mt-4 pt-3 border-t border-border/30 sm:hidden">
                 <button
                   onClick={() => setMobileModalOpen(true)}
                   className="w-full flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
@@ -354,8 +362,9 @@ export const MessageBubble = memo(function MessageBubble({
                   </TooltipProvider>
                 </div>
               </div>
-            </>
-          )}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* 메타데이터 표시 */}
           {metadata && (
