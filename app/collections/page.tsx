@@ -55,9 +55,7 @@ import { toast } from "sonner"
 import { API_BASE_URL } from "@/lib/api-config"
 import { cn } from "@/lib/utils"
 import { motion } from "framer-motion"
-import { CreateCollectionModal } from "./components/CreateCollectionModal"
-import { CollectionSettingsModal } from "./components/CollectionSettingsModal"
-import { DeleteConfirmModal } from "./components/DeleteConfirmModal"
+import { CollectionModal } from "./components/CollectionModal"
 import { PromptGeneratorModal } from "./components/PromptGeneratorModal"
 
 // 컬렉션 타입 정의
@@ -142,8 +140,7 @@ export default function CollectionsPage() {
 
   // 모달 상태
   const [createModalOpen, setCreateModalOpen] = useState(false)
-  const [settingsModalOpen, setSettingsModalOpen] = useState(false)
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [editModalOpen, setEditModalOpen] = useState(false)
   const [promptGeneratorOpen, setPromptGeneratorOpen] = useState(false)
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null)
 
@@ -277,15 +274,9 @@ export default function CollectionsPage() {
     })
 
   // 설정 모달 열기
-  const openSettingsModal = (collection: Collection) => {
+  const openEditModal = (collection: Collection) => {
     setSelectedCollection(collection)
-    setSettingsModalOpen(true)
-  }
-
-  // 삭제 모달 열기
-  const openDeleteModal = (collection: Collection) => {
-    setSelectedCollection(collection)
-    setDeleteModalOpen(true)
+    setEditModalOpen(true)
   }
 
   // 프롬프트 생성 모달 열기
@@ -294,7 +285,7 @@ export default function CollectionsPage() {
     setPromptGeneratorOpen(true)
   }
 
-  // 컬렉션 삭제
+  // 컬렉션 삭제 핸들러 (CollectionModal에서 호출)
   const handleDeleteCollection = async () => {
     if (!selectedCollection) return
 
@@ -309,7 +300,7 @@ export default function CollectionsPage() {
 
       if (response.ok) {
         toast.success(`'${selectedCollection.name}' 컬렉션이 삭제되었습니다`)
-        setDeleteModalOpen(false)
+        setEditModalOpen(false)
         setSelectedCollection(null)
         fetchCollections()
       } else {
@@ -708,7 +699,7 @@ export default function CollectionsPage() {
                         className="flex-1 h-7 text-[10px] gap-1"
                         onClick={(e) => {
                           e.stopPropagation()
-                          openSettingsModal(collection)
+                          openEditModal(collection)
                         }}
                       >
                         <Settings className="h-3 w-3" />
@@ -735,25 +726,20 @@ export default function CollectionsPage() {
       </div>
 
       {/* 모달들 */}
-      <CreateCollectionModal
+      <CollectionModal
+        mode="create"
         open={createModalOpen}
         onOpenChange={setCreateModalOpen}
         onSuccess={fetchCollections}
       />
 
-      <CollectionSettingsModal
-        open={settingsModalOpen}
-        onOpenChange={setSettingsModalOpen}
+      <CollectionModal
+        mode="edit"
         collection={selectedCollection}
+        open={editModalOpen}
+        onOpenChange={setEditModalOpen}
         onSuccess={fetchCollections}
-        onDelete={() => selectedCollection && openDeleteModal(selectedCollection)}
-      />
-
-      <DeleteConfirmModal
-        open={deleteModalOpen}
-        onOpenChange={setDeleteModalOpen}
-        collectionName={selectedCollection?.name || ""}
-        onConfirm={handleDeleteCollection}
+        onDelete={handleDeleteCollection}
       />
 
       <PromptGeneratorModal

@@ -1,17 +1,18 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -19,34 +20,49 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import {
   Loader2,
   FileText,
   Sparkles,
-  ChevronLeft,
-  ChevronRight,
   Check,
-  CheckCircle2,
   FileCode,
   MessageSquare,
   Save,
   AlertCircle,
-  Cpu,
-  Zap,
   RefreshCw,
-  ArrowLeft,
+  ChevronsUpDown,
+  Copy,
+  RotateCcw,
+  HelpCircle,
+  X,
+  Plus,
+  Wifi,
+  WifiOff,
 } from "lucide-react"
 import { toast } from "sonner"
 import { API_BASE_URL } from "@/lib/api-config"
 import { cn } from "@/lib/utils"
 import { AnimatedKcaLogo } from "@/components/ui/animated-kca-logo"
-import { PromptEditor } from "./PromptEditor"
-import { SuggestedQuestionsEditor } from "./SuggestedQuestionsEditor"
 
 interface Document {
   id: number
@@ -59,7 +75,6 @@ interface Document {
 interface PromptTemplate {
   id: string
   name: string
-  description: string
   icon: React.ReactNode
 }
 
@@ -76,29 +91,68 @@ interface ModelOption {
   error?: string
 }
 
-// 모델별 아이콘 매핑
-const getModelIcon = (modelKey: string) => {
-  if (modelKey.includes("gpt-oss")) {
-    return <Sparkles className="h-4 w-4" style={{ color: "var(--chart-1)" }} />
-  }
-  if (modelKey.includes("exaone") && modelKey.includes("32b")) {
-    return <Cpu className="h-4 w-4" style={{ color: "var(--chart-2)" }} />
-  }
-  if (modelKey.includes("exaone")) {
-    return <Zap className="h-4 w-4" style={{ color: "var(--chart-3)" }} />
-  }
-  return <Sparkles className="h-4 w-4" style={{ color: "var(--chart-4)" }} />
+const TEMPLATES: PromptTemplate[] = [
+  { id: "regulation", name: "규정/지침", icon: <FileText className="h-3.5 w-3.5" /> },
+  { id: "budget", name: "예산/재무", icon: <FileCode className="h-3.5 w-3.5" /> },
+  { id: "casual", name: "일상대화", icon: <MessageSquare className="h-3.5 w-3.5" /> },
+  { id: "technical", name: "기술문서", icon: <FileCode className="h-3.5 w-3.5" /> },
+  { id: "default", name: "일반 문서", icon: <FileText className="h-3.5 w-3.5" /> },
+]
+
+const FALLBACK_MODELS: ModelOption[] = [
+  { key: "gpt-oss-20b", label: "GPT-OSS 20B", description: "빠른 응답", status: "healthy" },
+  { key: "exaone-4.0-32b", label: "EXAONE 32B", description: "고성능", status: "healthy" },
+]
+
+// 타이핑 dots 애니메이션 (셀프진단 스타일)
+function TypingDots() {
+  return (
+    <span className="inline-flex items-center gap-0.5 ml-1">
+      {[0, 1, 2].map((i) => (
+        <motion.span
+          key={i}
+          className="w-1 h-1 rounded-full bg-primary/60"
+          animate={{ opacity: [0.3, 1, 0.3] }}
+          transition={{
+            duration: 1,
+            repeat: Infinity,
+            delay: i * 0.2,
+          }}
+        />
+      ))}
+    </span>
+  )
 }
 
-// 상태 표시 점
-const StatusDot = ({ status }: { status: string }) => (
-  <span
-    className={cn(
-      "w-2 h-2 rounded-full shrink-0",
-      status === "healthy" ? "bg-green-500" : "bg-red-500"
-    )}
-  />
-)
+// 모델별 색상 매핑 (ChatHeader와 동일)
+const getModelColorClass = (modelKey: string) => {
+  if (modelKey.includes("gpt-oss")) {
+    return {
+      border: "border-violet-500/50",
+      text: "text-violet-700 dark:text-violet-300",
+      dot: "bg-violet-500",
+      primary: "#8B5CF6",
+      secondary: "#A78BFA",
+    }
+  }
+  if (modelKey.includes("exaone")) {
+    return {
+      border: "border-teal-500/50",
+      text: "text-teal-700 dark:text-teal-300",
+      dot: "bg-teal-500",
+      primary: "#14B8A6",
+      secondary: "#2DD4BF",
+    }
+  }
+  return {
+    border: "border-gray-500/50",
+    text: "text-gray-700 dark:text-gray-300",
+    dot: "bg-gray-500",
+    primary: "#6B7280",
+    secondary: "#9CA3AF",
+  }
+}
+
 
 interface PromptGeneratorModalProps {
   open: boolean
@@ -107,122 +161,65 @@ interface PromptGeneratorModalProps {
   onSuccess?: () => void
 }
 
-const TEMPLATES: PromptTemplate[] = [
-  {
-    id: "regulation",
-    name: "규정/지침",
-    description: "인사규정, 복무지침, 내규 등 규정 문서에 최적화된 프롬프트",
-    icon: <FileText className="h-4 w-4" />,
-  },
-  {
-    id: "budget",
-    name: "예산/재무",
-    description: "예산안, 결산서, 재무제표 등 재무 문서에 최적화된 프롬프트",
-    icon: <FileCode className="h-4 w-4" />,
-  },
-  {
-    id: "casual",
-    name: "일상대화",
-    description: "친근하고 자연스러운 대화형 응답에 최적화된 프롬프트",
-    icon: <MessageSquare className="h-4 w-4" />,
-  },
-  {
-    id: "technical",
-    name: "기술문서",
-    description: "API 문서, 시스템 설계서, 매뉴얼 등 기술 문서에 최적화된 프롬프트",
-    icon: <FileCode className="h-4 w-4" />,
-  },
-  {
-    id: "default",
-    name: "일반 문서",
-    description: "기본 RAG 프롬프트 (범용적으로 사용 가능)",
-    icon: <FileText className="h-4 w-4" />,
-  },
-]
-
-const STEPS = [
-  { id: 1, name: "문서 선택", description: "프롬프트 생성에 사용할 문서 선택" },
-  { id: 2, name: "생성 설정", description: "LLM 및 템플릿 선택" },
-  { id: 3, name: "파일명 입력", description: "저장할 프롬프트 파일명 입력" },
-  { id: 4, name: "생성 및 편집", description: "프롬프트 생성 결과 확인 및 편집" },
-]
-
-// 초기 fallback 모델 목록
-const FALLBACK_MODELS: ModelOption[] = [
-  { key: "gpt-oss-20b", label: "GPT-OSS 20B", description: "빠른 응답, 범용", status: "healthy" },
-  { key: "exaone-4.0-32b", label: "EXAONE 32B", description: "고성능, 장문 처리", status: "healthy" },
-]
-
 export function PromptGeneratorModal({
   open,
   onOpenChange,
   collectionName,
   onSuccess,
 }: PromptGeneratorModalProps) {
-  // Step state
-  const [currentStep, setCurrentStep] = useState(1)
-
-  // Step 1: Document selection
+  // 문서 상태
   const [documents, setDocuments] = useState<Document[]>([])
   const [selectedDocIds, setSelectedDocIds] = useState<number[]>([])
   const [loadingDocs, setLoadingDocs] = useState(false)
+  const [docPopoverOpen, setDocPopoverOpen] = useState(false)
 
-  // Step 2: LLM and Template selection
+  // 설정 상태
   const [selectedTemplate, setSelectedTemplate] = useState<string>("default")
   const [selectedModel, setSelectedModel] = useState<string>("gpt-oss-20b")
   const [modelOptions, setModelOptions] = useState<ModelOption[]>(FALLBACK_MODELS)
-  const [isLoadingModels, setIsLoadingModels] = useState(true)
-
-  // Step 3: Filename
   const [promptFilename, setPromptFilename] = useState("")
 
-  // Step 4: Generation and editing
+  // 생성 상태
   const [generating, setGenerating] = useState(false)
   const [generationProgress, setGenerationProgress] = useState(0)
-  const [generationPhase, setGenerationPhase] = useState("")
   const [generationMessage, setGenerationMessage] = useState("")
   const [generationError, setGenerationError] = useState<string | null>(null)
   const [generatedPrompt, setGeneratedPrompt] = useState<GeneratedPrompt | null>(null)
   const [editedPrompt, setEditedPrompt] = useState("")
   const [editedQuestions, setEditedQuestions] = useState<string[]>([])
 
-  // Saving state
+  // 저장 상태
   const [saving, setSaving] = useState(false)
+
+  // 결과 패널 상태
+  const [resultPanelOpen, setResultPanelOpen] = useState(false)
+  const [resultTab, setResultTab] = useState<"prompt" | "questions">("prompt")
 
   // LLM 모델 상태 가져오기
   const fetchLLMModels = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/health/llm-models`, {
-        credentials: "include"
-      })
+      const response = await fetch(`${API_BASE_URL}/api/health/llm-models`, { credentials: "include" })
       if (response.ok) {
         const data = await response.json()
         const models = data.models || []
         setModelOptions(models)
 
-        // 현재 선택된 모델이 unhealthy면 healthy한 모델로 전환
         const currentModel = models.find((m: ModelOption) => m.key === selectedModel)
         if (!currentModel || currentModel.status !== "healthy") {
           const healthyModel = models.find((m: ModelOption) => m.status === "healthy")
-          if (healthyModel) {
-            setSelectedModel(healthyModel.key)
-          }
+          if (healthyModel) setSelectedModel(healthyModel.key)
         }
       }
     } catch (error) {
       console.error("Failed to fetch LLM models:", error)
-    } finally {
-      setIsLoadingModels(false)
     }
   }, [selectedModel])
 
-  // Load documents and LLM models when modal opens
+  // 모달 열릴 때 초기화
   useEffect(() => {
     if (open && collectionName) {
       fetchDocuments()
       fetchLLMModels()
-      // Reset state
-      setCurrentStep(1)
       setSelectedDocIds([])
       setSelectedTemplate("default")
       setPromptFilename(`${collectionName}_prompt`)
@@ -230,13 +227,14 @@ export function PromptGeneratorModal({
       setEditedPrompt("")
       setEditedQuestions([])
       setGenerationProgress(0)
-      setGenerationPhase("")
       setGenerationMessage("")
       setGenerationError(null)
+      setResultPanelOpen(false)
+      setResultTab("prompt")
     }
-  }, [open, collectionName])
+  }, [open, collectionName, fetchLLMModels])
 
-  // Fetch documents in the collection
+  // 문서 목록 조회
   const fetchDocuments = async () => {
     setLoadingDocs(true)
     try {
@@ -246,7 +244,9 @@ export function PromptGeneratorModal({
       )
       if (response.ok) {
         const data = await response.json()
-        setDocuments(data.documents || [])
+        const docs = data.documents || []
+        setDocuments(docs)
+        setSelectedDocIds(docs.map((d: Document) => d.id))
       } else {
         toast.error("문서 목록을 불러오는데 실패했습니다")
       }
@@ -258,15 +258,15 @@ export function PromptGeneratorModal({
     }
   }
 
-  // Toggle document selection
+  // 문서 선택 토글
   const toggleDocument = (docId: number) => {
     setSelectedDocIds((prev) =>
       prev.includes(docId) ? prev.filter((id) => id !== docId) : [...prev, docId]
     )
   }
 
-  // Select all documents
-  const selectAllDocuments = () => {
+  // 전체 선택/해제
+  const toggleSelectAll = () => {
     if (selectedDocIds.length === documents.length) {
       setSelectedDocIds([])
     } else {
@@ -274,16 +274,14 @@ export function PromptGeneratorModal({
     }
   }
 
-  // Generate prompt using real API
+  // 프롬프트 생성
   const generatePrompt = async () => {
     setGenerating(true)
     setGenerationProgress(0)
-    setGenerationPhase("pending")
     setGenerationMessage("생성 준비 중...")
     setGenerationError(null)
 
     try {
-      // 1. Start generation task
       const startResponse = await fetch(`${API_BASE_URL}/api/prompts/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -304,7 +302,7 @@ export function PromptGeneratorModal({
 
       const { task_id } = await startResponse.json()
 
-      // 2. Poll for status (500ms interval for smoother updates)
+      // 상태 폴링
       let completed = false
       while (!completed) {
         await new Promise((resolve) => setTimeout(resolve, 500))
@@ -314,13 +312,10 @@ export function PromptGeneratorModal({
           { credentials: "include" }
         )
 
-        if (!statusResponse.ok) {
-          throw new Error("상태 조회 실패")
-        }
+        if (!statusResponse.ok) throw new Error("상태 조회 실패")
 
         const status = await statusResponse.json()
         setGenerationProgress(status.progress)
-        setGenerationPhase(status.phase || "")
         setGenerationMessage(status.message || "")
 
         if (status.status === "completed") {
@@ -333,7 +328,7 @@ export function PromptGeneratorModal({
           })
           setEditedPrompt(result.prompt_content)
           setEditedQuestions([...result.suggested_questions])
-
+          setResultPanelOpen(true)
           toast.success("프롬프트가 생성되었습니다")
         } else if (status.status === "failed") {
           const errorMsg = status.error || "프롬프트 생성 실패"
@@ -351,168 +346,7 @@ export function PromptGeneratorModal({
     }
   }
 
-  // Retry generation
-  const retryGeneration = () => {
-    setGenerationError(null)
-    setGeneratedPrompt(null)
-    generatePrompt()
-  }
-
-  // Generate mock prompt based on template
-  const generateMockPrompt = (): GeneratedPrompt => {
-    const templateContents: Record<string, GeneratedPrompt> = {
-      regulation: {
-        content: `# ${collectionName} 규정 문서 RAG 시스템 프롬프트
-
-## 역할
-당신은 ${collectionName} 컬렉션에 포함된 규정 및 지침 문서를 기반으로 질문에 답변하는 AI 어시스턴트입니다.
-
-## 지침
-1. **정확성 우선**: 규정 문서에 명시된 내용만을 기반으로 답변하세요.
-2. **출처 명시**: 답변 시 관련 규정의 조항 번호나 페이지를 함께 안내하세요.
-3. **명확한 구분**: 규정에 명시된 내용과 일반적인 해석을 명확히 구분하세요.
-4. **불확실성 인정**: 규정에 없는 내용은 "해당 규정에서 확인되지 않습니다"라고 안내하세요.
-
-## 답변 형식
-- 핵심 답변을 먼저 제시
-- 근거가 되는 규정 조항 인용
-- 추가 참고사항이나 예외 사항 안내
-
-## 주의사항
-- 규정 간 충돌이 있을 경우 상위 규정을 우선
-- 최신 개정 내용을 우선적으로 참조
-- 법률 자문이 필요한 사항은 전문가 상담 권유`,
-        suggestedQuestions: [
-          "이 규정의 적용 대상은 누구인가요?",
-          "주요 용어의 정의를 알려주세요.",
-          "위반 시 처분 절차는 어떻게 되나요?",
-          "예외 조항이 있나요?",
-          "최근 개정된 내용이 있나요?",
-        ],
-      },
-      budget: {
-        content: `# ${collectionName} 재무 문서 RAG 시스템 프롬프트
-
-## 역할
-당신은 ${collectionName} 컬렉션에 포함된 예산 및 재무 문서를 기반으로 질문에 답변하는 AI 어시스턴트입니다.
-
-## 지침
-1. **수치 정확성**: 금액, 비율 등 수치 정보는 정확히 인용하세요.
-2. **맥락 설명**: 예산 항목의 전후 맥락과 용도를 함께 설명하세요.
-3. **비교 분석**: 가능한 경우 전년도 대비 변화를 함께 안내하세요.
-4. **단위 명시**: 모든 금액은 단위(원, 천원, 백만원 등)를 명확히 표기하세요.
-
-## 답변 형식
-- 핵심 수치 먼저 제시
-- 관련 예산 항목 설명
-- 참조 페이지 또는 표 번호 안내
-
-## 주의사항
-- 집행 현황과 계획을 구분하여 안내
-- 예산 변경 사항 반영 여부 확인
-- 민감한 재무 정보는 공개 범위 내에서 답변`,
-        suggestedQuestions: [
-          "총 예산 규모는 얼마인가요?",
-          "주요 지출 항목은 무엇인가요?",
-          "전년도 대비 증감된 항목이 있나요?",
-          "예비비 규모와 사용 계획은?",
-          "사업별 예산 배분 현황을 알려주세요.",
-        ],
-      },
-      casual: {
-        content: `# ${collectionName} 일상대화 시스템 프롬프트
-
-## 역할
-당신은 친근하고 도움이 되는 대화 AI입니다. 자연스럽고 편안한 대화를 나눕니다.
-
-## 대화 스타일
-1. **친근한 어투**: 자연스럽고 편안한 대화체를 사용하세요.
-2. **공감과 경청**: 사용자의 이야기에 공감하고 적극적으로 경청하세요.
-3. **실용적 조언**: 필요시 실용적이고 건설적인 조언을 제공하세요.
-4. **명확한 표현**: 이해하기 쉬운 언어로 소통하세요.
-
-## 답변 형식
-- 자연스러운 대화체로 응답
-- 필요시 추가 질문으로 맥락 파악
-- 관련 팁이나 추천 정보 제공
-
-## 주의사항
-- 의료, 법률, 금융 등 전문 분야는 전문가 상담 권장
-- 불확실한 정보는 추측임을 명시
-- 부적절한 요청은 정중히 거절`,
-        suggestedQuestions: [
-          "오늘 어떤 도움이 필요하신가요?",
-          "추천해줄 만한 것이 있을까요?",
-          "이것에 대해 어떻게 생각하세요?",
-          "조언이 필요한 부분이 있나요?",
-          "더 알고 싶은 것이 있으신가요?",
-        ],
-      },
-      technical: {
-        content: `# ${collectionName} 기술문서 RAG 시스템 프롬프트
-
-## 역할
-당신은 ${collectionName} 컬렉션에 포함된 기술 문서(API 문서, 시스템 설계서, 매뉴얼 등)를 기반으로 질문에 답변하는 AI 어시스턴트입니다.
-
-## 지침
-1. **코드 정확성**: 코드, 명령어, 설정값은 원문 그대로 정확히 인용하세요.
-2. **버전 명시**: 해당 정보가 적용되는 버전을 함께 안내하세요.
-3. **단계별 안내**: 설치, 설정, 사용 절차는 순서대로 명확하게 안내하세요.
-4. **예제 포함**: 가능한 경우 실제 사용 예제를 함께 제공하세요.
-
-## 답변 형식
-- 핵심 답변 먼저 제시
-- 코드/명령어는 코드 블록으로 표시
-- 파라미터/설정은 표 형식으로 정리
-- 주의사항 및 호환성 정보 안내
-
-## 주의사항
-- 버전별 차이가 있을 경우 명시
-- 보안 관련 설정은 주의사항 강조
-- 문서에 없는 내용은 공식 문서 확인 권장`,
-        suggestedQuestions: [
-          "이 API의 사용 방법은 어떻게 되나요?",
-          "설치 및 설정 절차를 알려주세요.",
-          "필수 파라미터와 옵션을 설명해주세요.",
-          "이 오류의 해결 방법은 무엇인가요?",
-          "시스템 요구사항은 무엇인가요?",
-        ],
-      },
-      default: {
-        content: `# ${collectionName} RAG 시스템 프롬프트
-
-## 역할
-당신은 ${collectionName} 컬렉션에 포함된 문서를 기반으로 질문에 답변하는 AI 어시스턴트입니다.
-
-## 지침
-1. **문서 기반 답변**: 제공된 문서 내용을 기반으로 정확하게 답변하세요.
-2. **출처 명시**: 답변에 사용된 문서의 출처를 함께 안내하세요.
-3. **명확한 표현**: 이해하기 쉬운 언어로 설명하세요.
-4. **불확실성 인정**: 문서에 없는 내용은 솔직히 "확인되지 않습니다"라고 안내하세요.
-
-## 답변 형식
-- 질문에 대한 핵심 답변 먼저 제시
-- 상세 설명 및 근거 제공
-- 관련 참고 정보 안내
-
-## 주의사항
-- 문서에 명시된 정보만 활용
-- 개인적인 추측이나 의견은 배제
-- 추가 정보가 필요한 경우 안내`,
-        suggestedQuestions: [
-          "이 문서의 주요 내용은 무엇인가요?",
-          "관련 정책이나 절차가 있나요?",
-          "핵심 용어를 설명해주세요.",
-          "최근 변경된 내용이 있나요?",
-          "추가 참고 자료가 있나요?",
-        ],
-      },
-    }
-
-    return templateContents[selectedTemplate] || templateContents.default
-  }
-
-  // Save prompt using real API
+  // 저장
   const savePrompt = async () => {
     setSaving(true)
     try {
@@ -551,214 +385,143 @@ export function PromptGeneratorModal({
     }
   }
 
-  // Navigation
+  // 복사
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(editedPrompt)
+      toast.success("클립보드에 복사되었습니다")
+    } catch {
+      toast.error("복사에 실패했습니다")
+    }
+  }
+
+  // 원본 복원
+  const handleReset = () => {
+    if (generatedPrompt) {
+      setEditedPrompt(generatedPrompt.content)
+      setEditedQuestions([...generatedPrompt.suggestedQuestions])
+      toast.info("원본으로 복원되었습니다")
+    }
+  }
+
+  // 질문 수정
+  const updateQuestion = (index: number, value: string) => {
+    const updated = [...editedQuestions]
+    updated[index] = value
+    setEditedQuestions(updated)
+  }
+
+  // 질문 삭제
+  const removeQuestion = (index: number) => {
+    setEditedQuestions(editedQuestions.filter((_, i) => i !== index))
+  }
+
+  // 질문 추가
+  const addQuestion = () => {
+    setEditedQuestions([...editedQuestions, ""])
+  }
+
   const selectedModelOption = modelOptions.find(m => m.key === selectedModel)
-  const isSelectedModelHealthy = selectedModelOption?.status === "healthy"
+  const isModelHealthy = selectedModelOption?.status === "healthy"
+  const canGenerate = selectedDocIds.length > 0 && promptFilename.trim() !== "" && isModelHealthy && !generating
+  const modelColors = selectedModelOption ? getModelColorClass(selectedModelOption.key) : getModelColorClass("")
 
-  const canGoNext = () => {
-    switch (currentStep) {
-      case 1:
-        return selectedDocIds.length > 0
-      case 2:
-        return selectedTemplate !== "" && selectedModel !== "" && isSelectedModelHealthy
-      case 3:
-        return promptFilename.trim() !== ""
-      case 4:
-        return editedPrompt.trim() !== ""
-      default:
-        return false
-    }
-  }
-
-  const goNext = () => {
-    if (currentStep === 3 && !generatedPrompt) {
-      // Start generation when moving to step 4
-      setCurrentStep(4)
-      generatePrompt()
-    } else if (currentStep < 4) {
-      setCurrentStep(currentStep + 1)
-    }
-  }
-
-  const goBack = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1)
+  const getStatusColor = () => {
+    if (!selectedModelOption) return "bg-gray-400"
+    switch (selectedModelOption.status) {
+      case "healthy": return "bg-green-500"
+      case "degraded": return "bg-amber-500"
+      case "unhealthy": return "bg-red-500"
+      default: return "bg-gray-400"
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px] max-h-[85vh] flex flex-col">
-        <DialogHeader className="pb-4 border-b">
-          <div className="flex items-start gap-3">
-            <div className="p-3 rounded-xl bg-gradient-to-br from-[color:var(--chart-1)] to-[color:var(--chart-2)] text-white shadow-lg">
-              <Sparkles className="h-6 w-6" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <DialogTitle className="text-lg font-bold">
-                프롬프트 자동 생성
-              </DialogTitle>
-              <DialogDescription className="mt-1 flex items-center gap-2 text-sm">
-                <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">{collectionName}</span>
-                <span className="text-muted-foreground/50">·</span>
-                <span>{documents.length}개 문서 기반</span>
-              </DialogDescription>
-            </div>
-          </div>
-        </DialogHeader>
-
-        {/* Step indicator - 브레드크럼 스타일 (AI검증과 통일) */}
-        <div className="flex items-center gap-1 px-4 py-2 mx-4 rounded-lg bg-muted/50 border">
-          {STEPS.map((step, index) => {
-            // Step 4에서 생성 완료 시 모든 단계 완료로 표시
-            const isCompleted = currentStep > step.id || (currentStep === 4 && generatedPrompt !== null)
-            const isCurrent = currentStep === step.id && !(currentStep === 4 && generatedPrompt !== null)
-
-            return (
-              <div key={step.id} className="flex items-center">
-                <div
-                  className={cn(
-                    "flex items-center gap-1.5 text-sm transition-colors",
-                    isCompleted && "text-green-600 dark:text-green-400",
-                    isCurrent && "text-primary font-medium",
-                    !isCompleted && !isCurrent && "text-muted-foreground"
-                  )}
-                >
-                  {isCompleted ? (
-                    <CheckCircle2 className="w-4 h-4" />
-                  ) : isCurrent ? (
-                    generating ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <div className="w-4 h-4 rounded-full border-2 border-primary flex items-center justify-center">
-                        <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                      </div>
-                    )
-                  ) : (
-                    <div className="w-4 h-4 rounded-full border-2 border-muted-foreground/30" />
-                  )}
-                  <span className="hidden sm:inline">{step.name}</span>
-                  <span className="sm:hidden">{step.id}</span>
+      <DialogContent
+        className={cn(
+          "p-0 gap-0 flex flex-row h-[560px] max-h-[90vh] transition-all duration-300 overflow-hidden",
+          resultPanelOpen
+            ? "w-[960px] max-w-[95vw]"
+            : "w-[480px] max-w-[90vw]"
+        )}
+        showCloseButton={!resultPanelOpen}
+      >
+        {/* 좌측: 설정 패널 */}
+        <div className="w-[480px] flex-shrink-0 flex flex-col">
+          {/* 헤더 - 고정 높이로 우측과 정확히 일치 */}
+          <div className="h-14 px-5 border-b flex-shrink-0 flex items-center">
+            <DialogHeader className="sr-only">
+              <DialogTitle>프롬프트 생성</DialogTitle>
+              <DialogDescription>{collectionName} 컬렉션</DialogDescription>
+            </DialogHeader>
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-md bg-primary/10">
+                  <Sparkles className="h-4 w-4 text-primary" />
                 </div>
-                {index < STEPS.length - 1 && (
-                  <ChevronRight className="w-4 h-4 text-muted-foreground/50 mx-1" />
-                )}
-              </div>
-            )
-          })}
-        </div>
-
-        {/* Step content */}
-        <div className="flex-1 overflow-hidden py-4">
-          {/* Step 1: Document Selection */}
-          {currentStep === 1 && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label className="text-base font-medium">
-                  프롬프트 생성에 사용할 문서 선택
-                </Label>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={selectAllDocuments}
-                  disabled={loadingDocs || documents.length === 0}
-                >
-                  {selectedDocIds.length === documents.length ? "전체 해제" : "전체 선택"}
-                </Button>
-              </div>
-
-              {loadingDocs ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : documents.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <AlertCircle className="h-8 w-8 text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground">
-                    이 컬렉션에 업로드된 문서가 없습니다.
+                <div>
+                  <h3 className="text-sm font-semibold">프롬프트 생성</h3>
+                  <p className="text-xs text-muted-foreground">
+                    <code className="px-1 py-0.5 rounded bg-muted text-[10px]">{collectionName}</code>
                   </p>
                 </div>
-              ) : (
-                <ScrollArea className="h-[280px] rounded-md border p-4">
-                  <div className="space-y-3">
-                    {documents.map((doc) => (
-                      <div
-                        key={doc.id}
-                        className={cn(
-                          "flex items-center space-x-3 p-3 rounded-lg border cursor-pointer transition-colors",
-                          selectedDocIds.includes(doc.id)
-                            ? "border-primary bg-primary/5"
-                            : "border-muted hover:border-muted-foreground/50"
-                        )}
-                        onClick={() => toggleDocument(doc.id)}
-                      >
-                        <Checkbox
-                          checked={selectedDocIds.includes(doc.id)}
-                          onCheckedChange={() => toggleDocument(doc.id)}
-                        />
-                        <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">
-                            {doc.original_filename}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {doc.file_type.toUpperCase()}
-                            {doc.page_count && ` | ${doc.page_count}페이지`}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              )}
-
-              <p className="text-sm text-muted-foreground">
-                {selectedDocIds.length}개 문서 선택됨
-              </p>
+              </div>
+              {/* 모델 Badge (ChatHeader 스타일) - X버튼과 겹치지 않도록 여백 추가 */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "gap-1.5 cursor-help transition-colors py-1 px-2",
+                        modelColors.border,
+                        modelColors.text,
+                        !resultPanelOpen && "mr-8"
+                      )}
+                    >
+                      <span className={cn("w-2 h-2 rounded-full", getStatusColor())} />
+                      <span className="text-xs font-medium">
+                        {selectedModelOption?.label || "LLM"}
+                      </span>
+                      {isModelHealthy ? (
+                        <Wifi className="w-3 h-3" />
+                      ) : (
+                        <WifiOff className="w-3 h-3" />
+                      )}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-xs">
+                    <p>모델: {selectedModelOption?.label || "알 수 없음"}</p>
+                    <p>상태: {selectedModelOption?.status === "healthy" ? "정상" : "오류"}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
-          )}
+          </div>
 
-          {/* Step 2: Generation Settings - LLM & Template */}
-          {currentStep === 2 && (
-            <div className="space-y-5">
-              {/* LLM Selection */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">생성에 사용할 LLM</Label>
-                <Select value={selectedModel} onValueChange={setSelectedModel}>
-                  <SelectTrigger className="w-full">
+          {/* 설정 폼 */}
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+            {/* 설정 영역 */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* 템플릿 */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">템플릿</Label>
+                <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                  <SelectTrigger className="h-9 text-sm">
                     <SelectValue>
-                      {(() => {
-                        const model = modelOptions.find(m => m.key === selectedModel)
-                        if (!model) return "LLM 선택..."
-                        return (
-                          <div className="flex items-center gap-2">
-                            <StatusDot status={model.status} />
-                            {getModelIcon(model.key)}
-                            <span>{model.label}</span>
-                          </div>
-                        )
-                      })()}
+                      <div className="flex items-center gap-2">
+                        {TEMPLATES.find(t => t.id === selectedTemplate)?.icon}
+                        <span>{TEMPLATES.find(t => t.id === selectedTemplate)?.name}</span>
+                      </div>
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {modelOptions.map((model) => (
-                      <SelectItem
-                        key={model.key}
-                        value={model.key}
-                        disabled={model.status !== "healthy"}
-                        className={cn(model.status !== "healthy" && "opacity-50")}
-                      >
+                    {TEMPLATES.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
                         <div className="flex items-center gap-2">
-                          <StatusDot status={model.status} />
-                          {getModelIcon(model.key)}
-                          <div className="flex flex-col">
-                            <span className="font-medium">{model.label}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {model.status === "healthy"
-                                ? model.description
-                                : model.error || "서버에 연결할 수 없습니다"}
-                            </span>
-                          </div>
+                          {template.icon}
+                          <span>{template.name}</span>
                         </div>
                       </SelectItem>
                     ))}
@@ -766,230 +529,294 @@ export function PromptGeneratorModal({
                 </Select>
               </div>
 
-              {/* Template Selection */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">문서 유형에 맞는 템플릿</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {TEMPLATES.map((template, index) => {
-                    const isSelected = selectedTemplate === template.id
-                    const colorVar = (index % 4) + 1
-                    return (
-                      <div
-                        key={template.id}
-                        className={cn(
-                          "relative p-2.5 rounded-lg border cursor-pointer transition-all",
-                          isSelected
-                            ? "border-[color:var(--chart-" + colorVar + ")] bg-[color:var(--chart-" + colorVar + ")]/5"
-                            : "border-muted hover:border-muted-foreground/50"
-                        )}
-                        onClick={() => setSelectedTemplate(template.id)}
-                      >
-                        <div className="flex items-center gap-2">
-                          <div
-                            className={cn(
-                              "w-7 h-7 rounded flex items-center justify-center shrink-0 transition-colors",
-                              isSelected ? "" : "bg-muted text-muted-foreground"
-                            )}
-                            style={isSelected ? {
-                              backgroundColor: `color-mix(in srgb, var(--chart-${colorVar}) 15%, transparent)`,
-                              color: `var(--chart-${colorVar})`
-                            } : undefined}
-                          >
-                            {template.icon}
-                          </div>
-                          <span className="text-xs font-medium truncate">{template.name}</span>
-                          {isSelected && (
-                            <Check className="h-3.5 w-3.5 ml-auto shrink-0" style={{ color: `var(--chart-${colorVar})` }} />
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
+              {/* 파일명 */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">파일명</Label>
+                <div className="flex items-center gap-1">
+                  <Input
+                    value={promptFilename}
+                    onChange={(e) => setPromptFilename(e.target.value)}
+                    placeholder="prompt"
+                    className="h-9 text-sm flex-1"
+                  />
+                  <Badge variant="outline" className="h-9 px-2 text-xs">.md</Badge>
                 </div>
+              </div>
+
+              {/* 문서 선택 (전체 너비) */}
+              <div className="space-y-1.5 col-span-2">
+                <Label className="text-xs text-muted-foreground">문서</Label>
+                <Popover open={docPopoverOpen} onOpenChange={setDocPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="h-9 w-full justify-between text-sm font-normal"
+                      disabled={loadingDocs}
+                    >
+                      {loadingDocs ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <span>{selectedDocIds.length}/{documents.length}개 선택</span>
+                      )}
+                      <ChevronsUpDown className="h-4 w-4 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72 p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="문서 검색..." className="h-9" />
+                      <CommandList className="max-h-[200px]">
+                        <CommandEmpty className="py-3 text-sm text-center">문서 없음</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem onSelect={toggleSelectAll}>
+                            <div className={cn(
+                              "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
+                              selectedDocIds.length === documents.length
+                                ? "bg-primary border-primary text-primary-foreground"
+                                : "border-muted-foreground"
+                            )}>
+                              {selectedDocIds.length === documents.length && <Check className="h-3 w-3" />}
+                            </div>
+                            <span className="font-medium">전체 선택</span>
+                          </CommandItem>
+                          {documents.map((doc) => (
+                            <CommandItem key={doc.id} onSelect={() => toggleDocument(doc.id)}>
+                              <div className={cn(
+                                "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
+                                selectedDocIds.includes(doc.id)
+                                  ? "bg-primary border-primary text-primary-foreground"
+                                  : "border-muted-foreground"
+                              )}>
+                                {selectedDocIds.includes(doc.id) && <Check className="h-3 w-3" />}
+                              </div>
+                              <span className="truncate text-sm">{doc.original_filename}</span>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
-          )}
 
-          {/* Step 3: Filename Input */}
-          {currentStep === 3 && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="filename" className="text-base font-medium">
-                  프롬프트 파일명
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  생성된 프롬프트가 저장될 파일명을 입력하세요.
-                </p>
-              </div>
+            {/* 생성 버튼 / 진행 상태 / 에러 */}
+            <div className="pt-2">
+              {!generating && !generationError && (
+                <Button
+                  onClick={generatePrompt}
+                  disabled={!canGenerate}
+                  className="w-full h-10"
+                >
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  {generatedPrompt ? "다시 생성" : "프롬프트 생성"}
+                </Button>
+              )}
 
-              <div className="flex items-center gap-2">
-                <Input
-                  id="filename"
-                  value={promptFilename}
-                  onChange={(e) => setPromptFilename(e.target.value)}
-                  placeholder="예: 인사규정_prompt"
-                  className="flex-1"
-                />
-                <span className="text-sm text-muted-foreground">.md</span>
-              </div>
+              {/* 생성 중 - KCA-i 애니메이션 로고 (셀프진단 스타일) */}
+              {generating && (
+                <div className="flex flex-col items-center py-8 space-y-4">
+                  <AnimatedKcaLogo />
 
-              <div className="p-4 rounded-lg bg-muted/50">
-                <p className="text-sm font-medium mb-2">생성 요약</p>
-                <div className="space-y-1 text-sm text-muted-foreground">
-                  <p>
-                    선택된 문서: <Badge variant="secondary">{selectedDocIds.length}개</Badge>
-                  </p>
-                  <p>
-                    템플릿:{" "}
-                    <Badge variant="secondary">
-                      {TEMPLATES.find((t) => t.id === selectedTemplate)?.name}
-                    </Badge>
-                  </p>
-                  <p>
-                    저장 경로:{" "}
-                    <code className="text-xs bg-muted px-1 py-0.5 rounded">
-                      backend/prompts/{promptFilename}.md
-                    </code>
-                  </p>
+                  {/* AI Agent 텍스트 */}
+                  <motion.p
+                    className="text-sm font-medium text-muted-foreground"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.3 }}
+                  >
+                    프롬프트 생성 AI Agent
+                  </motion.p>
+
+                  {/* 현재 단계 메시지 (애니메이션 전환) */}
+                  <AnimatePresence mode="wait">
+                    <motion.p
+                      key={generationMessage}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.3 }}
+                      className="text-sm text-center text-foreground/70"
+                    >
+                      {generationMessage || "생성 준비 중"}
+                      <TypingDots />
+                    </motion.p>
+                  </AnimatePresence>
                 </div>
-              </div>
-            </div>
-          )}
+              )}
 
-          {/* Step 4: Generation and Editing */}
-          {currentStep === 4 && (
-            <div className="space-y-4 h-full">
-              {generating ? (
-                <div className="flex flex-col items-center justify-center py-6">
-                  {/* KCA-i 애니메이션 로고 (축소) */}
-                  <div className="scale-75 mb-4">
-                    <AnimatedKcaLogo />
+              {/* 에러 */}
+              {generationError && (
+                <div className="flex flex-col items-center py-6 space-y-3">
+                  <div className="p-3 rounded-full bg-destructive/10">
+                    <AlertCircle className="h-6 w-6 text-destructive" />
                   </div>
-
-                  {/* Progress bar + message (단순화) */}
-                  <div className="w-full max-w-xs space-y-2">
-                    <div className="relative h-2.5 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className="absolute inset-y-0 left-0 bg-gradient-to-r from-[color:var(--chart-1)] to-[color:var(--chart-2)] rounded-full transition-all duration-300 ease-out"
-                        style={{ width: `${generationProgress}%` }}
-                      />
-                    </div>
-                    <div className="flex justify-between items-center text-xs text-muted-foreground">
-                      <span className="truncate max-w-[180px]">
-                        {generationMessage || "준비 중..."}
-                      </span>
-                      <span className="font-mono ml-2 tabular-nums">{generationProgress}%</span>
-                    </div>
-                  </div>
-                </div>
-              ) : generationError ? (
-                /* Error state */
-                <div className="flex flex-col items-center justify-center py-8">
-                  <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center mb-4">
-                    <AlertCircle className="h-8 w-8 text-destructive" />
-                  </div>
-                  <h4 className="text-lg font-semibold text-destructive mb-2">생성 실패</h4>
-                  <p className="text-sm text-muted-foreground text-center max-w-sm mb-4">
-                    {generationError}
-                  </p>
-                  <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => setCurrentStep(2)}>
-                      <ArrowLeft className="h-4 w-4 mr-2" />
-                      이전 단계로
-                    </Button>
-                    <Button onClick={retryGeneration}>
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      다시 시도
-                    </Button>
-                  </div>
-                </div>
-              ) : generatedPrompt ? (
-                <Tabs defaultValue="prompt" className="w-full h-full flex flex-col">
-                  {/* 간소화된 세그먼트 스타일 탭 */}
-                  <TabsList className="h-8 w-fit">
-                    <TabsTrigger value="prompt" className="h-7 text-xs px-3">
-                      프롬프트
-                    </TabsTrigger>
-                    <TabsTrigger value="questions" className="h-7 text-xs px-3">
-                      추천질문
-                    </TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="prompt" className="mt-3 flex-1">
-                    <PromptEditor
-                      value={editedPrompt}
-                      onChange={setEditedPrompt}
-                      className="h-[340px]"
-                    />
-                  </TabsContent>
-                  <TabsContent value="questions" className="mt-3 flex-1">
-                    <SuggestedQuestionsEditor
-                      questions={editedQuestions}
-                      onChange={setEditedQuestions}
-                    />
-                  </TabsContent>
-                </Tabs>
-              ) : (
-                <div className="flex items-center justify-center py-12">
-                  <AlertCircle className="h-8 w-8 text-muted-foreground" />
+                  <p className="text-sm text-destructive text-center">{generationError}</p>
+                  <Button variant="outline" size="sm" onClick={() => {
+                    setGenerationError(null)
+                    generatePrompt()
+                  }}>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    다시 시도
+                  </Button>
                 </div>
               )}
             </div>
-          )}
+
+            {/* 생성 완료 시 결과 보기 버튼 */}
+            {generatedPrompt && !generating && !resultPanelOpen && (
+              <Button
+                variant="outline"
+                onClick={() => setResultPanelOpen(true)}
+                className="w-full"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                결과 보기
+              </Button>
+            )}
+          </div>
+
+          {/* 좌측 푸터 */}
+          <div className="flex items-center justify-end gap-2 px-5 py-3 border-t bg-muted/30 flex-shrink-0">
+            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} disabled={saving}>
+              닫기
+            </Button>
+          </div>
         </div>
 
-        <Separator />
+        {/* 우측: 결과 패널 (슬라이드 확장) */}
+        {resultPanelOpen && generatedPrompt && (
+          <div className="w-[480px] flex-shrink-0 border-l flex flex-col bg-background">
+            {/* 결과 패널 헤더 - 좌측과 동일한 고정 높이 */}
+            <div className="h-14 px-5 border-b flex-shrink-0 flex items-center">
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center border rounded-lg overflow-hidden">
+                  <button
+                    onClick={() => setResultTab("prompt")}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 text-xs transition-colors",
+                      resultTab === "prompt"
+                        ? "bg-primary text-primary-foreground"
+                        : "hover:bg-muted"
+                    )}
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    프롬프트
+                  </button>
+                  <button
+                    onClick={() => setResultTab("questions")}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 text-xs transition-colors",
+                      resultTab === "questions"
+                        ? "bg-primary text-primary-foreground"
+                        : "hover:bg-muted"
+                    )}
+                  >
+                    <HelpCircle className="h-3.5 w-3.5" />
+                    질문
+                    <span className={cn(
+                      "text-[10px] px-1.5 py-0.5 rounded-full ml-0.5",
+                      resultTab === "questions"
+                        ? "bg-primary-foreground/20 text-primary-foreground"
+                        : "bg-muted-foreground/20 text-muted-foreground"
+                    )}>
+                      {editedQuestions.length}
+                    </span>
+                  </button>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => setResultPanelOpen(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
 
-        {/* Footer with navigation */}
-        <DialogFooter className="flex-row justify-between sm:justify-between">
-          <Button
-            variant="outline"
-            onClick={goBack}
-            disabled={currentStep === 1 || generating || saving}
-          >
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            이전
-          </Button>
+            {/* 결과 콘텐츠 - 좌측과 동일한 패딩 */}
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              {resultTab === "prompt" ? (
+                <div className="flex flex-col h-full">
+                  {/* 텍스트 에디터 컨테이너 (오버레이 버튼 포함) */}
+                  <div className="relative flex-1">
+                    {/* 우측 상단 오버레이 버튼 */}
+                    <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+                      {editedPrompt !== generatedPrompt.content && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={handleReset}
+                          className="h-7 px-2 text-xs bg-background/80 backdrop-blur-sm shadow-sm"
+                        >
+                          <RotateCcw className="h-3 w-3 mr-1" />
+                          복원
+                        </Button>
+                      )}
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleCopy}
+                        className="h-7 px-2 text-xs bg-background/80 backdrop-blur-sm shadow-sm"
+                      >
+                        <Copy className="h-3 w-3 mr-1" />
+                        복사
+                      </Button>
+                    </div>
+                    <Textarea
+                      value={editedPrompt}
+                      onChange={(e) => setEditedPrompt(e.target.value)}
+                      placeholder="프롬프트 내용..."
+                      className="h-full min-h-[340px] resize-none font-mono text-sm pt-10"
+                    />
+                  </div>
+                  <div className="flex justify-end text-[10px] text-muted-foreground pt-2">
+                    {editedPrompt.length.toLocaleString()}자 · {editedPrompt.split("\n").length}줄
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {editedQuestions.map((q, i) => (
+                    <div key={i} className="flex gap-2">
+                      <Input
+                        value={q}
+                        onChange={(e) => updateQuestion(i, e.target.value)}
+                        placeholder={`질문 ${i + 1}`}
+                        className="flex-1 h-9 text-sm"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                        onClick={() => removeQuestion(i)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button variant="outline" size="sm" onClick={addQuestion} className="w-full h-8 text-xs">
+                    <Plus className="h-3 w-3 mr-1" />
+                    질문 추가
+                  </Button>
+                </div>
+              )}
+            </div>
 
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={generating || saving}
-            >
-              취소
-            </Button>
-
-            {currentStep === 4 && generatedPrompt ? (
-              <Button onClick={savePrompt} disabled={saving || !editedPrompt.trim()}>
+            {/* 결과 패널 푸터 - 좌측과 동일한 패딩 */}
+            <div className="flex items-center justify-end gap-2 px-5 py-3 border-t bg-muted/30 flex-shrink-0">
+              <Button size="sm" onClick={savePrompt} disabled={saving || !editedPrompt.trim()}>
                 {saving ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    저장 중...
-                  </>
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
-                    <Save className="h-4 w-4 mr-2" />
+                    <Save className="h-4 w-4 mr-1" />
                     저장
                   </>
                 )}
               </Button>
-            ) : (
-              <Button onClick={goNext} disabled={!canGoNext() || generating}>
-                {currentStep === 3 ? (
-                  <>
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    생성 시작
-                  </>
-                ) : (
-                  <>
-                    다음
-                    <ChevronRight className="h-4 w-4 ml-1" />
-                  </>
-                )}
-              </Button>
-            )}
+            </div>
           </div>
-        </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   )

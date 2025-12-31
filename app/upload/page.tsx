@@ -44,6 +44,7 @@ const getSafeTab = (tab: string | null): UploadTarget => {
 function UploadPageContent() {
   const searchParams = useSearchParams()
   const initialTab = getSafeTab(searchParams.get("tab"))
+  const initialCollection = searchParams.get("collection")
 
   // 탭 상태
   const [activeTab, setActiveTab] = useState<UploadTarget>(initialTab)
@@ -672,6 +673,19 @@ function UploadPageContent() {
     fetchQdrantCollections()
     fetchQdrantConfig()
   }, [])
+
+  // 쿼리 파라미터로 전달된 컬렉션 자동 선택
+  useEffect(() => {
+    if (initialCollection && qdrantCollections.length > 0 && !selectedQdrantCollection) {
+      const found = qdrantCollections.find(c => c.name === initialCollection)
+      if (found) {
+        setSelectedQdrantCollection(found.name)
+        // 컬렉션과 동일한 이름의 카테고리로 필터링
+        setCategoryFilter(found.name)
+        fetchDocuments(1, "", found.name)
+      }
+    }
+  }, [initialCollection, qdrantCollections])
 
   // 현재 업로드 중 상태
   const isUploading = uploadingDify || uploadingQdrant

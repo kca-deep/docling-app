@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useRef, useCallback, useEffect } from "react"
+import { useState, useRef, useCallback, useEffect, Suspense } from "react"
+import { useSearchParams } from "next/navigation"
 import { PageContainer } from "@/components/page-container"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -67,7 +68,9 @@ interface EmbeddingResult {
   error: string | null
 }
 
-export default function ExcelEmbeddingPage() {
+function ExcelEmbeddingContent() {
+  const searchParams = useSearchParams()
+  const initialCollection = searchParams.get("collection")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // 파일 상태
@@ -328,6 +331,16 @@ export default function ExcelEmbeddingPage() {
   useEffect(() => {
     fetchCollections()
   }, [])
+
+  // 쿼리 파라미터로 전달된 컬렉션 자동 선택
+  useEffect(() => {
+    if (initialCollection && collections.length > 0 && !selectedCollection) {
+      const found = collections.find(c => c.name === initialCollection)
+      if (found) {
+        setSelectedCollection(found.name)
+      }
+    }
+  }, [initialCollection, collections, selectedCollection])
 
   const isEmbedDisabled = isEmbedding || !selectedCollection || !previewData ||
     (textColumns.length === 0 && (!useTemplate || !textTemplate))
@@ -829,5 +842,17 @@ export default function ExcelEmbeddingPage() {
         </motion.div>
       </div>
     </PageContainer>
+  )
+}
+
+export default function ExcelEmbeddingPage() {
+  return (
+    <Suspense fallback={
+      <PageContainer maxWidth="wide" className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </PageContainer>
+    }>
+      <ExcelEmbeddingContent />
+    </Suspense>
   )
 }
