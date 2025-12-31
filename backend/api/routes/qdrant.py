@@ -1359,11 +1359,18 @@ async def embed_excel_dynamic(
     Returns:
         DynamicEmbeddingResponse: 임베딩 결과
     """
+    from backend.services.excel_document_service import (
+        generate_excel_metadata_content,
+        generate_preview,
+        calculate_total_length
+    )
+
     results = []
     success_count = 0
     failure_count = 0
     vector_ids_all = []  # SQLite 기록용 전체 vector ID
     texts_all = []  # 미리보기용 텍스트
+    excel_doc = None  # SQLite Document 참조
 
     try:
         # Collection 존재 확인
@@ -1377,6 +1384,36 @@ async def embed_excel_dynamic(
         mapping = request.mapping
         batch_size = settings.UPLOAD_BATCH_SIZE
         rows = request.rows
+
+        # SQLite Document 먼저 생성 (document_id 획득을 위해)
+        rows_dict = [{"row_index": r.row_index, "data": r.data} for r in request.rows]
+        mapping_dict = request.mapping.model_dump()
+
+        excel_doc = Document(
+            task_id=f"excel-{uuid.uuid4().hex[:12]}",
+            original_filename=request.file_name,
+            file_size=None,
+            file_type="xlsx",
+            status="pending",  # 업로드 완료 후 success로 변경
+            content_length=calculate_total_length(rows_dict, mapping_dict.get("text_columns", [])),
+            content_preview="",  # 업로드 완료 후 업데이트
+            md_content=generate_excel_metadata_content(
+                request.file_name,
+                rows_dict,
+                mapping_dict,
+                len(request.rows)
+            ),
+            category=request.collection_name,
+            parse_options={
+                "source_type": "excel",
+                "mapping": mapping_dict,
+                "total_rows": len(request.rows)
+            }
+        )
+        db.add(excel_doc)
+        db.flush()  # document_id 획득
+
+        logger.info(f"Created Excel document in SQLite: id={excel_doc.id}, filename={request.file_name}")
 
         for batch_start in range(0, len(rows), batch_size):
             batch_end = min(batch_start + batch_size, len(rows))
@@ -1404,11 +1441,12 @@ async def embed_excel_dynamic(
                 # 임베딩 생성
                 embeddings = await embedding_service.get_embeddings(texts)
 
-                # 메타데이터 생성
+                # 메타데이터 생성 (document_id 포함)
                 metadata_list = []
                 for row in batch_rows:
                     metadata = {
-                        "filename": request.file_name,  # source_file → filename 통일
+                        "document_id": excel_doc.id,  # document_id 추가
+                        "filename": request.file_name,
                         "row_index": row.row_index
                     }
 
@@ -1494,43 +1532,12 @@ async def embed_excel_dynamic(
                     ))
                     failure_count += 1
 
-        # SQLite에 문서 및 업로드 이력 기록
+        # SQLite Document 업데이트 및 History 생성
         if success_count > 0:
             try:
-                from backend.services.excel_document_service import (
-                    generate_excel_metadata_content,
-                    generate_preview,
-                    calculate_total_length
-                )
-
-                # rows를 dict로 변환 (Pydantic 모델 -> dict)
-                rows_dict = [{"row_index": r.row_index, "data": r.data} for r in request.rows]
-                mapping_dict = request.mapping.model_dump()
-
-                # Document 생성
-                excel_doc = Document(
-                    task_id=f"excel-{uuid.uuid4().hex[:12]}",
-                    original_filename=request.file_name,
-                    file_size=None,
-                    file_type="xlsx",
-                    status="success",
-                    content_length=calculate_total_length(rows_dict, mapping_dict.get("text_columns", [])),
-                    content_preview=generate_preview(texts_all[:5]),
-                    md_content=generate_excel_metadata_content(
-                        request.file_name,
-                        rows_dict,
-                        mapping_dict,
-                        len(request.rows)
-                    ),
-                    category=request.collection_name,
-                    parse_options={
-                        "source_type": "excel",
-                        "mapping": mapping_dict,
-                        "total_rows": len(request.rows)
-                    }
-                )
-                db.add(excel_doc)
-                db.flush()  # ID 획득
+                # Document 상태 및 미리보기 업데이트
+                excel_doc.status = "success"
+                excel_doc.content_preview = generate_preview(texts_all[:5])
 
                 # QdrantUploadHistory 생성
                 history = QdrantUploadHistory(
@@ -1544,12 +1551,21 @@ async def embed_excel_dynamic(
                 db.add(history)
                 db.commit()
 
-                logger.info(f"Excel document saved to SQLite: id={excel_doc.id}, filename={request.file_name}, collection={request.collection_name}")
+                logger.info(f"Excel document updated in SQLite: id={excel_doc.id}, filename={request.file_name}, collection={request.collection_name}")
 
             except Exception as db_error:
-                logger.error(f"Failed to save Excel document to SQLite: {db_error}")
+                logger.error(f"Failed to update Excel document in SQLite: {db_error}")
                 db.rollback()
                 # Qdrant 업로드는 성공했으므로 에러를 던지지 않고 로그만 기록
+        else:
+            # 모든 배치가 실패한 경우 Document 삭제
+            try:
+                db.delete(excel_doc)
+                db.commit()
+                logger.warning(f"Deleted Excel document due to complete upload failure: id={excel_doc.id}")
+            except Exception as del_error:
+                logger.error(f"Failed to delete Excel document: {del_error}")
+                db.rollback()
 
         return DynamicEmbeddingResponse(
             total=len(rows),
@@ -1559,8 +1575,22 @@ async def embed_excel_dynamic(
         )
 
     except HTTPException:
+        # Document 정리 (생성된 경우)
+        if excel_doc and excel_doc.id:
+            try:
+                db.delete(excel_doc)
+                db.commit()
+            except Exception:
+                db.rollback()
         raise
     except Exception as e:
+        # Document 정리 (생성된 경우)
+        if excel_doc and excel_doc.id:
+            try:
+                db.delete(excel_doc)
+                db.commit()
+            except Exception:
+                db.rollback()
         print(f"[ERROR] Dynamic embedding failed: {e}")
         raise HTTPException(
             status_code=500,
