@@ -22,7 +22,7 @@ class ChatRequest(BaseModel):
     model: str = "gpt-oss-20b"  # LLM 모델 선택
     reasoning_level: str = "medium"  # "low", "medium", "high"
     temperature: float = 0.7
-    max_tokens: int = 2000
+    max_tokens: int = 8192
     top_p: float = 0.9
     frequency_penalty: float = 0.0
     presence_penalty: float = 0.0
@@ -61,7 +61,7 @@ class RegenerateRequest(BaseModel):
     model: str = "gpt-oss-20b"  # LLM 모델 선택
     reasoning_level: str = "medium"
     temperature: float = 0.7
-    max_tokens: int = 2000
+    max_tokens: int = 8192
     top_p: float = 0.9
     frequency_penalty: float = 0.0
     presence_penalty: float = 0.0

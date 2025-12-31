@@ -1,6 +1,7 @@
 # /etc/systemd/system/llama-server-gemma3.service
+# ctx=16K, p=1, n=16K
 [Unit]
-Description=Llama.cpp Server - Gemma 3 27B IT Q4_0
+Description=Llama.cpp Server - Gemma 3 27B IT Q4_0 (ctx=16K p=1 n=16K)
 After=network.target
 Wants=network-online.target
 
@@ -15,7 +16,7 @@ ExecStart=/models/llama.cpp/build/bin/llama-server \
   --host 0.0.0.0 \
   --port 8082 \
   --ctx-size 16384 \
-  --parallel 2 \
+  --parallel 1 \
   --cont-batching \
   --defrag-thold 0.1 \
   --jinja \
@@ -25,10 +26,10 @@ ExecStart=/models/llama.cpp/build/bin/llama-server \
   --top-p 0.9 \
   --repeat-penalty 1.1 \
   --repeat-last-n 256 \
-  --n-predict 8192 \
+  --n-predict 16384 \
   --threads 8 \
-  --batch-size 2048 \
-  --ubatch-size 1024
+  --batch-size 4096 \
+  --ubatch-size 2048
 Restart=always
 RestartSec=10
 StandardOutput=journal

@@ -1,7 +1,7 @@
 # /etc/systemd/system/exaone-4.0-rag.service
-# RAG Mode: ctx=6K, p=1, n=6K
+# RAG Mode: ctx=16K, p=1, n=16K
 [Unit]
-Description=Llama.cpp Server - EXAONE 4.0 32B (RAG Mode, ctx=6K p=1 n=6K)
+Description=Llama.cpp Server - EXAONE 4.0 32B (RAG Mode, ctx=16K p=1 n=16K)
 After=network.target
 Wants=network-online.target
 
@@ -14,7 +14,7 @@ ExecStart=/models/llama.cpp/build/bin/llama-server \
   -m /models/exaone-4.0/EXAONE-4.0-32B-Q4_K_M.gguf \
   --host 0.0.0.0 \
   --port 8081 \
-  --ctx-size 6144 \
+  --ctx-size 16384 \
   --parallel 1 \
   --cont-batching \
   --defrag-thold 0.1 \
@@ -29,7 +29,7 @@ ExecStart=/models/llama.cpp/build/bin/llama-server \
   --repeat-last-n 256 \
   --presence-penalty 0.3 \
   --frequency-penalty 0.4 \
-  --n-predict 6144 \
+  --n-predict 16384 \
   --threads 8 \
   --batch-size 4096 \
   --ubatch-size 2048 \

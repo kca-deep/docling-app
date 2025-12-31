@@ -11,7 +11,7 @@ const DEFAULT_SETTINGS: ChatSettings = {
   model: "gpt-oss-20b",
   reasoningLevel: "medium",
   temperature: 0.7,
-  maxTokens: 2000,
+  maxTokens: 8192,
   topP: 0.9,
   topK: 5,
   frequencyPenalty: 0,
