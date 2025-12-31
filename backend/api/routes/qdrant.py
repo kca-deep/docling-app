@@ -1619,15 +1619,8 @@ async def migrate_excel_collection(
                 detail=f"Collection '{collection_name}'이 존재하지 않습니다"
             )
 
-        # 2. 이미 마이그레이션된 문서가 있는지 확인
-        existing_history = db.query(QdrantUploadHistory).filter(
-            QdrantUploadHistory.collection_name == collection_name
-        ).first()
-        if existing_history:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Collection '{collection_name}'은 이미 SQLite에 기록되어 있습니다"
-            )
+        # 2. 기존 마이그레이션 확인 제거 (Excel 문서가 있으면 마이그레이션 진행)
+        # 기존 일반 문서 history가 있어도 Excel 문서는 별도로 마이그레이션 가능
 
         # 3. Qdrant에서 포인트 조회 (scroll)
         all_points = []
@@ -1651,9 +1644,26 @@ async def migrate_excel_collection(
                 detail=f"Collection '{collection_name}'에 데이터가 없습니다"
             )
 
-        # 4. filename 기준 그룹핑 (source_file 하위호환)
+        # 4. Excel 포인트만 필터링 (row_index 있고 document_id 없는 포인트)
+        excel_points = [
+            p for p in all_points
+            if (p.payload or {}).get("row_index") is not None
+            and "document_id" not in (p.payload or {})
+        ]
+
+        if not excel_points:
+            return {
+                "success": True,
+                "collection_name": collection_name,
+                "migrated_documents": 0,
+                "documents": [],
+                "total_points": len(all_points),
+                "message": "마이그레이션할 Excel 데이터가 없습니다 (이미 document_id가 있거나 Excel 데이터가 아님)"
+            }
+
+        # 5. filename 기준 그룹핑 (source_file 하위호환)
         grouped = {}
-        for point in all_points:
+        for point in excel_points:
             payload = point.payload or {}
             # filename 우선, 없으면 source_file (하위호환)
             file_name = payload.get("filename") or payload.get("source_file", "unknown.xlsx")
@@ -1668,7 +1678,7 @@ async def migrate_excel_collection(
             grouped[file_name]["vector_ids"].append(str(point.id))
             grouped[file_name]["row_indices"].append(payload.get("row_index", 0))
 
-        # 5. 각 filename에 대해 Document 생성
+        # 6. 각 filename에 대해 Document 생성
         created_docs = []
         for file_name, data in grouped.items():
             from backend.services.excel_document_service import generate_preview
@@ -1712,6 +1722,18 @@ async def migrate_excel_collection(
             db.add(doc)
             db.flush()
 
+            # Qdrant payload에 document_id 추가
+            point_ids = [
+                int(vid) if vid.isdigit() else vid
+                for vid in data["vector_ids"]
+            ]
+            await qdrant_service.client.set_payload(
+                collection_name=collection_name,
+                payload={"document_id": doc.id},
+                points=point_ids
+            )
+            logger.info(f"Updated {len(point_ids)} Qdrant points with document_id={doc.id}")
+
             history = QdrantUploadHistory(
                 document_id=doc.id,
                 collection_name=collection_name,
@@ -1724,12 +1746,13 @@ async def migrate_excel_collection(
             created_docs.append({
                 "document_id": doc.id,
                 "filename": file_name,
-                "rows": len(data["texts"])
+                "rows": len(data["texts"]),
+                "qdrant_updated": True
             })
 
         db.commit()
 
-        logger.info(f"Excel collection migrated: {collection_name}, {len(created_docs)} documents")
+        logger.info(f"Excel collection migrated: {collection_name}, {len(created_docs)} documents, Qdrant payloads updated")
 
         return {
             "success": True,
