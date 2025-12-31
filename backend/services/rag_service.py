@@ -328,7 +328,8 @@ class RAGService:
         """
         try:
             # 1. 쿼리를 벡터로 임베딩
-            logger.info(f"[RAG] Embedding query: {query[:100]}...")
+            # [P2-1] 상세 쿼리 로그 → DEBUG
+            logger.debug(f"[RAG] Embedding query: {query[:100]}...")
             query_embeddings = await self.embedding_service.get_embeddings(query)
 
             if not query_embeddings or len(query_embeddings) == 0:
@@ -367,8 +368,8 @@ class RAGService:
             error_str = str(e)
             # 임시 컬렉션 만료 (404 에러) 감지
             if "404" in error_str and "doesn't exist" in error_str:
-                raise Exception("COLLECTION_EXPIRED:업로드한 문서가 만료되었습니다. 문서를 다시 업로드해 주세요.")
-            raise Exception(f"문서 검색 실패: {error_str}")
+                raise Exception("COLLECTION_EXPIRED:업로드한 문서가 만료되었습니다. 문서를 다시 업로드해 주세요.") from e  # [P2-6]
+            raise Exception(f"문서 검색 실패: {error_str}") from e  # [P2-6]
 
     async def retrieve_from_multiple(
         self,
@@ -686,7 +687,8 @@ class RAGService:
                         available_documents.extend(doc_names)
                     # 중복 제거 (순서 유지)
                     available_documents = list(dict.fromkeys(available_documents))
-                    logger.info(f"[RAG] Available documents for prompt: {len(available_documents)}")
+                    # [P2-1] 상세 정보 로그 → DEBUG
+                    logger.debug(f"[RAG] Available documents for prompt: {len(available_documents)}")
                 except Exception as e:
                     logger.warning(f"[RAG] Failed to get document list for prompt: {e}")
 
@@ -902,7 +904,8 @@ class RAGService:
                         available_documents.extend(doc_names)
                     # 중복 제거 (순서 유지)
                     available_documents = list(dict.fromkeys(available_documents))
-                    logger.info(f"[RAG-Stream] Available documents for prompt: {len(available_documents)}")
+                    # [P2-1] 상세 정보 로그 → DEBUG
+                    logger.debug(f"[RAG-Stream] Available documents for prompt: {len(available_documents)}")
                 except Exception as e:
                     logger.warning(f"[RAG-Stream] Failed to get document list for prompt: {e}")
 

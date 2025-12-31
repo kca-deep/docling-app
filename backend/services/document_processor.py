@@ -72,7 +72,7 @@ def parse_excel_to_markdown(file_content: bytes, filename: str) -> Tuple[str, in
 
     except Exception as e:
         logger.error(f"Excel parsing error: {e}")
-        raise Exception(f"Excel 파일 파싱 실패: {e}")
+        raise Exception(f"Excel 파일 파싱 실패: {e}") from e  # [P2-6]
 
 
 class ProcessingStage(str, Enum):

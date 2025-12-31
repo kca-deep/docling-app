@@ -122,7 +122,7 @@ class EmbeddingService:
 
         except Exception as e:
             logger.error(f"Failed to generate embeddings: {e}")
-            raise Exception(f"임베딩 생성 실패: {str(e)}")
+            raise Exception(f"임베딩 생성 실패: {str(e)}") from e  # [P2-6]
 
     async def get_embedding_dimension(self) -> int:
         """

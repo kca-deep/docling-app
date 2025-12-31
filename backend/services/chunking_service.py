@@ -183,10 +183,10 @@ class ChunkingService:
 
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error during chunking: {e.response.status_code} - {e.response.text}")
-            raise Exception(f"Markdown 청킹 실패: {e.response.status_code} {e.response.text}")
+            raise Exception(f"Markdown 청킹 실패: {e.response.status_code} {e.response.text}") from e  # [P2-6]
         except Exception as e:
             logger.error(f"Failed to chunk markdown: {e}")
-            raise Exception(f"Markdown 청킹 실패: {str(e)}")
+            raise Exception(f"Markdown 청킹 실패: {str(e)}") from e  # [P2-6]
 
     def _apply_overlap(
         self,

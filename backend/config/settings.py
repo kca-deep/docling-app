@@ -3,6 +3,7 @@
 .env 파일에서 환경변수를 읽어옵니다.
 """
 import logging
+from functools import cached_property  # [P2-3] 프로퍼티 캐싱
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
 from typing import List, Optional
@@ -293,38 +294,39 @@ class Settings(BaseSettings):
     TEMP_COLLECTION_CLEANUP_INTERVAL: int = 300  # 정리 스케줄러 실행 간격 (초)
 
     # === Computed Properties ===
+    # [P2-3] cached_property 적용: 반복 접근 시 재계산 방지
 
-    @property
+    @cached_property
     def MAX_UPLOAD_SIZE(self) -> int:
         """바이트 단위로 변환된 최대 업로드 크기 (문서변환용)"""
         return self.MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
-    @property
+    @cached_property
     def CHAT_MAX_UPLOAD_SIZE(self) -> int:
         """바이트 단위로 변환된 최대 업로드 크기 (AI챗봇용)"""
         return self.CHAT_MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
-    @property
+    @cached_property
     def ALLOWED_EXTENSIONS_SET(self) -> set:
         """Set 형태로 변환된 허용 확장자"""
         return set(self.ALLOWED_EXTENSIONS)
 
-    @property
+    @cached_property
     def DOCLING_ASYNC_API_URL(self) -> str:
         """Docling Serve 비동기 변환 API URL"""
         return f"{self.DOCLING_BASE_URL}/v1/convert/file/async"
 
-    @property
+    @cached_property
     def DOCLING_STATUS_API_URL(self) -> str:
         """Docling Serve 상태 조회 API URL"""
         return f"{self.DOCLING_BASE_URL}/v1/status/poll"
 
-    @property
+    @cached_property
     def DOCLING_RESULT_API_URL(self) -> str:
         """Docling Serve 결과 조회 API URL"""
         return f"{self.DOCLING_BASE_URL}/v1/result"
 
-    @property
+    @cached_property
     def QWEN3_VL_API_URL(self) -> str:
         """Qwen3 VL API URL"""
         return f"{self.QWEN3_VL_BASE_URL}/v1/chat/completions"

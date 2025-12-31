@@ -289,6 +289,18 @@ async def add_security_headers(request: Request, call_next):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
 
+    # [P2-5] Content-Security-Policy 헤더 추가 (XSS 방지 강화)
+    # API 백엔드용 CSP: 스크립트/스타일 인라인 허용, SSE 연결 지원
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: blob:; "
+        "connect-src 'self' ws: wss:; "
+        "font-src 'self' data:; "
+        "frame-ancestors 'none';"
+    )
+
     return response
 
 # 잘못된 요청 처리 미들웨어

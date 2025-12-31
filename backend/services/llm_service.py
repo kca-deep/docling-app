@@ -196,12 +196,13 @@ class LLMService:
                 "stream": False
             }
 
-            logger.info("="*80)
-            logger.info(f"[LLM API CALL] Requested Model Key: {model_key}")
-            logger.info(f"[LLM API CALL] Resolved Model: {llm_config['model']}")
-            logger.info(f"[LLM API CALL] Endpoint URL: {llm_config['base_url']}")
-            logger.info(f"[LLM API CALL] Full URL: {url}")
-            logger.info("="*80)
+            # [P2-1] API 호출 상세 로그 → DEBUG
+            logger.debug("="*80)
+            logger.debug(f"[LLM API CALL] Requested Model Key: {model_key}")
+            logger.debug(f"[LLM API CALL] Resolved Model: {llm_config['model']}")
+            logger.debug(f"[LLM API CALL] Endpoint URL: {llm_config['base_url']}")
+            logger.debug(f"[LLM API CALL] Full URL: {url}")
+            logger.debug("="*80)
 
             response = await self.client.post(url, json=payload)
             response.raise_for_status()
@@ -216,7 +217,7 @@ class LLMService:
 
                 # GPT-OSS의 reasoning_content 처리
                 if reasoning_content:
-                    logger.info(f"[LLM API CALL] reasoning_content detected ({len(reasoning_content)} chars)")
+                    logger.debug(f"[LLM API CALL] reasoning_content detected ({len(reasoning_content)} chars)")
                     result["choices"][0]["message"]["reasoning_content"] = reasoning_content
 
                     if not content.strip():
@@ -231,7 +232,7 @@ class LLMService:
                 # llama.cpp API 응답에는 포함되지 않으므로 가상으로 복원
                 if is_exaone and '</thought>' in content and '<thought>' not in content:
                     content = '<thought>\n' + content
-                    logger.info("[LLM API CALL] EXAONE: Added virtual <thought> tag (chat_template prefix)")
+                    logger.debug("[LLM API CALL] EXAONE: Added virtual <thought> tag (chat_template prefix)")
 
                 if is_exaone and '<thought>' in content and '</thought>' in content:
                     thought_start = content.find('<thought>')
@@ -241,7 +242,7 @@ class LLMService:
                         answer_content = content[thought_end + 10:].strip()
                         result["choices"][0]["message"]["reasoning_content"] = thought_content
                         result["choices"][0]["message"]["content"] = answer_content
-                        logger.info(f"[LLM API CALL] EXAONE thought extracted ({len(thought_content)} chars)")
+                        logger.debug(f"[LLM API CALL] EXAONE thought extracted ({len(thought_content)} chars)")
                 else:
                     # EXAONE이 아니거나 thought 태그가 없으면 그대로 유지
                     result["choices"][0]["message"]["content"] = content.strip()
@@ -251,7 +252,7 @@ class LLMService:
 
         except Exception as e:
             logger.error(f"[LLM API CALL] Completion failed: {e}")
-            raise Exception(f"LLM API 호출 실패: {str(e)}")
+            raise Exception(f"LLM API 호출 실패: {str(e)}") from e  # [P2-6]
 
     async def chat_completion_stream(
         self,
@@ -298,12 +299,13 @@ class LLMService:
                 "stream": True
             }
 
-            logger.info("="*80)
-            logger.info(f"[LLM STREAM] Requested Model Key: {model_key}")
-            logger.info(f"[LLM STREAM] Resolved Model: {llm_config['model']}")
-            logger.info(f"[LLM STREAM] Endpoint URL: {llm_config['base_url']}")
-            logger.info(f"[LLM STREAM] Full URL: {url}")
-            logger.info("="*80)
+            # [P2-1] 스트리밍 API 호출 상세 로그 → DEBUG
+            logger.debug("="*80)
+            logger.debug(f"[LLM STREAM] Requested Model Key: {model_key}")
+            logger.debug(f"[LLM STREAM] Resolved Model: {llm_config['model']}")
+            logger.debug(f"[LLM STREAM] Endpoint URL: {llm_config['base_url']}")
+            logger.debug(f"[LLM STREAM] Full URL: {url}")
+            logger.debug("="*80)
 
             async with self.client.stream("POST", url, json=payload) as response:
                 response.raise_for_status()
@@ -327,7 +329,7 @@ class LLMService:
 
         except Exception as e:
             logger.error(f"[LLM STREAM] Streaming failed: {e}")
-            raise Exception(f"LLM 스트리밍 실패: {str(e)}")
+            raise Exception(f"LLM 스트리밍 실패: {str(e)}") from e  # [P2-6]
 
     def _truncate_text(self, text: str, max_chars: int) -> str:
         """
@@ -609,8 +611,8 @@ class LLMService:
         is_casual_mode = not retrieved_docs
         has_documents = bool(retrieved_docs)
 
-        # 디버깅 로그
-        logger.info(f"[LLM] build_rag_messages: collection_name={collection_name}, has_documents={has_documents}, retrieved_docs_count={len(retrieved_docs) if retrieved_docs else 0}")
+        # [P2-1] 디버깅 로그 → DEBUG
+        logger.debug(f"[LLM] build_rag_messages: collection_name={collection_name}, has_documents={has_documents}, retrieved_docs_count={len(retrieved_docs) if retrieved_docs else 0}")
 
         # PromptLoader에서 동적으로 프롬프트 가져오기 (모델별 reasoning instruction 적용)
         # collection_name이 None이면 casual.md 사용
