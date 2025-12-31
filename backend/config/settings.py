@@ -15,6 +15,9 @@ logger = logging.getLogger(__name__)
 class Settings(BaseSettings):
     """애플리케이션 설정"""
 
+    # 로그 레벨 설정 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+    LOG_LEVEL: str = "INFO"
+
     # 타임존 설정
     TIMEZONE: str = "Asia/Seoul"
 
