@@ -209,6 +209,7 @@ export function CollectionModal({
   const [loadingDocs, setLoadingDocs] = useState(false)
   const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set())
   const [deletingDocs, setDeletingDocs] = useState(false)
+  const [docDeleteDialogOpen, setDocDeleteDialogOpen] = useState(false)
 
   // 폼 초기화
   const resetForm = useCallback(() => {
@@ -357,10 +358,18 @@ export function CollectionModal({
     }
   }
 
+  // 선택된 문서들의 총 청크 개수 계산
+  const selectedDocsChunkCount = collectionDocs
+    .filter((doc) => {
+      const key = doc.source_type === "document" ? `doc:${doc.document_id}` : `excel:${doc.filename}`
+      return selectedDocs.has(key)
+    })
+    .reduce((sum, doc) => sum + doc.chunk_count, 0)
+
   const deleteSelectedDocuments = async () => {
     if (!collection || selectedDocs.size === 0) return
-    if (!window.confirm(`선택한 ${selectedDocs.size}개 문서를 삭제하시겠습니까?`)) return
 
+    setDocDeleteDialogOpen(false)
     setDeletingDocs(true)
     try {
       const documentIds: number[] = []
@@ -390,7 +399,9 @@ export function CollectionModal({
 
       if (response.ok) {
         const result = await response.json()
-        toast.success(`${result.deleted_count || selectedDocs.size}개 문서가 삭제되었습니다`)
+        const docCount = selectedDocs.size  // 문서 수 (프론트엔드)
+        const chunkCount = result.deleted_count || selectedDocsChunkCount  // 청크 수 (백엔드)
+        toast.success(`${docCount}개 문서 (${chunkCount.toLocaleString()}개 청크)가 삭제되었습니다`)
         setSelectedDocs(new Set())
         fetchCollectionDocuments()
         onSuccess()
@@ -917,7 +928,7 @@ export function CollectionModal({
                   variant="destructive"
                   size="sm"
                   disabled={selectedDocs.size === 0 || deletingDocs}
-                  onClick={deleteSelectedDocuments}
+                  onClick={() => setDocDeleteDialogOpen(true)}
                 >
                   {deletingDocs ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -959,6 +970,29 @@ export function CollectionModal({
           </AlertDialogContent>
         </AlertDialog>
       )}
+
+      {/* 문서 삭제 확인 AlertDialog */}
+      <AlertDialog open={docDeleteDialogOpen} onOpenChange={setDocDeleteDialogOpen}>
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              문서 삭제
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              선택한 <strong>{selectedDocs.size}개 문서</strong>를 삭제합니다.
+              <br />
+              총 <strong>{selectedDocsChunkCount.toLocaleString()}개 청크</strong>가 함께 삭제됩니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={deleteSelectedDocuments} className="bg-destructive hover:bg-destructive/90">
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }
