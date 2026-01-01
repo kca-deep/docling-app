@@ -293,7 +293,7 @@ export function MarkdownMessage({ content, compact = false }: MarkdownMessagePro
 
     // mark 태그 처리 (하이라이트)
     mark: ({ children }) => (
-      <mark className="underline decoration-teal-500 decoration-2 underline-offset-2 text-teal-700 dark:decoration-teal-400 dark:text-teal-300 font-medium bg-transparent">
+      <mark className="bg-teal-100/60 dark:bg-teal-900/40 underline decoration-dotted decoration-teal-600 decoration-2 underline-offset-3 text-teal-800 dark:text-teal-200 font-semibold px-1 rounded-sm transition-all duration-200 hover:bg-teal-200/80 dark:hover:bg-teal-800/60">
         {children}
       </mark>
     ),
