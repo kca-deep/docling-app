@@ -283,6 +283,9 @@ def process_llm_stream_chunk(
             collected_response["retrieved_docs"] = data['sources']
             if is_exaone:
                 chunks_to_yield.append(f'data: {json.dumps({"sources": data["sources"]})}\n\n')
+        # sources_update: 리랭킹 후 최종 점수로 업데이트 (로깅에 반영)
+        if 'sources_update' in data:
+            collected_response["retrieved_docs"] = data['sources_update']
         if 'retrieved_docs' in data:
             collected_response["retrieved_docs"] = data['retrieved_docs']
         if 'usage' in data:
@@ -757,6 +760,7 @@ async def regenerate(
         retrieved_docs_internal = convert_docs_to_internal(request.retrieved_docs)
 
         # RAG 생성 수행 (검색 스킵, 생성만 수행)
+        # skip_score_filter=True: 재생성은 이미 검증된 문서 사용, 점수 필터링 비활성화
         result = await rag_service.generate(
             query=request.query,
             retrieved_docs=retrieved_docs_internal,
@@ -768,7 +772,8 @@ async def regenerate(
             top_p=request.top_p,
             frequency_penalty=request.frequency_penalty,
             presence_penalty=request.presence_penalty,
-            chat_history=chat_history
+            chat_history=chat_history,
+            skip_score_filter=True
         )
 
         # 응답 포맷팅
@@ -791,7 +796,8 @@ async def regenerate(
                 "token_count": (result.get("usage") or {}).get("total_tokens", 0),
                 "retrieval_time_ms": None  # 재생성은 검색 없음
             },
-            error_info=None
+            error_info=None,
+            use_reranking=False  # 재생성은 검색을 스킵하므로 리랭킹 미적용
         )
 
         return ChatResponse(
@@ -854,6 +860,7 @@ async def regenerate_stream(request: RegenerateRequest):
                 is_exaone = is_exaone_model(request.model)
 
                 # 스트리밍 생성
+                # skip_score_filter=True: 재생성은 이미 검증된 문서 사용, 점수 필터링 비활성화
                 async for chunk in rag_service.generate_stream(
                     query=request.query,
                     retrieved_docs=retrieved_docs_internal,
@@ -865,7 +872,8 @@ async def regenerate_stream(request: RegenerateRequest):
                     frequency_penalty=request.frequency_penalty,
                     presence_penalty=request.presence_penalty,
                     chat_history=chat_history,
-                    collection_name=request.collection_name
+                    collection_name=request.collection_name,
+                    skip_score_filter=True
                 ):
                     # 공통 유틸리티로 스트림 청크 처리
                     chunks_to_yield = process_llm_stream_chunk(
@@ -907,7 +915,8 @@ async def regenerate_stream(request: RegenerateRequest):
                         model=request.model,
                         llm_params=build_llm_params(request),
                         performance_metrics=final_performance_metrics,
-                        error_info=stream_error_info
+                        error_info=stream_error_info,
+                        use_reranking=False  # 재생성은 검색을 스킵하므로 리랭킹 미적용
                     ))
                 except asyncio.CancelledError:
                     logger.warning("[REGENERATE STREAM] Logging interrupted")

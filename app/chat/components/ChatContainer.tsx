@@ -714,10 +714,7 @@ export function ChatContainer() {
       setCurrentStage("generate"); // 재생성은 검색 없이 바로 생성 단계
       toast.info("답변을 다시 생성하고 있습니다");
 
-      // 현재 고급설정의 temperature 사용 (다양성을 위해 약간 증가)
-      const regenerateTemp = Math.min(settings.temperature + 0.2, 2.0);
-
-      // 스트리밍 엔드포인트 호출
+      // 스트리밍 엔드포인트 호출 (원본 질의와 동일한 temperature 사용)
       const response = await fetch(`${API_BASE_URL}/api/chat/regenerate/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -728,7 +725,7 @@ export function ChatContainer() {
           retrieved_docs: context.retrievedDocs,
           model: settings.model,
           reasoning_level: settings.reasoningLevel,
-          temperature: regenerateTemp,
+          temperature: settings.temperature,
           max_tokens: settings.maxTokens,
           top_p: settings.topP,
           frequency_penalty: settings.frequencyPenalty,

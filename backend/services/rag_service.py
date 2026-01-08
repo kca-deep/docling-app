@@ -430,7 +430,8 @@ class RAGService:
         presence_penalty: float = 0.0,
         chat_history: Optional[List[Dict[str, str]]] = None,
         collection_name: Optional[str] = None,
-        available_documents: Optional[List[str]] = None
+        available_documents: Optional[List[str]] = None,
+        skip_score_filter: bool = False
     ) -> Dict[str, Any]:
         """
         검색된 문서 기반 답변 생성
@@ -447,6 +448,7 @@ class RAGService:
             chat_history: 이전 대화 기록
             collection_name: Qdrant 컬렉션 이름 (프롬프트 선택에 사용)
             available_documents: 컬렉션에 임베딩된 문서 이름 목록 (선택사항)
+            skip_score_filter: 점수 필터링 비활성화 (재생성 모드용)
 
         Returns:
             Dict[str, Any]: LLM 응답
@@ -465,7 +467,8 @@ class RAGService:
                 chat_history=chat_history,
                 collection_name=collection_name,
                 model_key=model,
-                available_documents=available_documents
+                available_documents=available_documents,
+                skip_score_filter=skip_score_filter
             )
 
             # 2. LLM으로 답변 생성
@@ -500,7 +503,8 @@ class RAGService:
         presence_penalty: float = 0.0,
         chat_history: Optional[List[Dict[str, str]]] = None,
         collection_name: Optional[str] = None,
-        available_documents: Optional[List[str]] = None
+        available_documents: Optional[List[str]] = None,
+        skip_score_filter: bool = False
     ) -> AsyncGenerator[str, None]:
         """
         검색된 문서 기반 스트리밍 답변 생성
@@ -533,7 +537,8 @@ class RAGService:
                 chat_history=chat_history,
                 collection_name=collection_name,
                 model_key=model,
-                available_documents=available_documents
+                available_documents=available_documents,
+                skip_score_filter=skip_score_filter
             )
 
             # 2. LLM으로 스트리밍 답변 생성

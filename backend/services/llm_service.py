@@ -388,7 +388,8 @@ class LLMService:
     def _build_context_from_docs(
         self,
         retrieved_docs: List[Dict[str, Any]],
-        collection_name: Optional[str] = None
+        collection_name: Optional[str] = None,
+        skip_score_filter: bool = False
     ) -> str:
         """
         [P1-1] 검색된 문서들로부터 LLM 컨텍스트 문자열 구성
@@ -396,6 +397,7 @@ class LLMService:
         Args:
             retrieved_docs: 검색된 문서 리스트
             collection_name: 컬렉션 이름 (임시 컬렉션 여부 판단용)
+            skip_score_filter: 점수 필터링 비활성화 (재생성 모드용)
 
         Returns:
             str: 포맷된 컨텍스트 문자열
@@ -428,7 +430,8 @@ class LLMService:
             is_doc_from_temp = is_doc_from_temp_collection(doc, is_temp_collection_mode)
 
             # 저점수 문서 필터링 (할루시네이션 방지)
-            if not is_doc_from_temp and score < MIN_CONTEXT_SCORE:
+            # 재생성 모드에서는 필터링 비활성화 (이미 검증된 문서 사용)
+            if not skip_score_filter and not is_doc_from_temp and score < MIN_CONTEXT_SCORE:
                 logger.info(f"[LLM] Skipping low-score doc {idx} (source={doc_source}): score={score:.4f} < {MIN_CONTEXT_SCORE}")
                 continue
 
@@ -577,7 +580,8 @@ class LLMService:
         chat_history: Optional[List[Dict[str, str]]] = None,
         collection_name: Optional[str] = None,
         model_key: Optional[str] = None,
-        available_documents: Optional[List[str]] = None
+        available_documents: Optional[List[str]] = None,
+        skip_score_filter: bool = False
     ) -> List[Dict[str, str]]:
         """
         RAG 프롬프트 구성 (일상대화 모드 및 EXAONE Deep 지원)
@@ -597,6 +601,7 @@ class LLMService:
             collection_name: Qdrant 컬렉션 이름 (None이면 일상대화 모드)
             model_key: 모델 키 (EXAONE Deep 여부 판단용)
             available_documents: 컬렉션에 임베딩된 문서 이름 목록 (선택사항)
+            skip_score_filter: 점수 필터링 비활성화 (재생성 모드용)
 
         Returns:
             List[Dict[str, str]]: 메시지 리스트
@@ -626,7 +631,8 @@ class LLMService:
         )
 
         # [P1-1] 문서 컨텍스트 구성 (헬퍼 메서드 사용)
-        context = self._build_context_from_docs(retrieved_docs, collection_name) if not is_casual_mode else ""
+        # 재생성 모드에서는 점수 필터링 비활성화 (이미 검증된 문서 사용)
+        context = self._build_context_from_docs(retrieved_docs, collection_name, skip_score_filter) if not is_casual_mode else ""
 
         # [P1-1] 모델별 메시지 구성 (헬퍼 메서드 사용)
         if is_exaone:
