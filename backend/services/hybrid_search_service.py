@@ -310,3 +310,78 @@ class HybridSearchService:
         else:
             self._collection_cache.clear()
             logger.info("[Hybrid] All cache invalidated")
+
+    async def preload_collections(self, collection_names: Optional[List[str]] = None) -> Dict[str, bool]:
+        """
+        BM25 인덱스 프리로딩 (서버 시작 시 호출)
+
+        Cold Start 문제 해결을 위해 주요 컬렉션의 BM25 인덱스를 미리 로드합니다.
+
+        Args:
+            collection_names: 프리로드할 컬렉션 목록 (None이면 모든 public 컬렉션)
+
+        Returns:
+            Dict[str, bool]: {컬렉션명: 성공여부}
+        """
+        import time
+        results = {}
+
+        # 컬렉션 목록이 없으면 Qdrant에서 조회
+        if collection_names is None:
+            try:
+                collections = await self.qdrant_service.get_collections()
+                collection_names = [c.name for c in collections if c.name]
+            except Exception as e:
+                logger.error(f"[Hybrid] Failed to list collections for preload: {e}")
+                return results
+
+        logger.info(f"[Hybrid] Preloading BM25 indexes for {len(collection_names)} collections...")
+        total_start = time.time()
+
+        for name in collection_names:
+            # temp_ 컬렉션은 스킵 (임시 컬렉션)
+            if name.startswith("temp_"):
+                continue
+
+            try:
+                start = time.time()
+                await self._load_collection_texts(name)
+                elapsed = time.time() - start
+
+                cache = self._collection_cache.get(name, {})
+                doc_count = len(cache.get("texts", []))
+                logger.info(f"[Hybrid] Preloaded '{name}': {doc_count} docs in {elapsed:.2f}s")
+                results[name] = True
+
+            except Exception as e:
+                logger.warning(f"[Hybrid] Failed to preload '{name}': {e}")
+                results[name] = False
+
+        total_elapsed = time.time() - total_start
+        success_count = sum(1 for v in results.values() if v)
+        logger.info(
+            f"[Hybrid] Preload completed: {success_count}/{len(results)} collections "
+            f"in {total_elapsed:.2f}s"
+        )
+
+        return results
+
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """
+        캐시 통계 반환 (디버깅/모니터링용)
+
+        Returns:
+            Dict[str, Any]: 캐시 상태 정보
+        """
+        stats = {
+            "cached_collections": len(self._collection_cache),
+            "collections": {}
+        }
+
+        for name, cache in self._collection_cache.items():
+            stats["collections"][name] = {
+                "documents": len(cache.get("texts", [])),
+                "indexed": cache.get("bm25") is not None
+            }
+
+        return stats

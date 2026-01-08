@@ -45,6 +45,8 @@ from backend.services.http_client import http_manager
 from backend.services.qdrant_service import qdrant_service
 # DoclingService 인스턴스 import (VRAM 최적화 - 연결 종료용)
 from backend.services.docling_service import get_docling_service
+# RAGService import (BM25 프리로딩용)
+from backend.api.routes.chat import rag_service
 
 # 로거 설정
 logger = logging.getLogger(__name__)
@@ -111,6 +113,18 @@ async def lifespan(app: FastAPI):
 
     # 임시 컬렉션 정리 스케줄러 시작 (백그라운드에서 실행)
     cleanup_task = asyncio.create_task(start_temp_collection_cleanup_scheduler())
+
+    # BM25 인덱스 프리로딩 (Cold Start 문제 해결)
+    if settings.USE_HYBRID_SEARCH and rag_service.hybrid_search_service:
+        try:
+            preload_result = await rag_service.hybrid_search_service.preload_collections()
+            success_count = sum(1 for v in preload_result.values() if v)
+            print(f"[OK] BM25 index preloaded: {success_count}/{len(preload_result)} collections")
+        except Exception as e:
+            logger.warning(f"BM25 preload failed (non-critical): {e}")
+
+    # AI 모델 워밍업 (Cold Start 문제 해결)
+    asyncio.create_task(warmup_ai_models())
 
     yield  # 애플리케이션 실행
 
@@ -198,6 +212,50 @@ async def migrate_qdrant_collections():
     except Exception as e:
         logger.error(f"Failed to migrate Qdrant collections: {e}")
         print(f"[WARN] Qdrant collection migration skipped: {e}")
+
+
+async def warmup_ai_models():
+    """
+    AI 모델 워밍업 (Cold Start 문제 해결)
+
+    첫 요청 시 모델 로딩으로 인한 지연을 방지하기 위해
+    서버 시작 시 테스트 요청을 전송합니다.
+    """
+    import time
+    try:
+        # 잠시 대기 (서버 시작 완료 후 실행)
+        await asyncio.sleep(2)
+
+        warmup_results = []
+
+        # 1. 임베딩 모델 워밍업
+        try:
+            from backend.services.embedding_service import embedding_service
+            start = time.time()
+            await embedding_service.get_embedding("워밍업 테스트")
+            elapsed = time.time() - start
+            warmup_results.append(f"Embedding: {elapsed:.2f}s")
+        except Exception as e:
+            warmup_results.append(f"Embedding: failed ({e})")
+
+        # 2. 리랭커 모델 워밍업 (활성화된 경우)
+        if settings.USE_RERANKING:
+            try:
+                from backend.services.reranker_service import reranker_service
+                start = time.time()
+                await reranker_service.rerank(
+                    query="워밍업 테스트",
+                    documents=[{"text": "테스트 문서입니다."}]
+                )
+                elapsed = time.time() - start
+                warmup_results.append(f"Reranker: {elapsed:.2f}s")
+            except Exception as e:
+                warmup_results.append(f"Reranker: failed ({e})")
+
+        print(f"[OK] AI models warmed up: {', '.join(warmup_results)}")
+
+    except Exception as e:
+        logger.warning(f"AI model warmup failed (non-critical): {e}")
 
 
 async def aggregate_pending_statistics():

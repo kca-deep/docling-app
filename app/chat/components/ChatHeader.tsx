@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sun, Moon, Maximize, Minimize, Wifi, WifiOff, Loader2 } from "lucide-react";
@@ -73,24 +73,7 @@ export function ChatHeader({
   const [modelOptions, setModelOptions] = useState<ModelOption[]>(fallbackModels);
   const [isLoadingModels, setIsLoadingModels] = useState(true);
 
-  // 모델 상태 업데이트 처리 및 자동 스위칭
-  const handleModelStatusUpdate = useCallback((models: ModelOption[]) => {
-    setModelOptions(models);
-    setIsLoadingModels(false);
-
-    // 자동 스위칭 로직: 현재 모델이 unhealthy이면 healthy 모델로 전환
-    if (onModelChange) {
-      const currentModel = models.find(m => m.key === selectedModel);
-      if (currentModel && currentModel.status === "unhealthy") {
-        const healthyModel = models.find(m => m.status === "healthy");
-        if (healthyModel && healthyModel.key !== selectedModel) {
-          onModelChange(healthyModel.key);
-        }
-      }
-    }
-  }, [selectedModel, onModelChange]);
-
-  // SSE로 LLM 모델 상태 실시간 구독
+  // SSE로 LLM 모델 상태 실시간 구독 (한 번만 연결)
   useEffect(() => {
     const eventSource = new EventSource(`${API_BASE_URL}/api/health/llm-models/stream`);
 
@@ -98,7 +81,8 @@ export function ChatHeader({
       try {
         const data = JSON.parse(event.data);
         if (data.models) {
-          handleModelStatusUpdate(data.models);
+          setModelOptions(data.models);
+          setIsLoadingModels(false);
         }
       } catch (e) {
         console.error("LLM models SSE parse error:", e);
@@ -112,7 +96,20 @@ export function ChatHeader({
     return () => {
       eventSource.close();
     };
-  }, [handleModelStatusUpdate]);
+  }, []); // 빈 의존성 - SSE 연결은 한 번만 생성
+
+  // 자동 스위칭 로직 (별도 useEffect로 분리)
+  useEffect(() => {
+    if (!onModelChange) return;
+
+    const currentModel = modelOptions.find(m => m.key === selectedModel);
+    if (currentModel && currentModel.status === "unhealthy") {
+      const healthyModel = modelOptions.find(m => m.status === "healthy");
+      if (healthyModel && healthyModel.key !== selectedModel) {
+        onModelChange(healthyModel.key);
+      }
+    }
+  }, [modelOptions, selectedModel, onModelChange]);
 
   const selectedModelOption = modelOptions.find(m => m.key === selectedModel);
 

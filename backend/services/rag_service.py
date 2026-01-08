@@ -864,7 +864,14 @@ class RAGService:
                     yield 'data: [DONE]\n\n'
                     return
 
-            # 1.5. Reranking (선택) - RAG 모드에서만 적용
+            # 1.5. Preliminary sources 전송 (리랭킹 전) - 빠른 피드백 제공
+            docs_with_keywords = []  # 인용 추출용 변수 초기화
+            if not is_casual_mode and retrieved_docs:
+                preliminary_docs = extract_keywords_for_documents(query, retrieved_docs[:top_k])
+                preliminary_sources = convert_docs_to_sources(preliminary_docs)
+                yield f'data: {json.dumps({"sources": preliminary_sources, "is_preliminary": True}, ensure_ascii=False)}\n\n'
+
+            # 1.6. Reranking (선택) - RAG 모드에서만 적용
             if not is_casual_mode and use_reranking and self.reranker_service and retrieved_docs:
                 # 단계 이벤트: 리랭킹 단계
                 yield f'data: {json.dumps({"type": "stage", "stage": "rerank"}, ensure_ascii=False)}\n\n'
@@ -887,10 +894,15 @@ class RAGService:
                     yield 'data: [DONE]\n\n'
                     return
 
-            # 2. 검색된 문서에 키워드 추출 후 전송 (스트리밍 시작 전)
-            docs_with_keywords = extract_keywords_for_documents(query, retrieved_docs)
-            sources_data = convert_docs_to_sources(docs_with_keywords)
-            yield f'data: {json.dumps({"sources": sources_data}, ensure_ascii=False)}\n\n'
+                # 리랭킹 완료 후 sources_update 전송 (최종 순서)
+                docs_with_keywords = extract_keywords_for_documents(query, retrieved_docs)
+                sources_data = convert_docs_to_sources(docs_with_keywords)
+                yield f'data: {json.dumps({"sources_update": sources_data}, ensure_ascii=False)}\n\n'
+            elif not is_casual_mode and retrieved_docs:
+                # 리랭킹 비활성화 시 기존 로직 유지
+                docs_with_keywords = extract_keywords_for_documents(query, retrieved_docs[:top_k])
+                sources_data = convert_docs_to_sources(docs_with_keywords)
+                yield f'data: {json.dumps({"sources_update": sources_data}, ensure_ascii=False)}\n\n'
 
             # 단계 이벤트: 생성 단계
             yield f'data: {json.dumps({"type": "stage", "stage": "generate"}, ensure_ascii=False)}\n\n'

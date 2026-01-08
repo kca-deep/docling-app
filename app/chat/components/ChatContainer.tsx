@@ -1075,7 +1075,7 @@ export function ChatContainer() {
 
         {/* 우측: 참조문서 아티팩트 패널 - 부드러운 전환 */}
         <div className={cn(
-          "overflow-hidden transition-all duration-200 ease-out border-l border-border/50 bg-muted/10",
+          "overflow-hidden transition-all duration-100 ease-out border-l border-border/50 bg-muted/10",
           artifactState.isOpen ? "w-[40%] opacity-100" : "w-0 opacity-0 border-0"
         )}>
           {artifactState.isOpen && (

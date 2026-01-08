@@ -1,6 +1,7 @@
 [Unit]
 Description=Docling App Backend (FastAPI)
-After=network.target
+After=network.target qdrant.service bge-embedding-server.service bge-reranker.service llama-server-gpt-oss-llm.service
+Wants=qdrant.service bge-embedding-server.service
 StartLimitIntervalSec=60
 StartLimitBurst=5
 

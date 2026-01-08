@@ -253,6 +253,10 @@ def process_llm_stream_chunk(
             # EXAONE 모델 처리
             if is_exaone:
                 if reasoning_content:
+                    # 첫 번째 reasoning_content 수신 시 "reasoning" 단계 이벤트 전송
+                    if not collected_response.get("_reasoning_stage_sent"):
+                        chunks_to_yield.append(f'data: {json.dumps({"type": "stage", "stage": "reasoning"})}\n\n')
+                        collected_response["_reasoning_stage_sent"] = True
                     collected_response["reasoning_content"] = collected_response.get("reasoning_content", "") + reasoning_content
                     chunks_to_yield.append(f'data: {json.dumps({"type": "reasoning_chunk", "content": reasoning_content})}\n\n')
 
@@ -266,6 +270,10 @@ def process_llm_stream_chunk(
                 if content:
                     collected_response["answer"] = collected_response.get("answer", "") + content
                 if reasoning_content:
+                    # 첫 번째 reasoning_content 수신 시 "reasoning" 단계 이벤트 전송
+                    if not collected_response.get("_reasoning_stage_sent"):
+                        chunks_to_yield.append(f'data: {json.dumps({"type": "stage", "stage": "reasoning"})}\n\n')
+                        collected_response["_reasoning_stage_sent"] = True
                     logger.info(f"{log_prefix} Got reasoning_content chunk: {len(reasoning_content)} chars")
                     collected_response["reasoning_content"] = collected_response.get("reasoning_content", "") + reasoning_content
                     chunks_to_yield.append(f'data: {json.dumps({"type": "reasoning_chunk", "content": reasoning_content})}\n\n')

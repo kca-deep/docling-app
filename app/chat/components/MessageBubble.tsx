@@ -236,7 +236,7 @@ export const MessageBubble = memo(function MessageBubble({
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.3, ease: "easeOut" }}
+                transition={{ duration: 0.1, ease: "easeOut" }}
                 className="overflow-hidden"
               >
                 {/* 모바일: 간단한 버튼으로 모달 열기 */}

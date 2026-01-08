@@ -95,7 +95,7 @@ export function SourceArtifactPanel({
         `[data-source-id="${activeSourceId}"]`
       );
       if (activeTab) {
-        activeTab.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+        activeTab.scrollIntoView({ behavior: "auto", inline: "center", block: "nearest" });
       }
     }
   }, [activeSourceId]);

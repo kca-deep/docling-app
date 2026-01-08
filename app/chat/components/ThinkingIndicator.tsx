@@ -57,6 +57,17 @@ const THINKING_STAGES: ThinkingStage[] = [
       "응답을 구성하는 중",
     ],
   },
+  {
+    id: "reasoning",
+    label: "추론",
+    icon: Wand2,
+    colorVar: "var(--chart-5)",
+    hints: [
+      "AI가 추론 중입니다",
+      "답변 논리를 구성하는 중",
+      "최적의 응답을 도출 중",
+    ],
+  },
 ];
 
 // 단계 ID -> 인덱스 매핑
@@ -65,6 +76,7 @@ const STAGE_INDEX_MAP: Record<string, number> = {
   search: 1,
   rerank: 2,
   generate: 3,
+  reasoning: 4,
 };
 
 // 단계별 진행 시간 (ms) - fallback용
