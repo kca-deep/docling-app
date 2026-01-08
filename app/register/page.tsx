@@ -1,10 +1,9 @@
 "use client"
 
-import { Suspense, useState, useEffect, useCallback } from "react"
+import { Suspense, useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Sparkles, Loader2, AlertCircle, ArrowLeft, Lock, User, Mail, Users, CheckCircle2, XCircle } from "lucide-react"
-import { motion } from "framer-motion"
 import { useAuth } from "@/components/auth/auth-provider"
 import { register, checkDuplicate } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
@@ -99,24 +98,22 @@ function RegisterForm() {
     }
   }, [debouncedEmail])
 
-  // 비밀번호 강도 체크
-  const getPasswordStrength = useCallback((pwd: string) => {
-    if (!pwd) return { score: 0, label: '', color: '' }
+  // 비밀번호 강도 체크 - useMemo로 최적화
+  const passwordStrength = useMemo(() => {
+    if (!password) return { score: 0, label: '', color: '' }
 
     let score = 0
-    if (pwd.length >= 8) score++
-    if (/[A-Z]/.test(pwd)) score++
-    if (/[a-z]/.test(pwd)) score++
-    if (/\d/.test(pwd)) score++
-    if (/[!@#$%^&*(),.?":{}|<>]/.test(pwd)) score++
+    if (password.length >= 8) score++
+    if (/[A-Z]/.test(password)) score++
+    if (/[a-z]/.test(password)) score++
+    if (/\d/.test(password)) score++
+    if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) score++
 
     if (score <= 2) return { score, label: '약함', color: 'text-red-500' }
     if (score <= 3) return { score, label: '보통', color: 'text-yellow-500' }
     if (score <= 4) return { score, label: '강함', color: 'text-green-500' }
     return { score, label: '매우 강함', color: 'text-green-600' }
-  }, [])
-
-  const passwordStrength = getPasswordStrength(password)
+  }, [password])
   const passwordsMatch = password && passwordConfirm && password === passwordConfirm
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -165,11 +162,7 @@ function RegisterForm() {
         </div>
 
         <div className="relative z-10 w-full max-w-md px-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.6 }}
-          >
+          <div className="animate-fade-in-up">
             <Card className="border-0 shadow-2xl bg-background/60 backdrop-blur-xl overflow-hidden">
               <CardHeader className="text-center pb-2 pt-8">
                 <div className="flex justify-center mb-6">
@@ -195,7 +188,7 @@ function RegisterForm() {
                 </Button>
               </CardContent>
             </Card>
-          </motion.div>
+          </div>
         </div>
       </div>
     )
@@ -203,49 +196,19 @@ function RegisterForm() {
 
   return (
     <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden">
-      {/* Animated Background */}
+      {/* Animated Background - CSS animations for better performance */}
       <div className="absolute inset-0 z-0">
         <div className="absolute inset-0 bg-background" />
 
-        {/* Dynamic Mesh Gradient */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 1.5 }}
-          className="absolute inset-0 overflow-hidden"
-        >
-          <motion.div
-            animate={{
-              scale: [1, 1.2, 1],
-              rotate: [0, 90, 0],
-              x: [0, -100, 0],
-              y: [0, -50, 0],
-            }}
-            transition={{
-              duration: 20,
-              repeat: Infinity,
-              repeatType: "reverse",
-              ease: "easeInOut"
-            }}
-            className="absolute -top-[50%] -left-[50%] w-[200%] h-[200%] bg-[radial-gradient(circle_farthest-corner_at_center,var(--chart-1)_0%,transparent_50%)] opacity-20 dark:opacity-30 blur-[100px]"
+        {/* Dynamic Mesh Gradient - CSS only */}
+        <div className="absolute inset-0 overflow-hidden animate-fade-in">
+          <div
+            className="absolute -top-[50%] -left-[50%] w-[200%] h-[200%] bg-[radial-gradient(circle_farthest-corner_at_center,var(--chart-1)_0%,transparent_50%)] opacity-20 dark:opacity-30 blur-[100px] animate-auth-gradient-1"
           />
-          <motion.div
-            animate={{
-              scale: [1, 1.2, 1],
-              rotate: [0, -90, 0],
-              x: [0, 100, 0],
-              y: [0, 50, 0],
-            }}
-            transition={{
-              duration: 25,
-              repeat: Infinity,
-              repeatType: "reverse",
-              ease: "easeInOut",
-              delay: 2
-            }}
-            className="absolute -bottom-[50%] -right-[50%] w-[200%] h-[200%] bg-[radial-gradient(circle_farthest-corner_at_center,var(--chart-3)_0%,transparent_50%)] opacity-20 dark:opacity-30 blur-[100px]"
+          <div
+            className="absolute -bottom-[50%] -right-[50%] w-[200%] h-[200%] bg-[radial-gradient(circle_farthest-corner_at_center,var(--chart-3)_0%,transparent_50%)] opacity-20 dark:opacity-30 blur-[100px] animate-auth-gradient-2"
           />
-        </motion.div>
+        </div>
 
         {/* Dot pattern overlay */}
         <div
@@ -261,12 +224,7 @@ function RegisterForm() {
       {/* Content */}
       <div className="relative z-10 w-full max-w-2xl px-6">
         {/* Back to Home */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="mb-4"
-        >
+        <div className="mb-4 animate-fade-in-down">
           <Link
             href="/"
             className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors group"
@@ -274,32 +232,24 @@ function RegisterForm() {
             <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" />
             <span>홈으로 돌아가기</span>
           </Link>
-        </motion.div>
+        </div>
 
         {/* Register Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 20, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.6, delay: 0.1 }}
-        >
+        <div className="animate-fade-in-up">
           <Card className="border-0 shadow-2xl bg-background/60 backdrop-blur-xl overflow-hidden">
             {/* Gradient Border Effect */}
             <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-[color:var(--chart-1)]/20 via-transparent to-[color:var(--chart-3)]/20 pointer-events-none" />
 
             <CardHeader className="text-center pb-2 pt-6 relative">
-              {/* Animated Logo */}
-              <motion.div
-                className="flex justify-center mb-4"
-                whileHover={{ scale: 1.05 }}
-                transition={{ type: "spring", stiffness: 300 }}
-              >
+              {/* Logo */}
+              <div className="flex justify-center mb-4">
                 <div className="relative group">
                   <div className="absolute inset-0 bg-gradient-to-r from-[color:var(--chart-1)] to-[color:var(--chart-3)] rounded-xl blur-lg opacity-30 group-hover:opacity-50 transition-opacity" />
-                  <div className="relative p-3 rounded-xl bg-gradient-to-br from-[color:var(--chart-1)]/10 to-[color:var(--chart-3)]/10 border border-[color:var(--chart-1)]/20">
+                  <div className="relative p-3 rounded-xl bg-gradient-to-br from-[color:var(--chart-1)]/10 to-[color:var(--chart-3)]/10 border border-[color:var(--chart-1)]/20 hover:scale-105 transition-transform">
                     <Sparkles className="h-8 w-8 text-[color:var(--chart-1)] relative z-10" />
                   </div>
                 </div>
-              </motion.div>
+              </div>
 
               <CardTitle className="text-xl font-bold">
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
@@ -307,7 +257,7 @@ function RegisterForm() {
                 </span>
               </CardTitle>
               <CardDescription className="text-muted-foreground mt-1 text-sm">
-                KCA-RAG 서비스에 가입하세요
+                KCA AI-Hub 서비스에 가입하세요
               </CardDescription>
             </CardHeader>
 
@@ -315,15 +265,12 @@ function RegisterForm() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Error Alert */}
                 {error && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                  >
+                  <div className="animate-fade-in-down">
                     <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
                       <AlertCircle className="h-4 w-4" />
                       <AlertDescription>{error}</AlertDescription>
                     </Alert>
-                  </motion.div>
+                  </div>
                 )}
 
                 {/* 2-column grid */}
@@ -509,13 +456,10 @@ function RegisterForm() {
                 </div>
 
                 {/* Submit Button */}
-                <motion.div
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.99 }}
-                >
+                <div>
                   <Button
                     type="submit"
-                    className="w-full h-10 bg-gradient-to-r from-[color:var(--chart-1)] to-[color:var(--chart-2)] hover:opacity-90 text-white font-semibold shadow-lg shadow-[color:var(--chart-1)]/20 hover:shadow-[color:var(--chart-1)]/40 transition-all border-0"
+                    className="w-full h-10 bg-gradient-to-r from-[color:var(--chart-1)] to-[color:var(--chart-2)] hover:opacity-90 hover:scale-[1.01] active:scale-[0.99] text-white font-semibold shadow-lg shadow-[color:var(--chart-1)]/20 hover:shadow-[color:var(--chart-1)]/40 transition-all border-0"
                     disabled={
                       isSubmitting ||
                       !username ||
@@ -538,7 +482,7 @@ function RegisterForm() {
                       "회원가입"
                     )}
                   </Button>
-                </motion.div>
+                </div>
 
                 {/* Login Link */}
                 <div className="text-center text-sm">
@@ -553,17 +497,12 @@ function RegisterForm() {
               </form>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
 
         {/* Footer */}
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-          className="mt-4 text-center text-xs text-muted-foreground"
-        >
+        <p className="mt-4 text-center text-xs text-muted-foreground animate-fade-in">
           관리자 승인 후 서비스를 이용할 수 있습니다.
-        </motion.p>
+        </p>
       </div>
     </div>
   )

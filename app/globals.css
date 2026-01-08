@@ -17,6 +17,38 @@
   animation: fade-in 0.8s ease-out;
 }
 
+/* Fade In Down Animation */
+@keyframes fade-in-down {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-down {
+  animation: fade-in-down 0.5s ease-out both;
+}
+
+/* Fade In Up Animation */
+@keyframes fade-in-up {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.6s ease-out 0.1s both;
+}
+
 /* Aurora Background Animation - Enhanced */
 @keyframes aurora-1 {
   0%, 100% {
@@ -264,6 +296,65 @@
 
 .animate-shimmer-border {
   animation: shimmer-border 2s linear infinite;
+}
+
+/* Auth Page Background Animations (CSS-only for better performance) */
+@keyframes auth-gradient-1 {
+  0%, 100% {
+    transform: scale(1) rotate(0deg) translate(0, 0);
+  }
+  50% {
+    transform: scale(1.2) rotate(90deg) translate(-100px, -50px);
+  }
+}
+
+@keyframes auth-gradient-2 {
+  0%, 100% {
+    transform: scale(1) rotate(0deg) translate(0, 0);
+  }
+  50% {
+    transform: scale(1.2) rotate(-90deg) translate(100px, 50px);
+  }
+}
+
+@keyframes auth-shine {
+  0% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.2;
+  }
+  100% {
+    transform: translateX(200%);
+    opacity: 0;
+  }
+}
+
+.animate-auth-gradient-1 {
+  animation: auth-gradient-1 20s ease-in-out infinite;
+  will-change: transform;
+}
+
+.animate-auth-gradient-2 {
+  animation: auth-gradient-2 25s ease-in-out infinite;
+  animation-delay: 2s;
+  will-change: transform;
+}
+
+.animate-auth-shine {
+  animation: auth-shine 6s ease-in-out infinite;
+  animation-delay: 4s;
+}
+
+/* Reduced motion preference - disable auth animations */
+@media (prefers-reduced-motion: reduce) {
+  .animate-auth-gradient-1,
+  .animate-auth-gradient-2,
+  .animate-auth-shine {
+    animation: none;
+    will-change: auto;
+  }
 }
 
 :root {

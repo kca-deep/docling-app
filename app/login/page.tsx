@@ -4,7 +4,6 @@ import { Suspense, useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Sparkles, Loader2, AlertCircle, ArrowLeft, Lock, User } from "lucide-react"
-import { motion } from "framer-motion"
 import { useAuth } from "@/components/auth/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -115,49 +114,19 @@ function LoginForm() {
 
   return (
     <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden">
-      {/* Animated Background */}
+      {/* Animated Background - CSS animations for better performance */}
       <div className="absolute inset-0 z-0">
         <div className="absolute inset-0 bg-background" />
 
-        {/* Dynamic Mesh Gradient */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 1.5 }}
-          className="absolute inset-0 overflow-hidden"
-        >
-          <motion.div
-            animate={{
-              scale: [1, 1.2, 1],
-              rotate: [0, 90, 0],
-              x: [0, -100, 0],
-              y: [0, -50, 0],
-            }}
-            transition={{
-              duration: 20,
-              repeat: Infinity,
-              repeatType: "reverse",
-              ease: "easeInOut"
-            }}
-            className="absolute -top-[50%] -left-[50%] w-[200%] h-[200%] bg-[radial-gradient(circle_farthest-corner_at_center,var(--chart-1)_0%,transparent_50%)] opacity-20 dark:opacity-30 blur-[100px]"
+        {/* Dynamic Mesh Gradient - CSS only */}
+        <div className="absolute inset-0 overflow-hidden animate-fade-in">
+          <div
+            className="absolute -top-[50%] -left-[50%] w-[200%] h-[200%] bg-[radial-gradient(circle_farthest-corner_at_center,var(--chart-1)_0%,transparent_50%)] opacity-20 dark:opacity-30 blur-[100px] animate-auth-gradient-1"
           />
-          <motion.div
-            animate={{
-              scale: [1, 1.2, 1],
-              rotate: [0, -90, 0],
-              x: [0, 100, 0],
-              y: [0, 50, 0],
-            }}
-            transition={{
-              duration: 25,
-              repeat: Infinity,
-              repeatType: "reverse",
-              ease: "easeInOut",
-              delay: 2
-            }}
-            className="absolute -bottom-[50%] -right-[50%] w-[200%] h-[200%] bg-[radial-gradient(circle_farthest-corner_at_center,var(--chart-3)_0%,transparent_50%)] opacity-20 dark:opacity-30 blur-[100px]"
+          <div
+            className="absolute -bottom-[50%] -right-[50%] w-[200%] h-[200%] bg-[radial-gradient(circle_farthest-corner_at_center,var(--chart-3)_0%,transparent_50%)] opacity-20 dark:opacity-30 blur-[100px] animate-auth-gradient-2"
           />
-        </motion.div>
+        </div>
 
         {/* Dot pattern overlay */}
         <div
@@ -173,12 +142,7 @@ function LoginForm() {
       {/* Content */}
       <div className="relative z-10 w-full max-w-md px-6">
         {/* Back to Home */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="mb-8"
-        >
+        <div className="mb-8 animate-fade-in-down">
           <Link
             href="/"
             className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors group"
@@ -186,50 +150,30 @@ function LoginForm() {
             <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" />
             <span>홈으로 돌아가기</span>
           </Link>
-        </motion.div>
+        </div>
 
         {/* Login Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 20, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.6, delay: 0.1 }}
-        >
+        <div className="animate-fade-in-up">
           <Card className="border-0 shadow-2xl bg-background/60 backdrop-blur-xl overflow-hidden">
             {/* Gradient Border Effect */}
             <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-[color:var(--chart-1)]/20 via-transparent to-[color:var(--chart-3)]/20 pointer-events-none" />
 
             <CardHeader className="text-center pb-2 pt-8 relative">
-              {/* Animated Logo */}
-              <motion.div
-                className="flex justify-center mb-6"
-                whileHover={{ scale: 1.05 }}
-                transition={{ type: "spring", stiffness: 300 }}
-              >
+              {/* Logo */}
+              <div className="flex justify-center mb-6">
                 <div className="relative group">
                   <div className="absolute inset-0 bg-gradient-to-r from-[color:var(--chart-1)] to-[color:var(--chart-3)] rounded-2xl blur-xl opacity-30 group-hover:opacity-50 transition-opacity" />
-                  <div className="relative p-4 rounded-2xl bg-gradient-to-br from-[color:var(--chart-1)]/10 to-[color:var(--chart-3)]/10 border border-[color:var(--chart-1)]/20">
-                    {/* Shine Effect */}
-                    <motion.div
-                      className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-transparent via-white/20 to-transparent"
-                      animate={{
-                        x: ["-100%", "200%"],
-                        opacity: [0, 1, 1, 0]
-                      }}
-                      transition={{
-                        duration: 1.5,
-                        repeat: Infinity,
-                        repeatDelay: 4,
-                        ease: "easeInOut"
-                      }}
-                    />
+                  <div className="relative p-4 rounded-2xl bg-gradient-to-br from-[color:var(--chart-1)]/10 to-[color:var(--chart-3)]/10 border border-[color:var(--chart-1)]/20 hover:scale-105 transition-transform overflow-hidden">
+                    {/* Shine Effect - CSS animation */}
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-transparent via-white/20 to-transparent animate-auth-shine" />
                     <Sparkles className="h-10 w-10 text-[color:var(--chart-1)] relative z-10" />
                   </div>
                 </div>
-              </motion.div>
+              </div>
 
               <CardTitle className="text-3xl font-bold">
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
-                  KCA-RAG
+                  KCA AI-Hub
                 </span>
               </CardTitle>
               <CardDescription className="text-muted-foreground mt-2">
@@ -241,15 +185,12 @@ function LoginForm() {
               <form onSubmit={handleSubmit} className="space-y-5">
                 {/* Error Alert */}
                 {error && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                  >
+                  <div className="animate-fade-in-down">
                     <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
                       <AlertCircle className="h-4 w-4" />
                       <AlertDescription>{error}</AlertDescription>
                     </Alert>
-                  </motion.div>
+                  </div>
                 )}
 
                 {/* Username */}
@@ -296,14 +237,10 @@ function LoginForm() {
                 </div>
 
                 {/* Submit Button */}
-                <motion.div
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.99 }}
-                  className="pt-2"
-                >
+                <div className="pt-2">
                   <Button
                     type="submit"
-                    className="w-full h-11 bg-gradient-to-r from-[color:var(--chart-1)] to-[color:var(--chart-2)] hover:opacity-90 text-white font-semibold shadow-lg shadow-[color:var(--chart-1)]/20 hover:shadow-[color:var(--chart-1)]/40 transition-all border-0"
+                    className="w-full h-11 bg-gradient-to-r from-[color:var(--chart-1)] to-[color:var(--chart-2)] hover:opacity-90 hover:scale-[1.01] active:scale-[0.99] text-white font-semibold shadow-lg shadow-[color:var(--chart-1)]/20 hover:shadow-[color:var(--chart-1)]/40 transition-all border-0"
                     disabled={isSubmitting || !username || !password}
                   >
                     {isSubmitting ? (
@@ -315,7 +252,7 @@ function LoginForm() {
                       "로그인"
                     )}
                   </Button>
-                </motion.div>
+                </div>
               </form>
 
               {/* Register Link */}
@@ -332,17 +269,12 @@ function LoginForm() {
               </div>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
 
         {/* Footer */}
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-          className="mt-8 text-center text-sm text-muted-foreground"
-        >
+        <p className="mt-8 text-center text-sm text-muted-foreground animate-fade-in">
           Document AI Pipeline 로그인
-        </motion.p>
+        </p>
       </div>
     </div>
   )
