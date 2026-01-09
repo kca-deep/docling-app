@@ -147,6 +147,7 @@ export default function SelfCheckPage() {
     department: "",
     managerName: "",
     email: "",
+    attachments: [],
   })
 
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>(
@@ -286,6 +287,35 @@ export default function SelfCheckPage() {
             })) || [],
           }
           setAnalysisResult(result)
+
+          // 로컬에 저장된 첨부파일이 있으면 서버에 업로드
+          if (projectForm.attachments.length > 0 && data.submission_id) {
+            const uploadPromises = projectForm.attachments
+              .filter(att => att.localFile)
+              .map(async (att) => {
+                try {
+                  const formData = new FormData()
+                  formData.append("file", att.localFile as File)
+
+                  const uploadResponse = await fetch(
+                    `${apiEndpoints.selfcheck}/${data.submission_id}/attachments`,
+                    {
+                      method: "POST",
+                      credentials: "include",
+                      body: formData,
+                    }
+                  )
+
+                  if (!uploadResponse.ok) {
+                    console.error(`Failed to upload ${att.original_filename}`)
+                  }
+                } catch (err) {
+                  console.error(`Error uploading ${att.original_filename}:`, err)
+                }
+              })
+
+            await Promise.all(uploadPromises)
+          }
         } else if (response.status === 401) {
           // 인증 상태 갱신 후 로그인 페이지로 리다이렉트
           await checkAuth()
@@ -324,6 +354,7 @@ export default function SelfCheckPage() {
       department: user?.team_name || "",
       managerName: user?.name || user?.username || "",
       email: user?.email || "",
+      attachments: [],
     })
     setChecklistItems(
       CHECKLIST_QUESTIONS.map((q) => ({

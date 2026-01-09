@@ -171,3 +171,36 @@ async def get_current_user_with_permissions(
 
 # Alias for get_current_user to make optional authentication explicit
 get_current_user_optional = get_current_user
+
+
+def require_selfcheck_feedback():
+    """
+    셀프진단 피드백 권한 필수 의존성
+
+    admin 역할이거나 selfcheck.feedback 권한이 있는 경우만 허용
+
+    Returns:
+        Dependency function that checks the permission
+
+    Usage:
+        @router.post("/{submission_id}/feedback/generate")
+        async def generate_feedback_draft(
+            user: User = Depends(require_selfcheck_feedback())
+        ):
+            ...
+    """
+    async def permission_checker(
+        user: User = Depends(get_current_active_user)
+    ) -> User:
+        # admin은 자동으로 모든 권한 보유
+        if user.role == "admin":
+            return user
+        # 일반 사용자는 권한 확인
+        if not user.has_permission("selfcheck", "feedback"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="피드백 작성 권한이 필요합니다"
+            )
+        return user
+
+    return permission_checker

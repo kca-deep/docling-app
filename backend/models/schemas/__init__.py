@@ -117,6 +117,15 @@ from backend.models.schemas.selfcheck import (
     ExportPdfMode,
     SelfCheckExportRequest,
     SelfCheckExportPdfRequest,
+    # Feedback schemas
+    FeedbackStatus,
+    FeedbackDraftResponse,
+    FeedbackUpdateRequest,
+    FeedbackResponse,
+    FeedbackViewResponse,
+    # Attachment schemas
+    AttachmentInfo,
+    AttachmentUploadResponse,
 )
 
 # Export all schemas for backwards compatibility
@@ -209,4 +218,13 @@ __all__ = [
     "ExportPdfMode",
     "SelfCheckExportRequest",
     "SelfCheckExportPdfRequest",
+    # Feedback
+    "FeedbackStatus",
+    "FeedbackDraftResponse",
+    "FeedbackUpdateRequest",
+    "FeedbackResponse",
+    "FeedbackViewResponse",
+    # Attachment
+    "AttachmentInfo",
+    "AttachmentUploadResponse",
 ]

@@ -74,9 +74,12 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  MessageSquare,
 } from "lucide-react"
 import { motion } from "framer-motion"
 import { useAuth } from "@/components/auth/auth-provider"
+import { FeedbackModal } from "@/components/idea-hub/feedback-modal"
+import { FeedbackStatusIndicator, type FeedbackStatus } from "@/components/idea-hub/feedback-status-badge"
 
 // Stagger animation variants
 const containerVariants = {
@@ -102,9 +105,11 @@ interface HistoryItem {
   department: string
   manager_name: string
   requires_review: boolean
+  review_reason?: string
   status: string
   used_model: string | null
   created_at: string
+  feedback_status?: FeedbackStatus
 }
 
 // Pagination constants
@@ -127,8 +132,15 @@ export default function HistoryPage() {
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
+  // 피드백 모달 상태
+  const [feedbackModalOpen, setFeedbackModalOpen] = useState(false)
+  const [selectedSubmission, setSelectedSubmission] = useState<HistoryItem | null>(null)
+
   // 관리자 여부
   const isAdmin = user?.role === "admin"
+
+  // 피드백 권한 체크 (admin 또는 selfcheck.feedback 권한)
+  const canWriteFeedback = isAdmin || (user?.permissions?.selfcheck?.feedback === true)
 
   // 관리자 전체 보기 모드 (관리자는 기본 전체 보기)
   const [viewAll, setViewAll] = useState(true)
@@ -386,6 +398,12 @@ export default function HistoryPage() {
     } finally {
       setIsDeleting(false)
     }
+  }
+
+  // 피드백 모달 열기
+  const openFeedbackModal = (item: HistoryItem) => {
+    setSelectedSubmission(item)
+    setFeedbackModalOpen(true)
   }
 
   const filteredHistory = history.filter(
@@ -712,10 +730,11 @@ export default function HistoryPage() {
                           aria-label="전체 선택"
                         />
                       </TableHead>
-                      <TableHead className="w-[300px]">과제명</TableHead>
+                      <TableHead className="w-[280px]">과제명</TableHead>
                       <TableHead>담당부서</TableHead>
                       <TableHead>담당자</TableHead>
                       <TableHead className="text-center">검토 대상</TableHead>
+                      <TableHead className="text-center">피드백</TableHead>
                       <TableHead>진단일시</TableHead>
                       <TableHead className="w-[80px]"></TableHead>
                     </TableRow>
@@ -761,6 +780,13 @@ export default function HistoryPage() {
                             </Badge>
                           )}
                         </TableCell>
+                        <TableCell className="text-center">
+                          <FeedbackStatusIndicator
+                            status={item.feedback_status || "none"}
+                            onClick={() => openFeedbackModal(item)}
+                            canEdit={canWriteFeedback}
+                          />
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <CalendarIcon className="w-4 h-4" />
@@ -775,6 +801,15 @@ export default function HistoryPage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                className="gap-2"
+                                onClick={() => openFeedbackModal(item)}
+                              >
+                                <MessageSquare className="w-4 h-4" />
+                                {canWriteFeedback
+                                  ? (item.feedback_status === "completed" ? "피드백 보기" : "피드백 작성")
+                                  : "피드백 보기"}
+                              </DropdownMenuItem>
                               <DropdownMenuItem
                                 className="gap-2"
                                 onClick={() => handleDownloadPdf(item.submission_id, item.project_name)}
@@ -866,10 +901,17 @@ export default function HistoryPage() {
 
                       {/* Footer: Date + Actions */}
                       <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <CalendarIcon className="w-3 h-3" />
-                          {item.created_at.slice(0, 16).replace("T", " ")}
-                        </span>
+                        <div className="flex items-center gap-3">
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <CalendarIcon className="w-3 h-3" />
+                            {item.created_at.slice(0, 16).replace("T", " ")}
+                          </span>
+                          <FeedbackStatusIndicator
+                            status={item.feedback_status || "none"}
+                            onClick={() => openFeedbackModal(item)}
+                            canEdit={canWriteFeedback}
+                          />
+                        </div>
                         <div className="flex items-center gap-1">
                           <Button
                             variant="ghost"
@@ -1044,6 +1086,23 @@ export default function HistoryPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* 피드백 모달 */}
+      <FeedbackModal
+        open={feedbackModalOpen}
+        onOpenChange={setFeedbackModalOpen}
+        submission={selectedSubmission ? {
+          submission_id: selectedSubmission.submission_id,
+          project_name: selectedSubmission.project_name,
+          department: selectedSubmission.department,
+          manager_name: selectedSubmission.manager_name,
+          requires_review: selectedSubmission.requires_review,
+          review_reason: selectedSubmission.review_reason,
+          created_at: selectedSubmission.created_at,
+        } : null}
+        canEdit={canWriteFeedback && selectedSubmission?.feedback_status !== "completed"}
+        onFeedbackUpdated={fetchHistory}
+      />
     </PageContainer>
   )
 }

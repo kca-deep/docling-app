@@ -6,7 +6,7 @@ import { API_BASE_URL } from './api-config'
 // === 타입 정의 ===
 
 export interface UserPermissions {
-  selfcheck: { execute: boolean; history: boolean }
+  selfcheck: { execute: boolean; history: boolean; feedback: boolean }
   documents: { parse: boolean; view: boolean; delete: boolean }
   qdrant: { upload: boolean; collections: boolean }
   dify: { upload: boolean; config: boolean }
@@ -436,7 +436,7 @@ export async function resetUserPermissions(userId: number): Promise<PermissionsU
  */
 export function getDefaultPermissions(): UserPermissions {
   return {
-    selfcheck: { execute: true, history: true },
+    selfcheck: { execute: true, history: true, feedback: false },
     documents: { parse: true, view: true, delete: false },
     qdrant: { upload: true, collections: false },
     dify: { upload: true, config: false },
@@ -452,7 +452,7 @@ export function getDefaultPermissions(): UserPermissions {
  */
 export function getAdminPermissions(): UserPermissions {
   return {
-    selfcheck: { execute: true, history: true },
+    selfcheck: { execute: true, history: true, feedback: true },
     documents: { parse: true, view: true, delete: true },
     qdrant: { upload: true, collections: true },
     dify: { upload: true, config: true },

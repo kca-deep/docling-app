@@ -140,6 +140,7 @@ class SelfCheckDetailResponse(BaseModel):
     created_at: str
     items: List[SelfCheckItemResult]
     similar_projects: List[SimilarProject] = []  # 중복성 검토 결과
+    attachments: List["AttachmentInfo"] = []  # 첨부파일 목록
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -159,3 +160,82 @@ class SelfCheckExportPdfRequest(BaseModel):
     """셀프진단 PDF 내보내기 요청"""
     submission_ids: List[str]  # submission_id 목록
     mode: ExportPdfMode = ExportPdfMode.INDIVIDUAL  # 내보내기 모드
+
+
+# ============== 피드백 관련 스키마 ==============
+
+class FeedbackStatus(str, Enum):
+    """피드백 상태"""
+    DRAFT = "draft"           # 초기 (피드백 레코드 생성됨)
+    IN_PROGRESS = "in_progress"  # 작성 중
+    COMPLETED = "completed"      # 완료
+
+
+class FeedbackDraftResponse(BaseModel):
+    """AI 초안 생성 응답"""
+    administrative_security: str  # 관리적 보안내용 초안
+    technical_security: str       # 기술적 보안내용 초안
+    overall_opinion: str          # 종합의견 초안
+
+
+class FeedbackUpdateRequest(BaseModel):
+    """피드백 수정 요청"""
+    security_review_required: Optional[bool] = None  # 보안성검토 필요 여부
+    administrative_security: Optional[str] = None     # 관리적 보안내용
+    technical_security: Optional[str] = None          # 기술적 보안내용
+    overall_opinion: Optional[str] = None             # 종합의견
+
+
+class FeedbackResponse(BaseModel):
+    """피드백 응답 (작성자용)"""
+    id: int
+    submission_id: str
+    security_review_required: Optional[bool] = None
+    administrative_security: Optional[str] = None
+    technical_security: Optional[str] = None
+    overall_opinion: Optional[str] = None
+    ai_draft_administrative: Optional[str] = None
+    ai_draft_technical: Optional[str] = None
+    ai_draft_overall: Optional[str] = None
+    status: str
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    completed_at: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class FeedbackViewResponse(BaseModel):
+    """피드백 조회 응답 (사용자용 - 완료된 피드백만)"""
+    submission_id: str
+    security_review_required: bool
+    administrative_security: str
+    technical_security: str
+    overall_opinion: str
+    completed_at: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ============== 첨부파일 관련 스키마 ==============
+
+class AttachmentInfo(BaseModel):
+    """첨부파일 정보"""
+    id: int
+    original_filename: str
+    file_size: int
+    mime_type: Optional[str] = None
+    extraction_status: str
+    created_at: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AttachmentUploadResponse(BaseModel):
+    """첨부파일 업로드 응답"""
+    id: int
+    original_filename: str
+    file_size: int
+    mime_type: Optional[str] = None
+    extraction_status: str
+    message: str

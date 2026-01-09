@@ -66,3 +66,66 @@ class SelfCheckItem(Base):
 
     def __repr__(self):
         return f"<SelfCheckItem(id={self.id}, item_number={self.item_number}, user='{self.user_answer}', llm='{self.llm_answer}')>"
+
+
+class SelfCheckAttachment(Base):
+    """셀프진단 첨부파일 모델"""
+    __tablename__ = "selfcheck_attachments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    submission_id = Column(String(36), ForeignKey("selfcheck_submissions.submission_id", ondelete="CASCADE"),
+                          nullable=False, index=True)
+
+    # 파일 정보
+    original_filename = Column(String(255), nullable=False)  # 원본 파일명
+    stored_filename = Column(String(255), nullable=False)    # 저장된 파일명 (UUID)
+    file_path = Column(String(500), nullable=False)          # 저장 경로
+    file_size = Column(Integer, nullable=False)              # 파일 크기 (bytes)
+    mime_type = Column(String(100), nullable=True)           # MIME 타입
+
+    # 텍스트 추출 결과
+    extracted_text = Column(Text, nullable=True)             # 추출된 텍스트
+    extraction_status = Column(String(20), default="pending")  # pending, completed, failed
+    extraction_error = Column(Text, nullable=True)           # 추출 실패 시 에러
+
+    # 메타데이터
+    created_at = Column(DateTime, default=now_naive)
+
+    def __repr__(self):
+        return f"<SelfCheckAttachment(id={self.id}, filename='{self.original_filename}', status='{self.extraction_status}')>"
+
+
+class SelfCheckFeedback(Base):
+    """셀프진단 피드백 모델"""
+    __tablename__ = "selfcheck_feedbacks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    submission_id = Column(String(36), ForeignKey("selfcheck_submissions.submission_id", ondelete="CASCADE"),
+                          unique=True, nullable=False, index=True)
+
+    # 피드백 내용
+    security_review_required = Column(Boolean, nullable=True)  # 1. 보안성검토절차 필요 여부
+    administrative_security = Column(Text, nullable=True)       # 2. 관리적 보안내용
+    technical_security = Column(Text, nullable=True)            # 3. 기술적 보안내용
+    overall_opinion = Column(Text, nullable=True)               # 4. 종합의견
+
+    # AI 초안 (비교용 저장)
+    ai_draft_administrative = Column(Text, nullable=True)
+    ai_draft_technical = Column(Text, nullable=True)
+    ai_draft_overall = Column(Text, nullable=True)
+
+    # 상태 관리: draft(초기), in_progress(작성중), completed(완료)
+    status = Column(String(20), default="draft", index=True)
+
+    # 작성자 정보
+    created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    updated_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    completed_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    # 타임스탬프
+    created_at = Column(DateTime, default=now_naive)
+    updated_at = Column(DateTime, default=now_naive, onupdate=now_naive)
+    completed_at = Column(DateTime, nullable=True)
+
+    def __repr__(self):
+        return f"<SelfCheckFeedback(id={self.id}, submission_id='{self.submission_id}', status='{self.status}')>"

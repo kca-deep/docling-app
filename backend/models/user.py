@@ -12,7 +12,7 @@ from backend.database import Base
 def get_default_permissions() -> Dict[str, Any]:
     """기본 사용자 권한 템플릿 반환"""
     return {
-        "selfcheck": {"execute": True, "history": True},
+        "selfcheck": {"execute": True, "history": True, "feedback": False},
         "documents": {"parse": True, "view": True, "delete": False},
         "qdrant": {"upload": True, "collections": False},
         "dify": {"upload": True, "config": False},
@@ -26,7 +26,7 @@ def get_default_permissions() -> Dict[str, Any]:
 def get_admin_permissions() -> Dict[str, Any]:
     """관리자 권한 템플릿 반환 (모든 권한 활성화)"""
     return {
-        "selfcheck": {"execute": True, "history": True},
+        "selfcheck": {"execute": True, "history": True, "feedback": True},
         "documents": {"parse": True, "view": True, "delete": True},
         "qdrant": {"upload": True, "collections": True},
         "dify": {"upload": True, "config": True},

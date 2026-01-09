@@ -128,6 +128,15 @@ class SelfCheckService:
         """특정 진단 상세 조회"""
         return self.repository.get_submission(db, submission_id, user_id)
 
+    def get_submission_raw(
+        self,
+        db: Session,
+        submission_id: str,
+        user_id: Optional[int] = None
+    ):
+        """특정 진단 원본 모델 조회 (소유권 확인용)"""
+        return self.repository.get_submission_raw(db, submission_id, user_id)
+
     # === Qdrant 관련 위임 메서드 ===
 
     async def get_qdrant_collection_stats(self) -> Dict[str, Any]:

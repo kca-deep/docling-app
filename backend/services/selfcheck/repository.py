@@ -9,13 +9,14 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from backend.config.settings import settings
-from backend.models.selfcheck import SelfCheckSubmission, SelfCheckItem
+from backend.models.selfcheck import SelfCheckSubmission, SelfCheckItem, SelfCheckAttachment
 from backend.models.schemas import (
     SelfCheckHistoryItem,
     SelfCheckHistoryResponse,
     SelfCheckDetailResponse,
     SelfCheckItemResult,
     SimilarProject,
+    AttachmentInfo,
 )
 from .llm_analyzer import CHECKLIST_ITEMS
 
@@ -171,6 +172,23 @@ class SelfCheckRepository:
                 for sp in similar_projects_data
             ]
 
+        # 첨부파일 조회
+        db_attachments = db.query(SelfCheckAttachment).filter(
+            SelfCheckAttachment.submission_id == submission_id
+        ).order_by(SelfCheckAttachment.created_at).all()
+
+        attachments = [
+            AttachmentInfo(
+                id=att.id,
+                original_filename=att.original_filename,
+                file_size=att.file_size,
+                mime_type=att.mime_type,
+                extraction_status=att.extraction_status or "pending",
+                created_at=att.created_at.isoformat() if att.created_at else ""
+            )
+            for att in db_attachments
+        ]
+
         return SelfCheckDetailResponse(
             id=submission.id,
             submission_id=submission.submission_id,
@@ -188,8 +206,25 @@ class SelfCheckRepository:
             status=submission.status,
             created_at=submission.created_at.isoformat() if submission.created_at else "",
             items=items,
-            similar_projects=similar_projects
+            similar_projects=similar_projects,
+            attachments=attachments
         )
+
+    def get_submission_raw(
+        self,
+        db: Session,
+        submission_id: str,
+        user_id: Optional[int] = None
+    ) -> Optional[SelfCheckSubmission]:
+        """특정 진단 원본 모델 조회 (소유권 확인용)"""
+        query = db.query(SelfCheckSubmission).filter(
+            SelfCheckSubmission.submission_id == submission_id
+        )
+
+        if user_id is not None:
+            query = query.filter(SelfCheckSubmission.user_id == user_id)
+
+        return query.first()
 
     def save_submission(
         self,

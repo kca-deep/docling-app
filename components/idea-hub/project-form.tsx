@@ -4,9 +4,10 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { AlertCircle, CheckCircle2, FileText, User, Building2, Mail } from "lucide-react"
+import { AlertCircle, CheckCircle2, FileText, User, Building2, Mail, Paperclip } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { User as AuthUser } from "@/lib/auth"
+import { FileAttachment, type AttachmentFile } from "./file-attachment"
 
 export interface ProjectFormData {
   projectName: string
@@ -15,23 +16,26 @@ export interface ProjectFormData {
   department: string
   managerName: string
   email: string
+  // Attachments
+  attachments: AttachmentFile[]
 }
 
 interface ProjectFormProps {
   value: ProjectFormData
   onChange: (value: ProjectFormData) => void
   user: AuthUser | null
+  submissionId?: string
 }
 
 const MINIMUM_LENGTH = 50
 const RECOMMENDED_LENGTH = 200
 
-export function ProjectForm({ value, onChange, user }: ProjectFormProps) {
+export function ProjectForm({ value, onChange, user, submissionId }: ProjectFormProps) {
   const contentLength = value.content.length
   const isMinimumMet = contentLength >= MINIMUM_LENGTH
   const isRecommendedMet = contentLength >= RECOMMENDED_LENGTH
 
-  const handleChange = (field: keyof ProjectFormData, fieldValue: string) => {
+  const handleChange = (field: keyof ProjectFormData, fieldValue: string | AttachmentFile[]) => {
     onChange({ ...value, [field]: fieldValue })
   }
 
@@ -128,6 +132,19 @@ export function ProjectForm({ value, onChange, user }: ProjectFormProps) {
             </p>
           )}
         </div>
+
+        {/* 관련 문서 첨부 */}
+        <div className="space-y-2">
+          <Label className="flex items-center gap-2">
+            <Paperclip className="w-4 h-4" />
+            관련 문서 첨부 <span className="text-muted-foreground text-xs">(선택)</span>
+          </Label>
+          <FileAttachment
+            submissionId={submissionId}
+            attachments={value.attachments || []}
+            onChange={(attachments) => handleChange("attachments", attachments)}
+          />
+        </div>
       </div>
 
       {/* 안내 메시지 */}
@@ -135,6 +152,7 @@ export function ProjectForm({ value, onChange, user }: ProjectFormProps) {
         <CheckCircle2 className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
         <p className="text-sm text-blue-700 dark:text-blue-300">
           AI 서비스/기술, 처리할 데이터 종류, 연계 시스템, 서비스 대상 등을 포함하면 더 정확한 분석이 가능합니다.
+          첨부된 문서는 AI 분석에 활용됩니다.
         </p>
       </div>
     </div>
