@@ -806,8 +806,15 @@ async def chat_stream(
                             }
 
                             # 후속 LLM 호출을 위한 메시지 구성
+                            followup_system_prompt = """도구 실행 결과를 바탕으로 사용자에게 간단히 안내해주세요.
+규칙:
+- 파일 다운로드는 시스템에서 자동으로 처리됩니다
+- URL이나 링크를 절대 생성하지 마세요
+- {{url}}, [링크], http:// 등의 형태를 사용하지 마세요
+- 단순히 "파일이 생성되어 다운로드가 시작되었습니다" 정도로 안내하세요
+- 1-2문장으로 간결하게 응답하세요"""
                             followup_messages = [
-                                {"role": "system", "content": "도구 실행 결과를 바탕으로 사용자에게 간단히 안내해주세요. 파일이 생성되었으면 다운로드가 시작되었음을 알려주세요."},
+                                {"role": "system", "content": followup_system_prompt},
                                 {"role": "user", "content": chat_request.message},
                                 assistant_tool_call_msg,
                                 *tool_results_for_llm

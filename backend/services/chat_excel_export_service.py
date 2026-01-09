@@ -235,8 +235,11 @@ class ChatExcelExportService:
             # 엑셀 생성
             excel_bytes = self.export_to_excel(data, filename, sheet_name)
 
-            # 파일 저장소에 저장
-            full_filename = f"{filename}.xlsx"
+            # 파일 저장소에 저장 (중복 확장자 방지)
+            if filename.lower().endswith('.xlsx'):
+                full_filename = filename
+            else:
+                full_filename = f"{filename}.xlsx"
             file_id = file_storage.store(
                 filename=full_filename,
                 content=excel_bytes,

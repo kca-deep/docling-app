@@ -290,8 +290,11 @@ class ChatDocxExportService:
             # DOCX 생성
             docx_bytes = self.export_to_docx(content, title, filename)
 
-            # 파일 저장소에 저장
-            full_filename = f"{filename}.docx"
+            # 파일 저장소에 저장 (중복 확장자 방지)
+            if filename.lower().endswith('.docx'):
+                full_filename = filename
+            else:
+                full_filename = f"{filename}.docx"
             file_id = file_storage.store(
                 filename=full_filename,
                 content=docx_bytes,
