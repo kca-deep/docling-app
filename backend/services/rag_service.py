@@ -504,7 +504,8 @@ class RAGService:
         chat_history: Optional[List[Dict[str, str]]] = None,
         collection_name: Optional[str] = None,
         available_documents: Optional[List[str]] = None,
-        skip_score_filter: bool = False
+        skip_score_filter: bool = False,
+        tools: Optional[List[Dict[str, Any]]] = None
     ) -> AsyncGenerator[str, None]:
         """
         검색된 문서 기반 스트리밍 답변 생성
@@ -542,7 +543,8 @@ class RAGService:
             )
 
             # 2. LLM으로 스트리밍 답변 생성
-            logger.info(f"[RAG] Streaming answer with model={model}, reasoning_level={reasoning_level}")
+            tools_info = f", tools={len(tools)} defined" if tools else ""
+            logger.info(f"[RAG] Streaming answer with model={model}, reasoning_level={reasoning_level}{tools_info}")
             async for chunk in self.llm_service.chat_completion_stream(
                 messages=messages,
                 model=model,
@@ -550,7 +552,8 @@ class RAGService:
                 max_tokens=max_tokens,
                 top_p=top_p,
                 frequency_penalty=frequency_penalty,
-                presence_penalty=presence_penalty
+                presence_penalty=presence_penalty,
+                tools=tools
             ):
                 yield chunk
 
@@ -764,7 +767,8 @@ class RAGService:
         chat_history: Optional[List[Dict[str, str]]] = None,
         use_reranking: bool = True,  # P0: 기본 활성화
         use_hybrid: bool = True,
-        temp_collection_name: Optional[str] = None
+        temp_collection_name: Optional[str] = None,
+        tools: Optional[List[Dict[str, Any]]] = None
     ) -> AsyncGenerator[str, None]:
         """
         RAG 기반 스트리밍 채팅
@@ -929,6 +933,7 @@ class RAGService:
             # 3. Generate: 스트리밍 답변 생성 (응답 내용 수집)
             response_parts = []  # 리스트로 수집 (문자열 연결보다 효율적)
             done_marker = None  # [DONE] 마커 보류용 (fallback 처리 후 전송)
+            has_tool_calls = False  # Function Calling 응답 감지용
             async for chunk in self.generate_stream(
                 query=query,
                 retrieved_docs=retrieved_docs,
@@ -941,7 +946,8 @@ class RAGService:
                 presence_penalty=presence_penalty,
                 chat_history=chat_history,
                 collection_name=collection_name,
-                available_documents=available_documents if available_documents else None
+                available_documents=available_documents if available_documents else None,
+                tools=tools
             ):
                 # [DONE] 마커 감지 및 보류 (fallback 처리 후 전송)
                 chunk_stripped = chunk.strip()
@@ -955,18 +961,22 @@ class RAGService:
                     try:
                         chunk_data = json.loads(chunk[6:].strip())
                         if "choices" in chunk_data:
-                            delta = chunk_data["choices"][0].get("delta", {})
+                            choice = chunk_data["choices"][0]
+                            delta = choice.get("delta", {})
                             content = delta.get("content", "")
                             if content:
                                 response_parts.append(content)
+                            # Function Calling: tool_calls 감지
+                            if delta.get("tool_calls") or choice.get("finish_reason") == "tool_calls":
+                                has_tool_calls = True
                     except (json.JSONDecodeError, KeyError, IndexError):
                         pass
 
             # 리스트를 문자열로 합침 (O(n))
             full_response = "".join(response_parts)
 
-            # 3.5. 빈 응답 감지 및 친절한 fallback 처리
-            if not full_response.strip():
+            # 3.5. 빈 응답 감지 및 친절한 fallback 처리 (tool_calls 응답이 아닌 경우에만)
+            if not full_response.strip() and not has_tool_calls:
                 logger.warning(f"[RAG] Empty response detected for query: {query[:50]}...")
                 fallback_message = self._build_empty_response_fallback(query, retrieved_docs)
                 fallback_chunk = {

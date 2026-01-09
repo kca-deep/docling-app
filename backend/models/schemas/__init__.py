@@ -84,6 +84,11 @@ from backend.models.schemas.chat import (
     ChatResponse,
     RegenerateRequest,
     DefaultSettingsResponse,
+    # Function Calling 관련
+    ToolCallFunction,
+    ToolCall,
+    ToolResultResponse,
+    ChatResponseWithTools,
 )
 
 # Excel schemas
@@ -191,6 +196,11 @@ __all__ = [
     "ChatResponse",
     "RegenerateRequest",
     "DefaultSettingsResponse",
+    # Function Calling
+    "ToolCallFunction",
+    "ToolCall",
+    "ToolResultResponse",
+    "ChatResponseWithTools",
     # Excel
     "QAPreviewRow",
     "QAPreviewResponse",

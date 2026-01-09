@@ -4,7 +4,49 @@
 /**
  * SSE 이벤트 타입
  */
-export type SSEEventType = "stage" | "sources" | "sources_update" | "reasoning" | "content" | "done" | "error" | "unknown";
+export type SSEEventType =
+  | "stage"
+  | "sources"
+  | "sources_update"
+  | "reasoning"
+  | "content"
+  | "done"
+  | "error"
+  | "tool_calls"    // Function Calling: LLM이 도구 호출을 요청
+  | "tool_result"   // Function Calling: 도구 실행 결과
+  | "action"        // Function Calling: 클라이언트 액션 (다운로드 등)
+  | "unknown";
+
+/**
+ * Function Calling 도구 호출 인터페이스
+ */
+export interface ToolCall {
+  id: string;
+  type: string;
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
+
+/**
+ * Function Calling 액션 인터페이스
+ */
+export interface ActionEvent {
+  type: "download" | "clipboard" | "message";
+  fileId?: string;
+  filename?: string;
+  message?: string;
+}
+
+/**
+ * Function Calling 도구 실행 결과 인터페이스
+ */
+export interface ToolResultEvent {
+  toolCallId: string;
+  success: boolean;
+  message?: string;
+}
 
 /**
  * SSE 이벤트 인터페이스
@@ -18,6 +60,9 @@ export interface SSEEvent {
   content?: string;         // type === "content" 일 때 답변 텍스트 청크
   error?: string;           // type === "error" 일 때 에러 메시지
   errorType?: string;       // type === "error" 일 때 에러 타입 (collection_expired 등)
+  toolCalls?: ToolCall[];   // type === "tool_calls" 일 때 도구 호출 목록
+  action?: ActionEvent;     // type === "action" 일 때 클라이언트 액션
+  toolResult?: ToolResultEvent; // type === "tool_result" 일 때 도구 실행 결과
   raw?: any;                // 원본 파싱 데이터
 }
 
@@ -55,13 +100,49 @@ function parseSSEData(parsed: any): SSEEvent {
     return { type: "reasoning", reasoning: parsed.content, raw: parsed };
   }
 
-  // 4. content 이벤트 (OpenAI 스타일 delta)
+  // 4. tool_calls 이벤트 (Function Calling - LLM이 도구 호출 요청)
+  if (parsed.type === "tool_calls" && parsed.tool_calls) {
+    return {
+      type: "tool_calls",
+      toolCalls: parsed.tool_calls,
+      raw: parsed
+    };
+  }
+
+  // 5. action 이벤트 (Function Calling - 클라이언트 액션)
+  if (parsed.type === "action") {
+    return {
+      type: "action",
+      action: {
+        type: parsed.action as "download" | "clipboard" | "message",
+        fileId: parsed.file_id,
+        filename: parsed.filename,
+        message: parsed.message
+      },
+      raw: parsed
+    };
+  }
+
+  // 6. tool_result 이벤트 (Function Calling - 도구 실행 결과)
+  if (parsed.type === "tool_result") {
+    return {
+      type: "tool_result",
+      toolResult: {
+        toolCallId: parsed.tool_call_id,
+        success: parsed.success,
+        message: parsed.message
+      },
+      raw: parsed
+    };
+  }
+
+  // 7. content 이벤트 (OpenAI 스타일 delta)
   const delta = parsed.choices?.[0]?.delta;
   if (delta?.content) {
     return { type: "content", content: delta.content, raw: parsed };
   }
 
-  // 5. 알 수 없는 이벤트
+  // 8. 알 수 없는 이벤트
   return { type: "unknown", raw: parsed };
 }
 

@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.middleware.request_tracking import get_tracking_ids
 from backend.utils.client_info import extract_client_info
-from backend.models.schemas import ChatRequest, ChatResponse, RetrievedDocument, RegenerateRequest, DefaultSettingsResponse
+from backend.models.schemas import ChatRequest, ChatResponse, RetrievedDocument, RegenerateRequest, DefaultSettingsResponse, ToolResultResponse
 from backend.services.embedding_service import embedding_service
 from backend.services.qdrant_service import qdrant_service
 from backend.services.llm_service import llm_service
@@ -34,6 +34,10 @@ from backend.utils.error_handler import get_http_error_detail, get_sse_error_res
 from backend.utils.source_converter import extract_sources_info, convert_docs_to_sources
 from backend.utils.token_counter import count_chat_tokens
 from backend.services.keyword_service import extract_keywords_for_documents
+from backend.services.tool_executor_service import tool_executor, file_storage
+from backend.services.chat_excel_export_service import chat_excel_export_service
+from backend.services.chat_docx_export_service import chat_docx_export_service
+from backend.services.tool_definitions import get_chat_tools
 
 # 로거 설정
 logger = logging.getLogger("uvicorn")
@@ -56,6 +60,10 @@ rag_service = RAGService(
     reranker_service=reranker_service,
     hybrid_search_service=hybrid_search_service
 )
+
+# Function Calling 도구 핸들러 등록
+tool_executor.register_handler("export_to_excel", chat_excel_export_service.handle_export_to_excel)
+tool_executor.register_handler("export_to_docx", chat_docx_export_service.handle_export_to_docx)
 
 
 # ============================================================================
@@ -294,6 +302,55 @@ def process_llm_stream_chunk(
             error_message = data['error']
             collected_response["answer"] = error_message
             logger.warning(f"{log_prefix} Error response received: {error_message[:100]}")
+
+        # Function Calling: tool_calls 감지 및 누적
+        if 'choices' in data and data['choices']:
+            choice = data['choices'][0]
+            finish_reason = choice.get('finish_reason')
+            delta = choice.get('delta', {})
+            message = choice.get('message', {})
+
+            # tool_calls 수집 (delta 또는 message에서)
+            tool_calls_chunk = delta.get('tool_calls') or message.get('tool_calls')
+            if tool_calls_chunk:
+                # tool_calls를 인덱스별로 누적 (스트리밍에서 조각으로 전달됨)
+                if "tool_calls_accumulator" not in collected_response:
+                    collected_response["tool_calls_accumulator"] = {}
+
+                for tc in tool_calls_chunk:
+                    idx = tc.get('index', 0)
+                    if idx not in collected_response["tool_calls_accumulator"]:
+                        # 새 tool_call 시작
+                        collected_response["tool_calls_accumulator"][idx] = {
+                            "id": tc.get('id', ''),
+                            "type": tc.get('type', 'function'),
+                            "function": {
+                                "name": tc.get('function', {}).get('name', ''),
+                                "arguments": tc.get('function', {}).get('arguments', '')
+                            }
+                        }
+                    else:
+                        # 기존 tool_call에 데이터 추가
+                        existing = collected_response["tool_calls_accumulator"][idx]
+                        if tc.get('id'):
+                            existing['id'] = tc['id']
+                        if tc.get('type'):
+                            existing['type'] = tc['type']
+                        if tc.get('function', {}).get('name'):
+                            existing['function']['name'] = tc['function']['name']
+                        if tc.get('function', {}).get('arguments'):
+                            existing['function']['arguments'] += tc['function']['arguments']
+
+            # finish_reason이 tool_calls인 경우 누적된 데이터를 최종 tool_calls로 변환
+            if finish_reason == "tool_calls":
+                collected_response["finish_reason"] = "tool_calls"
+                if "tool_calls_accumulator" in collected_response:
+                    # 인덱스 순서대로 정렬하여 리스트로 변환
+                    collected_response["tool_calls"] = [
+                        collected_response["tool_calls_accumulator"][idx]
+                        for idx in sorted(collected_response["tool_calls_accumulator"].keys())
+                    ]
+                    logger.info(f"{log_prefix} finish_reason=tool_calls, accumulated {len(collected_response['tool_calls'])} tool calls")
 
     except json.JSONDecodeError:
         pass
@@ -621,6 +678,11 @@ async def chat_stream(
             # EXAONE 모델 감지 (llama.cpp가 reasoning_content와 content를 별도 필드로 전송)
             is_exaone = is_exaone_model(chat_request.model)
 
+            # Function Calling 도구 활성화 (모든 모드에서 내보내기 도구 사용 가능)
+            tools = get_chat_tools()
+            mode_name = 'Casual' if ctx['is_casual_mode'] else ('TempDoc' if ctx['is_temp_mode'] else 'RAG')
+            logger.info(f"[CHAT API] {mode_name} mode with {len(tools)} export tools enabled")
+
             try:
                 async for chunk in rag_service.chat_stream(
                     collection_name=chat_request.collection_name,
@@ -637,7 +699,8 @@ async def chat_stream(
                     chat_history=ctx['chat_history'],
                     use_reranking=chat_request.use_reranking,
                     use_hybrid=chat_request.use_hybrid,
-                    temp_collection_name=chat_request.temp_collection_name
+                    temp_collection_name=chat_request.temp_collection_name,
+                    tools=tools
                 ):
                     # 공통 유틸리티로 스트림 청크 처리
                     chunks_to_yield = process_llm_stream_chunk(
@@ -649,6 +712,128 @@ async def chat_stream(
                     )
                     for output_chunk in chunks_to_yield:
                         yield output_chunk
+
+                # 스트리밍 완료 후 tool_calls 처리
+                if collected_response.get("tool_calls"):
+                    logger.info(f"[CHAT API] Processing {len(collected_response['tool_calls'])} tool calls")
+
+                    # tool_calls 이벤트 전송
+                    yield f'data: {json.dumps({"type": "tool_calls", "tool_calls": collected_response["tool_calls"]}, ensure_ascii=False)}\n\n'
+
+                    # 도구 실행 결과 수집
+                    tool_results_for_llm = []
+                    all_tool_results = []
+
+                    # 각 tool_call 실행
+                    for tc in collected_response["tool_calls"]:
+                        try:
+                            tool_result = await tool_executor.execute_tool(
+                                tool_call_id=tc.get("id", str(uuid.uuid4())),
+                                tool_name=tc.get("function", {}).get("name", ""),
+                                arguments=json.loads(tc.get("function", {}).get("arguments", "{}"))
+                            )
+                            all_tool_results.append(tool_result)
+
+                            if tool_result.success and tool_result.action_type == "download":
+                                # 다운로드 액션 이벤트 전송
+                                action_event = {
+                                    "type": "action",
+                                    "action": "download",
+                                    "file_id": tool_result.file_id,
+                                    "filename": tool_result.filename,
+                                    "message": tool_result.message
+                                }
+                                yield f'data: {json.dumps(action_event, ensure_ascii=False)}\n\n'
+                                logger.info(f"[CHAT API] Tool result: download action for {tool_result.filename}")
+
+                                # LLM 후속 응답을 위한 도구 결과 메시지
+                                tool_results_for_llm.append({
+                                    "role": "tool",
+                                    "tool_call_id": tc.get("id", ""),
+                                    "content": json.dumps({
+                                        "status": "success",
+                                        "filename": tool_result.filename,
+                                        "message": tool_result.message
+                                    }, ensure_ascii=False)
+                                })
+                            else:
+                                # 메시지 액션 이벤트 전송
+                                message_event = {
+                                    "type": "tool_result",
+                                    "tool_call_id": tool_result.tool_call_id,
+                                    "success": tool_result.success,
+                                    "message": tool_result.message or tool_result.error
+                                }
+                                yield f'data: {json.dumps(message_event, ensure_ascii=False)}\n\n'
+
+                                # 실패한 경우도 LLM에 전달
+                                tool_results_for_llm.append({
+                                    "role": "tool",
+                                    "tool_call_id": tc.get("id", ""),
+                                    "content": json.dumps({
+                                        "status": "error" if not tool_result.success else "success",
+                                        "message": tool_result.message or tool_result.error
+                                    }, ensure_ascii=False)
+                                })
+
+                        except Exception as tool_error:
+                            logger.error(f"[CHAT API] Tool execution failed: {tool_error}")
+                            error_event = {
+                                "type": "tool_result",
+                                "tool_call_id": tc.get("id", ""),
+                                "success": False,
+                                "message": f"도구 실행 실패: {str(tool_error)}"
+                            }
+                            yield f'data: {json.dumps(error_event, ensure_ascii=False)}\n\n'
+
+                            tool_results_for_llm.append({
+                                "role": "tool",
+                                "tool_call_id": tc.get("id", ""),
+                                "content": json.dumps({
+                                    "status": "error",
+                                    "message": str(tool_error)
+                                }, ensure_ascii=False)
+                            })
+
+                    # 4.1: 도구 실행 결과를 LLM에 전달하여 자연스러운 후속 응답 생성
+                    if tool_results_for_llm and any(r.success for r in all_tool_results):
+                        try:
+                            # assistant의 tool_calls 메시지 구성
+                            assistant_tool_call_msg = {
+                                "role": "assistant",
+                                "content": None,
+                                "tool_calls": collected_response["tool_calls"]
+                            }
+
+                            # 후속 LLM 호출을 위한 메시지 구성
+                            followup_messages = [
+                                {"role": "system", "content": "도구 실행 결과를 바탕으로 사용자에게 간단히 안내해주세요. 파일이 생성되었으면 다운로드가 시작되었음을 알려주세요."},
+                                {"role": "user", "content": chat_request.message},
+                                assistant_tool_call_msg,
+                                *tool_results_for_llm
+                            ]
+
+                            # 후속 LLM 스트리밍 호출
+                            logger.info("[CHAT API] Generating follow-up response after tool execution")
+                            async for followup_chunk in llm_service.chat_completion_stream(
+                                messages=followup_messages,
+                                model=chat_request.model,
+                                temperature=0.7,
+                                max_tokens=200
+                            ):
+                                # 후속 응답 스트리밍
+                                followup_chunks = process_llm_stream_chunk(
+                                    chunk=followup_chunk,
+                                    is_exaone=is_exaone,
+                                    collected_response={},  # 별도 수집
+                                    log_prefix="[FOLLOWUP]",
+                                    debug_logging=False
+                                )
+                                for fc in followup_chunks:
+                                    yield fc
+
+                        except Exception as followup_error:
+                            logger.warning(f"[CHAT API] Follow-up response failed: {followup_error}")
             except asyncio.CancelledError:
                 # 클라이언트 연결 끊김 시에도 기본 정보는 기록
                 logger.warning("[CHAT API] Stream cancelled by client")
@@ -1088,4 +1273,175 @@ async def get_default_settings():
         raise HTTPException(
             status_code=500,
             detail=get_http_error_detail(e, "settings", "기본 설정 조회 실패")
+        )
+
+
+# ============================================================================
+# Function Calling 파일 다운로드 엔드포인트
+# ============================================================================
+
+@router.get("/export/download/{file_id}")
+async def download_exported_file(file_id: str):
+    """
+    Function Calling으로 생성된 파일 다운로드
+
+    Args:
+        file_id: 파일 저장소 ID
+
+    Returns:
+        StreamingResponse: 파일 다운로드 응답
+
+    Raises:
+        HTTPException: 파일을 찾을 수 없거나 만료된 경우
+    """
+    try:
+        logger.info(f"[FILE DOWNLOAD] Requested file: {file_id}")
+
+        # 파일 저장소에서 조회
+        file_data = file_storage.get(file_id)
+
+        if not file_data:
+            logger.warning(f"[FILE DOWNLOAD] File not found or expired: {file_id}")
+            raise HTTPException(
+                status_code=404,
+                detail="파일을 찾을 수 없거나 만료되었습니다. 다시 생성해주세요."
+            )
+
+        # 파일명 인코딩 (한글 지원)
+        from urllib.parse import quote
+        encoded_filename = quote(file_data.filename)
+
+        logger.info(f"[FILE DOWNLOAD] Serving file: {file_data.filename} ({len(file_data.content)} bytes)")
+
+        # 스트리밍 응답으로 파일 전송
+        from io import BytesIO
+        file_stream = BytesIO(file_data.content)
+
+        return StreamingResponse(
+            file_stream,
+            media_type=file_data.content_type,
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}",
+                "Content-Length": str(len(file_data.content))
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[FILE DOWNLOAD] Failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=get_http_error_detail(e, "download", "파일 다운로드 실패")
+        )
+
+
+# ============================================================================
+# 직접 내보내기 엔드포인트 (UI 메뉴용)
+# ============================================================================
+
+from pydantic import BaseModel
+
+class DirectExportRequest(BaseModel):
+    """직접 내보내기 요청"""
+    content: str
+    filename: Optional[str] = None
+    title: Optional[str] = None
+
+
+@router.post("/export/excel")
+async def export_to_excel_direct(request: DirectExportRequest):
+    """
+    콘텐츠를 직접 Excel 파일로 내보내기
+
+    Args:
+        request: 내보내기 요청 (content, filename)
+
+    Returns:
+        dict: 파일 ID 및 파일명
+    """
+    try:
+        if not request.content or not request.content.strip():
+            raise HTTPException(status_code=400, detail="내보낼 내용이 없습니다.")
+
+        filename = request.filename or "export"
+
+        # 엑셀 생성
+        excel_bytes = chat_excel_export_service.export_to_excel(
+            data=request.content,
+            filename=filename
+        )
+
+        # 파일 저장소에 저장
+        full_filename = f"{filename}.xlsx"
+        file_id = file_storage.store(
+            filename=full_filename,
+            content=excel_bytes,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+        return {
+            "success": True,
+            "file_id": file_id,
+            "filename": full_filename,
+            "message": f"엑셀 파일 '{full_filename}'이(가) 생성되었습니다."
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[DIRECT EXPORT] Excel export failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=get_http_error_detail(e, "export", "엑셀 내보내기 실패")
+        )
+
+
+@router.post("/export/docx")
+async def export_to_docx_direct(request: DirectExportRequest):
+    """
+    콘텐츠를 직접 Word 문서로 내보내기
+
+    Args:
+        request: 내보내기 요청 (content, filename, title)
+
+    Returns:
+        dict: 파일 ID 및 파일명
+    """
+    try:
+        if not request.content or not request.content.strip():
+            raise HTTPException(status_code=400, detail="내보낼 내용이 없습니다.")
+
+        filename = request.filename or "document"
+        title = request.title or "문서"
+
+        # DOCX 생성
+        docx_bytes = chat_docx_export_service.export_to_docx(
+            content=request.content,
+            title=title,
+            filename=filename
+        )
+
+        # 파일 저장소에 저장
+        full_filename = f"{filename}.docx"
+        file_id = file_storage.store(
+            filename=full_filename,
+            content=docx_bytes,
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+
+        return {
+            "success": True,
+            "file_id": file_id,
+            "filename": full_filename,
+            "message": f"Word 문서 '{full_filename}'이(가) 생성되었습니다."
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[DIRECT EXPORT] DOCX export failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=get_http_error_detail(e, "export", "Word 문서 내보내기 실패")
         )

@@ -352,6 +352,38 @@ export function ChatContainer() {
     }
   }, [messages, selectedCollection, tempCollectionName, settings, artifactState.isOpen, updateSources]);
 
+  // Function Calling: 파일 다운로드 트리거
+  const triggerDownload = useCallback(async (fileId: string, filename: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/chat/export/download/${fileId}`, {
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error(`다운로드 실패: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast.success("파일 다운로드 완료", {
+        description: filename,
+      });
+    } catch (error) {
+      console.error("Download error:", error);
+      toast.error("파일 다운로드 실패", {
+        description: error instanceof Error ? error.message : "알 수 없는 오류",
+      });
+    }
+  }, []);
+
   // 메시지 전송 (스트리밍)
   const handleStreamingSend = useCallback(async (userMessage: Message, quotedMsg: Message | null = null) => {
     // AbortController 생성
@@ -554,6 +586,54 @@ export function ChatContainer() {
               toast.error(errorMessage);
             }
             break;
+
+          case "tool_calls":
+            // Function Calling: 도구 호출 요청 (LLM이 도구 사용을 결정)
+            if (event.toolCalls && event.toolCalls.length > 0) {
+              // 도구 실행 중임을 사용자에게 알림
+              const toolNames = event.toolCalls.map(tc => tc.function?.name || "unknown").join(", ");
+              setCurrentStage(`도구 실행 중: ${toolNames}`);
+            }
+            break;
+
+          case "tool_result":
+            // Function Calling: 도구 실행 결과
+            if (event.toolResult) {
+              if (event.toolResult.success) {
+                // 성공 메시지가 있으면 토스트로 표시
+                if (event.toolResult.message) {
+                  toast.success(event.toolResult.message);
+                }
+              } else {
+                // 실패 시 에러 토스트
+                toast.error(event.toolResult.message || "도구 실행 실패");
+              }
+            }
+            break;
+
+          case "action":
+            // Function Calling: 클라이언트 액션 (다운로드 등)
+            if (event.action) {
+              switch (event.action.type) {
+                case "download":
+                  // 파일 다운로드 트리거
+                  if (event.action.fileId && event.action.filename) {
+                    triggerDownload(event.action.fileId, event.action.filename);
+                  }
+                  break;
+                case "message":
+                  // 메시지 표시
+                  if (event.action.message) {
+                    toast.info(event.action.message);
+                  }
+                  break;
+                case "clipboard":
+                  // 클립보드 복사 (추후 구현)
+                  toast.info("클립보드에 복사되었습니다");
+                  break;
+              }
+            }
+            break;
         }
       }
 
@@ -647,7 +727,7 @@ export function ChatContainer() {
       setCurrentStage(""); // 단계 상태 초기화
       setAbortController(null); // 에러 발생 시에도 AbortController 정리
     }
-  }, [messages, selectedCollection, tempCollectionName, settings, artifactState.isOpen, updateSources]);
+  }, [messages, selectedCollection, tempCollectionName, settings, artifactState.isOpen, updateSources, triggerDownload]);
 
   const handleSend = useCallback(async () => {
     if (!input.trim()) {

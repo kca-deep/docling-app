@@ -156,7 +156,8 @@ class LLMService:
         top_p: float = 0.9,
         frequency_penalty: float = 0.0,
         presence_penalty: float = 0.0,
-        stream: bool = False
+        stream: bool = False,
+        tools: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """
         채팅 완료 요청 (비스트리밍)
@@ -170,10 +171,12 @@ class LLMService:
             frequency_penalty: 빈도 패널티 (-2~2)
             presence_penalty: 존재 패널티 (-2~2)
             stream: 스트리밍 여부 (이 메서드에서는 False로 고정)
+            tools: Function Calling 도구 목록 (선택사항)
 
         Returns:
             Dict[str, Any]: API 응답
                 - choices[0].message.content: AI 응답 텍스트
+                - choices[0].message.tool_calls: 도구 호출 목록 (있는 경우)
                 - usage: 토큰 사용량
 
         Raises:
@@ -195,6 +198,11 @@ class LLMService:
                 "presence_penalty": presence_penalty,
                 "stream": False
             }
+
+            # Function Calling 도구 추가
+            if tools:
+                payload["tools"] = tools
+                logger.debug(f"[LLM API CALL] Tools enabled: {[t['function']['name'] for t in tools]}")
 
             # [P2-1] API 호출 상세 로그 → DEBUG
             logger.debug("="*80)
@@ -262,7 +270,8 @@ class LLMService:
         max_tokens: int = 2000,
         top_p: float = 0.9,
         frequency_penalty: float = 0.0,
-        presence_penalty: float = 0.0
+        presence_penalty: float = 0.0,
+        tools: Optional[List[Dict[str, Any]]] = None
     ) -> AsyncGenerator[str, None]:
         """
         채팅 완료 요청 (스트리밍)
@@ -275,9 +284,12 @@ class LLMService:
             top_p: Top P
             frequency_penalty: 빈도 패널티
             presence_penalty: 존재 패널티
+            tools: Function Calling 도구 목록 (선택사항)
 
         Yields:
             str: SSE 이벤트 라인 (data: {...})
+            - 일반 응답: {"choices": [{"delta": {"content": "..."}}]}
+            - 도구 호출: {"choices": [{"delta": {"tool_calls": [...]}}]}
 
         Raises:
             Exception: API 호출 실패 시
@@ -298,6 +310,11 @@ class LLMService:
                 "presence_penalty": presence_penalty,
                 "stream": True
             }
+
+            # Function Calling 도구 추가
+            if tools:
+                payload["tools"] = tools
+                logger.debug(f"[LLM STREAM] Tools enabled: {[t['function']['name'] for t in tools]}")
 
             # [P2-1] 스트리밍 API 호출 상세 로그 → DEBUG
             logger.debug("="*80)

@@ -78,3 +78,39 @@ class DefaultSettingsResponse(BaseModel):
     top_p: float
     top_k: int
     use_reranking: bool
+
+
+# ============================================================================
+# Function Calling 관련 스키마
+# ============================================================================
+
+class ToolCallFunction(BaseModel):
+    """도구 호출 함수 정보"""
+    name: str
+    arguments: str  # JSON 문자열
+
+
+class ToolCall(BaseModel):
+    """LLM이 반환한 도구 호출"""
+    id: str
+    type: str = "function"
+    function: ToolCallFunction
+
+
+class ToolResultResponse(BaseModel):
+    """도구 실행 결과 응답"""
+    tool_call_id: str
+    tool_name: str
+    success: bool
+    action_type: str  # "download", "clipboard", "message"
+    file_id: Optional[str] = None
+    filename: Optional[str] = None
+    content_type: Optional[str] = None
+    message: Optional[str] = None
+    error: Optional[str] = None
+
+
+class ChatResponseWithTools(ChatResponse):
+    """도구 호출이 포함된 채팅 응답"""
+    tool_calls: Optional[List[ToolCall]] = None
+    tool_results: Optional[List[ToolResultResponse]] = None

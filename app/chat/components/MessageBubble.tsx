@@ -4,7 +4,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ChatbotLogo } from "@/components/ui/chatbot-logo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Wand2, User, FileText, Copy, Check, RefreshCw, Reply, StopCircle, ChevronRight } from "lucide-react";
+import { Wand2, User, FileText, Copy, Check, RefreshCw, Reply, StopCircle, ChevronRight, Download } from "lucide-react";
+import { ExportMenu } from "./ExportMenu";
 import { MarkdownMessage } from "@/components/markdown-message";
 import { cn } from "@/lib/utils";
 import { useState, memo, useEffect } from "react";
@@ -409,6 +410,12 @@ export const MessageBubble = memo(function MessageBubble({
                   >
                     <Copy className="h-3 w-3" />
                   </Button>
+                  {/* 내보내기 메뉴 */}
+                  <ExportMenu
+                    messageContent={content}
+                    messageId={messageId}
+                    disabled={isStreaming}
+                  />
                   {isLast && (
                     <Button
                       variant="ghost"
