@@ -25,6 +25,9 @@ interface MessageListProps {
   isDocumentReady?: boolean;
   uploadedFilenames?: string[];
   onClearDocument?: () => void;
+  // 피드백 관련 props
+  sessionId?: string;
+  reasoningLevel?: string;
 }
 
 // 가상 스크롤링 임계값 (이 개수 이상일 때만 가상화 적용)
@@ -44,6 +47,8 @@ export const MessageList = memo(function MessageList({
   isDocumentReady = false,
   uploadedFilenames = [],
   onClearDocument,
+  sessionId,
+  reasoningLevel,
 }: MessageListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const [userScrolled, setUserScrolled] = useState(false);
@@ -130,26 +135,45 @@ export const MessageList = memo(function MessageList({
     onRegenerate?.(index);
   };
 
+  // 이전 user 메시지 찾기 (피드백용)
+  const findPreviousUserQuery = (index: number): string | undefined => {
+    for (let i = index - 1; i >= 0; i--) {
+      if (messages[i].role === "user") {
+        return messages[i].content;
+      }
+    }
+    return undefined;
+  };
+
   // 메시지 렌더링 함수
-  const renderMessage = (message: Message, index: number) => (
-    <MessageBubble
-      key={message.id}
-      messageId={message.id}
-      role={message.role}
-      content={message.content}
-      timestamp={message.timestamp}
-      model={message.model}
-      sources={message.sources}
-      reasoningContent={message.reasoningContent}
-      metadata={message.metadata}
-      onCopy={() => handleCopy(message.content)}
-      onRegenerate={() => handleRegenerate(index)}
-      onQuote={() => onQuote?.(message)}
-      onOpenArtifact={onOpenArtifact}
-      isLast={index === messages.length - 1}
-      isStreaming={isLoading && index === messages.length - 1}
-    />
-  );
+  const renderMessage = (message: Message, index: number) => {
+    const userQuery = message.role === "assistant" ? findPreviousUserQuery(index) : undefined;
+
+    return (
+      <MessageBubble
+        key={message.id}
+        messageId={message.id}
+        role={message.role}
+        content={message.content}
+        timestamp={message.timestamp}
+        model={message.model}
+        sources={message.sources}
+        reasoningContent={message.reasoningContent}
+        metadata={message.metadata}
+        onCopy={() => handleCopy(message.content)}
+        onRegenerate={() => handleRegenerate(index)}
+        onQuote={() => onQuote?.(message)}
+        onOpenArtifact={onOpenArtifact}
+        isLast={index === messages.length - 1}
+        isStreaming={isLoading && index === messages.length - 1}
+        // 피드백 관련 props
+        sessionId={sessionId}
+        collectionName={collectionName}
+        userQuery={userQuery}
+        reasoningLevel={reasoningLevel}
+      />
+    );
+  };
 
   // 로딩 인디케이터 표시 여부
   const showThinkingIndicator = isLoading && (

@@ -23,7 +23,8 @@ import {
 } from "@/components/ui/tooltip";
 import { ChevronDown, ChevronUp, ExternalLink, Link, Brain } from "lucide-react";
 import { SourceArtifactModal } from "./SourceArtifactModal";
-import type { Source } from "../types";
+import { FeedbackButton } from "./FeedbackButton";
+import type { Source, FeedbackRating } from "../types";
 
 interface MessageBubbleProps {
   messageId: string;
@@ -44,6 +45,12 @@ interface MessageBubbleProps {
   onOpenArtifact?: (sources: Source[], messageId: string) => void;
   isLast?: boolean;
   isStreaming?: boolean;
+  // 피드백 관련 props
+  sessionId?: string;
+  collectionName?: string;
+  userQuery?: string;
+  reasoningLevel?: string;
+  initialFeedbackRating?: FeedbackRating | null;
 }
 
 export const MessageBubble = memo(function MessageBubble({
@@ -61,6 +68,11 @@ export const MessageBubble = memo(function MessageBubble({
   onOpenArtifact,
   isLast,
   isStreaming,
+  sessionId,
+  collectionName,
+  userQuery,
+  reasoningLevel,
+  initialFeedbackRating,
 }: MessageBubbleProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [reasoningExpanded, setReasoningExpanded] = useState(false); // 추론 과정 (GPT-OSS, EXAONE 공통)
@@ -426,6 +438,24 @@ export const MessageBubble = memo(function MessageBubble({
                     >
                       <RefreshCw className="h-3 w-3" />
                     </Button>
+                  )}
+                  {/* 피드백 버튼 */}
+                  {sessionId && collectionName && userQuery && !isStreaming && (
+                    <>
+                      <span className="mx-1 text-border">|</span>
+                      <FeedbackButton
+                        messageId={messageId}
+                        sessionId={sessionId}
+                        collectionName={collectionName}
+                        userQuery={userQuery}
+                        assistantResponse={content}
+                        llmModel={model}
+                        reasoningLevel={reasoningLevel}
+                        retrievedDocsCount={sources?.length}
+                        disabled={isStreaming}
+                        initialRating={initialFeedbackRating}
+                      />
+                    </>
                   )}
                 </>
               )}

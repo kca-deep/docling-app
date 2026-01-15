@@ -1116,6 +1116,9 @@ export function ChatContainer() {
               isDocumentReady={isDocumentReady}
               uploadedFilenames={uploadedFilenames}
               onClearDocument={handleClearDocument}
+              // 피드백 관련 props
+              sessionId={sessionId}
+              reasoningLevel={settings.reasoningLevel}
             />
           </div>
 

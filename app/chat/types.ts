@@ -116,3 +116,53 @@ export interface QuotedMessage {
   content: string;
   role: "user" | "assistant";
 }
+
+/**
+ * 피드백 카테고리 (부정 피드백용)
+ */
+export type FeedbackCategory =
+  | "inaccurate"   // 부정확함
+  | "incomplete"   // 불완전함
+  | "irrelevant"   // 관련없음
+  | "outdated"     // 구버전
+  | "other";       // 기타
+
+/**
+ * 피드백 평가
+ */
+export type FeedbackRating = "positive" | "negative";
+
+/**
+ * 피드백 생성 요청
+ */
+export interface FeedbackCreateRequest {
+  message_id: string;
+  session_id: string;
+  collection_name: string;
+  rating: FeedbackRating;
+  category?: FeedbackCategory;
+  comment?: string;
+  user_query: string;
+  assistant_response?: string;
+  llm_model?: string;
+  reasoning_level?: string;
+  retrieved_docs_count?: number;
+}
+
+/**
+ * 피드백 응답
+ */
+export interface FeedbackResponse {
+  feedback_id: string;
+  message_id: string;
+  rating: FeedbackRating;
+  created_at: string;
+}
+
+/**
+ * 피드백 존재 여부 응답
+ */
+export interface FeedbackExistsResponse {
+  exists: boolean;
+  rating?: FeedbackRating;
+}

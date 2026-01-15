@@ -25,7 +25,8 @@ import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
 import {
   RefreshCw, TrendingUp, Users, MessageSquare,
-  Clock, Zap, Download, BarChart3, AlertTriangle
+  Clock, Zap, Download, BarChart3, AlertTriangle,
+  ThumbsUp, ThumbsDown
 } from "lucide-react"
 import { motion } from "framer-motion"
 import {
@@ -36,6 +37,7 @@ import { toast } from "sonner"
 import { API_BASE_URL } from "@/lib/api-config"
 import { getCollectionDisplayName } from "@/lib/collection-utils"
 import { ServiceHealthBanner } from "@/components/service-health-banner"
+import { ChatHistoryModal } from "./components/ChatHistoryModal"
 
 // 차트 설정
 const timelineChartConfig = {
@@ -130,6 +132,29 @@ interface CollectionInfo {
   distance?: string
 }
 
+interface FeedbackSummary {
+  total_feedbacks: number
+  positive_count: number
+  negative_count: number
+  positive_rate: number
+  category_distribution: Record<string, number>
+  daily_trend: Array<{
+    date: string
+    positive: number
+    negative: number
+  }>
+}
+
+interface RecentNegativeFeedback {
+  feedback_id: string
+  message_id: string
+  collection_name: string
+  category?: string
+  comment?: string
+  user_query: string
+  created_at: string
+}
+
 // ============================================================
 // 메인 컴포넌트
 // ============================================================
@@ -167,6 +192,11 @@ export default function AnalyticsPage() {
   const [conversationStats, setConversationStats] = useState<ConversationStats | null>(null)
   const [activeSessions, setActiveSessions] = useState<ActiveSessions | null>(null)
   const [recentQueries, setRecentQueries] = useState<RecentQuery[]>([])
+  const [feedbackSummary, setFeedbackSummary] = useState<FeedbackSummary | null>(null)
+  const [recentNegativeFeedbacks, setRecentNegativeFeedbacks] = useState<RecentNegativeFeedback[]>([])
+
+  // 채팅 이력 모달 상태
+  const [chatHistoryOpen, setChatHistoryOpen] = useState(false)
 
   // 일별 추이 차트 활성 메트릭
   const [activeTimelineMetric, setActiveTimelineMetric] = useState<"queries" | "sessions" | "avg_response_time">("queries")
@@ -211,16 +241,20 @@ export default function AnalyticsPage() {
     try {
       // 최근 질문은 ALL일 때 전체 조회 (collection_name 생략)
       const recentQueriesParams = selectedCollection === "ALL" ? "limit=20" : `collection_name=${selectedCollection}&limit=20`
+      // 피드백 API 파라미터
+      const feedbackParams = selectedCollection === "ALL" ? `days=${days}` : `collection_name=${selectedCollection}&days=${days}`
       const [
         summaryRes, timelineRes, heatmapRes, convStatsRes,
-        activeRes, recentRes
+        activeRes, recentRes, feedbackSummaryRes, recentNegativeRes
       ] = await Promise.allSettled([
         fetch(`${API_BASE_URL}/api/analytics/summary?${dateParams}`, { credentials: 'include' }),
         fetch(`${API_BASE_URL}/api/analytics/timeline?${params}&period=daily`, { credentials: 'include' }),
         fetch(`${API_BASE_URL}/api/analytics/hourly-heatmap?${params}`, { credentials: 'include' }),
         fetch(`${API_BASE_URL}/api/analytics/conversation-stats?${params}`, { credentials: 'include' }),
         fetch(`${API_BASE_URL}/api/analytics/active-sessions?minutes=5`, { credentials: 'include' }),
-        fetch(`${API_BASE_URL}/api/analytics/recent-queries?${recentQueriesParams}`, { credentials: 'include' })
+        fetch(`${API_BASE_URL}/api/analytics/recent-queries?${recentQueriesParams}`, { credentials: 'include' }),
+        fetch(`${API_BASE_URL}/api/feedback/summary?${feedbackParams}`, { credentials: 'include' }),
+        fetch(`${API_BASE_URL}/api/feedback/recent-negative?${feedbackParams}&limit=10`, { credentials: 'include' })
       ])
 
       // 결과 처리
@@ -243,6 +277,13 @@ export default function AnalyticsPage() {
       if (recentRes.status === 'fulfilled' && recentRes.value.ok) {
         const data = await recentRes.value.json()
         setRecentQueries(data.queries || [])
+      }
+      if (feedbackSummaryRes.status === 'fulfilled' && feedbackSummaryRes.value.ok) {
+        setFeedbackSummary(await feedbackSummaryRes.value.json())
+      }
+      if (recentNegativeRes.status === 'fulfilled' && recentNegativeRes.value.ok) {
+        const data = await recentNegativeRes.value.json()
+        setRecentNegativeFeedbacks(data.feedbacks || [])
       }
 
     } catch (error) {
@@ -440,6 +481,17 @@ export default function AnalyticsPage() {
     responseTime: "var(--chart-3)", // 주황
     tokens: "var(--chart-3)",       // 주황
     active: "var(--chart-2)",       // 초록
+    positive: "var(--chart-2)",     // 초록 (긍정 피드백)
+    negative: "var(--chart-4)",     // 빨강 (부정 피드백)
+  }
+
+  // 피드백 카테고리 라벨
+  const feedbackCategoryLabels: Record<string, string> = {
+    inaccurate: "부정확",
+    incomplete: "불완전",
+    irrelevant: "관련없음",
+    outdated: "구버전",
+    other: "기타",
   }
 
   return (
@@ -577,12 +629,12 @@ export default function AnalyticsPage() {
         </div>
       </motion.div>
 
-      {/* KPI 카드 - 모바일 5열 컴팩트, 데스크탑 가로 배치 */}
+      {/* KPI 카드 - 모바일 6열 컴팩트, 데스크탑 가로 배치 */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.3 }}
-        className="grid grid-cols-5 gap-1 lg:gap-3"
+        className="grid grid-cols-6 gap-1 lg:gap-3"
       >
         {/* 쿼리 */}
         <div className="group flex flex-col items-center p-1.5 text-center rounded-lg border border-border/50 bg-background/60 backdrop-blur-sm lg:flex-row lg:items-center lg:gap-3 lg:px-4 lg:py-3 lg:text-left hover:border-[color:var(--chart-1)]/30 hover:shadow-lg hover:shadow-[color:var(--chart-1)]/5 transition-all duration-300">
@@ -641,6 +693,20 @@ export default function AnalyticsPage() {
           <div>
             <span className="text-sm lg:text-lg font-bold tabular-nums block">{((summary?.total_tokens ?? 0) / 1000).toFixed(1)}K</span>
             <span className="text-[10px] lg:text-xs text-muted-foreground">토큰</span>
+          </div>
+        </div>
+
+        {/* 피드백 만족도 */}
+        <div className="group flex flex-col items-center p-1.5 text-center rounded-lg border border-border/50 bg-background/60 backdrop-blur-sm lg:flex-row lg:items-center lg:gap-3 lg:px-4 lg:py-3 lg:text-left hover:border-[color:var(--chart-2)]/30 hover:shadow-lg hover:shadow-[color:var(--chart-2)]/5 transition-all duration-300">
+          <div className="w-2 h-2 rounded-full mb-0.5 lg:hidden" style={{ backgroundColor: metricColors.positive }} />
+          <div className="hidden lg:flex p-2 rounded-lg bg-[color:var(--chart-2)]/10 group-hover:bg-[color:var(--chart-2)]/20 transition-colors">
+            <ThumbsUp className="h-4 w-4" style={{ color: metricColors.positive }} />
+          </div>
+          <div>
+            <span className="text-sm lg:text-lg font-bold tabular-nums block">
+              {feedbackSummary?.total_feedbacks ? `${feedbackSummary.positive_rate.toFixed(0)}%` : "-"}
+            </span>
+            <span className="text-[10px] lg:text-xs text-muted-foreground">만족도</span>
           </div>
         </div>
       </motion.div>
@@ -815,13 +881,23 @@ export default function AnalyticsPage() {
               <CardHeader className="px-6 py-4">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base font-semibold">최근 질문</CardTitle>
-                  <Badge variant="outline" className="gap-1.5 px-2 py-1 font-normal text-xs">
-                    <div
-                      className="h-1.5 w-1.5 rounded-full animate-pulse"
-                      style={{ backgroundColor: metricColors.active }}
-                    />
-                    30초 갱신
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setChatHistoryOpen(true)}
+                    >
+                      채팅이력
+                    </Button>
+                    <Badge variant="outline" className="gap-1.5 px-2 py-1 font-normal text-xs">
+                      <div
+                        className="h-1.5 w-1.5 rounded-full animate-pulse"
+                        style={{ backgroundColor: metricColors.active }}
+                      />
+                      30초 갱신
+                    </Badge>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="px-6 pb-6">
@@ -1077,8 +1153,156 @@ export default function AnalyticsPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* 피드백 요약 */}
+            <Card className="col-span-1 lg:col-span-2 border-border/50 bg-background/60 backdrop-blur-sm hover:border-[color:var(--chart-2)]/30 hover:shadow-xl hover:shadow-[color:var(--chart-2)]/5 transition-all duration-300">
+              <CardHeader className="px-6 py-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base font-semibold">피드백 현황</CardTitle>
+                  {feedbackSummary && feedbackSummary.total_feedbacks > 0 && (
+                    <Badge variant="secondary" className="gap-1.5 px-2.5 py-1 font-normal text-xs">
+                      총 {feedbackSummary.total_feedbacks.toLocaleString()}건
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="px-6 pb-6">
+                {feedbackSummary && feedbackSummary.total_feedbacks > 0 ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* 긍정/부정 비율 */}
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-medium text-muted-foreground">만족도 비율</h4>
+                      <div className="flex items-center gap-4">
+                        <div className="relative w-24 h-24">
+                          <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                            <circle
+                              cx="18" cy="18" r="15.915"
+                              fill="none"
+                              className="stroke-muted"
+                              strokeWidth="3"
+                            />
+                            <circle
+                              cx="18" cy="18" r="15.915"
+                              fill="none"
+                              stroke="var(--chart-2)"
+                              strokeWidth="3"
+                              strokeDasharray={`${feedbackSummary.positive_rate} ${100 - feedbackSummary.positive_rate}`}
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="text-lg font-bold">{feedbackSummary.positive_rate.toFixed(0)}%</span>
+                          </div>
+                        </div>
+                        <div className="space-y-2 flex-1">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <ThumbsUp className="h-4 w-4" style={{ color: metricColors.positive }} />
+                              <span className="text-sm">긍정</span>
+                            </div>
+                            <span className="text-sm font-medium">{feedbackSummary.positive_count.toLocaleString()}건</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <ThumbsDown className="h-4 w-4" style={{ color: metricColors.negative }} />
+                              <span className="text-sm">부정</span>
+                            </div>
+                            <span className="text-sm font-medium">{feedbackSummary.negative_count.toLocaleString()}건</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 부정 피드백 카테고리 분포 */}
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-medium text-muted-foreground">부정 피드백 유형</h4>
+                      {Object.keys(feedbackSummary.category_distribution || {}).length > 0 ? (
+                        <div className="space-y-2">
+                          {Object.entries(feedbackSummary.category_distribution)
+                            .sort(([, a], [, b]) => b - a)
+                            .map(([category, count]) => {
+                              const total = Object.values(feedbackSummary.category_distribution).reduce((sum, c) => sum + c, 0)
+                              const percentage = total > 0 ? (count / total) * 100 : 0
+                              return (
+                                <div key={category} className="space-y-1">
+                                  <div className="flex items-center justify-between text-sm">
+                                    <span>{feedbackCategoryLabels[category] || category}</span>
+                                    <span className="text-muted-foreground">{count}건 ({percentage.toFixed(0)}%)</span>
+                                  </div>
+                                  <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full rounded-full transition-all"
+                                      style={{
+                                        width: `${percentage}%`,
+                                        backgroundColor: metricColors.negative
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              )
+                            })}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground text-center py-4">부정 피드백 없음</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-8">피드백 데이터 없음</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* 최근 부정 피드백 */}
+            <Card className="border-border/50 bg-background/60 backdrop-blur-sm hover:border-[color:var(--chart-4)]/30 hover:shadow-xl hover:shadow-[color:var(--chart-4)]/5 transition-all duration-300">
+              <CardHeader className="px-6 py-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base font-semibold">최근 부정 피드백</CardTitle>
+                  <Badge variant="outline" className="gap-1.5 px-2 py-1 font-normal text-xs text-destructive border-destructive/30">
+                    <ThumbsDown className="h-3 w-3" />
+                    개선필요
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="px-6 pb-6">
+                <div className="space-y-2">
+                  {recentNegativeFeedbacks.length > 0 ? (
+                    recentNegativeFeedbacks.slice(0, 5).map((feedback) => (
+                      <div key={feedback.feedback_id} className="p-3 rounded-lg border border-border/50 hover:border-border hover:bg-muted/30 transition-colors space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm line-clamp-2 flex-1">{feedback.user_query}</p>
+                          <Badge variant="secondary" className="shrink-0 text-xs">
+                            {feedbackCategoryLabels[feedback.category || "other"] || feedback.category}
+                          </Badge>
+                        </div>
+                        {feedback.comment && (
+                          <p className="text-xs text-muted-foreground line-clamp-2 pl-2 border-l-2 border-muted">
+                            {feedback.comment}
+                          </p>
+                        )}
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span>{getCollectionDisplayName({ name: feedback.collection_name })}</span>
+                          <span>{format(new Date(feedback.created_at), "M/d HH:mm")}</span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-8">부정 피드백 없음</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
       </motion.div>
+
+      {/* 채팅 이력 모달 */}
+      <ChatHistoryModal
+        open={chatHistoryOpen}
+        onOpenChange={setChatHistoryOpen}
+        collectionName={selectedCollection}
+        dateFrom={dateRange.from}
+        dateTo={dateRange.to}
+      />
     </PageContainer>
   )
 }

@@ -295,17 +295,18 @@ class HybridLoggingService:
             logger.info(f"플러시 완료: {len(remaining)}개 아이템 저장")
 
     def get_log_files(self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> List[Path]:
-        """날짜 범위의 로그 파일 목록 반환 (flat + yyyy/mm 구조 모두 지원)"""
+        """날짜 범위의 로그 파일 목록 반환 (flat + yyyy/mm 구조 모두 지원, .jsonl + .jsonl.gz)"""
         files = []
 
-        # 모든 .jsonl 파일 순회 (flat + hierarchy)
-        for file_path in iter_all_files(self.log_dir, pattern="*.jsonl"):
+        # 모든 .jsonl 및 .jsonl.gz 파일 순회 (flat + hierarchy)
+        for file_path in iter_all_files(self.log_dir, pattern="*.jsonl*"):
             # emergency 파일 제외
-            if file_path.name.startswith("emergency_"):
+            if file_path.name.startswith("emergency_") or file_path.name.startswith("overflow_"):
                 continue
 
-            # 날짜 파싱
-            file_date = parse_date_from_filename(file_path.name)
+            # 날짜 파싱 (.gz 확장자 제거 후 파싱)
+            filename_for_parse = file_path.name.replace(".gz", "")
+            file_date = parse_date_from_filename(filename_for_parse)
             if file_date is None:
                 logger.warning(f"파일 이름 파싱 실패: {file_path}")
                 continue
@@ -319,7 +320,7 @@ class HybridLoggingService:
             files.append(file_path)
 
         # 날짜순 정렬
-        return sorted(files, key=lambda p: parse_date_from_filename(p.name) or datetime.min.date())
+        return sorted(files, key=lambda p: parse_date_from_filename(p.name.replace(".gz", "")) or datetime.min.date())
 
     async def read_logs(
         self,
@@ -329,34 +330,64 @@ class HybridLoggingService:
         session_id: Optional[str] = None,
         limit: Optional[int] = None
     ) -> List[Dict[str, Any]]:
-        """로그 읽기"""
+        """로그 읽기 (.jsonl 및 .jsonl.gz 지원)"""
+        import gzip
+
         logs = []
         files = self.get_log_files(start_date, end_date)
 
         for file_path in files:
             try:
-                async with aiofiles.open(file_path, 'r', encoding='utf-8') as f:
-                    async for line in f:
-                        if not line.strip():
-                            continue
+                is_gzip = file_path.suffix == ".gz" or file_path.name.endswith(".jsonl.gz")
 
-                        try:
-                            log = json.loads(line)
-
-                            # 필터링
-                            if collection_name and log.get("collection_name") != collection_name:
-                                continue
-                            if session_id and log.get("session_id") != session_id:
+                if is_gzip:
+                    # gzip 파일은 동기 방식으로 읽기 (aiofiles는 gzip 미지원)
+                    with gzip.open(file_path, 'rt', encoding='utf-8') as f:
+                        for line in f:
+                            if not line.strip():
                                 continue
 
-                            logs.append(log)
+                            try:
+                                log = json.loads(line)
 
-                            # 제한 체크
-                            if limit and len(logs) >= limit:
-                                return logs
+                                # 필터링
+                                if collection_name and log.get("collection_name") != collection_name:
+                                    continue
+                                if session_id and log.get("session_id") != session_id:
+                                    continue
 
-                        except json.JSONDecodeError as e:
-                            logger.error(f"JSON 파싱 오류: {e}, 라인: {line}")
+                                logs.append(log)
+
+                                # 제한 체크
+                                if limit and len(logs) >= limit:
+                                    return logs
+
+                            except json.JSONDecodeError as e:
+                                logger.error(f"JSON 파싱 오류: {e}, 라인: {line[:100]}")
+                else:
+                    # 일반 jsonl 파일은 비동기로 읽기
+                    async with aiofiles.open(file_path, 'r', encoding='utf-8') as f:
+                        async for line in f:
+                            if not line.strip():
+                                continue
+
+                            try:
+                                log = json.loads(line)
+
+                                # 필터링
+                                if collection_name and log.get("collection_name") != collection_name:
+                                    continue
+                                if session_id and log.get("session_id") != session_id:
+                                    continue
+
+                                logs.append(log)
+
+                                # 제한 체크
+                                if limit and len(logs) >= limit:
+                                    return logs
+
+                            except json.JSONDecodeError as e:
+                                logger.error(f"JSON 파싱 오류: {e}, 라인: {line[:100]}")
 
             except Exception as e:
                 logger.error(f"파일 읽기 오류 {file_path}: {e}")
