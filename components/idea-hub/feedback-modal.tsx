@@ -171,6 +171,7 @@ export function FeedbackModal({
   const [isCompleting, setIsCompleting] = useState(false)
   const [feedbackStatus, setFeedbackStatus] = useState<"draft" | "in_progress" | "completed">("draft")
   const [feedbackId, setFeedbackId] = useState<number | null>(null)
+  const [feedbackNotFound, setFeedbackNotFound] = useState(false)
 
   // Project detail sheet state
   const [showProjectSheet, setShowProjectSheet] = useState(false)
@@ -205,13 +206,23 @@ export function FeedbackModal({
         setAiDraftAdministrative(data.ai_draft_administrative || "")
         setAiDraftTechnical(data.ai_draft_technical || "")
         setAiDraftOverall(data.ai_draft_overall || "")
-        setFeedbackStatus(data.status)
+        // /feedback/view API는 status 필드가 없음 (완료된 피드백만 반환)
+        // canEdit=false이고 데이터 로드 성공 시 "completed"로 설정
+        setFeedbackStatus(data.status || (canEdit ? "draft" : "completed"))
         setFeedbackId(data.id || null)
+        setFeedbackNotFound(false)
       } else if (response.status === 404) {
         resetForm()
+        if (!canEdit) {
+          // 제안자가 조회하는 경우: 피드백이 아직 작성되지 않음
+          setFeedbackNotFound(true)
+        }
       } else if (response.status === 403) {
         if (!canEdit) {
-          toast.error("피드백이 아직 완료되지 않았습니다.")
+          // 제안자가 조회하는 경우: 백엔드 에러 메시지 표시
+          const errorData = await response.json().catch(() => ({}))
+          const errorMessage = errorData.detail || "피드백을 조회할 수 없습니다."
+          toast.error(errorMessage)
           onOpenChange(false)
         }
       }
@@ -271,6 +282,7 @@ export function FeedbackModal({
     setAiDraftOverall("")
     setFeedbackStatus("draft")
     setFeedbackId(null)
+    setFeedbackNotFound(false)
   }
 
   // Generate AI draft
@@ -520,6 +532,24 @@ export function FeedbackModal({
               <div className="flex items-center justify-center py-16 flex-1">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
+            ) : feedbackNotFound && !canEdit ? (
+              /* 피드백 미작성 안내 (제안자용) */
+              <div className="flex flex-col items-center justify-center py-16 flex-1">
+                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                  <FileText className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">피드백이 아직 작성되지 않았습니다</h3>
+                <p className="text-sm text-muted-foreground text-center max-w-sm">
+                  담당자가 보안성 검토 피드백을 작성하면 이곳에서 확인하실 수 있습니다.
+                </p>
+                <Button
+                  variant="outline"
+                  className="mt-6"
+                  onClick={() => onOpenChange(false)}
+                >
+                  닫기
+                </Button>
+              </div>
             ) : (
               <>
                 <ScrollArea className="flex-1 px-6" style={{ maxHeight: "calc(90vh - 200px)" }}>
@@ -667,12 +697,23 @@ export function FeedbackModal({
                             2. 관리적 보안내용
                           </Label>
                         </div>
-                        {canEdit && aiDraftAdministrative && !isCompleted && (
+                        {canEdit && aiDraftAdministrative && !isCompleted ? (
                           <AiDraftToggle
                             isOpen={showDraftAdmin}
                             onToggle={() => setShowDraftAdmin(!showDraftAdmin)}
                             onApply={() => applyDraft("administrative")}
                           />
+                        ) : isReadOnly && administrativeSecurity && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyToClipboard(administrativeSecurity, "관리적 보안내용")}
+                            className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                          >
+                            <Copy className="h-3 w-3" />
+                            복사
+                          </Button>
                         )}
                       </div>
 
@@ -707,12 +748,23 @@ export function FeedbackModal({
                             3. 기술적 보안내용
                           </Label>
                         </div>
-                        {canEdit && aiDraftTechnical && !isCompleted && (
+                        {canEdit && aiDraftTechnical && !isCompleted ? (
                           <AiDraftToggle
                             isOpen={showDraftTech}
                             onToggle={() => setShowDraftTech(!showDraftTech)}
                             onApply={() => applyDraft("technical")}
                           />
+                        ) : isReadOnly && technicalSecurity && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyToClipboard(technicalSecurity, "기술적 보안내용")}
+                            className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                          >
+                            <Copy className="h-3 w-3" />
+                            복사
+                          </Button>
                         )}
                       </div>
 
@@ -747,12 +799,23 @@ export function FeedbackModal({
                             4. 종합의견
                           </Label>
                         </div>
-                        {canEdit && aiDraftOverall && !isCompleted && (
+                        {canEdit && aiDraftOverall && !isCompleted ? (
                           <AiDraftToggle
                             isOpen={showDraftOverall}
                             onToggle={() => setShowDraftOverall(!showDraftOverall)}
                             onApply={() => applyDraft("overall")}
                           />
+                        ) : isReadOnly && overallOpinion && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyToClipboard(overallOpinion, "종합의견")}
+                            className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                          >
+                            <Copy className="h-3 w-3" />
+                            복사
+                          </Button>
                         )}
                       </div>
 

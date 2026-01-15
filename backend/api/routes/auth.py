@@ -183,6 +183,20 @@ class UpdatePermissionsRequest(BaseModel):
     permissions: dict
 
 
+class PasswordResetRequest(BaseModel):
+    """비밀번호 초기화 요청"""
+    new_password: str = Field(..., min_length=8, max_length=128)
+    new_password_confirm: str
+
+
+class PasswordResetResponse(BaseModel):
+    """비밀번호 초기화 응답"""
+    success: bool
+    user_id: int
+    username: str
+    message: str
+
+
 class PermissionsUpdateResponse(BaseModel):
     """권한 업데이트 응답"""
     success: bool
@@ -806,4 +820,57 @@ async def get_my_permissions(
         username=user.username,
         role=user.role,
         permissions=user.get_permissions()
+    )
+
+
+# =========================================
+# 비밀번호 초기화 엔드포인트
+# =========================================
+
+@router.post("/users/{user_id}/password/reset", response_model=PasswordResetResponse)
+async def reset_user_password(
+    user_id: int,
+    request: PasswordResetRequest,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin)
+):
+    """
+    사용자 비밀번호 초기화 (관리자 전용)
+
+    관리자가 사용자의 비밀번호를 새 비밀번호로 초기화합니다.
+
+    Args:
+        user_id: 비밀번호를 초기화할 사용자 ID
+        request: 새 비밀번호 정보
+
+    Returns:
+        PasswordResetResponse: 초기화 결과
+    """
+    # 비밀번호 확인
+    if request.new_password != request.new_password_confirm:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"message": "비밀번호가 일치하지 않습니다.", "error_code": "PASSWORD_MISMATCH"}
+        )
+
+    try:
+        user = auth_service.reset_user_password(
+            db=db,
+            user_id=user_id,
+            new_password=request.new_password,
+            admin_id=admin.id
+        )
+    except AuthenticationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"message": e.message, "error_code": e.error_code}
+        )
+
+    logger.info(f"User {user.username} password reset by admin {admin.username}")
+
+    return PasswordResetResponse(
+        success=True,
+        user_id=user.id,
+        username=user.username,
+        message=f"사용자 '{user.username}'의 비밀번호가 초기화되었습니다."
     )

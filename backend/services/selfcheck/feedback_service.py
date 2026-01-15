@@ -317,10 +317,20 @@ class FeedbackService:
         self,
         db: Session,
         submission_id: str,
-        user_id: int
+        user_id: Optional[int]
     ) -> Optional[FeedbackViewResponse]:
-        """사용자용 피드백 조회 (완료된 건만)"""
-        # 본인 제출건인지 확인
+        """
+        사용자용 피드백 조회 (완료된 건만)
+
+        Args:
+            db: DB 세션
+            submission_id: 제출 ID
+            user_id: 사용자 ID (None이면 본인 확인 생략 - 관리자용)
+
+        Returns:
+            FeedbackViewResponse: 피드백 응답 (완료된 경우만)
+        """
+        # 제출건 조회
         submission = db.query(SelfCheckSubmission).filter(
             SelfCheckSubmission.submission_id == submission_id
         ).first()
@@ -328,7 +338,8 @@ class FeedbackService:
         if not submission:
             return None
 
-        if submission.user_id != user_id:
+        # user_id가 주어진 경우에만 본인 확인 (None이면 관리자 조회)
+        if user_id is not None and submission.user_id != user_id:
             raise Exception("본인의 제출건만 조회할 수 있습니다")
 
         feedback = self.get_feedback(db, submission_id)

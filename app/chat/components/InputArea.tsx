@@ -177,7 +177,7 @@ export const InputArea = memo(function InputArea({
         )}
 
         {/* ChatGPT 스타일 입력 카드 - Glassmorphism Floating Style */}
-        <div className="bg-background/40 backdrop-blur-xl border border-white/10 rounded-[2rem] shadow-2xl transition-all duration-300 hover:shadow-primary/10 group relative overflow-hidden ring-1 ring-white/20 hover:ring-white/30">
+        <div className="bg-background/90 border border-border/30 rounded-[2rem] shadow-2xl transition-all duration-300 hover:shadow-primary/10 group relative overflow-hidden ring-1 ring-border/20 hover:ring-border/30">
           {/* Background Gradient Blend */}
           <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-transparent opacity-50 pointer-events-none" />
 

@@ -73,6 +73,29 @@ export function ChatContainer() {
   const [currentStage, setCurrentStage] = useState<string>(""); // 백엔드 단계 이벤트
   const lastUserMessageRef = useRef<{ content: string; quoted: Message | null } | null>(null);
 
+  // 메모리 누수 방지용 refs
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const rafIdRef = useRef<number | null>(null);
+  const isMountedRef = useRef(true);
+
+  // 컴포넌트 언마운트 시 cleanup
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      // RAF 정리
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      // AbortController 정리
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+    };
+  }, []);
+
   // 스트리밍 배칭용 refs
   const streamingBatchRef = useRef<{
     content: string;
@@ -386,8 +409,9 @@ export function ChatContainer() {
 
   // 메시지 전송 (스트리밍)
   const handleStreamingSend = useCallback(async (userMessage: Message, quotedMsg: Message | null = null) => {
-    // AbortController 생성
+    // AbortController 생성 (ref와 state 동시 업데이트로 race condition 방지)
     const controller = new AbortController();
+    abortControllerRef.current = controller;
     setAbortController(controller);
 
     // 단계 상태 초기화
@@ -466,7 +490,12 @@ export function ChatContainer() {
 
       // 배치 플러시 함수 (requestAnimationFrame으로 다음 프레임에 업데이트)
       const flushBatch = () => {
-        if (!batch.flushScheduled) return;
+        // 메모리 누수 방지: 마운트 해제 시 또는 스케줄되지 않은 경우 종료
+        if (!batch.flushScheduled || !isMountedRef.current) {
+          batch.flushScheduled = false;
+          rafIdRef.current = null;
+          return;
+        }
 
         const currentContent = batch.content;
         const currentReasoning = batch.reasoning;
@@ -503,13 +532,14 @@ export function ChatContainer() {
         }
 
         batch.flushScheduled = false;
+        rafIdRef.current = null;
       };
 
-      // 배치 스케줄 함수
+      // 배치 스케줄 함수 (메모리 누수 방지: rafIdRef로 추적)
       const scheduleBatchFlush = () => {
-        if (!batch.flushScheduled) {
+        if (!batch.flushScheduled && isMountedRef.current) {
           batch.flushScheduled = true;
-          requestAnimationFrame(flushBatch);
+          rafIdRef.current = requestAnimationFrame(flushBatch);
         }
       };
 
@@ -667,7 +697,9 @@ export function ChatContainer() {
 
       setIsLoading(false);
       setCurrentStage(""); // 단계 상태 초기화
-      setAbortController(null); // 스트리밍 완료 후 AbortController 정리
+      // AbortController 정리 (ref와 state 모두)
+      abortControllerRef.current = null;
+      setAbortController(null);
     } catch (error) {
       // AbortError는 사용자가 의도적으로 중단한 것이므로 에러로 처리하지 않음
       if (error instanceof Error && error.name === 'AbortError') {
@@ -725,7 +757,9 @@ export function ChatContainer() {
 
       setIsLoading(false);
       setCurrentStage(""); // 단계 상태 초기화
-      setAbortController(null); // 에러 발생 시에도 AbortController 정리
+      // AbortController 정리 (ref와 state 모두)
+      abortControllerRef.current = null;
+      setAbortController(null);
     }
   }, [messages, selectedCollection, tempCollectionName, settings, artifactState.isOpen, updateSources, triggerDownload]);
 
@@ -964,13 +998,15 @@ export function ChatContainer() {
   // 아티팩트 핸들러는 useArtifactPanel 훅에서 제공됨:
   // openArtifact, closeArtifact, selectSource
 
-  // 스트리밍 중단 핸들러
+  // 스트리밍 중단 핸들러 (ref 사용으로 race condition 방지)
   const handleStopStreaming = useCallback(() => {
-    if (abortController && !abortController.signal.aborted) {
-      abortController.abort();
+    const controller = abortControllerRef.current;
+    if (controller && !controller.signal.aborted) {
+      controller.abort();
+      abortControllerRef.current = null;
       setAbortController(null);
     }
-  }, [abortController]);
+  }, []);
 
   // 파일 선택 핸들러 (다중 파일 지원)
   const handleFileSelect = useCallback((files: File[]) => {
@@ -1043,49 +1079,21 @@ export function ChatContainer() {
           "flex flex-col overflow-hidden transition-all duration-200 ease-out bg-background relative",
           artifactState.isOpen ? "w-[60%]" : "w-full"
         )}>
-          {/* 전체 배경 오로라 - 메시지 없을 때만 표시 (메시지 목록 + 입력창 전체에 적용) */}
+          {/* 전체 배경 오로라 - 메시지 없을 때만 표시 (성능 최적화: 6개 → 2개, blur 축소) */}
           {messages.length === 0 && !isLoading && (
             <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none animate-in fade-in duration-500">
               {/* Aurora Blob 1 - Blue/Cyan (top-left) */}
               <div
-                className="absolute -top-[10%] -left-[10%] w-[60%] h-[60%] rounded-full blur-[80px] opacity-40 dark:opacity-50 animate-aurora-1"
+                className="absolute -top-[10%] -left-[10%] w-[60%] h-[60%] rounded-full blur-[40px] opacity-40 dark:opacity-50 animate-aurora-1"
                 style={{
                   background: `radial-gradient(ellipse 70% 50% at center, var(--aurora-1) 0%, var(--aurora-1-end) 30%, transparent 60%)`,
                 }}
               />
-              {/* Aurora Blob 2 - Green/Teal (top-right) */}
+              {/* Aurora Blob 2 - Green/Teal (bottom-right) */}
               <div
-                className="absolute -top-[5%] -right-[15%] w-[55%] h-[55%] rounded-full blur-[70px] opacity-35 dark:opacity-45 animate-aurora-2"
+                className="absolute -bottom-[5%] -right-[15%] w-[55%] h-[55%] rounded-full blur-[35px] opacity-35 dark:opacity-45 animate-aurora-2"
                 style={{
                   background: `radial-gradient(ellipse 60% 70% at center, var(--aurora-2) 0%, var(--aurora-2-end) 35%, transparent 60%)`,
-                }}
-              />
-              {/* Aurora Blob 3 - Purple/Magenta (center-left) */}
-              <div
-                className="absolute top-[20%] -left-[5%] w-[50%] h-[50%] rounded-full blur-[75px] opacity-30 dark:opacity-40 animate-aurora-3"
-                style={{
-                  background: `radial-gradient(ellipse 55% 65% at center, var(--aurora-3) 0%, var(--aurora-3-end) 30%, transparent 55%)`,
-                }}
-              />
-              {/* Aurora Blob 4 - Orange/Yellow (center-right) */}
-              <div
-                className="absolute top-[15%] -right-[10%] w-[45%] h-[45%] rounded-full blur-[65px] opacity-25 dark:opacity-35 animate-aurora-4"
-                style={{
-                  background: `radial-gradient(ellipse 50% 60% at center, var(--aurora-4) 0%, var(--aurora-4-end) 35%, transparent 55%)`,
-                }}
-              />
-              {/* Aurora Blob 5 - Indigo/Deep Blue (bottom-left) */}
-              <div
-                className="absolute bottom-[10%] -left-[15%] w-[50%] h-[50%] rounded-full blur-[70px] opacity-30 dark:opacity-40 animate-aurora-5"
-                style={{
-                  background: `radial-gradient(ellipse 65% 55% at center, var(--aurora-5) 0%, var(--aurora-5-end) 30%, transparent 55%)`,
-                }}
-              />
-              {/* Aurora Blob 6 - Pink/Rose (bottom-right) */}
-              <div
-                className="absolute bottom-[5%] -right-[10%] w-[45%] h-[45%] rounded-full blur-[60px] opacity-25 dark:opacity-35 animate-aurora-pulse"
-                style={{
-                  background: `radial-gradient(circle, var(--aurora-6) 0%, var(--aurora-6-end) 40%, transparent 60%)`,
                 }}
               />
             </div>

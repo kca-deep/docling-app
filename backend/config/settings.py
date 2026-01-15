@@ -182,11 +182,11 @@ class Settings(BaseSettings):
     PROMPT_GEN_SAMPLE_LIMIT: int = 3000  # 문서 샘플 최대 문자수 (입력 토큰 절약)
 
     # 셀프진단 설정
-    SELFCHECK_MAX_TOKENS: int = 4000  # 셀프진단 LLM 분석 최대 토큰
-    SELFCHECK_BATCH_MAX_TOKENS: int = 2000  # 배치 호출 최대 토큰 (레거시)
-    SELFCHECK_INDIVIDUAL_MAX_TOKENS: int = 1000  # 개별 항목 분석 최대 토큰 (방안 C)
-    SELFCHECK_RECOVERY_MAX_TOKENS: int = 300  # 복구 호출 최대 토큰
-    SELFCHECK_SUMMARY_MAX_TOKENS: int = 500  # 종합의견 생성 최대 토큰
+    SELFCHECK_MAX_TOKENS: int = 4096  # 셀프진단 LLM 분석 최대 토큰
+    SELFCHECK_BATCH_MAX_TOKENS: int = 4096  # 배치 호출 최대 토큰 (레거시)
+    SELFCHECK_INDIVIDUAL_MAX_TOKENS: int = 4096  # 개별 항목 분석 최대 토큰 (방안 C)
+    SELFCHECK_RECOVERY_MAX_TOKENS: int = 4096  # 복구 호출 최대 토큰
+    SELFCHECK_SUMMARY_MAX_TOKENS: int = 4096  # 종합의견 생성 최대 토큰
     SELFCHECK_TEMPERATURE: float = 0.3  # 셀프진단 LLM 온도
     SELFCHECK_DEFAULT_CONFIDENCE: float = 0.5  # 기본 신뢰도 값
     SELFCHECK_RETRY_DELAY: float = 0.5  # 재시도 딜레이 (초)
@@ -200,7 +200,7 @@ class Settings(BaseSettings):
     SELFCHECK_SIMILARITY_HIGH_THRESHOLD: int = 85  # 높은 유사도 임계값 (%)
     SELFCHECK_SIMILARITY_MAX_RESULTS: int = 3  # 최대 유사과제 수
     SELFCHECK_SIMILARITY_DAYS: int = 180  # 검토 대상 기간 (일)
-    SELFCHECK_SIMILARITY_MAX_TOKENS: int = 1000  # 유사성 판단 LLM 최대 토큰
+    SELFCHECK_SIMILARITY_MAX_TOKENS: int = 4096  # 유사성 판단 LLM 최대 토큰
 
     # 셀프진단 Qdrant 설정 (유사과제 벡터 저장)
     SELFCHECK_QDRANT_COLLECTION: str = "selfcheck_projects"  # 유사과제 검색용 컬렉션
@@ -230,6 +230,8 @@ class Settings(BaseSettings):
     CONVERSATION_SAMPLE_RATE: float = 1.0  # 100% 저장 (기본값)
     CONVERSATION_RETENTION_DAYS: int = 30  # 30일 보존
     CONVERSATION_COMPRESS_AFTER_DAYS: int = 7  # 7일 후 압축
+    # 원본 IP 저장 여부 (내부망 전용, 운영/보안 분석용)
+    LOG_RAW_IP: bool = False
     # 대화 품질 분류 임계값
     CONVERSATION_LOW_SCORE_THRESHOLD: float = 0.5  # 낮은 검색 스코어 판정 임계값
     CONVERSATION_ERROR_SCORE_THRESHOLD: float = 0.3  # 에러 수준 스코어 판정 임계값

@@ -1088,6 +1088,18 @@ async def export_conversations_to_excel(
                             if 'reasoning_level' in first_match:
                                 llm_info['reasoning_level'] = first_match['reasoning_level']
 
+                    # 클라이언트 IP 정보 추출
+                    client_ip = ""
+                    client_ip_hash = ""
+                    if not logs_df.empty and 'client_info' in logs_df.columns:
+                        # 해당 세션의 로그에서 client_info 찾기
+                        session_logs = logs_df[logs_df.get('session_id') == conv_id] if 'session_id' in logs_df.columns else pd.DataFrame()
+                        if not session_logs.empty:
+                            first_log = session_logs.iloc[0]
+                            if 'client_info' in first_log and isinstance(first_log['client_info'], dict):
+                                client_ip = first_log['client_info'].get('ip', '')
+                                client_ip_hash = first_log['client_info'].get('ip_hash', '')
+
                     row = {
                         "날짜/시간": formatted_timestamp,
                         "세션 ID": conv_id[:8] if conv_id else "",
@@ -1102,6 +1114,8 @@ async def export_conversations_to_excel(
                         "재생성여부": "Y" if metadata.get("has_regeneration") else "N",
                         "LLM모델": llm_info.get("model", ""),
                         "추론레벨": llm_info.get("reasoning_level", ""),
+                        "IP": client_ip,
+                        "IP해시": client_ip_hash[:16] if client_ip_hash else "",
                     }
                     export_data.append(row)
 
@@ -1109,7 +1123,7 @@ async def export_conversations_to_excel(
         headers = [
             "날짜/시간", "세션 ID", "사용자 질문", "AI 응답", "컬렉션",
             "응답시간(ms)", "토큰수", "검색점수", "참조문서",
-            "에러여부", "재생성여부", "LLM모델", "추론레벨"
+            "에러여부", "재생성여부", "LLM모델", "추론레벨", "IP", "IP해시"
         ]
 
         # Excel 워크북 생성 (write_only=True로 메모리 최적화)
@@ -1247,6 +1261,7 @@ async def download_error_logs(
                         "모델": row.get('llm_model', ''),
                         "오류유형": error_info.get('type', error_info.get('error_type', 'Unknown')),
                         "오류메시지": str(error_info.get('message', error_info.get('error_message', str(error_info))))[:1000],
+                        "IP": client_info.get('ip', ''),
                         "IP해시": client_info.get('ip_hash', '')[:16] if client_info.get('ip_hash') else '',
                     })
 
@@ -1255,7 +1270,7 @@ async def download_error_logs(
         ws = wb.create_sheet(title="오류 로그")
 
         # 헤더 정의
-        headers = ["발생일시", "세션ID", "컬렉션", "사용자 질문", "모델", "오류유형", "오류메시지", "IP해시"]
+        headers = ["발생일시", "세션ID", "컬렉션", "사용자 질문", "모델", "오류유형", "오류메시지", "IP", "IP해시"]
 
         # 스타일 정의
         header_font = Font(bold=True, color="FFFFFF")

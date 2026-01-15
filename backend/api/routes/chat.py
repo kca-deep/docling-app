@@ -37,7 +37,9 @@ from backend.services.keyword_service import extract_keywords_for_documents
 from backend.services.tool_executor_service import tool_executor, file_storage
 from backend.services.chat_excel_export_service import chat_excel_export_service
 from backend.services.chat_docx_export_service import chat_docx_export_service
-from backend.services.tool_definitions import get_chat_tools
+from backend.services.chat_pdf_export_service import chat_pdf_export_service
+from backend.services.chat_text_export_service import chat_text_export_service
+from backend.services.tool_definitions import get_chat_tools, get_tool_by_format
 
 # 로거 설정
 logger = logging.getLogger("uvicorn")
@@ -64,6 +66,85 @@ rag_service = RAGService(
 # Function Calling 도구 핸들러 등록
 tool_executor.register_handler("export_to_excel", chat_excel_export_service.handle_export_to_excel)
 tool_executor.register_handler("export_to_docx", chat_docx_export_service.handle_export_to_docx)
+tool_executor.register_handler("export_to_pdf", chat_pdf_export_service.handle_export_to_pdf)
+tool_executor.register_handler("export_to_md", chat_text_export_service.handle_export_to_markdown)
+tool_executor.register_handler("export_to_txt", chat_text_export_service.handle_export_to_text)
+
+# ============================================================================
+# Function Calling 내보내기 의도 감지 (하이브리드 방식)
+# - 느슨한 힌트 기반 사전 필터 + LLM 최종 판단
+# - 설정은 backend/config/export_config.yaml에서 로드
+# ============================================================================
+from backend.config.export_config import export_config
+
+# 형식별 키워드 매핑 (detect_export_format용)
+# LLM이 최종 판단하므로 여기서는 대표 키워드만 유지
+FORMAT_KEYWORDS = {
+    "excel": ["엑셀", "excel", "xlsx", "xls", "스프레드시트"],
+    "docx": ["워드", "word", "docx", "doc"],
+    "pdf": ["pdf", "피디에프"],
+    "md": ["마크다운", "markdown", "md", ".md"],
+    "txt": ["텍스트", "txt", "텍스트파일", "text"],
+}
+
+
+def detect_export_format(message: str) -> str | None:
+    """
+    사용자 메시지에서 요청된 내보내기 형식을 감지합니다.
+    LLM이 도구를 선택하기 전에 특정 형식 도구만 활성화하기 위한 힌트로 사용.
+
+    Args:
+        message: 사용자 메시지
+
+    Returns:
+        str | None: 감지된 형식 (excel, docx, pdf, md, txt) 또는 None
+    """
+    message_lower = message.lower()
+
+    for format_type, keywords in FORMAT_KEYWORDS.items():
+        for keyword in keywords:
+            if keyword.lower() in message_lower:
+                return format_type
+    return None
+
+
+def might_be_export_request(message: str) -> bool:
+    """
+    내보내기 요청 가능성이 있는지 간단히 확인합니다.
+    느슨한 필터로 가능성이 있으면 True를 반환하고, LLM이 최종 판단합니다.
+
+    기존 should_enable_export_tools()의 문제점:
+    - 엄격한 (형식 + 동작) 조합 필수 → "md파일로 다운로드" 같은 케이스 놓침
+
+    개선된 방식:
+    - 힌트 키워드 2개 이상 매칭 시 가능성 있음으로 판단
+    - LLM의 tool description을 통해 최종 판단 위임
+
+    Args:
+        message: 사용자 메시지
+
+    Returns:
+        bool: 내보내기 요청 가능성이 있으면 True
+    """
+    message_lower = message.lower()
+
+    # 설정 파일에서 힌트와 임계값 로드
+    hints = export_config.get_all_hints()
+    min_matches = export_config.get_min_match_count()
+
+    # 힌트 매칭 카운트
+    matches = sum(1 for hint in hints if hint.lower() in message_lower)
+
+    is_possible = matches >= min_matches
+
+    if is_possible:
+        logger.debug(f"[EXPORT DETECT] Possible export request detected: {matches} hints matched (threshold: {min_matches})")
+
+    return is_possible
+
+
+# 하위 호환성을 위한 별칭 (기존 코드에서 사용 중인 경우)
+should_enable_export_tools = might_be_export_request
 
 
 # ============================================================================
@@ -678,10 +759,22 @@ async def chat_stream(
             # EXAONE 모델 감지 (llama.cpp가 reasoning_content와 content를 별도 필드로 전송)
             is_exaone = is_exaone_model(chat_request.model)
 
-            # Function Calling 도구 활성화 (모든 모드에서 내보내기 도구 사용 가능)
-            tools = get_chat_tools()
+            # Function Calling 도구 활성화 (내보내기 의도가 감지된 경우에만)
+            # P2: 요청된 형식의 도구만 선택적 활성화 (토큰 절약 + 혼란 방지)
             mode_name = 'Casual' if ctx['is_casual_mode'] else ('TempDoc' if ctx['is_temp_mode'] else 'RAG')
-            logger.info(f"[CHAT API] {mode_name} mode with {len(tools)} export tools enabled")
+            if should_enable_export_tools(chat_request.message):
+                # 특정 형식이 감지되면 해당 도구만 활성화
+                detected_format = detect_export_format(chat_request.message)
+                if detected_format:
+                    tools = get_tool_by_format(detected_format)
+                    logger.info(f"[CHAT API] {mode_name} mode - Export tool '{detected_format}' ENABLED (specific format)")
+                else:
+                    # 형식 미감지 시 전체 도구 활성화 (fallback)
+                    tools = get_chat_tools()
+                    logger.info(f"[CHAT API] {mode_name} mode - All export tools ENABLED (no specific format)")
+            else:
+                tools = None
+                logger.info(f"[CHAT API] {mode_name} mode - Export tools DISABLED (no export intent)")
 
             try:
                 async for chunk in rag_service.chat_stream(
@@ -720,6 +813,14 @@ async def chat_stream(
                     # tool_calls 이벤트 전송
                     yield f'data: {json.dumps({"type": "tool_calls", "tool_calls": collected_response["tool_calls"]}, ensure_ascii=False)}\n\n'
 
+                    # P3: chat_history에서 마지막 assistant 응답 추출 (content 보완용)
+                    last_assistant_content = None
+                    if ctx.get('chat_history'):
+                        for msg in reversed(ctx['chat_history']):
+                            if msg.get('role') == 'assistant' and msg.get('content'):
+                                last_assistant_content = msg['content']
+                                break
+
                     # 도구 실행 결과 수집
                     tool_results_for_llm = []
                     all_tool_results = []
@@ -727,10 +828,20 @@ async def chat_stream(
                     # 각 tool_call 실행
                     for tc in collected_response["tool_calls"]:
                         try:
+                            arguments = json.loads(tc.get("function", {}).get("arguments", "{}"))
+
+                            # P3: content/data가 비어있거나 너무 짧으면 chat_history에서 보완
+                            content_key = "content" if "content" in arguments else "data"
+                            current_content = arguments.get(content_key, "")
+
+                            if len(current_content) < 100 and last_assistant_content:
+                                logger.info(f"[CHAT API] Tool content too short ({len(current_content)} chars), using chat_history ({len(last_assistant_content)} chars)")
+                                arguments[content_key] = last_assistant_content
+
                             tool_result = await tool_executor.execute_tool(
                                 tool_call_id=tc.get("id", str(uuid.uuid4())),
                                 tool_name=tc.get("function", {}).get("name", ""),
-                                arguments=json.loads(tc.get("function", {}).get("arguments", "{}"))
+                                arguments=arguments
                             )
                             all_tool_results.append(tool_result)
 
@@ -1133,6 +1244,19 @@ async def regenerate_stream(request: RegenerateRequest):
         )
 
 
+# 시스템 컬렉션 필터링 패턴 (채팅 목록에서 제외)
+SYSTEM_COLLECTION_PATTERNS = ["selfcheck", "temp_"]
+
+
+def is_system_collection(name: str) -> bool:
+    """시스템 컬렉션인지 확인 (selfcheck*, temp_* 패턴)"""
+    if name.startswith("selfcheck"):
+        return True
+    if name.startswith("temp_"):
+        return True
+    return False
+
+
 @router.get("/collections")
 async def get_collections(
     db: Session = Depends(get_db),
@@ -1144,6 +1268,7 @@ async def get_collections(
     사용자 권한에 따라 접근 가능한 컬렉션만 반환:
     - 비로그인: public 컬렉션만
     - 로그인: public + 소유 + 공유된(allowed) 컬렉션
+    - 시스템 컬렉션(selfcheck, temp_*)은 항상 제외
 
     Returns:
         dict: 컬렉션 목록
@@ -1155,7 +1280,8 @@ async def get_collections(
     try:
         # 1. Qdrant에서 모든 컬렉션 조회
         qdrant_collections = await qdrant_service.get_collections()
-        qdrant_names = [col.name for col in qdrant_collections]
+        # 시스템 컬렉션 제외
+        qdrant_names = [col.name for col in qdrant_collections if not is_system_collection(col.name)]
 
         # 2. SQLite에서 접근 가능한 컬렉션 메타데이터 조회
         user_id = current_user.id if current_user else None
@@ -1451,4 +1577,154 @@ async def export_to_docx_direct(request: DirectExportRequest):
         raise HTTPException(
             status_code=500,
             detail=get_http_error_detail(e, "export", "Word 문서 내보내기 실패")
+        )
+
+
+@router.post("/export/pdf")
+async def export_to_pdf_direct(request: DirectExportRequest):
+    """
+    콘텐츠를 직접 PDF 파일로 내보내기
+
+    Args:
+        request: 내보내기 요청 (content, filename, title)
+
+    Returns:
+        dict: 파일 ID 및 파일명
+    """
+    try:
+        if not request.content or not request.content.strip():
+            raise HTTPException(status_code=400, detail="내보낼 내용이 없습니다.")
+
+        filename = request.filename or "document"
+        title = request.title or "PDF 문서"
+
+        # PDF 생성
+        pdf_bytes = chat_pdf_export_service.export_to_pdf(
+            content=request.content,
+            title=title,
+            filename=filename
+        )
+
+        # 파일 저장소에 저장
+        full_filename = f"{filename}.pdf"
+        file_id = file_storage.store(
+            filename=full_filename,
+            content=pdf_bytes,
+            content_type="application/pdf"
+        )
+
+        return {
+            "success": True,
+            "file_id": file_id,
+            "filename": full_filename,
+            "message": f"PDF 파일 '{full_filename}'이(가) 생성되었습니다."
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[DIRECT EXPORT] PDF export failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=get_http_error_detail(e, "export", "PDF 내보내기 실패")
+        )
+
+
+@router.post("/export/md")
+async def export_to_md_direct(request: DirectExportRequest):
+    """
+    콘텐츠를 직접 마크다운 파일로 내보내기
+
+    Args:
+        request: 내보내기 요청 (content, filename, title)
+
+    Returns:
+        dict: 파일 ID 및 파일명
+    """
+    try:
+        if not request.content or not request.content.strip():
+            raise HTTPException(status_code=400, detail="내보낼 내용이 없습니다.")
+
+        filename = request.filename or "export"
+        title = request.title
+
+        # 마크다운 생성
+        md_bytes = chat_text_export_service.export_to_markdown(
+            content=request.content,
+            filename=filename,
+            title=title
+        )
+
+        # 파일 저장소에 저장
+        full_filename = f"{filename}.md"
+        file_id = file_storage.store(
+            filename=full_filename,
+            content=md_bytes,
+            content_type="text/markdown; charset=utf-8"
+        )
+
+        return {
+            "success": True,
+            "file_id": file_id,
+            "filename": full_filename,
+            "message": f"마크다운 파일 '{full_filename}'이(가) 생성되었습니다."
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[DIRECT EXPORT] Markdown export failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=get_http_error_detail(e, "export", "마크다운 내보내기 실패")
+        )
+
+
+@router.post("/export/txt")
+async def export_to_txt_direct(request: DirectExportRequest):
+    """
+    콘텐츠를 직접 텍스트 파일로 내보내기
+
+    Args:
+        request: 내보내기 요청 (content, filename, title)
+
+    Returns:
+        dict: 파일 ID 및 파일명
+    """
+    try:
+        if not request.content or not request.content.strip():
+            raise HTTPException(status_code=400, detail="내보낼 내용이 없습니다.")
+
+        filename = request.filename or "export"
+        title = request.title
+
+        # 텍스트 생성 (마크다운 서식 제거)
+        txt_bytes = chat_text_export_service.export_to_text(
+            content=request.content,
+            filename=filename,
+            title=title
+        )
+
+        # 파일 저장소에 저장
+        full_filename = f"{filename}.txt"
+        file_id = file_storage.store(
+            filename=full_filename,
+            content=txt_bytes,
+            content_type="text/plain; charset=utf-8"
+        )
+
+        return {
+            "success": True,
+            "file_id": file_id,
+            "filename": full_filename,
+            "message": f"텍스트 파일 '{full_filename}'이(가) 생성되었습니다."
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[DIRECT EXPORT] Text export failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=get_http_error_detail(e, "export", "텍스트 내보내기 실패")
         )

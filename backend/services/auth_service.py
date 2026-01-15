@@ -727,6 +727,61 @@ class AuthService:
         """
         return user.has_permission(category, action)
 
+    # =========================================
+    # 비밀번호 초기화 메서드
+    # =========================================
+
+    def reset_user_password(
+        self,
+        db: Session,
+        user_id: int,
+        new_password: str,
+        admin_id: int
+    ) -> User:
+        """
+        사용자 비밀번호 초기화 (관리자 전용)
+
+        Args:
+            db: 데이터베이스 세션
+            user_id: 비밀번호를 초기화할 사용자 ID
+            new_password: 새 비밀번호
+            admin_id: 초기화를 수행하는 관리자 ID
+
+        Returns:
+            User: 업데이트된 사용자 객체
+
+        Raises:
+            AuthenticationError: 사용자를 찾을 수 없거나 비밀번호 정책 미충족
+        """
+        user = self.get_user_by_id(db, user_id)
+        if not user:
+            raise AuthenticationError("사용자를 찾을 수 없습니다.", "USER_NOT_FOUND")
+
+        # 자기 자신의 비밀번호는 이 API로 변경 불가
+        if user_id == admin_id:
+            raise AuthenticationError(
+                "자신의 비밀번호는 이 기능으로 변경할 수 없습니다.",
+                "CANNOT_RESET_OWN_PASSWORD"
+            )
+
+        # 비밀번호 강도 검증
+        is_valid, error_msg = self.validate_password_strength(new_password)
+        if not is_valid:
+            raise AuthenticationError(error_msg, "WEAK_PASSWORD")
+
+        # 비밀번호 해싱 및 저장
+        user.password_hash = self.get_password_hash(new_password)
+
+        # 로그인 실패 횟수 및 잠금 상태 초기화
+        user.failed_login_attempts = 0
+        user.locked_until = None
+
+        db.commit()
+        db.refresh(user)
+
+        logger.info(f"User '{user.username}' password reset by admin ID {admin_id}")
+        return user
+
 
 # 싱글톤 인스턴스
 auth_service = AuthService()

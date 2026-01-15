@@ -8,6 +8,41 @@ export interface CollectionMetadata {
   keywords?: string[];       // 검색 키워드 (예: ["채용", "승진", "평가"])
   priority?: number;         // 추천 우선순위 (1=핵심, 2=주요, 3=일반)
   plainDescription?: string; // 간단 설명 (메타데이터 없을 때 폴백용)
+  category?: string;         // 카테고리 (hr, welfare, admin, general 등)
+}
+
+/**
+ * 카테고리별 색상 (Light mode)
+ * 다크 모드는 CSS 클래스로 처리
+ */
+export const CATEGORY_COLORS: Record<string, { color: string; bg: string }> = {
+  hr: {
+    color: "#3b82f6",  // blue-500
+    bg: "rgba(59, 130, 246, 0.1)",
+  },
+  welfare: {
+    color: "#10b981",  // emerald-500
+    bg: "rgba(16, 185, 129, 0.1)",
+  },
+  admin: {
+    color: "#f59e0b",  // amber-500
+    bg: "rgba(245, 158, 11, 0.1)",
+  },
+  general: {
+    color: "#64748b",  // slate-500
+    bg: "rgba(100, 116, 139, 0.1)",
+  },
+};
+
+/**
+ * 카테고리 색상 가져오기 (없으면 general 카테고리 사용)
+ */
+export function getCategoryStyle(category?: string): { color: string; bg: string } {
+  if (category && CATEGORY_COLORS[category]) {
+    return CATEGORY_COLORS[category];
+  }
+  // default: general 카테고리 사용
+  return CATEGORY_COLORS.general;
 }
 
 /**
@@ -44,6 +79,7 @@ export function parseCollectionMetadata(description?: string): CollectionMetadat
         keywords: Array.isArray(parsed.keywords) ? parsed.keywords : undefined,
         priority: typeof parsed.priority === 'number' ? parsed.priority : undefined,
         plainDescription: parsed.plainDescription,
+        category: parsed.category,
       };
     }
   } catch {

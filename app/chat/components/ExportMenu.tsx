@@ -1,18 +1,32 @@
 "use client";
 
 import { useState } from "react";
-import { Download, FileSpreadsheet, FileText, Copy, Loader2 } from "lucide-react";
+import {
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Copy,
+  Loader2,
+  File,
+  FileCode,
+  Text,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { API_BASE_URL } from "@/lib/api-config";
+
+type ExportType = "excel" | "docx" | "pdf" | "md" | "txt";
 
 interface ExportMenuProps {
   messageContent: string;
@@ -20,25 +34,79 @@ interface ExportMenuProps {
   disabled?: boolean;
 }
 
-export function ExportMenu({ messageContent, messageId, disabled = false }: ExportMenuProps) {
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportType, setExportType] = useState<string | null>(null);
+const EXPORT_OPTIONS: {
+  type: ExportType;
+  label: string;
+  icon: typeof FileSpreadsheet;
+  color: string;
+  endpoint: string;
+  extension: string;
+}[] = [
+  {
+    type: "excel",
+    label: "Excel",
+    icon: FileSpreadsheet,
+    color: "text-green-600",
+    endpoint: "/api/chat/export/excel",
+    extension: "xlsx",
+  },
+  {
+    type: "docx",
+    label: "Word",
+    icon: FileText,
+    color: "text-blue-600",
+    endpoint: "/api/chat/export/docx",
+    extension: "docx",
+  },
+  {
+    type: "pdf",
+    label: "PDF",
+    icon: File,
+    color: "text-red-600",
+    endpoint: "/api/chat/export/pdf",
+    extension: "pdf",
+  },
+  {
+    type: "md",
+    label: "MD",
+    icon: FileCode,
+    color: "text-purple-600",
+    endpoint: "/api/chat/export/md",
+    extension: "md",
+  },
+  {
+    type: "txt",
+    label: "Text",
+    icon: Text,
+    color: "text-gray-600",
+    endpoint: "/api/chat/export/txt",
+    extension: "txt",
+  },
+];
 
-  const handleExport = async (type: "excel" | "docx") => {
+export function ExportMenu({
+  messageContent,
+  messageId,
+  disabled = false,
+}: ExportMenuProps) {
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportType, setExportType] = useState<ExportType | null>(null);
+  const [open, setOpen] = useState(false);
+
+  const handleExport = async (type: ExportType) => {
     if (!messageContent.trim()) {
       toast.error("내보낼 내용이 없습니다.");
       return;
     }
 
+    const option = EXPORT_OPTIONS.find((o) => o.type === type);
+    if (!option) return;
+
     setIsExporting(true);
     setExportType(type);
 
     try {
-      const endpoint = type === "excel"
-        ? "/api/chat/export/excel"
-        : "/api/chat/export/docx";
-
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      const response = await fetch(`${API_BASE_URL}${option.endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -56,9 +124,10 @@ export function ExportMenu({ messageContent, messageId, disabled = false }: Expo
       const data = await response.json();
 
       if (data.file_id) {
-        // 파일 다운로드 트리거
         const downloadUrl = `${API_BASE_URL}/api/chat/export/download/${data.file_id}`;
-        const downloadResponse = await fetch(downloadUrl, { credentials: "include" });
+        const downloadResponse = await fetch(downloadUrl, {
+          credentials: "include",
+        });
 
         if (!downloadResponse.ok) {
           throw new Error("파일 다운로드 실패");
@@ -68,7 +137,7 @@ export function ExportMenu({ messageContent, messageId, disabled = false }: Expo
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = data.filename || `export.${type === "excel" ? "xlsx" : "docx"}`;
+        a.download = data.filename || `export.${option.extension}`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -77,6 +146,7 @@ export function ExportMenu({ messageContent, messageId, disabled = false }: Expo
         toast.success("다운로드 완료", {
           description: data.filename,
         });
+        setOpen(false);
       }
     } catch (error) {
       console.error("Export error:", error);
@@ -98,6 +168,7 @@ export function ExportMenu({ messageContent, messageId, disabled = false }: Expo
     try {
       await navigator.clipboard.writeText(messageContent);
       toast.success("클립보드에 복사되었습니다.");
+      setOpen(false);
     } catch (error) {
       console.error("Copy error:", error);
       toast.error("복사 실패");
@@ -105,8 +176,8 @@ export function ExportMenu({ messageContent, messageId, disabled = false }: Expo
   };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
         <Button
           variant="ghost"
           size="icon"
@@ -120,38 +191,67 @@ export function ExportMenu({ messageContent, messageId, disabled = false }: Expo
             <Download className="h-4 w-4" />
           )}
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuLabel>내보내기</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={() => handleExport("excel")}
-          disabled={isExporting}
-        >
-          {exportType === "excel" ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <FileSpreadsheet className="mr-2 h-4 w-4" />
-          )}
-          Excel로 다운로드
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => handleExport("docx")}
-          disabled={isExporting}
-        >
-          {exportType === "docx" ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <FileText className="mr-2 h-4 w-4" />
-          )}
-          Word로 다운로드
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleCopy} disabled={isExporting}>
-          <Copy className="mr-2 h-4 w-4" />
-          클립보드에 복사
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </PopoverTrigger>
+      <PopoverContent
+        side="left"
+        align="end"
+        className="w-auto p-2"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        <TooltipProvider delayDuration={300}>
+          <div className="flex items-center gap-1">
+            {EXPORT_OPTIONS.map((option) => {
+              const Icon = option.icon;
+              const isLoading = exportType === option.type;
+
+              return (
+                <Tooltip key={option.type}>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2 gap-1.5"
+                      onClick={() => handleExport(option.type)}
+                      disabled={isExporting}
+                    >
+                      {isLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Icon className={`h-4 w-4 ${option.color}`} />
+                      )}
+                      <span className="text-xs">{option.label}</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-xs">
+                    {option.label} 형식으로 저장
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
+
+            {/* 구분선 */}
+            <div className="w-px h-5 bg-border mx-1" />
+
+            {/* 복사 버튼 */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={handleCopy}
+                  disabled={isExporting}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">
+                클립보드에 복사
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </TooltipProvider>
+      </PopoverContent>
+    </Popover>
   );
 }

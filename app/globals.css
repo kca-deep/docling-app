@@ -198,16 +198,67 @@
   will-change: transform, opacity;
 }
 
-/* Reduced motion preference - disable heavy animations */
+/* Reduced motion preference - disable heavy animations and blur effects */
 @media (prefers-reduced-motion: reduce) {
+  /* Aurora animations */
   .animate-aurora-1,
   .animate-aurora-2,
   .animate-aurora-3,
   .animate-aurora-4,
   .animate-aurora-5,
   .animate-aurora-pulse {
-    animation: none;
-    will-change: auto;
+    animation: none !important;
+    will-change: auto !important;
+    opacity: 0.2 !important;
+  }
+
+  /* Wave animations */
+  .animate-wave-slow,
+  .animate-wave-fast,
+  .animate-wave-bar,
+  .animate-pulse-wave,
+  .animate-gradient-x,
+  .animate-shimmer-border {
+    animation: none !important;
+    will-change: auto !important;
+  }
+
+  /* Fade animations */
+  .animate-fade-in,
+  .animate-fade-in-down,
+  .animate-fade-in-up {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  /* Reduce blur effects for better performance */
+  [class*="blur-["],
+  [class*="blur-"] {
+    filter: blur(10px) !important;
+  }
+
+  /* Disable backdrop blur */
+  [class*="backdrop-blur"] {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* Disable Framer Motion animations */
+  [data-framer-motion],
+  [style*="will-change"] {
+    animation: none !important;
+    transition: none !important;
+    will-change: auto !important;
+  }
+
+  /* Disable all CSS transitions for smoother experience */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
@@ -352,14 +403,91 @@
   .animate-auth-gradient-1,
   .animate-auth-gradient-2,
   .animate-auth-shine {
-    animation: none;
-    will-change: auto;
+    animation: none !important;
+    will-change: auto !important;
+    opacity: 0.3 !important;
+  }
+}
+
+/* Hero Content Animations */
+@keyframes hero-fade-in-up {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hero-scale-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-hero-fade-in-up {
+  animation: hero-fade-in-up 0.8s ease-out forwards;
+}
+
+.animate-hero-fade-in-up-delay-1 {
+  animation: hero-fade-in-up 0.8s ease-out 0.2s forwards;
+  opacity: 0;
+}
+
+.animate-hero-fade-in-up-delay-2 {
+  animation: hero-fade-in-up 0.8s ease-out 0.4s forwards;
+  opacity: 0;
+}
+
+.animate-hero-fade-in-up-delay-3 {
+  animation: hero-fade-in-up 0.8s ease-out 0.6s forwards;
+  opacity: 0;
+}
+
+.animate-hero-scale-in {
+  animation: hero-scale-in 0.5s ease-out 0.8s forwards;
+  opacity: 0;
+}
+
+.animate-hero-scale-in-delay {
+  animation: hero-scale-in 0.8s ease-out 1.0s forwards;
+  opacity: 0;
+}
+
+/* Reduced motion preference - disable hero animations */
+@media (prefers-reduced-motion: reduce) {
+  .animate-hero-fade-in-up,
+  .animate-hero-fade-in-up-delay-1,
+  .animate-hero-fade-in-up-delay-2,
+  .animate-hero-fade-in-up-delay-3,
+  .animate-hero-scale-in,
+  .animate-hero-scale-in-delay {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
   }
 }
 
 :root {
   /* Chat content max-width */
   --chat-content-max-width: 56rem;
+
+  /* Collection category colors - Light mode */
+  --category-hr: #3b82f6;
+  --category-hr-bg: rgba(59, 130, 246, 0.1);
+  --category-welfare: #10b981;
+  --category-welfare-bg: rgba(16, 185, 129, 0.1);
+  --category-admin: #f59e0b;
+  --category-admin-bg: rgba(245, 158, 11, 0.1);
+  --category-general: #64748b;
+  --category-general-bg: rgba(100, 116, 139, 0.1);
 
   /* Aurora background colors - Light mode */
   --aurora-1: oklch(0.65 0.22 230);
@@ -430,6 +558,16 @@
 }
 
 .dark {
+  /* Collection category colors - Dark mode (brighter for dark backgrounds) */
+  --category-hr: #60a5fa;
+  --category-hr-bg: rgba(96, 165, 250, 0.15);
+  --category-welfare: #34d399;
+  --category-welfare-bg: rgba(52, 211, 153, 0.15);
+  --category-admin: #fbbf24;
+  --category-admin-bg: rgba(251, 191, 36, 0.15);
+  --category-general: #94a3b8;
+  --category-general-bg: rgba(148, 163, 184, 0.15);
+
   /* Aurora background colors - Dark mode (higher lightness for visibility) */
   --aurora-1: oklch(0.75 0.25 230);
   --aurora-1-end: oklch(0.65 0.21 210);
@@ -552,6 +690,16 @@
 
   --transition-base: var(--transition-base);
   --transition-colors: var(--transition-colors);
+
+  /* Category colors for collection cards */
+  --color-category-hr: var(--category-hr);
+  --color-category-hr-bg: var(--category-hr-bg);
+  --color-category-welfare: var(--category-welfare);
+  --color-category-welfare-bg: var(--category-welfare-bg);
+  --color-category-admin: var(--category-admin);
+  --color-category-admin-bg: var(--category-admin-bg);
+  --color-category-general: var(--category-general);
+  --color-category-general-bg: var(--category-general-bg);
 }
 
 @layer base {
@@ -575,7 +723,7 @@
   }
 
   .glass {
-    @apply bg-background/60 backdrop-blur-xl border border-border/50;
+    @apply bg-background/85 backdrop-blur-sm border border-border/50;
   }
 
   /* Responsive grid for collection selector modal */

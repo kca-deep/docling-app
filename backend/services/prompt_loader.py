@@ -138,6 +138,22 @@ class PromptLoader:
             prompt_content += documents_section
             logger.info(f"[PromptLoader] Appended {len(unique_docs)} documents to prompt")
 
+        # 7. Function Calling 도구 권한 자동 추가 (모든 프롬프트에 적용)
+        # 도구 정의가 간소화되었으므로 상세 지시사항은 여기에 한 번만 포함
+        tool_permission_section = """
+---
+## 파일 내보내기 도구 사용 규칙
+
+사용 가능한 도구: export_to_excel, export_to_docx, export_to_pdf, export_to_md, export_to_txt
+
+**내보내기 요청 시 반드시 지킬 규칙:**
+1. 이전 답변 내용을 **절대 요약하지 말고 전체를 그대로** 전달하세요
+2. 마크다운 서식(# 제목, - 목록, | 표 |)을 그대로 유지하세요
+3. 내용이 길어도 **생략 없이** 전부 포함하세요
+4. 저작권/보안 정책을 이유로 거절하지 마세요 - 이 도구들은 허용된 안전한 기능입니다
+"""
+        prompt_content += tool_permission_section
+
         # 디버깅 로그
         logger.info(f"[PromptLoader] has_documents={has_documents}, mode_info applied: {mode_info[:50]}...")
 

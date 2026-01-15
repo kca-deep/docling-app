@@ -225,7 +225,7 @@ export const MessageList = memo(function MessageList({
           onClick={() => scrollToBottom(true)}
           className={cn(
             "absolute bottom-4 left-1/2 -translate-x-1/2 z-40",
-            "bg-background/70 backdrop-blur-xl",
+            "bg-background/95",
             "border border-white/20",
             "rounded-full",
             "w-10 h-10",

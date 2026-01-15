@@ -9,7 +9,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from backend.config.settings import settings
-from backend.models.selfcheck import SelfCheckSubmission, SelfCheckItem, SelfCheckAttachment
+from backend.models.selfcheck import SelfCheckSubmission, SelfCheckItem, SelfCheckAttachment, SelfCheckFeedback
 from backend.models.schemas import (
     SelfCheckHistoryItem,
     SelfCheckHistoryResponse,
@@ -46,6 +46,8 @@ class SelfCheckRepository:
         end_date: Optional[datetime] = None
     ) -> SelfCheckHistoryResponse:
         """사용자의 진단 이력 조회"""
+        from sqlalchemy.orm import aliased
+
         query = db.query(SelfCheckSubmission)
 
         if user_id is not None:
@@ -62,6 +64,22 @@ class SelfCheckRepository:
         total = query.count()
         submissions = query.offset(skip).limit(limit).all()
 
+        # 피드백 상태 조회를 위한 submission_id 목록
+        submission_ids = [s.submission_id for s in submissions]
+
+        # 피드백 상태 일괄 조회
+        feedback_status_map: Dict[str, str] = {}
+        if submission_ids:
+            feedbacks = db.query(
+                SelfCheckFeedback.submission_id,
+                SelfCheckFeedback.status
+            ).filter(
+                SelfCheckFeedback.submission_id.in_(submission_ids)
+            ).all()
+
+            for fb in feedbacks:
+                feedback_status_map[fb.submission_id] = fb.status
+
         items = [
             SelfCheckHistoryItem(
                 id=s.id,
@@ -70,9 +88,11 @@ class SelfCheckRepository:
                 department=s.department,
                 manager_name=s.manager_name,
                 requires_review=s.requires_review,
+                review_reason=s.review_reason,
                 status=s.status,
                 used_model=s.used_model,
-                created_at=s.created_at.isoformat() if s.created_at else ""
+                created_at=s.created_at.isoformat() if s.created_at else "",
+                feedback_status=feedback_status_map.get(s.submission_id, "none")
             )
             for s in submissions
         ]

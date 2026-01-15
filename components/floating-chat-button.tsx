@@ -17,8 +17,8 @@ export function FloatingChatButton() {
           className={cn(
             "rounded-full shadow-2xl hover:shadow-3xl transition-all duration-300",
             "h-12 px-4 gap-2.5 relative overflow-hidden group",
-            "bg-background/80 backdrop-blur-xl border border-primary/20",
-            "hover:bg-background/90 hover:border-primary/40 hover:scale-105 active:scale-95"
+            "bg-background/95 border border-primary/20",
+            "hover:bg-background hover:border-primary/40 hover:scale-105 active:scale-95"
           )}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
@@ -45,8 +45,8 @@ export function FloatingChatButton() {
             <span className="italic" style={{ color: "var(--chart-2)" }}>i</span>
           </span>
 
-          {/* 펄스 효과 */}
-          <span className="absolute inset-0 rounded-full animate-ping bg-primary/10 pointer-events-none" />
+          {/* 펄스 효과 - hover 시에만 활성화 (성능 최적화) */}
+          <span className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 group-hover:animate-ping bg-primary/10 pointer-events-none" />
         </Button>
       </Link>
 

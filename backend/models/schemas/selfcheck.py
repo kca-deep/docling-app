@@ -108,9 +108,11 @@ class SelfCheckHistoryItem(BaseModel):
     department: str
     manager_name: str
     requires_review: bool
+    review_reason: Optional[str] = None
     status: str
     used_model: Optional[str] = None
     created_at: str
+    feedback_status: Optional[str] = None  # none, draft, in_progress, completed
 
     model_config = ConfigDict(from_attributes=True)
 

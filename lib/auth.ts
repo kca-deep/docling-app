@@ -350,6 +350,13 @@ export interface PermissionsUpdateResult {
   permissions: UserPermissions
 }
 
+export interface PasswordResetResult {
+  success: boolean
+  user_id: number
+  username: string
+  message: string
+}
+
 /**
  * 내 권한 조회
  */
@@ -426,6 +433,37 @@ export async function resetUserPermissions(userId: number): Promise<PermissionsU
       throw new Error(errorData.detail.message || 'Failed to reset permissions')
     }
     throw new Error(errorData.detail || 'Failed to reset permissions')
+  }
+
+  return response.json()
+}
+
+/**
+ * 사용자 비밀번호 초기화 (관리자)
+ */
+export async function resetUserPassword(
+  userId: number,
+  newPassword: string,
+  newPasswordConfirm: string
+): Promise<PasswordResetResult> {
+  const response = await fetch(`${API_BASE_URL}/api/auth/users/${userId}/password/reset`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({
+      new_password: newPassword,
+      new_password_confirm: newPasswordConfirm,
+    }),
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json()
+    if (errorData.detail && typeof errorData.detail === 'object') {
+      throw new Error(errorData.detail.message || 'Failed to reset password')
+    }
+    throw new Error(errorData.detail || 'Failed to reset password')
   }
 
   return response.json()

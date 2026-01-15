@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sun, Moon, Maximize, Minimize, Wifi, WifiOff, Loader2 } from "lucide-react";
@@ -73,9 +73,22 @@ export function ChatHeader({
   const [modelOptions, setModelOptions] = useState<ModelOption[]>(fallbackModels);
   const [isLoadingModels, setIsLoadingModels] = useState(true);
 
-  // SSE로 LLM 모델 상태 실시간 구독 (한 번만 연결)
-  useEffect(() => {
+  // EventSource 재연결 관련 refs
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isMountedRef = useRef(true);
+  const MAX_RECONNECT_ATTEMPTS = 3;
+
+  // EventSource 연결 함수
+  const connectEventSource = useCallback(() => {
+    // 기존 연결 정리
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
+
     const eventSource = new EventSource(`${API_BASE_URL}/api/health/llm-models/stream`);
+    eventSourceRef.current = eventSource;
 
     eventSource.onmessage = (event) => {
       try {
@@ -83,6 +96,8 @@ export function ChatHeader({
         if (data.models) {
           setModelOptions(data.models);
           setIsLoadingModels(false);
+          // 성공적으로 데이터 수신 시 재연결 카운터 리셋
+          reconnectAttemptsRef.current = 0;
         }
       } catch (e) {
         console.error("LLM models SSE parse error:", e);
@@ -90,13 +105,48 @@ export function ChatHeader({
     };
 
     eventSource.onerror = () => {
-      console.warn("LLM models SSE connection error, will retry automatically");
+      console.warn("LLM models SSE connection error");
+      eventSource.close();
+      eventSourceRef.current = null;
+
+      // 마운트된 상태에서만 재연결 시도
+      if (isMountedRef.current && reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
+        // 지수 백오프: 1초, 2초, 4초
+        const delay = Math.pow(2, reconnectAttemptsRef.current) * 1000;
+        console.log(`SSE reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current + 1}/${MAX_RECONNECT_ATTEMPTS})`);
+
+        reconnectTimeoutRef.current = setTimeout(() => {
+          if (isMountedRef.current) {
+            reconnectAttemptsRef.current++;
+            connectEventSource();
+          }
+        }, delay);
+      } else if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
+        console.warn("Max SSE reconnection attempts reached, using fallback data");
+        setIsLoadingModels(false);
+      }
     };
+  }, []);
+
+  // SSE로 LLM 모델 상태 실시간 구독
+  useEffect(() => {
+    isMountedRef.current = true;
+    connectEventSource();
 
     return () => {
-      eventSource.close();
+      isMountedRef.current = false;
+      // EventSource 정리
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      // 재연결 타임아웃 정리
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
     };
-  }, []); // 빈 의존성 - SSE 연결은 한 번만 생성
+  }, [connectEventSource]);
 
   // 자동 스위칭 로직 (별도 useEffect로 분리)
   useEffect(() => {
@@ -141,7 +191,7 @@ export function ChatHeader({
     <div
       className={cn(
         "relative flex items-center justify-center flex-shrink-0 transition-all duration-300",
-        isFullscreen ? "bg-background/95 backdrop-blur-xl" : "bg-background"
+        isFullscreen ? "bg-background/98" : "bg-background"
       )}
     >
       {/* 상단 그라데이션 라인 */}

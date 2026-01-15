@@ -1,7 +1,7 @@
 import {
   Landmark, Briefcase, Users, Calendar, Wallet, Gift,
   Scale, Shield, CreditCard, Search, FileText, Award,
-  FlaskConical, Building, Database, FolderOpen
+  FlaskConical, Building, Database, FolderOpen, MessageCircle
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -26,6 +26,7 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   Building,
   Database,
   FolderOpen,
+  MessageCircle,
 };
 
 /**

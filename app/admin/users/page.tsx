@@ -52,6 +52,7 @@ import {
   Calendar,
   Loader2,
   Key,
+  Lock,
 } from "lucide-react"
 import { toast } from "sonner"
 import { motion, AnimatePresence } from "framer-motion"
@@ -65,6 +66,7 @@ import {
   UserListItem,
 } from "@/lib/auth"
 import { PermissionEditorModal } from "./components/permission-editor-modal"
+import { PasswordResetModal } from "./components/password-reset-modal"
 
 type StatusFilter = "all" | "pending" | "approved" | "rejected"
 
@@ -83,6 +85,7 @@ export default function AdminUsersPage() {
   const [rejectModalOpen, setRejectModalOpen] = useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [permissionModalOpen, setPermissionModalOpen] = useState(false)
+  const [passwordResetModalOpen, setPasswordResetModalOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<UserListItem | null>(null)
   const [rejectReason, setRejectReason] = useState("")
   const [actionLoading, setActionLoading] = useState(false)
@@ -491,18 +494,32 @@ export default function AdminUsersPage() {
                                   </>
                                 )}
                                 {u.status === "approved" && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
-                                    onClick={() => {
-                                      setSelectedUser(u)
-                                      setPermissionModalOpen(true)
-                                    }}
-                                    title="권한 설정"
-                                  >
-                                    <Key className="h-4 w-4" />
-                                  </Button>
+                                  <>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
+                                      onClick={() => {
+                                        setSelectedUser(u)
+                                        setPermissionModalOpen(true)
+                                      }}
+                                      title="권한 설정"
+                                    >
+                                      <Key className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-orange-600 hover:text-orange-700 hover:bg-orange-500/10"
+                                      onClick={() => {
+                                        setSelectedUser(u)
+                                        setPasswordResetModalOpen(true)
+                                      }}
+                                      title="비밀번호 초기화"
+                                    >
+                                      <Lock className="h-4 w-4" />
+                                    </Button>
+                                  </>
                                 )}
                                 {u.role !== "admin" && (
                                   <Button
@@ -685,6 +702,14 @@ export default function AdminUsersPage() {
       <PermissionEditorModal
         open={permissionModalOpen}
         onOpenChange={setPermissionModalOpen}
+        user={selectedUser}
+        onUpdated={fetchUsers}
+      />
+
+      {/* Password Reset Modal */}
+      <PasswordResetModal
+        open={passwordResetModalOpen}
+        onOpenChange={setPasswordResetModalOpen}
         user={selectedUser}
         onUpdated={fetchUsers}
       />

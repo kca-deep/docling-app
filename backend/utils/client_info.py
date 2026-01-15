@@ -8,6 +8,8 @@ from typing import Optional, Dict, Any
 from fastapi import Request
 import logging
 
+from backend.config.settings import settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -70,8 +72,8 @@ def extract_client_info(request: Request) -> Dict[str, Any]:
 
     Returns:
         dict: 클라이언트 정보
+            - ip: 원본 IP 주소 (LOG_RAW_IP=true인 경우에만)
             - ip_hash: 해시화된 IP 주소
-            - ip_country: IP 국가 (추후 구현 가능)
             - user_agent: 브라우저/앱 정보
             - referer: 요청 출처
             - accept_language: 언어 선호도
@@ -84,6 +86,10 @@ def extract_client_info(request: Request) -> Dict[str, Any]:
         "referer": get_referer(request),
         "accept_language": get_accept_language(request),
     }
+
+    # 원본 IP 저장 (설정에 따라, 내부망 전용)
+    if settings.LOG_RAW_IP and client_ip:
+        client_info["ip"] = client_ip
 
     # None 값 제거 (로그 크기 최적화)
     return {k: v for k, v in client_info.items() if v is not None}

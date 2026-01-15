@@ -933,7 +933,8 @@ async def view_feedback_for_user(
     """
     사용자용 피드백 조회 (로그인 필수)
 
-    본인 제출건의 완료된 피드백을 조회합니다.
+    - 관리자: 모든 완료된 피드백 조회 가능
+    - 일반 사용자: 본인 제출건의 완료된 피드백만 조회 가능
     피드백이 완료 상태가 아니면 조회할 수 없습니다.
 
     Args:
@@ -943,10 +944,13 @@ async def view_feedback_for_user(
         FeedbackViewResponse: 피드백 내용 (AI 초안 미포함)
     """
     try:
+        # 관리자는 모든 완료된 피드백 조회 가능 (user_id=None)
+        target_user_id = None if user.role == "admin" else user.id
+
         feedback = feedback_service.get_feedback_for_user(
             db=db,
             submission_id=submission_id,
-            user_id=user.id
+            user_id=target_user_id
         )
         if not feedback:
             raise HTTPException(status_code=404, detail="피드백을 찾을 수 없습니다")
