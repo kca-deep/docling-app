@@ -20,6 +20,7 @@ from backend.services.tool_executor_service import (
     FileSizeExceededError,
     StorageCapacityExceededError
 )
+from backend.utils.text_normalizer import normalize_spaces
 
 logger = logging.getLogger("uvicorn")
 
@@ -165,7 +166,8 @@ class ChatDocxExportService:
 
         document.add_paragraph()  # 빈 줄
 
-        # 본문 파싱 및 추가
+        # 특수 공백 정규화 후 본문 파싱
+        content = normalize_spaces(content)
         lines = content.split('\n')
         idx = 0
 
@@ -211,10 +213,16 @@ class ChatDocxExportService:
 
             elif line_type == "bullet":
                 para = document.add_paragraph(style='List Bullet')
+                # 중첩 레벨에 따른 들여쓰기 적용
+                if level > 1:
+                    para.paragraph_format.left_indent = Inches(0.25 * (level - 1))
                 self._add_formatted_text(para, text)
 
             elif line_type == "numbered":
                 para = document.add_paragraph(style='List Number')
+                # 중첩 레벨에 따른 들여쓰기 적용
+                if level > 1:
+                    para.paragraph_format.left_indent = Inches(0.25 * (level - 1))
                 self._add_formatted_text(para, text)
 
             else:
