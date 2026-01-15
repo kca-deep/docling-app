@@ -58,6 +58,12 @@ backend/venv/
 /*_test_results.json
 /test_results/
 
+# Tests folder - test code and samples
+tests/
+
+# Backend uploads folder
+backend/uploads/
+
 # Scripts folder - test files and results
 scripts/test_*.py
 scripts/test_*.json
