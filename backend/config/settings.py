@@ -123,6 +123,8 @@ class Settings(BaseSettings):
     EMBEDDING_URL: str = "http://localhost:8083"
     EMBEDDING_MODEL: str = "bge-m3-korean"
     EMBEDDING_DIMENSION: int = 1024
+    # 임베딩 텍스트 최대 길이 (BGE-M3: 8192토큰 지원, 약 6000자 권장)
+    EMBEDDING_MAX_TEXT_LENGTH: int = 6000
 
     # LLM API 설정 (다중 모델 지원)
     # [개발 기본값] 프로덕션에서는 .env에서 실제 서버 URL로 변경
@@ -153,17 +155,17 @@ class Settings(BaseSettings):
     LLM_DEFAULT_MAX_TOKENS: int = 6144
     LLM_DEFAULT_TOP_P: float = 0.9
 
-    # LLM 컨텍스트 제한 설정
-    LLM_MAX_CONTEXT_CHARS: int = 12000  # RAG 전체 컨텍스트 최대 문자수 (약 4000~6000 토큰)
-    LLM_MAX_DOC_CHARS: int = 2000  # 개별 문서당 최대 문자수
+    # LLM 컨텍스트 제한 설정 (응답 품질 향상을 위해 확대)
+    LLM_MAX_CONTEXT_CHARS: int = 16000  # RAG 전체 컨텍스트 최대 문자수 (약 5000~8000 토큰)
+    LLM_MAX_DOC_CHARS: int = 3000  # 개별 문서당 최대 문자수
 
     # [P1-2] LLM 컨텍스트 필터링 설정
     LLM_MIN_CONTEXT_SCORE: float = 0.2  # 할루시네이션 방지: 이 점수 미만 문서는 컨텍스트에서 제외
     LLM_MAX_CHAT_HISTORY_MESSAGES: int = 6  # 채팅 히스토리 최대 메시지 수
     LLM_MAX_CHARS_PER_MESSAGE: int = 500  # 채팅 히스토리 메시지당 최대 문자 수
 
-    # RAG 설정
-    RAG_DEFAULT_TOP_K: int = 5
+    # RAG 설정 (응답 품질 향상을 위해 top_k 증가)
+    RAG_DEFAULT_TOP_K: int = 7
     # BGE-M3 Cosine 유사도 기준, 0.4 이상만 검색 (저품질 문서 필터링)
     RAG_DEFAULT_SCORE_THRESHOLD: Optional[float] = 0.4
     RAG_DEFAULT_REASONING_LEVEL: str = "medium"
@@ -212,8 +214,8 @@ class Settings(BaseSettings):
     RERANKER_MODEL: str = "BAAI/bge-reranker-v2-m3"
     RERANKER_TIMEOUT: int = 30
     USE_RERANKING: bool = True
-    # 기존 5배에서 3배로 축소하여 속도 30% 향상 (top_k=5 → 15개 검색)
-    RERANK_TOP_K_MULTIPLIER: int = 3
+    # 검색 품질 향상을 위해 5배로 확대 (top_k=7 → 35개 검색 후 리랭킹)
+    RERANK_TOP_K_MULTIPLIER: int = 5
     # BGE Reranker 점수 분포: 관련 문서 0.2~0.5, 비관련 0.01 이하
     RERANK_SCORE_THRESHOLD: float = 0.2
     # P0-1: 최소 답변 생성 임계값

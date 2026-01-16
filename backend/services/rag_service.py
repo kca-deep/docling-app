@@ -120,14 +120,14 @@ class RAGService:
                 doc_names = await self._get_cached_documents(coll_name)
                 all_docs.extend(doc_names)
 
-            # 중복 제거 (순서 유지) 및 최대 10개
-            unique_docs = list(dict.fromkeys(all_docs))[:10]
+            # 중복 제거 (순서 유지) 및 최대 50개
+            unique_docs = list(dict.fromkeys(all_docs))[:50]
 
             if not unique_docs:
                 return "문서에서 관련 정보를 찾을 수 없습니다. 담당 부서에 문의해 주세요."
 
             doc_list = "\n".join([f"• {name}" for name in unique_docs])
-            more_text = f"\n• ... 외 {len(all_docs) - 10}개" if len(all_docs) > 10 else ""
+            more_text = f"\n• ... 외 {len(all_docs) - 50}개" if len(all_docs) > 50 else ""
 
             return (
                 f"이 질문에 대한 정보를 찾기 어렵습니다.\n\n"

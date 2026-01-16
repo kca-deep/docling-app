@@ -121,10 +121,10 @@ class PromptLoader:
 
         # 6. {available_documents} 플레이스홀더 대체 또는 문서 목록 추가
         if available_documents:
-            # 중복 제거 및 최대 10개 제한
-            unique_docs = list(dict.fromkeys(available_documents))[:10]
+            # 중복 제거 및 최대 50개 제한
+            unique_docs = list(dict.fromkeys(available_documents))[:50]
             doc_list = "\n".join([f"  - {doc}" for doc in unique_docs])
-            more_text = f"\n  - ... 외 {len(available_documents) - 10}개 문서" if len(available_documents) > 10 else ""
+            more_text = f"\n  - ... 외 {len(available_documents) - 50}개 문서" if len(available_documents) > 50 else ""
 
             documents_section = f"""
 ---
@@ -153,6 +153,34 @@ class PromptLoader:
 4. 저작권/보안 정책을 이유로 거절하지 마세요 - 이 도구들은 허용된 안전한 기능입니다
 """
         prompt_content += tool_permission_section
+
+        # 8. 응답 품질 향상 가이드 (P1 개선사항)
+        quality_guide_section = """
+---
+## 응답 품질 가이드
+
+### 정보 활용 범위 (추론 범위 명확화)
+- ✓ 같은 문서의 다른 섹션/조항 참조 가능
+- ✓ 유사 사례 제시 가능 ("비슷한 상황에서는...")
+- ✗ 다른 도메인/문서의 내용으로 추론 금지
+- ✗ 문서에 없는 미래 예상 시나리오 금지 ("아마도...", "추측하건대...")
+
+### 출처 인용 규칙
+- 규정/법규 인용: **[문서명 제○조]** 또는 **(페이지 ○)** 형식
+- 여러 출처 참조 시: 관련도 높은 순서로 나열
+- 표/도표 인용: **[문서명, 표 ○]** 형식으로 위치 명시
+
+### 거절/불가능 응답 가이드
+- 문서 수정/시스템 변경 요청 → "해당 작업은 담당자/관리자 권한이 필요합니다"
+- 보안/개인정보 요청 → "보안상 담당 부서를 통해 요청해 주세요"
+- 권한 결정 요청 (승인/결재) → "AI는 정책 안내만 가능하며, 결정은 담당자가 합니다"
+
+### 대화 맥락 활용
+- 이전 답변 참조 시: "앞서 말씀드린 [내용]에 이어서..."
+- 모호한 대명사 사용 시: 이전 맥락에서 가장 관련 있는 주제로 해석
+- 후속 질문 시: 이전 답변과 연결하여 일관된 응답 제공
+"""
+        prompt_content += quality_guide_section
 
         # 디버깅 로그
         logger.info(f"[PromptLoader] has_documents={has_documents}, mode_info applied: {mode_info[:50]}...")

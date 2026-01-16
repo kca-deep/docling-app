@@ -4,6 +4,7 @@ BGE-M3 임베딩 서비스
 import logging
 from typing import List, Union
 
+from backend.config.settings import settings
 from backend.services.http_client import http_manager
 from backend.utils.retry import async_retry
 
@@ -81,7 +82,7 @@ class EmbeddingService:
                 return []
 
             # 빈 문자열 필터링 및 길이 제한 (공백만 있는 경우도 제외)
-            MAX_TEXT_LENGTH = 4000  # 임베딩 텍스트 최대 길이
+            max_text_length = settings.EMBEDDING_MAX_TEXT_LENGTH
             cleaned_texts = []
             for t in texts:
                 if t and t.strip():
@@ -89,8 +90,8 @@ class EmbeddingService:
                     import re
                     cleaned = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', t.strip())
                     # 길이 제한
-                    if len(cleaned) > MAX_TEXT_LENGTH:
-                        cleaned = cleaned[:MAX_TEXT_LENGTH]
+                    if len(cleaned) > max_text_length:
+                        cleaned = cleaned[:max_text_length]
                     if cleaned:
                         cleaned_texts.append(cleaned)
 
