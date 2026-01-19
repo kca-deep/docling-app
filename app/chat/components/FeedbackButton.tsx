@@ -16,6 +16,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { toast } from "sonner";
+import { API_BASE_URL } from "@/lib/api-config";
 import type {
   FeedbackRating,
   FeedbackCategory,
@@ -83,7 +84,7 @@ export function FeedbackButton({
         retrieved_docs_count: retrievedDocsCount,
       };
 
-      const response = await fetch("http://localhost:8000/api/feedback/", {
+      const response = await fetch(`${API_BASE_URL}/api/feedback/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

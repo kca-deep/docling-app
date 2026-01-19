@@ -408,9 +408,14 @@ export const MessageBubble = memo(function MessageBubble({
             {formatTime(timestamp)}
           </span>
 
-          {/* 액션 버튼 (모바일: 항상 표시, 데스크톱: 호버 시 표시) */}
+          {/* 액션 버튼 (스트리밍 중: 호버 시 표시, 완료 후: 항상 표시) */}
           {(role === "assistant" || role === "user") && (
-            <div className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center gap-1">
+            <div className={cn(
+              "transition-opacity flex items-center gap-1",
+              isStreaming
+                ? "opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+                : "opacity-100"
+            )}>
               {role === "assistant" && (
                 <>
                   <Button
