@@ -23,7 +23,7 @@ logging.basicConfig(
     datefmt=LOG_DATE_FORMAT,
     level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
 )
-from backend.api.routes import document, dify, qdrant, chat, analytics, auth, prompts, selfcheck, chat_documents, feedback
+from backend.api.routes import document, dify, qdrant, chat, analytics, analytics_export, auth, prompts, selfcheck, selfcheck_attachments, chat_documents, feedback
 from backend.database import init_db, get_db, SessionLocal
 from backend.models import document as document_model  # Import to register models
 from backend.models import dify_upload_history, dify_config  # Import Dify models
@@ -416,8 +416,10 @@ app.include_router(dify.router)
 app.include_router(qdrant.router)
 app.include_router(chat.router)
 app.include_router(analytics.router)
+app.include_router(analytics_export.router)  # 분석 Excel 내보내기
 app.include_router(prompts.router)  # 프롬프트 자동 생성
 app.include_router(selfcheck.router)  # 셀프진단
+app.include_router(selfcheck_attachments.router)  # 셀프진단 첨부파일
 app.include_router(chat_documents.router)  # 채팅 문서 업로드
 app.include_router(feedback.router)  # 피드백
 

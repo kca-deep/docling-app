@@ -204,6 +204,11 @@ class Settings(BaseSettings):
     SELFCHECK_SIMILARITY_DAYS: int = 180  # 검토 대상 기간 (일)
     SELFCHECK_SIMILARITY_MAX_TOKENS: int = 4096  # 유사성 판단 LLM 최대 토큰
 
+    # 셀프진단 첨부파일 설정
+    SELFCHECK_ALLOWED_EXTENSIONS: List[str] = [".pdf", ".docx", ".doc", ".pptx", ".ppt", ".hwp"]
+    SELFCHECK_MAX_FILE_SIZE_MB: int = 20  # 첨부파일 최대 크기 (MB)
+    SELFCHECK_MAX_FILES_PER_SUBMISSION: int = 5  # 제출당 최대 첨부파일 수
+
     # 셀프진단 Qdrant 설정 (유사과제 벡터 저장)
     SELFCHECK_QDRANT_COLLECTION: str = "selfcheck_projects"  # 유사과제 검색용 컬렉션
     SELFCHECK_QDRANT_ENABLED: bool = True  # Qdrant 기반 유사과제 검색 활성화

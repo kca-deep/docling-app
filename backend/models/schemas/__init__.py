@@ -106,6 +106,31 @@ from backend.models.schemas.excel import (
     DynamicEmbeddingResponse,
 )
 
+# Auth schemas
+from backend.models.schemas.auth import (
+    LoginRequest,
+    UserResponse,
+    AuthStatusResponse,
+    MessageResponse,
+    RegisterRequest,
+    RegisterResponse,
+    AuthDuplicateCheckRequest,
+    AuthDuplicateCheckResponse,
+    UserListResponse,
+    ShareableUserResponse,
+    ApproveRequest,
+    RejectRequest,
+    ApproveRejectResponse,
+    PendingCountResponse,
+    PermissionCategory,
+    UserPermissions,
+    PermissionsResponse,
+    UpdatePermissionsRequest,
+    PasswordResetRequest,
+    PasswordResetResponse,
+    PermissionsUpdateResponse,
+)
+
 # SelfCheck schemas
 from backend.models.schemas.selfcheck import (
     SelfCheckItemInput,
@@ -213,6 +238,28 @@ __all__ = [
     "DynamicEmbeddingRequest",
     "DynamicEmbeddingResult",
     "DynamicEmbeddingResponse",
+    # Auth
+    "LoginRequest",
+    "UserResponse",
+    "AuthStatusResponse",
+    "MessageResponse",
+    "RegisterRequest",
+    "RegisterResponse",
+    "AuthDuplicateCheckRequest",
+    "AuthDuplicateCheckResponse",
+    "UserListResponse",
+    "ShareableUserResponse",
+    "ApproveRequest",
+    "RejectRequest",
+    "ApproveRejectResponse",
+    "PendingCountResponse",
+    "PermissionCategory",
+    "UserPermissions",
+    "PermissionsResponse",
+    "UpdatePermissionsRequest",
+    "PasswordResetRequest",
+    "PasswordResetResponse",
+    "PermissionsUpdateResponse",
     # SelfCheck
     "SelfCheckItemInput",
     "SelfCheckAnalyzeRequest",

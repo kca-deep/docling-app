@@ -1,10 +1,8 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { toast } from "sonner"
-import { format } from "date-fns"
+import { useState, useEffect } from "react"
 import { ko } from "date-fns/locale"
-import { type DateRange } from "react-day-picker"
+import { format } from "date-fns"
 import { PageContainer } from "@/components/page-container"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -31,9 +29,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -55,7 +50,6 @@ import {
   History,
   Search,
   Download,
-  Eye,
   MoreVertical,
   Trash2,
   AlertTriangle,
@@ -79,7 +73,11 @@ import {
 import { motion } from "framer-motion"
 import { useAuth } from "@/components/auth/auth-provider"
 import { FeedbackModal } from "@/components/idea-hub/feedback-modal"
-import { FeedbackStatusIndicator, type FeedbackStatus } from "@/components/idea-hub/feedback-status-badge"
+import { FeedbackStatusIndicator } from "@/components/idea-hub/feedback-status-badge"
+import Link from "next/link"
+import { cn } from "@/lib/utils"
+import { useSubmissionHistory } from "./hooks/useSubmissionHistory"
+import { ITEMS_PER_PAGE } from "./types"
 
 // Stagger animation variants
 const containerVariants = {
@@ -94,58 +92,14 @@ const itemVariants = {
   hidden: { opacity: 0, y: 15 },
   show: { opacity: 1, y: 0, transition: { duration: 0.3 } }
 }
-import { apiEndpoints } from "@/lib/api-config"
-import Link from "next/link"
-import { cn } from "@/lib/utils"
-
-interface HistoryItem {
-  id: number
-  submission_id: string
-  project_name: string
-  department: string
-  manager_name: string
-  requires_review: boolean
-  review_reason?: string
-  status: string
-  used_model: string | null
-  created_at: string
-  feedback_status?: FeedbackStatus
-}
-
-// Pagination constants
-const ITEMS_PER_PAGE = 15
-const PAGES_PER_BLOCK = 10
 
 export default function HistoryPage() {
   const { user, isAuthenticated, isLoading } = useAuth()
-  const [searchQuery, setSearchQuery] = useState("")
-  const [history, setHistory] = useState<HistoryItem[]>([])
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined)
-  const [isDownloading, setIsDownloading] = useState(false)
-  const [isMobile, setIsMobile] = useState(false)
-  const [currentPage, setCurrentPage] = useState(1)
-
-  // 삭제 관련 상태
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
-  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
-
-  // 피드백 모달 상태
-  const [feedbackModalOpen, setFeedbackModalOpen] = useState(false)
-  const [selectedSubmission, setSelectedSubmission] = useState<HistoryItem | null>(null)
-
-  // 관리자 여부
   const isAdmin = user?.role === "admin"
-
-  // 피드백 권한 체크 (admin 또는 selfcheck.feedback 권한)
   const canWriteFeedback = isAdmin || (user?.permissions?.selfcheck?.feedback === true)
 
-  // 관리자 전체 보기 모드 (관리자는 기본 전체 보기)
-  const [viewAll, setViewAll] = useState(true)
+  const [isMobile, setIsMobile] = useState(false)
 
-  // Track mobile viewport for calendar
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 640)
     checkMobile()
@@ -153,303 +107,21 @@ export default function HistoryPage() {
     return () => window.removeEventListener("resize", checkMobile)
   }, [])
 
-  const fetchHistory = useCallback(async () => {
-    setIsLoadingHistory(true)
-    try {
-      const params = new URLSearchParams()
-      params.set("limit", "500")
-      if (dateRange?.from) {
-        params.set("start_date", format(dateRange.from, "yyyy-MM-dd"))
-      }
-      if (dateRange?.to) {
-        params.set("end_date", format(dateRange.to, "yyyy-MM-dd"))
-      }
-      // 관리자 전체 보기 모드
-      if (isAdmin && viewAll) {
-        params.set("view_all", "true")
-      }
-
-      const response = await fetch(`${apiEndpoints.selfcheckHistory}?${params.toString()}`, {
-        credentials: "include",
-      })
-      if (response.ok) {
-        const data = await response.json()
-        setHistory(data.items || [])
-        // 데이터 변경 시 선택 초기화
-        setSelectedIds(new Set())
-      }
-    } catch (error) {
-      console.error("Failed to fetch history:", error)
-    } finally {
-      setIsLoadingHistory(false)
-    }
-  }, [dateRange, isAdmin, viewAll])
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchHistory()
-    }
-  }, [isAuthenticated, fetchHistory])
-
-  const handleDownloadPdf = async (submissionId: string, projectName: string) => {
-    try {
-      const response = await fetch(
-        `${apiEndpoints.selfcheck}/${submissionId}/pdf`,
-        {
-          credentials: "include",
-        }
-      )
-      if (response.ok) {
-        const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement("a")
-        a.href = url
-        a.download = `selfcheck_${projectName.slice(0, 20)}_${submissionId.slice(0, 8)}.pdf`
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        window.URL.revokeObjectURL(url)
-      } else {
-        toast.error("PDF 다운로드에 실패했습니다.")
-      }
-    } catch (error) {
-      console.error("PDF download error:", error)
-      toast.error("PDF 다운로드 중 오류가 발생했습니다.")
-    }
-  }
-
-  // 선택 관련 함수들 (현재 페이지 항목만 대상)
-  const toggleSelectAll = () => {
-    const currentPageIds = paginatedHistory.map(item => item.submission_id)
-    const allSelected = currentPageIds.every(id => selectedIds.has(id))
-
-    if (allSelected) {
-      // 현재 페이지 항목만 선택 해제
-      const newSet = new Set(selectedIds)
-      currentPageIds.forEach(id => newSet.delete(id))
-      setSelectedIds(newSet)
-    } else {
-      // 현재 페이지 항목 모두 선택 추가
-      const newSet = new Set(selectedIds)
-      currentPageIds.forEach(id => newSet.add(id))
-      setSelectedIds(newSet)
-    }
-  }
-
-  const toggleSelect = (submissionId: string) => {
-    const newSet = new Set(selectedIds)
-    if (newSet.has(submissionId)) {
-      newSet.delete(submissionId)
-    } else {
-      newSet.add(submissionId)
-    }
-    setSelectedIds(newSet)
-  }
-
-  // Excel 다운로드
-  const handleExcelDownload = async () => {
-    if (selectedIds.size === 0) {
-      toast.warning("내보낼 항목을 선택해주세요.")
-      return
-    }
-
-    setIsDownloading(true)
-    try {
-      const response = await fetch(`${apiEndpoints.selfcheck}/export/excel`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ submission_ids: Array.from(selectedIds) }),
-      })
-
-      if (response.ok) {
-        const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement("a")
-        a.href = url
-        a.download = `selfcheck_export_${format(new Date(), "yyyyMMdd_HHmmss")}.xlsx`
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        window.URL.revokeObjectURL(url)
-      } else {
-        toast.error("Excel 다운로드에 실패했습니다.")
-      }
-    } catch (error) {
-      console.error("Excel download error:", error)
-      toast.error("Excel 다운로드 중 오류가 발생했습니다.")
-    } finally {
-      setIsDownloading(false)
-    }
-  }
-
-  // PDF 일괄 다운로드
-  const handleBulkPdfDownload = async (mode: "individual" | "merged") => {
-    if (selectedIds.size === 0) {
-      toast.warning("내보낼 항목을 선택해주세요.")
-      return
-    }
-
-    setIsDownloading(true)
-    try {
-      const response = await fetch(`${apiEndpoints.selfcheck}/export/pdf`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          submission_ids: Array.from(selectedIds),
-          mode,
-        }),
-      })
-
-      if (response.ok) {
-        const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement("a")
-        a.href = url
-        const timestamp = format(new Date(), "yyyyMMdd_HHmmss")
-        a.download = mode === "merged"
-          ? `selfcheck_merged_${timestamp}.pdf`
-          : `selfcheck_reports_${timestamp}.zip`
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        window.URL.revokeObjectURL(url)
-      } else {
-        toast.error("PDF 다운로드에 실패했습니다.")
-      }
-    } catch (error) {
-      console.error("PDF download error:", error)
-      toast.error("PDF 다운로드 중 오류가 발생했습니다.")
-    } finally {
-      setIsDownloading(false)
-    }
-  }
-
-  // 날짜 필터 초기화
-  const clearDateFilter = () => {
-    setDateRange(undefined)
-  }
-
-  // 단일 삭제
-  const handleDelete = async (submissionId: string) => {
-    setIsDeleting(true)
-    try {
-      const response = await fetch(`${apiEndpoints.selfcheck}/${submissionId}`, {
-        method: "DELETE",
-        credentials: "include",
-      })
-
-      if (response.ok) {
-        // 목록에서 제거
-        setHistory((prev) => prev.filter((item) => item.submission_id !== submissionId))
-        setSelectedIds((prev) => {
-          const newSet = new Set(prev)
-          newSet.delete(submissionId)
-          return newSet
-        })
-        setDeleteTarget(null)
-        toast.success("삭제되었습니다.")
-      } else if (response.status === 403) {
-        toast.error("관리자만 삭제할 수 있습니다.")
-      } else {
-        const errorData = await response.json().catch(() => ({}))
-        toast.error(errorData.detail || "삭제에 실패했습니다.")
-      }
-    } catch (error) {
-      console.error("Delete error:", error)
-      toast.error("삭제 중 오류가 발생했습니다.")
-    } finally {
-      setIsDeleting(false)
-    }
-  }
-
-  // 일괄 삭제
-  const handleBulkDelete = async () => {
-    if (selectedIds.size === 0) return
-
-    setIsDeleting(true)
-    try {
-      const response = await fetch(apiEndpoints.selfcheckBulkDelete, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ submission_ids: Array.from(selectedIds) }),
-      })
-
-      if (response.ok) {
-        const result = await response.json()
-        // 삭제된 항목 목록에서 제거
-        setHistory((prev) =>
-          prev.filter((item) => !selectedIds.has(item.submission_id))
-        )
-        setSelectedIds(new Set())
-        setShowBulkDeleteDialog(false)
-        toast.success(result.message)
-      } else if (response.status === 403) {
-        toast.error("관리자만 삭제할 수 있습니다.")
-      } else {
-        const errorData = await response.json().catch(() => ({}))
-        toast.error(errorData.detail || "삭제에 실패했습니다.")
-      }
-    } catch (error) {
-      console.error("Bulk delete error:", error)
-      toast.error("삭제 중 오류가 발생했습니다.")
-    } finally {
-      setIsDeleting(false)
-    }
-  }
-
-  // 피드백 모달 열기
-  const openFeedbackModal = (item: HistoryItem) => {
-    setSelectedSubmission(item)
-    setFeedbackModalOpen(true)
-  }
-
-  const filteredHistory = history.filter(
-    (item) =>
-      item.project_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.department.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.manager_name.toLowerCase().includes(searchQuery.toLowerCase())
-  )
-
-  // Pagination calculations
-  const totalPages = Math.ceil(filteredHistory.length / ITEMS_PER_PAGE)
-  const currentBlock = Math.floor((currentPage - 1) / PAGES_PER_BLOCK)
-  const startPage = currentBlock * PAGES_PER_BLOCK + 1
-  const endPage = Math.min(startPage + PAGES_PER_BLOCK - 1, totalPages)
-
-  const paginatedHistory = filteredHistory.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  )
-
-  // Reset page when search/filter changes
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [searchQuery, dateRange])
-
-  // Ensure currentPage is valid when totalPages changes
-  useEffect(() => {
-    if (currentPage > totalPages && totalPages > 0) {
-      setCurrentPage(totalPages)
-    }
-  }, [totalPages, currentPage])
-
-  const goToPreviousBlock = () => {
-    if (currentBlock > 0) {
-      setCurrentPage((currentBlock - 1) * PAGES_PER_BLOCK + PAGES_PER_BLOCK)
-    }
-  }
-
-  const goToNextBlock = () => {
-    if (endPage < totalPages) {
-      setCurrentPage((currentBlock + 1) * PAGES_PER_BLOCK + 1)
-    }
-  }
-
-  const isAllSelected = paginatedHistory.length > 0 &&
-    paginatedHistory.every(item => selectedIds.has(item.submission_id))
+  const {
+    searchQuery, setSearchQuery,
+    dateRange, setDateRange, clearDateFilter,
+    viewAll, setViewAll,
+    history, isLoadingHistory, fetchHistory,
+    filteredHistory, paginatedHistory,
+    selectedIds, toggleSelect, toggleSelectAll, isAllSelected,
+    isDownloading, handleDownloadPdf, handleExcelDownload, handleBulkPdfDownload,
+    deleteTarget, setDeleteTarget, showBulkDeleteDialog, setShowBulkDeleteDialog,
+    isDeleting, handleDelete, handleBulkDelete,
+    feedbackModalOpen, setFeedbackModalOpen, selectedSubmission, openFeedbackModal,
+    currentPage, setCurrentPage, totalPages,
+    startPage, endPage, currentBlock,
+    goToPreviousBlock, goToNextBlock,
+  } = useSubmissionHistory({ isAuthenticated, isAdmin })
 
   if (isLoading) {
     return (
@@ -726,7 +398,7 @@ export default function HistoryPage() {
                       <TableHead className="w-[40px]">
                         <Checkbox
                           checked={isAllSelected}
-                          onCheckedChange={toggleSelectAll}
+                          onCheckedChange={() => toggleSelectAll(paginatedHistory)}
                           aria-label="전체 선택"
                         />
                       </TableHead>
@@ -845,7 +517,7 @@ export default function HistoryPage() {
               <div className="flex items-center gap-2 px-1">
                 <Checkbox
                   checked={isAllSelected}
-                  onCheckedChange={toggleSelectAll}
+                  onCheckedChange={() => toggleSelectAll(paginatedHistory)}
                   aria-label="전체 선택"
                 />
                 <span className="text-sm text-muted-foreground">전체 선택</span>

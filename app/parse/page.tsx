@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Upload, FileText, Loader2, CheckCircle2, XCircle, Download, Trash2, FolderOpen, Save, Settings, Zap, Sparkles, Eye, ChevronDown, StopCircle, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { API_BASE_URL } from "@/lib/api-config";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -22,73 +21,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { CollectionSelector } from "@/components/ui/collection-selector";
 import { QdrantCollection } from "@/app/upload/types";
-
-// 파일 크기 제한 (50MB - 백엔드 설정과 동일)
-const MAX_FILE_SIZE_MB = 50;
-const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
-
-interface ConvertResult {
-  task_id: string;
-  status: string;
-  document?: {
-    filename: string;
-    md_content?: string;
-    processing_time?: number;
-  };
-  error?: string;
-  processing_time?: number;
-}
-
-interface ProgressInfo {
-  task_id: string;
-  filename: string;
-  status: "processing" | "completed" | "failed";
-  current_page: number;
-  total_pages: number;
-  progress_percentage: number;
-  elapsed_time: number;
-  estimated_remaining_time?: number;
-  error_message?: string;
-  updated_at: string;
-  md_content?: string;
-  processing_time?: number;
-}
-
-interface ParseOptions {
-  strategy: "docling" | "qwen3-vl";
-  do_ocr: boolean;
-  do_table_structure: boolean;
-  include_images: boolean;
-  do_formula_enrichment: boolean;
-}
-
-interface FileStatus {
-  file: File;
-  status: "pending" | "processing" | "success" | "error";
-  progress: number;
-  result?: ConvertResult;
-  progressInfo?: ProgressInfo;  // qwen3-vl 진행률 정보
-  pollingInterval?: NodeJS.Timeout;  // polling interval ID
-}
-
-interface SaveResult {
-  skipped?: boolean;
-}
+import { useFileConversion } from "./hooks/useFileConversion";
+import type { FileStatus } from "./types";
 
 export default function ParsePage() {
-  // 일괄 파일 상태
-  const [files, setFiles] = useState<FileStatus[]>([]);
-  const [processing, setProcessing] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-
-  // 공통 옵션 상태
-  const [parseOptions, setParseOptions] = useState<ParseOptions>({
-    strategy: "qwen3-vl",
-    do_ocr: true,
-    do_table_structure: true,
-    include_images: true,
-    do_formula_enrichment: false,
-  });
+  const {
+    files, processing, isDragging,
+    parseOptions, setParseOptions,
+    selectedCategory, setSelectedCategory,
+    isStopRequested,
+    successCount, errorCount, pendingCount,
+    handleFileChange, handleDragOver, handleDragLeave, handleDrop,
+    removeFile, handleProcess, handleStopParsing, handleRestartFailed,
+    handleReset, downloadAll, handleSaveDocument, handleSaveAllDocuments,
+  } = useFileConversion();
 
   // Dialog 상태
   const [selectedResult, setSelectedResult] = useState<FileStatus | null>(null);
@@ -98,26 +44,8 @@ export default function ParsePage() {
 
   // 카테고리(컬렉션) 관련 상태
   const [collections, setCollections] = useState<QdrantCollection[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>("__uncategorized__");
   const [collectionsLoading, setCollectionsLoading] = useState(false);
 
-  // 폴링 인터벌 추적 (메모리 누수 방지)
-  const pollingIntervalsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
-
-  // 파싱 중지 관련 상태
-  const [isStopRequested, setIsStopRequested] = useState(false);
-  const stopRequestedRef = useRef(false);
-
-  // 폴링 Promise resolve 함수 추적 (중지 시 resolve 호출용)
-  const pollingResolversRef = useRef<Map<string, () => void>>(new Map());
-
-  // 파일 상태 ref (handleProcess에서 최신 상태 참조용)
-  const filesRef = useRef<FileStatus[]>(files);
-  useEffect(() => {
-    filesRef.current = files;
-  }, [files]);
-
-  // 컬렉션 목록 로드
   const fetchCollections = async () => {
     setCollectionsLoading(true);
     try {
@@ -126,7 +54,6 @@ export default function ParsePage() {
       });
       if (response.ok) {
         const data = await response.json();
-        // 컬렉션명으로 오름차순 정렬
         const sorted = [...(data.collections || [])].sort((a: QdrantCollection, b: QdrantCollection) =>
           a.name.localeCompare(b.name, 'ko-KR')
         );
@@ -139,453 +66,9 @@ export default function ParsePage() {
     }
   };
 
-  // 초기 로드
   useEffect(() => {
     fetchCollections();
   }, []);
-
-  // 컴포넌트 언마운트 시 모든 폴링 정리
-  useEffect(() => {
-    return () => {
-      pollingIntervalsRef.current.forEach((interval) => {
-        clearInterval(interval);
-      });
-      pollingIntervalsRef.current.clear();
-      // Promise resolve 함수도 정리
-      pollingResolversRef.current.forEach((resolve) => {
-        resolve();
-      });
-      pollingResolversRef.current.clear();
-    };
-  }, []);
-
-  // 파일 크기 검증 함수
-  const validateFileSize = (file: File): boolean => {
-    if (file.size > MAX_FILE_SIZE_BYTES) {
-      toast.error(`"${file.name}" 파일이 너무 큽니다. 최대 ${MAX_FILE_SIZE_MB}MB까지 허용됩니다.`);
-      return false;
-    }
-    return true;
-  };
-
-  // 일괄 파일 핸들러
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const validFiles = Array.from(e.target.files).filter(validateFileSize);
-      if (validFiles.length === 0) return;
-
-      const newFiles = validFiles.map(file => ({
-        file,
-        status: "pending" as const,
-        progress: 0,
-      }));
-      setFiles(prev => [...prev, ...newFiles]);
-    }
-  };
-
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-
-    if (processing) return;
-
-    const droppedFiles = e.dataTransfer.files;
-    if (droppedFiles && droppedFiles.length > 0) {
-      const validFiles = Array.from(droppedFiles).filter(validateFileSize);
-      if (validFiles.length === 0) return;
-
-      const newFiles = validFiles.map(file => ({
-        file,
-        status: "pending" as const,
-        progress: 0,
-      }));
-      setFiles(prev => [...prev, ...newFiles]);
-    }
-  };
-
-  const removeFile = (index: number) => {
-    setFiles(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const processFile = async (fileStatus: FileStatus, index: number): Promise<void> => {
-    setFiles(prev => prev.map((f, i) =>
-      i === index ? { ...f, status: "processing", progress: 10 } : f
-    ));
-
-    try {
-      const formData = new FormData();
-      formData.append("file", fileStatus.file);
-      formData.append("strategy", parseOptions.strategy);
-      formData.append("do_ocr", parseOptions.do_ocr.toString());
-      formData.append("do_table_structure", parseOptions.do_table_structure.toString());
-      formData.append("include_images", parseOptions.include_images.toString());
-      formData.append("do_formula_enrichment", parseOptions.do_formula_enrichment.toString());
-
-      setFiles(prev => prev.map((f, i) =>
-        i === index ? { ...f, progress: 30 } : f
-      ));
-
-      const response = await fetch(`${API_BASE_URL}/api/documents/convert`, {
-        method: "POST",
-        credentials: 'include',
-        body: formData,
-      });
-
-      console.log(`[Batch] Response status for file ${index}:`, response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[Batch] API error for file ${index}:`, errorText);
-        throw new Error(`API 호출 실패: ${response.status} - ${errorText}`);
-      }
-
-      const result = await response.json();
-      console.log(`[Batch] File ${index} convert result:`, result);
-      console.log(`[Batch] Result status:`, result.status);
-      console.log(`[Batch] Is Qwen3-VL?`, parseOptions.strategy === "qwen3-vl");
-
-      // qwen3-vl의 경우 status가 "processing"이면 polling 시작
-      if (result.status === "processing" && parseOptions.strategy === "qwen3-vl") {
-        console.log(`[Batch] Starting polling for file ${index}, task_id:`, result.task_id);
-
-        setFiles(prev => prev.map((f, i) =>
-          i === index ? { ...f, result, progress: 50 } : f
-        ));
-
-        // polling 시작
-        await pollBatchProgress(result.task_id, index);
-      } else if (result.status === "success") {
-        // docling 등 동기 처리는 바로 완료
-        setFiles(prev => prev.map((f, i) =>
-          i === index ? {
-            ...f,
-            status: "success",
-            progress: 100,
-            result
-          } : f
-        ));
-      } else {
-        // 에러 처리
-        setFiles(prev => prev.map((f, i) =>
-          i === index ? {
-            ...f,
-            status: "error",
-            progress: 100,
-            result
-          } : f
-        ));
-      }
-    } catch (err) {
-      console.error(`[Batch] Error processing file ${index}:`, err);
-      const errorMessage = err instanceof Error ? err.message : "알 수 없는 오류가 발생했습니다";
-      toast.error(`파일 "${fileStatus.file.name}" 파싱 실패: ${errorMessage}`);
-      setFiles(prev => prev.map((f, i) =>
-        i === index ? {
-          ...f,
-          status: "error",
-          progress: 100,
-          result: {
-            task_id: "",
-            status: "failure",
-            error: errorMessage
-          }
-        } : f
-      ));
-    }
-  };
-
-  // 폴링 정리 헬퍼 함수
-  const clearPollingInterval = (taskId: string, pollInterval: NodeJS.Timeout) => {
-    clearInterval(pollInterval);
-    pollingIntervalsRef.current.delete(taskId);
-    pollingResolversRef.current.delete(taskId);
-  };
-
-  // 일괄 파싱용 진행률 polling
-  const pollBatchProgress = async (taskId: string, index: number): Promise<void> => {
-    return new Promise((resolve) => {
-      // resolve 함수 저장 (중지 시 외부에서 호출 가능하도록)
-      pollingResolversRef.current.set(taskId, resolve);
-
-      const pollInterval = setInterval(async () => {
-        // 중지 요청 체크
-        if (stopRequestedRef.current) {
-          clearPollingInterval(taskId, pollInterval);
-          resolve();
-          return;
-        }
-
-        try {
-          const response = await fetch(`${API_BASE_URL}/api/documents/progress/${taskId}`, {
-            credentials: 'include'
-          });
-
-          if (response.ok) {
-            const progressData: ProgressInfo = await response.json();
-            console.log(`[Batch] Progress for file ${index}:`, progressData);
-
-            // 진행률 업데이트
-            setFiles(prev => prev.map((f, i) =>
-              i === index ? {
-                ...f,
-                progressInfo: progressData,
-                progress: Math.min(50 + progressData.progress_percentage / 2, 99)  // 50-99% 범위
-              } : f
-            ));
-
-            // 완료 시
-            if (progressData.status === "completed") {
-              clearPollingInterval(taskId, pollInterval);
-              setFiles(prev => prev.map((f, i) =>
-                i === index ? {
-                  ...f,
-                  status: "success",
-                  progress: 100,
-                  result: {
-                    task_id: taskId,
-                    status: "success",
-                    document: {
-                      filename: progressData.filename,
-                      md_content: progressData.md_content,
-                      processing_time: progressData.processing_time
-                    },
-                    processing_time: progressData.processing_time
-                  }
-                } : f
-              ));
-              resolve();
-            } else if (progressData.status === "failed") {
-              clearPollingInterval(taskId, pollInterval);
-              setFiles(prev => prev.map((f, i) =>
-                i === index ? {
-                  ...f,
-                  status: "error",
-                  progress: 100,
-                  result: {
-                    task_id: taskId,
-                    status: "failure",
-                    error: progressData.error_message || "파싱 실패"
-                  }
-                } : f
-              ));
-              resolve();
-            }
-          } else if (response.status === 404) {
-            console.warn(`[Batch] Progress not found for task ${taskId}, stopping polling`);
-            clearPollingInterval(taskId, pollInterval);
-            resolve();
-          }
-        } catch (err) {
-          console.error(`[Batch] Error polling progress for file ${index}:`, err);
-        }
-      }, 2000);  // 2초마다 polling
-
-      // 폴링 인터벌을 ref에 저장 (언마운트 시 정리용)
-      pollingIntervalsRef.current.set(taskId, pollInterval);
-    });
-  };
-
-  // 파싱 중지 핸들러
-  const handleStopParsing = () => {
-    stopRequestedRef.current = true;
-    setIsStopRequested(true);
-
-    // 진행 중인 폴링 모두 정리
-    pollingIntervalsRef.current.forEach((interval) => {
-      clearInterval(interval);
-    });
-    pollingIntervalsRef.current.clear();
-
-    // 대기 중인 모든 Promise resolve (await 해제)
-    pollingResolversRef.current.forEach((resolve) => {
-      resolve();
-    });
-    pollingResolversRef.current.clear();
-
-    // "processing" 상태 파일을 "pending"으로 리셋 (재시작 시 처음부터)
-    setFiles(prev => prev.map(f =>
-      f.status === "processing"
-        ? { ...f, status: "pending" as const, progress: 0, progressInfo: undefined, result: undefined }
-        : f
-    ));
-
-    toast.info("파싱이 중지되었습니다.");
-  };
-
-  // 미변환/실패 파일 재시작 핸들러
-  const handleRestartFailed = () => {
-    // 중지 상태 초기화
-    stopRequestedRef.current = false;
-    setIsStopRequested(false);
-    // "processing", "error" 상태 파일을 "pending"으로 리셋
-    setFiles(prev => {
-      const updatedFiles = prev.map(f =>
-        (f.status === "error" || f.status === "processing")
-          ? { ...f, status: "pending" as const, progress: 0, progressInfo: undefined, result: undefined }
-          : f
-      );
-      // 상태 업데이트 후 자동으로 파싱 시작 (다음 이벤트 루프에서)
-      setTimeout(() => {
-        const hasPending = updatedFiles.some(f => f.status === "pending");
-        if (hasPending) {
-          handleProcess();
-        }
-      }, 0);
-      return updatedFiles;
-    });
-  };
-
-  const handleProcess = async () => {
-    setProcessing(true);
-    stopRequestedRef.current = false;
-    setIsStopRequested(false);
-
-    // filesRef를 사용하여 항상 최신 파일 상태 참조
-    const currentFiles = filesRef.current;
-    for (let i = 0; i < currentFiles.length; i++) {
-      // 중지 요청 체크
-      if (stopRequestedRef.current) {
-        toast.info("파싱이 중지되었습니다. 완료된 문서까지 저장할 수 있습니다.");
-        break;
-      }
-
-      // 최신 상태를 다시 확인 (재시작 시 상태가 변경될 수 있음)
-      const latestFiles = filesRef.current;
-      if (latestFiles[i]?.status === "pending") {
-        await processFile(latestFiles[i], i);
-      }
-    }
-
-    setProcessing(false);
-
-    // 완료 메시지 (중지되지 않은 경우에만)
-    if (!stopRequestedRef.current) {
-      toast.success("일괄 파싱이 완료되었습니다!");
-    }
-  };
-
-  const handleReset = () => {
-    setFiles([]);
-  };
-
-  const downloadAll = () => {
-    files.forEach(fileStatus => {
-      if (fileStatus.status === "success" && fileStatus.result?.document?.md_content) {
-        const blob = new Blob([fileStatus.result.document.md_content], { type: 'text/markdown' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${fileStatus.result.document.filename}.md`;
-        a.click();
-        URL.revokeObjectURL(url);
-      }
-    });
-    toast.success("모든 파일이 다운로드되었습니다!");
-  };
-
-  const handleSaveDocument = async (fileStatus: FileStatus) => {
-    if (!fileStatus.result?.document?.md_content) return;
-
-    const saveRequest = {
-      task_id: fileStatus.result.task_id,
-      original_filename: fileStatus.result.document.filename,
-      file_size: fileStatus.file.size,
-      file_type: fileStatus.file.name.split('.').pop() || '',
-      md_content: fileStatus.result.document.md_content,
-      processing_time: fileStatus.result.processing_time,
-      parse_options: parseOptions,
-      category: selectedCategory === "__uncategorized__" ? null : selectedCategory,  // 카테고리 추가
-    };
-
-    toast.promise(
-      fetch(`${API_BASE_URL}/api/documents/save`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: 'include',
-        body: JSON.stringify(saveRequest),
-      }).then(async (response) => {
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.detail || "문서 저장에 실패했습니다");
-        }
-        return response.json();
-      }),
-      {
-        loading: "문서 저장 중...",
-        success: `"${fileStatus.result.document.filename}" 저장 완료!`,
-        error: (err) => err.message || "문서 저장에 실패했습니다.",
-      }
-    );
-  };
-
-  const handleSaveAllDocuments = async () => {
-    const successFiles = files.filter(f => f.status === "success" && f.result?.document?.md_content);
-
-    if (successFiles.length === 0) return;
-
-    const savePromises = successFiles.map(fileStatus => {
-      const saveRequest = {
-        task_id: fileStatus.result!.task_id,
-        original_filename: fileStatus.result!.document!.filename,
-        file_size: fileStatus.file.size,
-        file_type: fileStatus.file.name.split('.').pop() || '',
-        md_content: fileStatus.result!.document!.md_content!,
-        processing_time: fileStatus.result!.processing_time,
-        parse_options: parseOptions,
-        category: selectedCategory === "__uncategorized__" ? null : selectedCategory,  // 카테고리 추가
-      };
-
-      return fetch(`${API_BASE_URL}/api/documents/save`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: 'include',
-        body: JSON.stringify(saveRequest),
-      }).then(async (response) => {
-        if (!response.ok) {
-          const error = await response.json();
-          if (error.detail?.includes("이미 저장된 문서")) {
-            return { skipped: true };
-          }
-          throw new Error(error.detail || "문서 저장 실패");
-        }
-        return response.json();
-      });
-    });
-
-    toast.promise(
-      Promise.all(savePromises),
-      {
-        loading: `${successFiles.length}개 문서 저장 중...`,
-        success: (results) => {
-          const saved = results.filter((r: SaveResult) => !r.skipped).length;
-          const skipped = results.filter((r: SaveResult) => r.skipped).length;
-          return `${saved}개 저장 완료${skipped > 0 ? `, ${skipped}개 이미 저장됨` : ''}!`;
-        },
-        error: "일부 문서 저장에 실패했습니다.",
-      }
-    );
-  };
-
-  const successCount = files.filter(f => f.status === "success").length;
-  const errorCount = files.filter(f => f.status === "error").length;
-  const pendingCount = files.filter(f => f.status === "pending").length;
 
   return (
     <PageContainer maxWidth="wide" className="space-y-4">
@@ -748,7 +231,6 @@ export default function ParsePage() {
                               <p className="text-xs text-muted-foreground">
                                 {(fileStatus.file.size / 1024 / 1024).toFixed(2)} MB
                               </p>
-                              {/* qwen3-vl 진행률 표시 */}
                               {fileStatus.progressInfo && fileStatus.status === "processing" && (
                                 <p className="text-xs text-muted-foreground">
                                   • 페이지 {fileStatus.progressInfo.current_page}/{fileStatus.progressInfo.total_pages} ({fileStatus.progressInfo.progress_percentage}%)
@@ -805,7 +287,6 @@ export default function ParsePage() {
                   )}
 
                   <div className="flex flex-wrap gap-2 flex-shrink-0">
-                    {/* 메인 파싱 버튼 */}
                     <Button
                       onClick={handleProcess}
                       disabled={files.length === 0 || processing || pendingCount === 0}
@@ -825,7 +306,6 @@ export default function ParsePage() {
                       )}
                     </Button>
 
-                    {/* 파싱 중지 버튼 - processing 중일 때만 */}
                     {processing && !isStopRequested && (
                       <Button
                         variant="outline"
@@ -838,7 +318,6 @@ export default function ParsePage() {
                       </Button>
                     )}
 
-                    {/* 중지 요청됨 표시 */}
                     {processing && isStopRequested && (
                       <Button variant="outline" size="lg" disabled className="border-amber-500/50 text-amber-600">
                         <Loader2 className="w-5 h-5 animate-spin" />
@@ -846,7 +325,6 @@ export default function ParsePage() {
                       </Button>
                     )}
 
-                    {/* 미변환 파일 재시작 버튼 */}
                     {!processing && (errorCount > 0 || (isStopRequested && pendingCount > 0)) && (
                       <Button
                         variant="outline"
@@ -859,7 +337,6 @@ export default function ParsePage() {
                       </Button>
                     )}
 
-                    {/* 완료된 문서 저장 버튼 */}
                     {successCount > 0 && !processing && (
                       <Button
                         variant="outline"
@@ -872,7 +349,6 @@ export default function ParsePage() {
                       </Button>
                     )}
 
-                    {/* 다운로드 버튼 */}
                     {successCount > 0 && !processing && (
                       <Button
                         variant="outline"
@@ -976,7 +452,6 @@ export default function ParsePage() {
 
               <Separator />
 
-              {/* 카테고리(컬렉션) 선택 - 모달 방식 */}
               <CollectionSelector
                 value={selectedCategory}
                 onValueChange={setSelectedCategory}

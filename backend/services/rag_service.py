@@ -561,6 +561,75 @@ class RAGService:
             logger.error(f"Stream generate failed: {e}")
             raise Exception(f"스트리밍 답변 생성 실패: {str(e)}") from e
 
+    def _build_retrieval_params(
+        self,
+        collection_name: Optional[str],
+        temp_collection_name: Optional[str],
+        top_k: int,
+        use_reranking: bool
+    ) -> tuple:
+        """검색 파라미터 구성 (chat/chat_stream 공통)
+
+        Returns:
+            tuple: (target_collections, is_casual_mode, is_temp_only_mode, initial_top_k)
+        """
+        target_collections = []
+        if collection_name:
+            target_collections.append(collection_name)
+        if temp_collection_name:
+            target_collections.append(temp_collection_name)
+
+        is_casual_mode = len(target_collections) == 0
+        is_temp_only_mode = bool(temp_collection_name) and not collection_name
+
+        initial_top_k = top_k
+        if use_reranking and self.reranker_service:
+            initial_top_k = top_k * settings.RERANK_TOP_K_MULTIPLIER
+            logger.info(f"Reranking enabled: expanding top_k from {top_k} to {initial_top_k}")
+
+        return target_collections, is_casual_mode, is_temp_only_mode, initial_top_k
+
+    async def _do_retrieval(
+        self,
+        target_collections: List[str],
+        query: str,
+        initial_top_k: int,
+        score_threshold: Optional[float],
+        use_hybrid: bool
+    ) -> List[Dict[str, Any]]:
+        """단일/병합 검색 실행 (chat/chat_stream 공통)"""
+        if len(target_collections) == 1:
+            return await self.retrieve(
+                collection_name=target_collections[0],
+                query=query,
+                top_k=initial_top_k,
+                score_threshold=score_threshold,
+                use_hybrid=use_hybrid
+            )
+        else:
+            logger.info(f"[RAG] Merged search across {len(target_collections)} collections: {target_collections}")
+            return await self.retrieve_from_multiple(
+                collection_names=target_collections,
+                query=query,
+                top_k=initial_top_k,
+                score_threshold=score_threshold,
+                use_hybrid=use_hybrid
+            )
+
+    async def _fetch_available_documents(self, target_collections: List[str]) -> List[str]:
+        """컬렉션 문서 목록 조회 (프롬프트 주입용, 캐시 사용)"""
+        if not target_collections:
+            return []
+        try:
+            all_docs = []
+            for coll_name in target_collections:
+                doc_names = await self._get_cached_documents(coll_name)
+                all_docs.extend(doc_names)
+            return list(dict.fromkeys(all_docs))
+        except Exception as e:
+            logger.warning(f"[RAG] Failed to get document list for prompt: {e}")
+            return []
+
     async def chat(
         self,
         collection_name: Optional[str],
@@ -608,57 +677,23 @@ class RAGService:
             Exception: 처리 실패 시
         """
         try:
-            # 검색 대상 컬렉션 목록 구성
-            target_collections = []
-            if collection_name:
-                target_collections.append(collection_name)
-            if temp_collection_name:
-                target_collections.append(temp_collection_name)
-
-            # 일상대화 모드 체크 (컬렉션이 하나도 없는 경우)
-            is_casual_mode = len(target_collections) == 0
-
-            # 임시 컬렉션 전용 모드 체크 (temp_collection만 있고 collection은 없는 경우)
-            # 사용자가 직접 업로드한 문서만 검색하는 경우 threshold 완화 적용
-            is_temp_only_mode = bool(temp_collection_name) and not collection_name
+            # 검색 파라미터 구성
+            target_collections, is_casual_mode, is_temp_only_mode, initial_top_k = \
+                self._build_retrieval_params(collection_name, temp_collection_name, top_k, use_reranking)
 
             # 검색 시간 측정 시작
             retrieval_start = time.time()
             retrieval_time_ms = None
 
             if is_casual_mode:
-                # 일상대화 모드: 검색 없이 바로 LLM 생성
                 logger.info(f"[RAG] Casual mode - skipping retrieval")
                 retrieved_docs = []
             else:
                 # 1. Retrieve: 관련 문서 검색
-                # Reranking 사용 시 top_k를 배수만큼 증가
-                initial_top_k = top_k
-                if use_reranking and self.reranker_service:
-                    initial_top_k = top_k * settings.RERANK_TOP_K_MULTIPLIER
-                    logger.info(f"Reranking enabled: expanding top_k from {top_k} to {initial_top_k}")
+                retrieved_docs = await self._do_retrieval(
+                    target_collections, query, initial_top_k, score_threshold, use_hybrid
+                )
 
-                # 단일 컬렉션 또는 병합 검색
-                if len(target_collections) == 1:
-                    retrieved_docs = await self.retrieve(
-                        collection_name=target_collections[0],
-                        query=query,
-                        top_k=initial_top_k,
-                        score_threshold=score_threshold,
-                        use_hybrid=use_hybrid
-                    )
-                else:
-                    # 병합 검색: 여러 컬렉션에서 검색 후 합침
-                    logger.info(f"[RAG] Merged search across {len(target_collections)} collections: {target_collections}")
-                    retrieved_docs = await self.retrieve_from_multiple(
-                        collection_names=target_collections,
-                        query=query,
-                        top_k=initial_top_k,
-                        score_threshold=score_threshold,
-                        use_hybrid=use_hybrid
-                    )
-
-                # 검색 시간 측정 완료 (리랭킹 전)
                 retrieval_time_ms = int((time.time() - retrieval_start) * 1000)
                 logger.info(f"[RAG] Retrieval took {retrieval_time_ms}ms for {len(retrieved_docs)} documents")
 
@@ -687,18 +722,7 @@ class RAGService:
                     }
 
             # 1.6. 컬렉션 문서 목록 조회 (프롬프트에 주입용) - [P0-2] 캐시 사용
-            available_documents = []
-            if target_collections:
-                try:
-                    for coll_name in target_collections:
-                        doc_names = await self._get_cached_documents(coll_name)
-                        available_documents.extend(doc_names)
-                    # 중복 제거 (순서 유지)
-                    available_documents = list(dict.fromkeys(available_documents))
-                    # [P2-1] 상세 정보 로그 → DEBUG
-                    logger.debug(f"[RAG] Available documents for prompt: {len(available_documents)}")
-                except Exception as e:
-                    logger.warning(f"[RAG] Failed to get document list for prompt: {e}")
+            available_documents = await self._fetch_available_documents(target_collections)
 
             # 2. Generate: 답변 생성
             llm_response = await self.generate(
@@ -796,65 +820,27 @@ class RAGService:
             Exception: 처리 실패 시
         """
         try:
-            # 검색 대상 컬렉션 목록 구성
-            target_collections = []
-            if collection_name:
-                target_collections.append(collection_name)
-            if temp_collection_name:
-                target_collections.append(temp_collection_name)
-
-            # 일상대화 모드 체크 (컬렉션이 하나도 없는 경우)
-            is_casual_mode = len(target_collections) == 0
-
-            # 임시 컬렉션 전용 모드 체크 (temp_collection만 있고 collection은 없는 경우)
-            # 사용자가 직접 업로드한 문서만 검색하는 경우 threshold 완화 적용
-            is_temp_only_mode = bool(temp_collection_name) and not collection_name
+            # 검색 파라미터 구성
+            target_collections, is_casual_mode, is_temp_only_mode, initial_top_k = \
+                self._build_retrieval_params(collection_name, temp_collection_name, top_k, use_reranking)
 
             # 검색 시간 측정 시작
             retrieval_start = time.time()
             retrieval_time_ms = None
 
             if is_casual_mode:
-                # 일상대화 모드: 검색 없이 바로 LLM 생성
                 logger.info(f"[RAG] Casual mode stream - skipping retrieval")
-                # 단계 이벤트: 바로 생성 단계로
                 yield f'data: {json.dumps({"type": "stage", "stage": "generate"}, ensure_ascii=False)}\n\n'
                 retrieved_docs = []
             else:
-                # 단계 이벤트: 분석 단계
                 yield f'data: {json.dumps({"type": "stage", "stage": "analyze"}, ensure_ascii=False)}\n\n'
-
-                # 1. Retrieve: 관련 문서 검색
-                # Reranking 사용 시 top_k를 배수만큼 증가
-                initial_top_k = top_k
-                if use_reranking and self.reranker_service:
-                    initial_top_k = top_k * settings.RERANK_TOP_K_MULTIPLIER
-                    logger.info(f"Reranking enabled: expanding top_k from {top_k} to {initial_top_k}")
-
-                # 단계 이벤트: 검색 단계
                 yield f'data: {json.dumps({"type": "stage", "stage": "search"}, ensure_ascii=False)}\n\n'
 
-                # 단일 컬렉션 또는 병합 검색
-                if len(target_collections) == 1:
-                    retrieved_docs = await self.retrieve(
-                        collection_name=target_collections[0],
-                        query=query,
-                        top_k=initial_top_k,
-                        score_threshold=score_threshold,
-                        use_hybrid=use_hybrid
-                    )
-                else:
-                    # 병합 검색: 여러 컬렉션에서 검색 후 합침
-                    logger.info(f"[RAG] Merged search across {len(target_collections)} collections: {target_collections}")
-                    retrieved_docs = await self.retrieve_from_multiple(
-                        collection_names=target_collections,
-                        query=query,
-                        top_k=initial_top_k,
-                        score_threshold=score_threshold,
-                        use_hybrid=use_hybrid
-                    )
+                # 1. Retrieve: 관련 문서 검색
+                retrieved_docs = await self._do_retrieval(
+                    target_collections, query, initial_top_k, score_threshold, use_hybrid
+                )
 
-                # 검색 시간 측정 완료 (리랭킹 전)
                 retrieval_time_ms = int((time.time() - retrieval_start) * 1000)
                 logger.info(f"[RAG] Stream retrieval took {retrieval_time_ms}ms for {len(retrieved_docs)} documents")
 
@@ -917,18 +903,7 @@ class RAGService:
             yield f'data: {json.dumps({"type": "stage", "stage": "generate"}, ensure_ascii=False)}\n\n'
 
             # 2.5. 컬렉션 문서 목록 조회 (프롬프트에 주입용) - [P0-2] 캐시 사용
-            available_documents = []
-            if target_collections:
-                try:
-                    for coll_name in target_collections:
-                        doc_names = await self._get_cached_documents(coll_name)
-                        available_documents.extend(doc_names)
-                    # 중복 제거 (순서 유지)
-                    available_documents = list(dict.fromkeys(available_documents))
-                    # [P2-1] 상세 정보 로그 → DEBUG
-                    logger.debug(f"[RAG-Stream] Available documents for prompt: {len(available_documents)}")
-                except Exception as e:
-                    logger.warning(f"[RAG-Stream] Failed to get document list for prompt: {e}")
+            available_documents = await self._fetch_available_documents(target_collections)
 
             # 3. Generate: 스트리밍 답변 생성 (응답 내용 수집)
             response_parts = []  # 리스트로 수집 (문자열 연결보다 효율적)

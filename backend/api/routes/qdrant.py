@@ -72,6 +72,45 @@ router = APIRouter(
 chunking_service = ChunkingService(base_url=settings.DOCLING_CHUNKING_URL)
 
 
+def _build_chunk_metadata(document_id: int, filename: str, chunks: list) -> list:
+    """청크별 메타데이터 리스트 생성 (upload/upload_stream 공통)"""
+    return [
+        {
+            "document_id": document_id,
+            "filename": filename,
+            "chunk_index": i,
+            "num_tokens": chunk.get('num_tokens', 0),
+            "headings": chunk.get('headings') or []
+        }
+        for i, chunk in enumerate(chunks)
+    ]
+
+
+def _record_upload_history(
+    db: Session,
+    document_id: int,
+    collection_name: str,
+    chunk_count: int,
+    vector_ids: list,
+    upload_status: str,
+    error_message: Optional[str] = None
+):
+    """업로드 이력 저장 (성공/실패 공통)"""
+    try:
+        qdrant_history_crud.create_upload_history(
+            db=db,
+            document_id=document_id,
+            collection_name=collection_name,
+            chunk_count=chunk_count,
+            vector_ids=vector_ids,
+            qdrant_url=settings.QDRANT_URL,
+            upload_status=upload_status,
+            error_message=error_message
+        )
+    except Exception:
+        pass
+
+
 @router.get("/config", response_model=QdrantConfigResponse)
 async def get_qdrant_config(
     current_user: User = Depends(get_current_active_user)
@@ -671,7 +710,7 @@ async def upload_documents(
                     failure_count += 1
                     continue
 
-                print(f"[INFO] Processing document {document_id}: {document.original_filename}")
+                logger.info(f"Processing document {document_id}: {document.original_filename}")
 
                 # 2. Markdown 청킹
                 chunks = await chunking_service.chunk_markdown(
@@ -691,10 +730,8 @@ async def upload_documents(
                     failure_count += 1
                     continue
 
-                # 3. 청크 텍스트 추출
+                # 3. 청크 텍스트 추출 및 임베딩 생성
                 chunk_texts = [chunk.get('text', '') for chunk in chunks]
-
-                # 4. 임베딩 생성
                 embeddings = await embedding_service.get_embeddings(chunk_texts)
 
                 if len(embeddings) != len(chunk_texts):
@@ -707,18 +744,8 @@ async def upload_documents(
                     failure_count += 1
                     continue
 
-                # 5. 메타데이터 생성
-                metadata_list = []
-                for i, chunk in enumerate(chunks):
-                    metadata_list.append({
-                        "document_id": document_id,
-                        "filename": document.original_filename,
-                        "chunk_index": i,
-                        "num_tokens": chunk.get('num_tokens', 0),
-                        "headings": chunk.get('headings') or []  # None 안전 처리
-                    })
-
-                # 6. Qdrant에 벡터 업로드
+                # 4. 메타데이터 생성 및 Qdrant 업로드
+                metadata_list = _build_chunk_metadata(document_id, document.original_filename, chunks)
                 vector_ids = await qdrant_service.upsert_vectors(
                     collection_name=request.collection_name,
                     vectors=embeddings,
@@ -726,18 +753,12 @@ async def upload_documents(
                     metadata_list=metadata_list
                 )
 
-                # 7. 업로드 이력 저장
-                qdrant_history_crud.create_upload_history(
-                    db=db,
-                    document_id=document_id,
-                    collection_name=request.collection_name,
-                    chunk_count=len(chunks),
-                    vector_ids=vector_ids,
-                    qdrant_url=settings.QDRANT_URL,
-                    upload_status="success"
+                # 5. 업로드 이력 저장
+                _record_upload_history(
+                    db, document_id, request.collection_name,
+                    len(chunks), vector_ids, "success"
                 )
 
-                # 성공 결과 추가
                 results.append(QdrantUploadResult(
                     document_id=document_id,
                     filename=document.original_filename,
@@ -746,28 +767,15 @@ async def upload_documents(
                     vector_ids=vector_ids
                 ))
                 success_count += 1
-
-                print(f"[INFO] Successfully uploaded document {document_id} with {len(chunks)} chunks")
+                logger.info(f"Successfully uploaded document {document_id} with {len(chunks)} chunks")
 
             except Exception as e:
-                print(f"[ERROR] Failed to upload document {document_id}: {e}")
-
-                # 실패 이력 저장
-                try:
-                    document = document_crud.get_document_by_id(db, document_id)
-                    qdrant_history_crud.create_upload_history(
-                        db=db,
-                        document_id=document_id,
-                        collection_name=request.collection_name,
-                        chunk_count=0,
-                        vector_ids=[],
-                        qdrant_url=settings.QDRANT_URL,
-                        upload_status="failure",
-                        error_message=str(e)
-                    )
-                except:
-                    pass
-
+                logger.error(f"Failed to upload document {document_id}: {e}")
+                document = document_crud.get_document_by_id(db, document_id)
+                _record_upload_history(
+                    db, document_id, request.collection_name,
+                    0, [], "failure", error_message=str(e)
+                )
                 results.append(QdrantUploadResult(
                     document_id=document_id,
                     filename=document.original_filename if document else "Unknown",
@@ -786,7 +794,7 @@ async def upload_documents(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[ERROR] Upload process failed: {e}")
+        logger.error(f"Upload process failed: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"업로드 프로세스 실패: {str(e)}"
@@ -953,18 +961,7 @@ async def upload_documents_stream(
                         failure_count=failure_count
                     ))
 
-                    # 메타데이터 생성
-                    metadata_list = []
-                    for i, chunk in enumerate(chunks):
-                        metadata_list.append({
-                            "document_id": document_id,
-                            "filename": filename,
-                            "chunk_index": i,
-                            "num_tokens": chunk.get('num_tokens', 0),
-                            "headings": chunk.get('headings') or []
-                        })
-
-                    # Qdrant에 벡터 업로드
+                    metadata_list = _build_chunk_metadata(document_id, filename, chunks)
                     vector_ids = await qdrant_service.upsert_vectors(
                         collection_name=request.collection_name,
                         vectors=embeddings,
@@ -972,15 +969,9 @@ async def upload_documents_stream(
                         metadata_list=metadata_list
                     )
 
-                    # 업로드 이력 저장
-                    qdrant_history_crud.create_upload_history(
-                        db=db,
-                        document_id=document_id,
-                        collection_name=request.collection_name,
-                        chunk_count=len(chunks),
-                        vector_ids=vector_ids,
-                        qdrant_url=settings.QDRANT_URL,
-                        upload_status="success"
+                    _record_upload_history(
+                        db, document_id, request.collection_name,
+                        len(chunks), vector_ids, "success"
                     )
 
                     success_count += 1
@@ -1009,22 +1000,11 @@ async def upload_documents_stream(
 
                 except Exception as e:
                     logger.error(f"Failed to upload document {document_id}: {e}")
-
-                    # 실패 이력 저장
-                    try:
-                        document = document_crud.get_document_by_id(db, document_id)
-                        qdrant_history_crud.create_upload_history(
-                            db=db,
-                            document_id=document_id,
-                            collection_name=request.collection_name,
-                            chunk_count=0,
-                            vector_ids=[],
-                            qdrant_url=settings.QDRANT_URL,
-                            upload_status="failure",
-                            error_message=str(e)
-                        )
-                    except:
-                        pass
+                    document = document_crud.get_document_by_id(db, document_id)
+                    _record_upload_history(
+                        db, document_id, request.collection_name,
+                        0, [], "failure", error_message=str(e)
+                    )
 
                     failure_count += 1
                     results.append(QdrantUploadResult(

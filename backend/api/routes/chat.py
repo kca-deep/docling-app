@@ -1203,249 +1203,127 @@ class DirectExportRequest(BaseModel):
     title: Optional[str] = None
 
 
-@router.post("/export/excel")
-async def export_to_excel_direct(request: DirectExportRequest):
+# 형식별 내보내기 설정 레지스트리
+_EXPORT_FORMATS = {
+    "excel": {
+        "export_fn": lambda content, filename, title: chat_excel_export_service.export_to_excel(data=content, filename=filename),
+        "extension": ".xlsx",
+        "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "default_filename": "export",
+        "default_title": None,
+        "label": "엑셀 파일",
+        "error_label": "엑셀 내보내기 실패",
+    },
+    "docx": {
+        "export_fn": lambda content, filename, title: chat_docx_export_service.export_to_docx(content=content, title=title, filename=filename),
+        "extension": ".docx",
+        "content_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "default_filename": "document",
+        "default_title": "문서",
+        "label": "Word 문서",
+        "error_label": "Word 문서 내보내기 실패",
+    },
+    "pdf": {
+        "export_fn": lambda content, filename, title: chat_pdf_export_service.export_to_pdf(content=content, title=title, filename=filename),
+        "extension": ".pdf",
+        "content_type": "application/pdf",
+        "default_filename": "document",
+        "default_title": "PDF 문서",
+        "label": "PDF 파일",
+        "error_label": "PDF 내보내기 실패",
+    },
+    "md": {
+        "export_fn": lambda content, filename, title: chat_text_export_service.export_to_markdown(content=content, filename=filename, title=title),
+        "extension": ".md",
+        "content_type": "text/markdown; charset=utf-8",
+        "default_filename": "export",
+        "default_title": None,
+        "label": "마크다운 파일",
+        "error_label": "마크다운 내보내기 실패",
+    },
+    "txt": {
+        "export_fn": lambda content, filename, title: chat_text_export_service.export_to_text(content=content, filename=filename, title=title),
+        "extension": ".txt",
+        "content_type": "text/plain; charset=utf-8",
+        "default_filename": "export",
+        "default_title": None,
+        "label": "텍스트 파일",
+        "error_label": "텍스트 내보내기 실패",
+    },
+}
+
+
+async def _handle_direct_export(format_key: str, request: DirectExportRequest) -> dict:
     """
-    콘텐츠를 직접 Excel 파일로 내보내기
+    직접 내보내기 공통 핸들러
 
     Args:
-        request: 내보내기 요청 (content, filename)
+        format_key: 형식 키 (excel, docx, pdf, md, txt)
+        request: 내보내기 요청
 
     Returns:
         dict: 파일 ID 및 파일명
     """
+    fmt = _EXPORT_FORMATS[format_key]
+
+    if not request.content or not request.content.strip():
+        raise HTTPException(status_code=400, detail="내보낼 내용이 없습니다.")
+
+    filename = request.filename or fmt["default_filename"]
+    title = request.title or fmt["default_title"]
+
     try:
-        if not request.content or not request.content.strip():
-            raise HTTPException(status_code=400, detail="내보낼 내용이 없습니다.")
+        file_bytes = fmt["export_fn"](request.content, filename, title)
 
-        filename = request.filename or "export"
-
-        # 엑셀 생성
-        excel_bytes = chat_excel_export_service.export_to_excel(
-            data=request.content,
-            filename=filename
-        )
-
-        # 파일 저장소에 저장
-        full_filename = f"{filename}.xlsx"
+        full_filename = f"{filename}{fmt['extension']}"
         file_id = file_storage.store(
             filename=full_filename,
-            content=excel_bytes,
-            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            content=file_bytes,
+            content_type=fmt["content_type"]
         )
 
         return {
             "success": True,
             "file_id": file_id,
             "filename": full_filename,
-            "message": f"엑셀 파일 '{full_filename}'이(가) 생성되었습니다."
+            "message": f"{fmt['label']} '{full_filename}'이(가) 생성되었습니다."
         }
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"[DIRECT EXPORT] Excel export failed: {e}")
+        logger.error(f"[DIRECT EXPORT] {format_key} export failed: {e}")
         raise HTTPException(
             status_code=500,
-            detail=get_http_error_detail(e, "export", "엑셀 내보내기 실패")
+            detail=get_http_error_detail(e, "export", fmt["error_label"])
         )
+
+
+@router.post("/export/excel")
+async def export_to_excel_direct(request: DirectExportRequest):
+    """콘텐츠를 직접 Excel 파일로 내보내기"""
+    return await _handle_direct_export("excel", request)
 
 
 @router.post("/export/docx")
 async def export_to_docx_direct(request: DirectExportRequest):
-    """
-    콘텐츠를 직접 Word 문서로 내보내기
-
-    Args:
-        request: 내보내기 요청 (content, filename, title)
-
-    Returns:
-        dict: 파일 ID 및 파일명
-    """
-    try:
-        if not request.content or not request.content.strip():
-            raise HTTPException(status_code=400, detail="내보낼 내용이 없습니다.")
-
-        filename = request.filename or "document"
-        title = request.title or "문서"
-
-        # DOCX 생성
-        docx_bytes = chat_docx_export_service.export_to_docx(
-            content=request.content,
-            title=title,
-            filename=filename
-        )
-
-        # 파일 저장소에 저장
-        full_filename = f"{filename}.docx"
-        file_id = file_storage.store(
-            filename=full_filename,
-            content=docx_bytes,
-            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        )
-
-        return {
-            "success": True,
-            "file_id": file_id,
-            "filename": full_filename,
-            "message": f"Word 문서 '{full_filename}'이(가) 생성되었습니다."
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"[DIRECT EXPORT] DOCX export failed: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=get_http_error_detail(e, "export", "Word 문서 내보내기 실패")
-        )
+    """콘텐츠를 직접 Word 문서로 내보내기"""
+    return await _handle_direct_export("docx", request)
 
 
 @router.post("/export/pdf")
 async def export_to_pdf_direct(request: DirectExportRequest):
-    """
-    콘텐츠를 직접 PDF 파일로 내보내기
-
-    Args:
-        request: 내보내기 요청 (content, filename, title)
-
-    Returns:
-        dict: 파일 ID 및 파일명
-    """
-    try:
-        if not request.content or not request.content.strip():
-            raise HTTPException(status_code=400, detail="내보낼 내용이 없습니다.")
-
-        filename = request.filename or "document"
-        title = request.title or "PDF 문서"
-
-        # PDF 생성
-        pdf_bytes = chat_pdf_export_service.export_to_pdf(
-            content=request.content,
-            title=title,
-            filename=filename
-        )
-
-        # 파일 저장소에 저장
-        full_filename = f"{filename}.pdf"
-        file_id = file_storage.store(
-            filename=full_filename,
-            content=pdf_bytes,
-            content_type="application/pdf"
-        )
-
-        return {
-            "success": True,
-            "file_id": file_id,
-            "filename": full_filename,
-            "message": f"PDF 파일 '{full_filename}'이(가) 생성되었습니다."
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"[DIRECT EXPORT] PDF export failed: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=get_http_error_detail(e, "export", "PDF 내보내기 실패")
-        )
+    """콘텐츠를 직접 PDF 파일로 내보내기"""
+    return await _handle_direct_export("pdf", request)
 
 
 @router.post("/export/md")
 async def export_to_md_direct(request: DirectExportRequest):
-    """
-    콘텐츠를 직접 마크다운 파일로 내보내기
-
-    Args:
-        request: 내보내기 요청 (content, filename, title)
-
-    Returns:
-        dict: 파일 ID 및 파일명
-    """
-    try:
-        if not request.content or not request.content.strip():
-            raise HTTPException(status_code=400, detail="내보낼 내용이 없습니다.")
-
-        filename = request.filename or "export"
-        title = request.title
-
-        # 마크다운 생성
-        md_bytes = chat_text_export_service.export_to_markdown(
-            content=request.content,
-            filename=filename,
-            title=title
-        )
-
-        # 파일 저장소에 저장
-        full_filename = f"{filename}.md"
-        file_id = file_storage.store(
-            filename=full_filename,
-            content=md_bytes,
-            content_type="text/markdown; charset=utf-8"
-        )
-
-        return {
-            "success": True,
-            "file_id": file_id,
-            "filename": full_filename,
-            "message": f"마크다운 파일 '{full_filename}'이(가) 생성되었습니다."
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"[DIRECT EXPORT] Markdown export failed: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=get_http_error_detail(e, "export", "마크다운 내보내기 실패")
-        )
+    """콘텐츠를 직접 마크다운 파일로 내보내기"""
+    return await _handle_direct_export("md", request)
 
 
 @router.post("/export/txt")
 async def export_to_txt_direct(request: DirectExportRequest):
-    """
-    콘텐츠를 직접 텍스트 파일로 내보내기
-
-    Args:
-        request: 내보내기 요청 (content, filename, title)
-
-    Returns:
-        dict: 파일 ID 및 파일명
-    """
-    try:
-        if not request.content or not request.content.strip():
-            raise HTTPException(status_code=400, detail="내보낼 내용이 없습니다.")
-
-        filename = request.filename or "export"
-        title = request.title
-
-        # 텍스트 생성 (마크다운 서식 제거)
-        txt_bytes = chat_text_export_service.export_to_text(
-            content=request.content,
-            filename=filename,
-            title=title
-        )
-
-        # 파일 저장소에 저장
-        full_filename = f"{filename}.txt"
-        file_id = file_storage.store(
-            filename=full_filename,
-            content=txt_bytes,
-            content_type="text/plain; charset=utf-8"
-        )
-
-        return {
-            "success": True,
-            "file_id": file_id,
-            "filename": full_filename,
-            "message": f"텍스트 파일 '{full_filename}'이(가) 생성되었습니다."
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"[DIRECT EXPORT] Text export failed: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=get_http_error_detail(e, "export", "텍스트 내보내기 실패")
-        )
+    """콘텐츠를 직접 텍스트 파일로 내보내기"""
+    return await _handle_direct_export("txt", request)
