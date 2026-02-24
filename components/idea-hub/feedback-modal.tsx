@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { toast } from "sonner"
 import {
@@ -15,7 +15,6 @@ import { AnimatedKcaLogo } from "@/components/ui/animated-kca-logo"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { RichTextEditor } from "@/components/ui/rich-text-editor"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Separator } from "@/components/ui/separator"
@@ -23,7 +22,6 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Collapsible,
   CollapsibleContent,
-  CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import {
   Accordion,
@@ -40,10 +38,7 @@ import {
   FileText,
   Building2,
   User,
-  ChevronDown,
-  ChevronUp,
   Copy,
-  RefreshCw,
   Shield,
   Server,
   FileCheck,
@@ -55,95 +50,23 @@ import {
   ClipboardList,
   ChevronRight,
   AlertCircle,
-  HelpCircle,
-  CheckCircle,
-  XCircle,
-  CircleDot,
   Paperclip,
   Download,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { apiEndpoints } from "@/lib/api-config"
-
-// Types
-interface SubmissionInfo {
-  submission_id: string
-  project_name: string
-  department: string
-  manager_name: string
-  requires_review: boolean
-  review_reason?: string
-  created_at: string
-}
-
-interface ChecklistItem {
-  item_number: number
-  item_category: string
-  question: string
-  short_label: string
-  user_answer?: string
-  user_details?: string
-  llm_answer: string
-  llm_confidence: number
-  llm_evidence: string
-  llm_risk_level: string
-  match_status: string
-  final_answer?: string
-  llm_judgment?: string
-  llm_quote?: string
-}
-
-interface AttachmentInfo {
-  id: number
-  original_filename: string
-  file_size: number
-  mime_type?: string
-  extraction_status: string
-  created_at: string
-}
-
-interface ProjectDetail {
-  id: number
-  submission_id: string
-  project_name: string
-  department: string
-  manager_name: string
-  contact?: string
-  email?: string
-  project_description?: string
-  requires_review: boolean
-  review_reason?: string
-  summary?: string
-  used_model?: string
-  status: string
-  created_at: string
-  items: ChecklistItem[]
-  attachments?: AttachmentInfo[]
-}
-
-interface FeedbackData {
-  id?: number
-  submission_id: string
-  security_review_required: boolean | null
-  administrative_security: string
-  technical_security: string
-  overall_opinion: string
-  ai_draft_administrative?: string
-  ai_draft_technical?: string
-  ai_draft_overall?: string
-  status: "draft" | "in_progress" | "completed"
-  created_at?: string
-  updated_at?: string
-  completed_at?: string
-}
-
-interface FeedbackModalProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  submission: SubmissionInfo | null
-  canEdit: boolean
-  onFeedbackUpdated?: () => void
-}
+import type { FeedbackModalProps } from "./feedback-modal-types"
+import { useFeedbackModal } from "./useFeedbackModal"
+import {
+  DRAFT_GENERATION_STEPS,
+  TypingDots,
+  AiDraftToggle,
+  AiDraftCard,
+  RiskLevelIcon,
+  formatFileSize,
+  RiskLevelBadge,
+  AnswerBadge,
+} from "./feedback-modal-components"
 
 export function FeedbackModal({
   open,
@@ -152,321 +75,41 @@ export function FeedbackModal({
   canEdit,
   onFeedbackUpdated,
 }: FeedbackModalProps) {
-  // Form state
-  const [securityReviewRequired, setSecurityReviewRequired] = useState<boolean | null>(null)
-  const [administrativeSecurity, setAdministrativeSecurity] = useState("")
-  const [technicalSecurity, setTechnicalSecurity] = useState("")
-  const [overallOpinion, setOverallOpinion] = useState("")
+  const {
+    // Form state
+    securityReviewRequired, setSecurityReviewRequired,
+    administrativeSecurity, setAdministrativeSecurity,
+    technicalSecurity, setTechnicalSecurity,
+    overallOpinion, setOverallOpinion,
+    // AI draft state
+    aiDraftAdministrative, aiDraftTechnical, aiDraftOverall,
+    // UI state
+    isLoading, isGeneratingDraft, generationStep,
+    isSaving, isCompleting,
+    feedbackStatus, feedbackNotFound,
+    // Project detail
+    showProjectSheet, setShowProjectSheet,
+    projectDetail, isLoadingDetail,
+    // Draft collapsible
+    showDraftAdmin, setShowDraftAdmin,
+    showDraftTech, setShowDraftTech,
+    showDraftOverall, setShowDraftOverall,
+    // Actions
+    loadFeedback, handleGenerateDraft, handleSave, handleComplete,
+    applyDraft, copyToClipboard,
+  } = useFeedbackModal({
+    submissionId: submission?.submission_id,
+    canEdit,
+    onOpenChange,
+    onFeedbackUpdated,
+  })
 
-  // AI draft state
-  const [aiDraftAdministrative, setAiDraftAdministrative] = useState("")
-  const [aiDraftTechnical, setAiDraftTechnical] = useState("")
-  const [aiDraftOverall, setAiDraftOverall] = useState("")
-
-  // UI state
-  const [isLoading, setIsLoading] = useState(false)
-  const [isGeneratingDraft, setIsGeneratingDraft] = useState(false)
-  const [generationStep, setGenerationStep] = useState(0)
-  const [isSaving, setIsSaving] = useState(false)
-  const [isCompleting, setIsCompleting] = useState(false)
-  const [feedbackStatus, setFeedbackStatus] = useState<"draft" | "in_progress" | "completed">("draft")
-  const [feedbackId, setFeedbackId] = useState<number | null>(null)
-  const [feedbackNotFound, setFeedbackNotFound] = useState(false)
-
-  // Project detail sheet state
-  const [showProjectSheet, setShowProjectSheet] = useState(false)
-  const [projectDetail, setProjectDetail] = useState<ProjectDetail | null>(null)
-  const [isLoadingDetail, setIsLoadingDetail] = useState(false)
-
-  // Collapsible state for AI drafts
-  const [showDraftAdmin, setShowDraftAdmin] = useState(false)
-  const [showDraftTech, setShowDraftTech] = useState(false)
-  const [showDraftOverall, setShowDraftOverall] = useState(false)
-
-  // Load existing feedback when modal opens
-  const loadFeedback = useCallback(async () => {
-    if (!submission?.submission_id) return
-
-    setIsLoading(true)
-    try {
-      const endpoint = canEdit
-        ? `${apiEndpoints.selfcheck}/${submission.submission_id}/feedback`
-        : `${apiEndpoints.selfcheck}/${submission.submission_id}/feedback/view`
-
-      const response = await fetch(endpoint, {
-        credentials: "include",
-      })
-
-      if (response.ok) {
-        const data: FeedbackData = await response.json()
-        setSecurityReviewRequired(data.security_review_required)
-        setAdministrativeSecurity(data.administrative_security || "")
-        setTechnicalSecurity(data.technical_security || "")
-        setOverallOpinion(data.overall_opinion || "")
-        setAiDraftAdministrative(data.ai_draft_administrative || "")
-        setAiDraftTechnical(data.ai_draft_technical || "")
-        setAiDraftOverall(data.ai_draft_overall || "")
-        // /feedback/view API는 status 필드가 없음 (완료된 피드백만 반환)
-        // canEdit=false이고 데이터 로드 성공 시 "completed"로 설정
-        setFeedbackStatus(data.status || (canEdit ? "draft" : "completed"))
-        setFeedbackId(data.id || null)
-        setFeedbackNotFound(false)
-      } else if (response.status === 404) {
-        resetForm()
-        if (!canEdit) {
-          // 제안자가 조회하는 경우: 피드백이 아직 작성되지 않음
-          setFeedbackNotFound(true)
-        }
-      } else if (response.status === 403) {
-        if (!canEdit) {
-          // 제안자가 조회하는 경우: 백엔드 에러 메시지 표시
-          const errorData = await response.json().catch(() => ({}))
-          const errorMessage = errorData.detail || "피드백을 조회할 수 없습니다."
-          toast.error(errorMessage)
-          onOpenChange(false)
-        }
-      }
-    } catch (error) {
-      console.error("Failed to load feedback:", error)
-      toast.error("피드백 정보를 불러오는데 실패했습니다.")
-    } finally {
-      setIsLoading(false)
-    }
-  }, [submission?.submission_id, canEdit, onOpenChange])
-
-  // Load project detail for sheet
-  const loadProjectDetail = useCallback(async () => {
-    if (!submission?.submission_id) return
-
-    setIsLoadingDetail(true)
-    try {
-      const response = await fetch(
-        `${apiEndpoints.selfcheck}/${submission.submission_id}`,
-        { credentials: "include" }
-      )
-
-      if (response.ok) {
-        const data: ProjectDetail = await response.json()
-        setProjectDetail(data)
-      } else {
-        toast.error("과제 정보를 불러오는데 실패했습니다.")
-      }
-    } catch (error) {
-      console.error("Failed to load project detail:", error)
-      toast.error("과제 정보를 불러오는데 실패했습니다.")
-    } finally {
-      setIsLoadingDetail(false)
-    }
-  }, [submission?.submission_id])
-
+  // Load feedback when modal opens
   useEffect(() => {
     if (open && submission) {
       loadFeedback()
     }
   }, [open, submission, loadFeedback])
-
-  // Load project detail when sheet opens
-  useEffect(() => {
-    if (showProjectSheet && !projectDetail && submission) {
-      loadProjectDetail()
-    }
-  }, [showProjectSheet, projectDetail, submission, loadProjectDetail])
-
-  const resetForm = () => {
-    setSecurityReviewRequired(null)
-    setAdministrativeSecurity("")
-    setTechnicalSecurity("")
-    setOverallOpinion("")
-    setAiDraftAdministrative("")
-    setAiDraftTechnical("")
-    setAiDraftOverall("")
-    setFeedbackStatus("draft")
-    setFeedbackId(null)
-    setFeedbackNotFound(false)
-  }
-
-  // Generate AI draft
-  const handleGenerateDraft = async () => {
-    if (!submission?.submission_id) return
-
-    setIsGeneratingDraft(true)
-    setGenerationStep(0)
-
-    // 단계별 메시지 순환을 위한 인터벌
-    const stepInterval = setInterval(() => {
-      setGenerationStep((prev) => {
-        if (prev < DRAFT_GENERATION_STEPS.length - 1) {
-          return prev + 1
-        }
-        return prev
-      })
-    }, 3000)
-
-    try {
-      const response = await fetch(
-        `${apiEndpoints.selfcheck}/${submission.submission_id}/feedback/generate`,
-        {
-          method: "POST",
-          credentials: "include",
-        }
-      )
-
-      if (response.ok) {
-        const data = await response.json()
-        setAiDraftAdministrative(data.administrative_security || "")
-        setAiDraftTechnical(data.technical_security || "")
-        setAiDraftOverall(data.overall_opinion || "")
-
-        setShowDraftAdmin(true)
-        setShowDraftTech(true)
-        setShowDraftOverall(true)
-
-        toast.success("AI 초안이 생성되었습니다.")
-      } else {
-        const errorData = await response.json().catch(() => ({}))
-        toast.error(errorData.detail || "AI 초안 생성에 실패했습니다.")
-      }
-    } catch (error) {
-      console.error("Failed to generate draft:", error)
-      toast.error("AI 초안 생성 중 오류가 발생했습니다.")
-    } finally {
-      clearInterval(stepInterval)
-      setIsGeneratingDraft(false)
-      setGenerationStep(0)
-    }
-  }
-
-  // Save feedback
-  const handleSave = async () => {
-    if (!submission?.submission_id) return
-
-    setIsSaving(true)
-    try {
-      const response = await fetch(
-        `${apiEndpoints.selfcheck}/${submission.submission_id}/feedback`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            security_review_required: securityReviewRequired,
-            administrative_security: administrativeSecurity,
-            technical_security: technicalSecurity,
-            overall_opinion: overallOpinion,
-          }),
-        }
-      )
-
-      if (response.ok) {
-        const data = await response.json()
-        setFeedbackStatus(data.status)
-        setFeedbackId(data.id)
-        toast.success("피드백이 저장되었습니다.")
-        onFeedbackUpdated?.()
-      } else {
-        const errorData = await response.json().catch(() => ({}))
-        toast.error(errorData.detail || "피드백 저장에 실패했습니다.")
-      }
-    } catch (error) {
-      console.error("Failed to save feedback:", error)
-      toast.error("피드백 저장 중 오류가 발생했습니다.")
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  // Complete feedback
-  const handleComplete = async () => {
-    if (!submission?.submission_id) return
-
-    if (securityReviewRequired === null) {
-      toast.error("보안성검토절차 필요 여부를 선택해주세요.")
-      return
-    }
-    if (!administrativeSecurity.trim()) {
-      toast.error("관리적 보안내용을 입력해주세요.")
-      return
-    }
-    if (!technicalSecurity.trim()) {
-      toast.error("기술적 보안내용을 입력해주세요.")
-      return
-    }
-    if (!overallOpinion.trim()) {
-      toast.error("종합의견을 입력해주세요.")
-      return
-    }
-
-    setIsCompleting(true)
-    try {
-      const saveResponse = await fetch(
-        `${apiEndpoints.selfcheck}/${submission.submission_id}/feedback`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            security_review_required: securityReviewRequired,
-            administrative_security: administrativeSecurity,
-            technical_security: technicalSecurity,
-            overall_opinion: overallOpinion,
-          }),
-        }
-      )
-
-      if (!saveResponse.ok) {
-        throw new Error("Save failed")
-      }
-
-      const completeResponse = await fetch(
-        `${apiEndpoints.selfcheck}/${submission.submission_id}/feedback/complete`,
-        {
-          method: "POST",
-          credentials: "include",
-        }
-      )
-
-      if (completeResponse.ok) {
-        setFeedbackStatus("completed")
-        toast.success("피드백이 완료되었습니다. 사용자가 이제 조회할 수 있습니다.")
-        onFeedbackUpdated?.()
-        onOpenChange(false)
-      } else {
-        const errorData = await completeResponse.json().catch(() => ({}))
-        toast.error(errorData.detail || "피드백 완료 처리에 실패했습니다.")
-      }
-    } catch (error) {
-      console.error("Failed to complete feedback:", error)
-      toast.error("피드백 완료 처리 중 오류가 발생했습니다.")
-    } finally {
-      setIsCompleting(false)
-    }
-  }
-
-  const applyDraft = (field: "administrative" | "technical" | "overall") => {
-    switch (field) {
-      case "administrative":
-        setAdministrativeSecurity(aiDraftAdministrative)
-        toast.success("관리적 보안내용에 AI 초안이 적용되었습니다.")
-        break
-      case "technical":
-        setTechnicalSecurity(aiDraftTechnical)
-        toast.success("기술적 보안내용에 AI 초안이 적용되었습니다.")
-        break
-      case "overall":
-        setOverallOpinion(aiDraftOverall)
-        toast.success("종합의견에 AI 초안이 적용되었습니다.")
-        break
-    }
-  }
-
-  const copyToClipboard = async (text: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(text)
-      toast.success(`${label} AI 초안이 클립보드에 복사되었습니다.`)
-    } catch {
-      toast.error("클립보드 복사에 실패했습니다.")
-    }
-  }
 
   if (!submission) return null
 
@@ -959,7 +602,7 @@ export function FeedbackModal({
                         </div>
                       </div>
 
-                      {/* Attachments - 기본정보 하단에 배치 */}
+                      {/* Attachments */}
                       {projectDetail.attachments && projectDetail.attachments.length > 0 && (
                         <div className="space-y-4">
                           <h3 className="font-semibold text-sm flex items-center gap-2">
@@ -1167,158 +810,5 @@ export function FeedbackModal({
         </div>
       </DialogContent>
     </Dialog>
-  )
-}
-
-// AI 초안 생성 단계 메시지
-const DRAFT_GENERATION_STEPS = [
-  "과제 내용을 분석하고 있어요",
-  "관리적 보안내용을 작성하고 있어요",
-  "기술적 보안내용을 작성하고 있어요",
-  "종합의견을 정리하고 있어요",
-]
-
-// 타이핑 dots 애니메이션
-function TypingDots() {
-  return (
-    <span className="inline-flex items-center gap-0.5 ml-1">
-      {[0, 1, 2].map((i) => (
-        <motion.span
-          key={i}
-          className="w-1 h-1 rounded-full bg-primary/60"
-          animate={{ opacity: [0.3, 1, 0.3] }}
-          transition={{
-            duration: 1,
-            repeat: Infinity,
-            delay: i * 0.2,
-          }}
-        />
-      ))}
-    </span>
-  )
-}
-
-// Helper Components
-
-function AiDraftToggle({
-  isOpen,
-  onToggle,
-  onApply,
-}: {
-  isOpen: boolean
-  onToggle: () => void
-  onApply: () => void
-}) {
-  return (
-    <div className="flex items-center gap-1">
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={onToggle}
-        className="h-7 px-2 text-xs gap-1 text-blue-600 hover:text-blue-700"
-      >
-        <Sparkles className="h-3 w-3" />
-        AI 초안
-        {isOpen ? (
-          <ChevronUp className="h-3 w-3" />
-        ) : (
-          <ChevronDown className="h-3 w-3" />
-        )}
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={onApply}
-        className="h-7 px-2 text-xs gap-1"
-      >
-        <Copy className="h-3 w-3" />
-        적용
-      </Button>
-    </div>
-  )
-}
-
-function AiDraftCard({
-  content,
-  onCopy,
-}: {
-  content: string
-  onCopy: () => void
-}) {
-  return (
-    <div className="rounded-md border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30 p-3 text-sm">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-medium">
-          <Sparkles className="h-3.5 w-3.5" />
-          AI 초안
-        </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={onCopy}
-          className="h-6 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
-        >
-          <Copy className="h-3 w-3" />
-          복사
-        </Button>
-      </div>
-      <p className="whitespace-pre-wrap text-muted-foreground">
-        {content}
-      </p>
-    </div>
-  )
-}
-
-function RiskLevelIcon({ riskLevel }: { riskLevel: string }) {
-  switch (riskLevel) {
-    case "high":
-      return <AlertTriangle className="h-4 w-4 text-red-500" />
-    case "medium":
-      return <AlertCircle className="h-4 w-4 text-amber-500" />
-    case "low":
-      return <CheckCircle className="h-4 w-4 text-green-500" />
-    default:
-      return <HelpCircle className="h-4 w-4 text-muted-foreground" />
-  }
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function RiskLevelBadge({ level }: { level: string }) {
-  const config: Record<string, { label: string; className: string }> = {
-    high: { label: "높음", className: "text-red-600 bg-red-100 dark:bg-red-950" },
-    medium: { label: "보통", className: "text-amber-600 bg-amber-100 dark:bg-amber-950" },
-    low: { label: "낮음", className: "text-green-600 bg-green-100 dark:bg-green-950" },
-  }
-  const { label, className } = config[level] || { label: level, className: "" }
-
-  return (
-    <span className={cn("px-1.5 py-0.5 rounded text-xs font-medium", className)}>
-      {label}
-    </span>
-  )
-}
-
-function AnswerBadge({ answer }: { answer: string }) {
-  const config: Record<string, { label: string; icon: typeof CheckCircle; className: string }> = {
-    yes: { label: "예", icon: CheckCircle, className: "text-green-600" },
-    no: { label: "아니오", icon: XCircle, className: "text-red-600" },
-    unknown: { label: "미확인", icon: HelpCircle, className: "text-muted-foreground" },
-    need_check: { label: "확인필요", icon: AlertCircle, className: "text-amber-600" },
-  }
-  const { label, icon: Icon, className } = config[answer] || config.unknown
-
-  return (
-    <div className={cn("flex items-center gap-1 text-sm font-medium", className)}>
-      <Icon className="h-3.5 w-3.5" />
-      {label}
-    </div>
   )
 }
