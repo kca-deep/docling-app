@@ -43,7 +43,6 @@ export const apiEndpoints = {
   documentConvert: `${API_BASE_URL}/api/documents/convert`,
 
   // 채팅 관련
-  chat: `${API_BASE_URL}/api/chat`,
   chatStream: `${API_BASE_URL}/api/chat/stream`,
   chatCollections: `${API_BASE_URL}/api/chat/collections`,
 

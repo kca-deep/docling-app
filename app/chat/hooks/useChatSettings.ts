@@ -16,7 +16,6 @@ const DEFAULT_SETTINGS: ChatSettings = {
   topK: 5,
   frequencyPenalty: 0,
   presencePenalty: 0,
-  streamMode: true,
   useReranking: true,
 };
 

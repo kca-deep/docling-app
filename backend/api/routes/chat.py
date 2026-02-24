@@ -8,7 +8,6 @@ import logging
 import uuid
 import time
 from pathlib import Path
-from datetime import datetime
 from typing import Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Request
 from fastapi.responses import StreamingResponse
@@ -16,7 +15,7 @@ from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.middleware.request_tracking import get_tracking_ids
 from backend.utils.client_info import extract_client_info
-from backend.models.schemas import ChatRequest, ChatResponse, RetrievedDocument, RegenerateRequest, DefaultSettingsResponse, ToolResultResponse
+from backend.models.schemas import ChatRequest, RegenerateRequest, DefaultSettingsResponse
 from backend.services.embedding_service import embedding_service
 from backend.services.qdrant_service import qdrant_service
 from backend.services.llm_service import llm_service
@@ -31,9 +30,8 @@ from backend.dependencies.auth import get_current_user_optional
 from backend.models.user import User
 from backend.utils.exaone_utils import clean_thought_tags_simple, is_exaone_model
 from backend.utils.error_handler import get_http_error_detail, get_sse_error_response
-from backend.utils.source_converter import extract_sources_info, convert_docs_to_sources
+from backend.utils.source_converter import extract_sources_info
 from backend.utils.token_counter import count_chat_tokens
-from backend.services.keyword_service import extract_keywords_for_documents
 from backend.services.tool_executor_service import tool_executor, file_storage
 from backend.services.chat_excel_export_service import chat_excel_export_service
 from backend.services.chat_docx_export_service import chat_docx_export_service
@@ -112,13 +110,7 @@ def might_be_export_request(message: str) -> bool:
     """
     내보내기 요청 가능성이 있는지 간단히 확인합니다.
     느슨한 필터로 가능성이 있으면 True를 반환하고, LLM이 최종 판단합니다.
-
-    기존 should_enable_export_tools()의 문제점:
-    - 엄격한 (형식 + 동작) 조합 필수 → "md파일로 다운로드" 같은 케이스 놓침
-
-    개선된 방식:
-    - 힌트 키워드 2개 이상 매칭 시 가능성 있음으로 판단
-    - LLM의 tool description을 통해 최종 판단 위임
+    힌트 키워드 2개 이상 매칭 시 가능성 있음으로 판단합니다.
 
     Args:
         message: 사용자 메시지
@@ -141,10 +133,6 @@ def might_be_export_request(message: str) -> bool:
         logger.debug(f"[EXPORT DETECT] Possible export request detected: {matches} hints matched (threshold: {min_matches})")
 
     return is_possible
-
-
-# 하위 호환성을 위한 별칭 (기존 코드에서 사용 중인 경우)
-should_enable_export_tools = might_be_export_request
 
 
 # ============================================================================
@@ -547,115 +535,11 @@ async def log_chat_interaction_task(
         logger.error(f"로깅 태스크 실패: {e}")
 
 
-@router.post("/", response_model=ChatResponse)
-async def chat(
-    chat_request: ChatRequest,
-    request: Request,
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
-):
-    """
-    RAG 기반 채팅 (Non-streaming)
-
-    Returns:
-        ChatResponse: conversation_id, answer, retrieved_docs, usage
-    """
-    # 공통 컨텍스트 초기화
-    ctx = prepare_chat_context(chat_request, request)
-    log_chat_request(ctx, chat_request, "Non-streaming")
-    logger.info(f"[CHAT API] Client Type: {ctx['client_info'].get('user_agent', 'unknown')[:50]}")
-
-    start_time = time.time()
-
-    try:
-        # RAG 채팅 수행
-        result = await rag_service.chat(
-            collection_name=chat_request.collection_name,
-            query=chat_request.message,
-            model=chat_request.model,
-            reasoning_level=chat_request.reasoning_level,
-            temperature=chat_request.temperature,
-            max_tokens=chat_request.max_tokens,
-            top_p=chat_request.top_p,
-            frequency_penalty=chat_request.frequency_penalty,
-            presence_penalty=chat_request.presence_penalty,
-            top_k=chat_request.top_k,
-            score_threshold=chat_request.score_threshold,
-            chat_history=ctx['chat_history'],
-            use_reranking=chat_request.use_reranking,
-            use_hybrid=chat_request.use_hybrid,
-            temp_collection_name=chat_request.temp_collection_name
-        )
-
-        # 응답 포맷팅 (키워드 추출 포함)
-        raw_docs = result.get("retrieved_docs", [])
-        docs_with_keywords = extract_keywords_for_documents(chat_request.message, raw_docs)
-
-        retrieved_docs = [
-            RetrievedDocument(
-                id=str(doc.get("id", "")),
-                score=doc.get("score", 0.0),
-                text=doc.get("payload", {}).get("text", ""),
-                metadata={k: v for k, v in doc.get("payload", {}).items() if k != "text"},
-                keywords=doc.get("keywords", [])
-            )
-            for doc in docs_with_keywords
-        ]
-
-        # 응답 시간 및 성능 메트릭
-        response_time_ms = int((time.time() - start_time) * 1000)
-        usage_data = result.get("usage") or {}
-        performance_metrics = {
-            "response_time_ms": response_time_ms,
-            "token_count": usage_data.get("total_tokens", 0),
-            "retrieval_time_ms": result.get("retrieval_time_ms")
-        }
-
-        # 백그라운드 태스크로 로깅 추가
-        background_tasks.add_task(
-            log_chat_interaction_task,
-            session_id=ctx['session_id'],
-            conversation_id=ctx['conversation_id'],
-            collection_name=ctx['effective_collection'] or "casual",
-            message=chat_request.message,
-            response_data={
-                "answer": result.get("answer", ""),
-                "retrieved_docs": result.get("retrieved_docs", [])
-            },
-            reasoning_level=chat_request.reasoning_level,
-            model=chat_request.model,
-            llm_params=build_llm_params(chat_request),
-            performance_metrics=performance_metrics,
-            error_info=None,
-            request_id=ctx['tracking_ids'].get("request_id"),
-            trace_id=ctx['tracking_ids'].get("trace_id"),
-            client_info=ctx['client_info']
-        )
-
-        return ChatResponse(
-            session_id=ctx['session_id'],
-            conversation_id=ctx['conversation_id'],
-            answer=result.get("answer", ""),
-            reasoning_content=result.get("reasoning_content"),
-            retrieved_docs=retrieved_docs,
-            usage=result.get("usage")
-        )
-
-    except Exception as e:
-        logger.error(f"[CHAT API] Chat failed: {e}")
-        schedule_error_logging(background_tasks, ctx, chat_request, e, start_time)
-        raise HTTPException(
-            status_code=500,
-            detail=get_http_error_detail(e, "chat", "채팅 처리 실패")
-        )
-
-
 @router.post("/stream")
 async def chat_stream(
     chat_request: ChatRequest,
     request: Request,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
 ):
     """
     RAG 기반 스트리밍 채팅
@@ -670,9 +554,6 @@ async def chat_stream(
     start_time = time.time()
 
     try:
-        # llama.cpp는 스트리밍 모드에서도 delta.reasoning_content를 전송함
-        use_non_streaming_for_reasoning = False
-
         # 스트리밍 제너레이터
         collected_response = {"answer": "", "retrieved_docs": [], "usage": {}, "reasoning_content": ""}
         stream_error_info = None
@@ -680,89 +561,13 @@ async def chat_stream(
         async def generate():
             nonlocal collected_response, stream_error_info
 
-            # GPT-OSS + 추론 모드: non-streaming API 호출 후 simulated streaming
-            if use_non_streaming_for_reasoning:
-                try:
-                    logger.info("[CHAT API] Calling non-streaming API for reasoning_content")
-                    result = await rag_service.chat(
-                        collection_name=chat_request.collection_name,
-                        query=chat_request.message,
-                        model=chat_request.model,
-                        reasoning_level=chat_request.reasoning_level,
-                        temperature=chat_request.temperature,
-                        max_tokens=chat_request.max_tokens,
-                        top_p=chat_request.top_p,
-                        frequency_penalty=chat_request.frequency_penalty,
-                        presence_penalty=chat_request.presence_penalty,
-                        top_k=chat_request.top_k,
-                        score_threshold=chat_request.score_threshold,
-                        chat_history=ctx['chat_history'],
-                        use_reranking=chat_request.use_reranking,
-                        use_hybrid=chat_request.use_hybrid,
-                        temp_collection_name=chat_request.temp_collection_name
-                    )
-
-                    # 검색된 문서 전송 (키워드 추출 포함)
-                    if result.get("retrieved_docs"):
-                        raw_docs = result["retrieved_docs"]
-                        sources_data = extract_keywords_for_documents(chat_request.message, raw_docs)
-                        collected_response["retrieved_docs"] = sources_data
-                        yield f'data: {json.dumps({"sources": sources_data}, ensure_ascii=False)}\n\n'
-
-                    # 답변을 청크로 나눠서 simulated streaming (더 자연스러운 UX)
-                    answer = result.get("answer", "")
-                    collected_response["answer"] = answer
-                    collected_response["usage"] = result.get("usage", {})
-
-                    # 청크 단위로 전송 (약 50자씩)
-                    chunk_size = 50
-                    for i in range(0, len(answer), chunk_size):
-                        chunk_text = answer[i:i + chunk_size]
-                        sse_chunk = {
-                            "id": f"chatcmpl-{uuid.uuid4().hex[:8]}",
-                            "object": "chat.completion.chunk",
-                            "choices": [{
-                                "index": 0,
-                                "delta": {"content": chunk_text},
-                                "finish_reason": None
-                            }]
-                        }
-                        yield f'data: {json.dumps(sse_chunk, ensure_ascii=False)}\n\n'
-                        # 약간의 딜레이를 추가하여 자연스러운 스트리밍 효과 (선택적)
-                        # await asyncio.sleep(0.01)
-
-                    # reasoning_content 전송
-                    reasoning_content = result.get("reasoning_content", "")
-                    if reasoning_content:
-                        collected_response["reasoning_content"] = reasoning_content
-                        logger.info(f"[CHAT API] Sending reasoning_content event ({len(reasoning_content)} chars)")
-                        reasoning_event = {
-                            "type": "reasoning_content",
-                            "reasoning_content": reasoning_content
-                        }
-                        yield f'data: {json.dumps(reasoning_event, ensure_ascii=False)}\n\n'
-
-                    # 완료 신호
-                    yield 'data: [DONE]\n\n'
-                    return
-
-                except Exception as e:
-                    logger.error(f"[CHAT API] Non-streaming fallback failed: {e}")
-                    stream_error_info = {
-                        "error_type": type(e).__name__,
-                        "error_message": str(e)
-                    }
-                    yield get_sse_error_response(e, "stream")
-                    return
-
-            # 일반 스트리밍 모드
             # EXAONE 모델 감지 (llama.cpp가 reasoning_content와 content를 별도 필드로 전송)
             is_exaone = is_exaone_model(chat_request.model)
 
             # Function Calling 도구 활성화 (내보내기 의도가 감지된 경우에만)
             # P2: 요청된 형식의 도구만 선택적 활성화 (토큰 절약 + 혼란 방지)
             mode_name = 'Casual' if ctx['is_casual_mode'] else ('TempDoc' if ctx['is_temp_mode'] else 'RAG')
-            if should_enable_export_tools(chat_request.message):
+            if might_be_export_request(chat_request.message):
                 # 특정 형식이 감지되면 해당 도구만 활성화
                 detected_format = detect_export_format(chat_request.message)
                 if detected_format:
@@ -1040,86 +845,6 @@ async def chat_stream(
         )
 
 
-@router.post("/regenerate", response_model=ChatResponse)
-async def regenerate(
-    request: RegenerateRequest,
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
-):
-    """
-    AI 응답 재생성 (검색 결과 재사용)
-
-    Returns:
-        ChatResponse: 재생성된 응답 (answer, retrieved_docs, usage)
-    """
-    start_time = time.time()
-    session_id = request.session_id or f"regen_{int(time.time() * 1000)}"
-    conversation_id = str(uuid.uuid4())
-    ctx = {"session_id": session_id, "conversation_id": conversation_id}
-
-    try:
-        # 공통 헬퍼로 변환
-        chat_history = convert_chat_history(request.chat_history)
-        retrieved_docs_internal = convert_docs_to_internal(request.retrieved_docs)
-
-        # RAG 생성 수행 (검색 스킵, 생성만 수행)
-        # skip_score_filter=True: 재생성은 이미 검증된 문서 사용, 점수 필터링 비활성화
-        result = await rag_service.generate(
-            query=request.query,
-            retrieved_docs=retrieved_docs_internal,
-            collection_name=request.collection_name,
-            model=request.model,
-            reasoning_level=request.reasoning_level,
-            temperature=request.temperature,
-            max_tokens=request.max_tokens,
-            top_p=request.top_p,
-            frequency_penalty=request.frequency_penalty,
-            presence_penalty=request.presence_penalty,
-            chat_history=chat_history,
-            skip_score_filter=True
-        )
-
-        # 응답 포맷팅
-        answer = result.get("choices", [{}])[0].get("message", {}).get("content", "응답을 생성할 수 없습니다.")
-        response_time_ms = int((time.time() - start_time) * 1000)
-
-        # 로깅 추가
-        background_tasks.add_task(
-            log_chat_interaction_task,
-            session_id=session_id,
-            conversation_id=conversation_id,
-            collection_name=request.collection_name or "regenerate",
-            message=f"[REGENERATE] {request.query}",
-            response_data={"answer": answer, "retrieved_docs": retrieved_docs_internal},
-            reasoning_level=request.reasoning_level,
-            model=request.model,
-            llm_params=build_llm_params(request),
-            performance_metrics={
-                "response_time_ms": response_time_ms,
-                "token_count": (result.get("usage") or {}).get("total_tokens", 0),
-                "retrieval_time_ms": None  # 재생성은 검색 없음
-            },
-            error_info=None,
-            use_reranking=False  # 재생성은 검색을 스킵하므로 리랭킹 미적용
-        )
-
-        return ChatResponse(
-            answer=answer,
-            retrieved_docs=request.retrieved_docs,  # 원본 그대로 반환
-            usage=result.get("usage"),
-            session_id=session_id,
-            conversation_id=conversation_id
-        )
-
-    except Exception as e:
-        logger.error(f"Regenerate failed: {e}")
-        schedule_error_logging(background_tasks, ctx, request, e, start_time)
-        raise HTTPException(
-            status_code=500,
-            detail=get_http_error_detail(e, "regenerate", "응답 재생성 실패")
-        )
-
-
 @router.post("/regenerate/stream")
 async def regenerate_stream(request: RegenerateRequest):
     """
@@ -1242,10 +967,6 @@ async def regenerate_stream(request: RegenerateRequest):
             status_code=500,
             detail=get_http_error_detail(e, "regenerate", "재생성 스트리밍 실패")
         )
-
-
-# 시스템 컬렉션 필터링 패턴 (채팅 목록에서 제외)
-SYSTEM_COLLECTION_PATTERNS = ["selfcheck", "temp_"]
 
 
 def is_system_collection(name: str) -> bool:

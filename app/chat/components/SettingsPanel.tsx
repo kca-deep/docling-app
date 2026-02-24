@@ -30,7 +30,6 @@ interface ChatSettings {
   topK: number;
   frequencyPenalty: number;
   presencePenalty: number;
-  streamMode: boolean;
   useReranking: boolean;
 }
 
@@ -57,26 +56,6 @@ export const SettingsPanel = memo(function SettingsPanel({
     <div className="h-full flex flex-col">
       <ScrollArea className="flex-1">
         <div className="p-3 space-y-3">
-          {/* 스트리밍 모드 */}
-          <div className="flex items-center justify-between">
-            <div className="space-y-0">
-              <Label htmlFor="stream-mode" className="text-xs font-medium">
-                스트리밍 모드
-              </Label>
-              <p className="text-[10px] text-muted-foreground leading-tight">
-                실시간 응답 표시
-              </p>
-            </div>
-            <Switch
-              id="stream-mode"
-              checked={settings.streamMode}
-              onCheckedChange={(checked) =>
-                updateSetting("streamMode", checked)
-              }
-              className="scale-90"
-            />
-          </div>
-
           {/* 재순위 검색 */}
           <div className="flex items-center justify-between">
             <div className="space-y-0">

@@ -222,159 +222,6 @@ export function ChatContainer() {
 
   // 설정 로드, 심층사고 토글, 컬렉션 로드는 커스텀 훅에서 처리됨
 
-  // 메시지 전송 (비스트리밍)
-  const handleNonStreamingSend = useCallback(async (userMessage: Message, quotedMsg: Message | null = null) => {
-    try {
-      // 대화 기록 준비
-      let chatHistory = messages.filter(m => m.role !== "system").slice(-10);
-
-      // 인용 메시지가 있으면 시스템 메시지로 추가
-      if (quotedMsg) {
-        chatHistory = [
-          ...chatHistory,
-          {
-            id: `system_${Date.now()}`,
-            role: "system" as const,
-            content: `사용자가 다음 메시지에 대해 추가 질문합니다:\n\n"${quotedMsg.content.slice(0, 300)}${quotedMsg.content.length > 300 ? '...' : ''}"`,
-            timestamp: new Date(),
-          }
-        ];
-      }
-
-      const response = await fetch(`${API_BASE_URL}/api/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: 'include',
-        body: JSON.stringify({
-          session_id: sessionId,  // 세션 ID 전달
-          collection_name: selectedCollection || null,  // 빈 문자열이면 null로 전송 (일상대화 모드)
-          temp_collection_name: tempCollectionName || null,  // 임시 컬렉션 (문서 업로드용)
-          message: userMessage.content,
-          model: settings.model,
-          reasoning_level: settings.reasoningLevel,
-          temperature: settings.temperature,
-          max_tokens: settings.maxTokens,
-          top_p: settings.topP,
-          frequency_penalty: settings.frequencyPenalty,
-          presence_penalty: settings.presencePenalty,
-          top_k: settings.topK,
-          stream: false,
-          use_reranking: settings.useReranking,
-          chat_history: chatHistory,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`API 오류: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      // 소스 문서 처리 (중복 항목 정리)
-      const sources: Source[] = (data.retrieved_docs || []).map((doc: RetrievedDocument) => {
-        const filename = doc.metadata?.filename;
-        const headings = doc.metadata?.headings;
-        const hasHeadings = headings && headings.length > 0;
-
-        // title: headings가 있으면 사용, 없으면 filename
-        const title = hasHeadings ? headings.join(' > ') : (filename || `문서 ${doc.id}`);
-
-        // section: headings가 있고 filename과 다를 때만 설정 (중복 방지)
-        const section = hasHeadings && headings.join(' > ') !== filename ? headings.join(' > ') : undefined;
-
-        return {
-          id: doc.id,
-          title,
-          content: doc.text,
-          score: doc.score,
-          keywords: doc.keywords,  // 키워드 전달
-          metadata: {
-            file: filename,
-            section,  // title과 중복되지 않도록 조건부 설정
-            chunk_index: doc.metadata?.chunk_index,
-            document_id: doc.metadata?.document_id,
-            num_tokens: doc.metadata?.num_tokens,
-            page: doc.metadata?.page,
-            url: doc.metadata?.url,
-          },
-        };
-      });
-
-      setCurrentSources(sources);
-
-      const aiMessageId = (Date.now() + 1).toString();
-
-      const aiMessage: Message = {
-        id: aiMessageId,
-        role: "assistant",
-        content: data.answer || "응답을 생성할 수 없습니다.",
-        timestamp: new Date(),
-        model: settings.model, // 현재 사용 중인 모델 정보 저장
-        sources: sources,
-        reasoningContent: data.reasoning_content, // GPT-OSS 추론 과정
-        metadata: {
-          tokens: data.usage?.total_tokens,
-          processingTime: data.usage?.processing_time,
-        },
-        regenerationContext: {
-          originalQuery: userMessage.content,
-          collectionName: selectedCollection,
-          settings: { ...settings },
-          retrievedDocs: data.retrieved_docs || [],
-        },
-      };
-
-      setMessages((prev) => [...prev, aiMessage]);
-
-      // 참조문서 패널이 열려있고 새 sources가 있으면 자동 업데이트
-      if (artifactState.isOpen && sources.length > 0) {
-        updateSources(sources, aiMessageId);
-      }
-    } catch (error) {
-      console.error("Error sending message:", error);
-
-      // 네트워크 오류인 경우 재시도 버튼 제공
-      const isNetworkError = error instanceof TypeError && error.message.includes('fetch');
-
-      toast.error(
-        isNetworkError ? "네트워크 오류가 발생했습니다" : "메시지 전송에 실패했습니다",
-        {
-          duration: 8000,
-          action: lastUserMessageRef.current ? {
-            label: "재시도",
-            onClick: () => {
-              // 마지막 에러 메시지 제거
-              setMessages((prev) => {
-                const lastMsg = prev[prev.length - 1];
-                if (lastMsg?.role === "assistant" && lastMsg?.content.includes("오류가 발생했습니다")) {
-                  return prev.slice(0, -1);
-                }
-                return prev;
-              });
-              // 마지막 사용자 메시지로 재시도
-              if (lastUserMessageRef.current) {
-                setInput(lastUserMessageRef.current.content);
-                if (lastUserMessageRef.current.quoted) {
-                  setQuotedMessage(lastUserMessageRef.current.quoted);
-                }
-              }
-            },
-          } : undefined,
-        }
-      );
-
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: "죄송합니다. 오류가 발생했습니다. 다시 시도해주세요.",
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [messages, selectedCollection, tempCollectionName, settings, artifactState.isOpen, updateSources]);
-
   // Function Calling: 파일 다운로드 트리거
   const triggerDownload = useCallback(async (fileId: string, filename: string) => {
     try {
@@ -790,12 +637,8 @@ export function ChatContainer() {
     const currentQuoted = quotedMessage;
     setQuotedMessage(null); // 전송 후 인용 초기화
 
-    if (settings.streamMode) {
-      await handleStreamingSend(userMessage, currentQuoted);
-    } else {
-      await handleNonStreamingSend(userMessage, currentQuoted);
-    }
-  }, [input, quotedMessage, settings.streamMode, handleStreamingSend, handleNonStreamingSend]);
+    await handleStreamingSend(userMessage, currentQuoted);
+  }, [input, quotedMessage, handleStreamingSend]);
 
   const handleClearChat = useCallback(() => {
     setMessages([]);
@@ -1104,7 +947,7 @@ export function ChatContainer() {
             <MessageList
               messages={messages}
               isLoading={isLoading}
-              isStreaming={settings.streamMode}
+              isStreaming={true}
               onRegenerate={handleRegenerate}
               onQuote={handleQuote}
               collectionName={selectedCollection}
@@ -1141,7 +984,7 @@ export function ChatContainer() {
             onSettingsChange={setSettings}
             settingsPanelOpen={rightPanelOpen}
             onSettingsPanelChange={setRightPanelOpen}
-            isStreaming={isLoading && settings.streamMode}
+            isStreaming={isLoading}
             onStopStreaming={handleStopStreaming}
             deepThinkingEnabled={deepThinkingEnabled}
             onDeepThinkingChange={setDeepThinkingEnabled}

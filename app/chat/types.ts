@@ -94,7 +94,6 @@ export interface ChatSettings {
   topK: number;
   frequencyPenalty: number;
   presencePenalty: number;
-  streamMode: boolean;
   useReranking: boolean;
 }
 
