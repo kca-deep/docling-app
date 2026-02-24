@@ -319,8 +319,8 @@ class HybridLoggingService:
 
             files.append(file_path)
 
-        # 날짜순 정렬
-        return sorted(files, key=lambda p: parse_date_from_filename(p.name.replace(".gz", "")) or datetime.min.date())
+        # 날짜순 정렬 (최신 날짜부터 - 내림차순)
+        return sorted(files, key=lambda p: parse_date_from_filename(p.name.replace(".gz", "")) or datetime.min.date(), reverse=True)
 
     async def read_logs(
         self,

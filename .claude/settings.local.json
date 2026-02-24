@@ -1,9 +1,19 @@
 {
+  "permissions": {
+    "allow": [
+      "mcp__sequential-thinking__sequentialthinking",
+      "Bash(mkdir:*)",
+      "Bash(chmod:*)",
+      "Bash(systemctl status:*)",
+      "Bash(passwd -S:*)",
+      "Bash(cat:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "shadcn",
     "sequential-thinking",
     "context7",
     "playwright"
-  ],
-  "enableAllProjectMcpServers": true
+  ]
 }

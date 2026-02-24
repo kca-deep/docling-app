@@ -133,7 +133,7 @@ interface CollectionInfo {
 }
 
 interface FeedbackSummary {
-  total_feedbacks: number
+  total_count: number
   positive_count: number
   negative_count: number
   positive_rate: number
@@ -241,8 +241,9 @@ export default function AnalyticsPage() {
     try {
       // 최근 질문은 ALL일 때 전체 조회 (collection_name 생략)
       const recentQueriesParams = selectedCollection === "ALL" ? "limit=20" : `collection_name=${selectedCollection}&limit=20`
-      // 피드백 API 파라미터
-      const feedbackParams = selectedCollection === "ALL" ? `days=${days}` : `collection_name=${selectedCollection}&days=${days}`
+      // 피드백 API 파라미터 (date_from, date_to 사용)
+      const feedbackDateParams = `date_from=${format(dateRange.from, "yyyy-MM-dd")}&date_to=${format(dateRange.to, "yyyy-MM-dd")}`
+      const feedbackParams = selectedCollection === "ALL" ? feedbackDateParams : `collection_name=${selectedCollection}&${feedbackDateParams}`
       const [
         summaryRes, timelineRes, heatmapRes, convStatsRes,
         activeRes, recentRes, feedbackSummaryRes, recentNegativeRes
@@ -254,7 +255,7 @@ export default function AnalyticsPage() {
         fetch(`${API_BASE_URL}/api/analytics/active-sessions?minutes=5`, { credentials: 'include' }),
         fetch(`${API_BASE_URL}/api/analytics/recent-queries?${recentQueriesParams}`, { credentials: 'include' }),
         fetch(`${API_BASE_URL}/api/feedback/summary?${feedbackParams}`, { credentials: 'include' }),
-        fetch(`${API_BASE_URL}/api/feedback/recent-negative?${feedbackParams}&limit=10`, { credentials: 'include' })
+        fetch(`${API_BASE_URL}/api/feedback/recent-negative?${selectedCollection === "ALL" ? "" : `collection_name=${selectedCollection}&`}limit=10`, { credentials: 'include' })
       ])
 
       // 결과 처리
@@ -704,7 +705,7 @@ export default function AnalyticsPage() {
           </div>
           <div>
             <span className="text-sm lg:text-lg font-bold tabular-nums block">
-              {feedbackSummary?.total_feedbacks ? `${feedbackSummary.positive_rate.toFixed(0)}%` : "-"}
+              {feedbackSummary?.total_count ? `${feedbackSummary.positive_rate.toFixed(0)}%` : "-"}
             </span>
             <span className="text-[10px] lg:text-xs text-muted-foreground">만족도</span>
           </div>
@@ -1159,15 +1160,15 @@ export default function AnalyticsPage() {
               <CardHeader className="px-6 py-4">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base font-semibold">피드백 현황</CardTitle>
-                  {feedbackSummary && feedbackSummary.total_feedbacks > 0 && (
+                  {feedbackSummary && feedbackSummary.total_count > 0 && (
                     <Badge variant="secondary" className="gap-1.5 px-2.5 py-1 font-normal text-xs">
-                      총 {feedbackSummary.total_feedbacks.toLocaleString()}건
+                      총 {feedbackSummary.total_count.toLocaleString()}건
                     </Badge>
                   )}
                 </div>
               </CardHeader>
               <CardContent className="px-6 pb-6">
-                {feedbackSummary && feedbackSummary.total_feedbacks > 0 ? (
+                {feedbackSummary && feedbackSummary.total_count > 0 ? (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* 긍정/부정 비율 */}
                     <div className="space-y-4">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, KeyboardEvent, memo } from "react";
+import { useState, useRef, useEffect, KeyboardEvent, memo } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -105,13 +105,20 @@ export const InputArea = memo(function InputArea({
 }: InputAreaProps) {
   const [isComposing, setIsComposing] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const prevIsLoadingRef = useRef(isLoading);
 
-  // 자동 포커스 제거 - 모바일에서 키보드가 자동으로 올라오는 문제 방지
-  // useEffect(() => {
-  //   if (!isLoading && !disabled && textareaRef.current) {
-  //     textareaRef.current.focus();
-  //   }
-  // }, [isLoading, disabled]);
+  // 응답 완료 후 데스크톱에서만 입력창 자동 포커스
+  useEffect(() => {
+    const wasLoading = prevIsLoadingRef.current;
+    prevIsLoadingRef.current = isLoading;
+
+    if (wasLoading && !isLoading && textareaRef.current) {
+      const isMobile = window.matchMedia("(pointer: coarse)").matches;
+      if (!isMobile) {
+        textareaRef.current.focus();
+      }
+    }
+  }, [isLoading]);
 
   const handleKeyPress = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     // 한글 입력 중에는 무시

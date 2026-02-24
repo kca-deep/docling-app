@@ -1,8 +1,8 @@
 # /etc/systemd/system/llama-server-qwen3vl-rag.service
-# RAG Mode: ctx=16K, p=2, n=8K
-# v2: KV cache quantization (q8_0) for VRAM reduction
+# RAG Mode: ctx=8K, p=1, n=8K
+# v4: ctx=16K->8K, p=2->1 (media-eval single user), VRAM ~3.5GB
 [Unit]
-Description=Llama.cpp Server - Qwen3-VL 8B (RAG Mode, ctx=16K p=2 n=8K, KV q8_0)
+Description=Llama.cpp Server - Qwen3-VL 8B (RAG Mode, ctx=8K p=1 n=8K, KV q8_0)
 After=network.target
 Wants=network-online.target
 
@@ -16,8 +16,8 @@ ExecStart=/models/llama.cpp/build/bin/llama-server \
   --mmproj /models/qwen3-vl-gguf/mmproj-Qwen3VL-8B-Instruct-Q8_0.gguf \
   --host 0.0.0.0 \
   --port 8084 \
-  --ctx-size 16384 \
-  --parallel 2 \
+  --ctx-size 8192 \
+  --parallel 1 \
   --cont-batching \
   --defrag-thold 0.1 \
   --jinja \

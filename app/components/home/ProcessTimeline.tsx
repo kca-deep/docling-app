@@ -38,7 +38,7 @@ const coreSteps = [
     title: "AI 챗봇",
     description: "RAG + Reranking으로 정확한 답변",
     features: ["멀티 LLM", "스트리밍", "출처 표시"],
-    link: "/chat?fullscreen=true",
+    link: "/chat?fullscreen=true&collection=kca-reguration",
     colorVar: 3,
   },
   {

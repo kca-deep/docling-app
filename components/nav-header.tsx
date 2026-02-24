@@ -148,7 +148,7 @@ export function NavHeader() {
   const workflowItem: NavItem = { href: "/workflow", label: "구성도", icon: Workflow, requiresAuth: false }
 
   // KCA-i 챗봇 아이템
-  const chatItem: NavItem = { href: "/chat?fullscreen=true", label: "KCA-i", icon: MessageSquare, requiresAuth: false }
+  const chatItem: NavItem = { href: "/chat?fullscreen=true&collection=kca-reguration", label: "KCA-i", icon: MessageSquare, requiresAuth: false }
 
   // 임베딩 그룹 (관리자 전용)
   const documentGroup: NavGroup = {

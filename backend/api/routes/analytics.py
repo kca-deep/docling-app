@@ -245,7 +245,7 @@ async def get_logs(
     session_id: Optional[str] = Query(None, description="세션 ID"),
     date_from: Optional[date] = Query(None, description="시작 날짜"),
     date_to: Optional[date] = Query(None, description="종료 날짜"),
-    limit: int = Query(100, ge=1, le=1000, description="조회할 항목 수")
+    limit: int = Query(100, ge=1, le=5000, description="조회할 항목 수")
 ):
     """
     원시 로그 데이터 조회

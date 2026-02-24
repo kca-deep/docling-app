@@ -66,7 +66,7 @@ export function HeroSection({ activeServiceCount, isLoading }: HeroSectionProps)
             시작하기
           </Button>
         </Link>
-        <Link href="/chat?fullscreen=true" className="group flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors px-6 py-3 rounded-full hover:bg-muted/50">
+        <Link href="/chat?fullscreen=true&collection=kca-reguration" className="group flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors px-6 py-3 rounded-full hover:bg-muted/50">
           <span className="font-medium">AI 챗봇 체험</span>
           <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
         </Link>

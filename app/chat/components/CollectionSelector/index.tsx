@@ -48,14 +48,15 @@ export function CollectionSelector({
       koreanName: "자유대화",
       icon: "MessageCircle",
       keywords: ["일상 대화", "RAG 미사용"],
-      priority: 1,
+      priority: 2,
       category: "general",
     },
   }), []);
 
-  // 전체 컬렉션 목록: 자유대화 + priority 순 정렬
+  // 전체 컬렉션 목록: 자유대화 포함 priority 순 정렬
   const allCollections = useMemo(() => {
-    const sorted = [...collectionsWithMetadata].sort((a, b) => {
+    const all = [casualModeCollection, ...collectionsWithMetadata];
+    return all.sort((a, b) => {
       // priority 순 (1 > 2 > 3 > undefined)
       const priorityA = a.metadata.priority ?? 999;
       const priorityB = b.metadata.priority ?? 999;
@@ -65,7 +66,6 @@ export function CollectionSelector({
       const nameB = b.metadata.koreanName || b.name;
       return nameA.localeCompare(nameB, "ko-KR");
     });
-    return [casualModeCollection, ...sorted];
   }, [collectionsWithMetadata, casualModeCollection]);
 
   // 현재 선택된 컬렉션 표시명
