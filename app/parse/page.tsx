@@ -22,9 +22,12 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { CollectionSelector } from "@/components/ui/collection-selector";
 import { QdrantCollection } from "@/app/upload/types";
 import { useFileConversion } from "./hooks/useFileConversion";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
 import type { FileStatus } from "./types";
 
 export default function ParsePage() {
+  const { isReady } = useRequirePermission("documents", "parse");
+  if (!isReady) return null;
   const {
     files, processing, isDragging,
     parseOptions, setParseOptions,

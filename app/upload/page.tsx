@@ -20,6 +20,7 @@ import { QdrantSettingsPanel } from "./components/QdrantSettingsPanel"
 import { UploadResults } from "./components/UploadResults"
 import type { UploadTarget } from "./types"
 import { useUploadPageData } from "./hooks/useUploadPageData"
+import { useRequirePermission } from "@/hooks/useRequirePermission"
 
 // 허용된 탭 값 검증
 const VALID_TABS: UploadTarget[] = ["qdrant", "dify"]
@@ -31,6 +32,7 @@ const getSafeTab = (tab: string | null): UploadTarget => {
 }
 
 function UploadPageContent() {
+  const { isReady } = useRequirePermission("qdrant", "upload")
   const searchParams = useSearchParams()
   const initialTab = getSafeTab(searchParams.get("tab"))
   const initialCollection = searchParams.get("collection")
@@ -66,6 +68,8 @@ function UploadPageContent() {
     // 파생
     isDifyUploadDisabled, isQdrantUploadDisabled,
   } = useUploadPageData({ initialTab, initialCollection })
+
+  if (!isReady) return null
 
   return (
     <PageContainer maxWidth="wide" className="space-y-4">

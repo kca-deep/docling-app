@@ -24,6 +24,7 @@ class UserResponse(BaseModel):
     role: str
     status: str = "approved"
     is_active: bool
+    permissions: Optional[dict] = None
 
     model_config = ConfigDict(from_attributes=True)
 

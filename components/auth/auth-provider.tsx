@@ -96,21 +96,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const status: AuthStatus = await verifyAuth()
 
       if (status.authenticated && status.user) {
-        setUser(status.user)
-
-        // 권한 정보 조회
-        try {
-          const permResponse = await getMyPermissions()
-          setPermissions(permResponse.permissions)
-          // 사용자 객체에도 권한 정보 추가
-          setUser({ ...status.user, permissions: permResponse.permissions })
-        } catch {
-          // 권한 조회 실패 시 기본값 사용
-          const defaultPerms = status.user.role === 'admin'
-            ? getAdminPermissions()
-            : getDefaultPermissions()
-          setPermissions(defaultPerms)
-          setUser({ ...status.user, permissions: defaultPerms })
+        // verifyAuth 응답에 permissions가 포함된 경우 바로 사용
+        if (status.user.permissions) {
+          setPermissions(status.user.permissions)
+          setUser(status.user)
+        } else {
+          // permissions가 없는 경우 별도 조회
+          try {
+            const permResponse = await getMyPermissions()
+            const userWithPerms = { ...status.user, permissions: permResponse.permissions }
+            setPermissions(permResponse.permissions)
+            setUser(userWithPerms)
+          } catch {
+            // 권한 조회 실패 시 기본값 사용
+            const defaultPerms = status.user.role === 'admin'
+              ? getAdminPermissions()
+              : getDefaultPermissions()
+            const userWithPerms = { ...status.user, permissions: defaultPerms }
+            setPermissions(defaultPerms)
+            setUser(userWithPerms)
+          }
         }
       } else {
         setUser(null)
@@ -130,19 +135,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
    */
   const login = useCallback(async (credentials: LoginCredentials) => {
     const loggedInUser = await apiLogin(credentials)
-    setUser(loggedInUser)
 
-    // 로그인 후 권한 정보 조회
-    try {
-      const permResponse = await getMyPermissions()
-      setPermissions(permResponse.permissions)
-      setUser({ ...loggedInUser, permissions: permResponse.permissions })
-    } catch {
-      const defaultPerms = loggedInUser.role === 'admin'
-        ? getAdminPermissions()
-        : getDefaultPermissions()
-      setPermissions(defaultPerms)
-      setUser({ ...loggedInUser, permissions: defaultPerms })
+    // login 응답에 permissions가 포함된 경우 바로 사용
+    if (loggedInUser.permissions) {
+      setPermissions(loggedInUser.permissions)
+      setUser(loggedInUser)
+    } else {
+      // permissions가 없는 경우 별도 조회
+      try {
+        const permResponse = await getMyPermissions()
+        const userWithPerms = { ...loggedInUser, permissions: permResponse.permissions }
+        setPermissions(permResponse.permissions)
+        setUser(userWithPerms)
+      } catch {
+        const defaultPerms = loggedInUser.role === 'admin'
+          ? getAdminPermissions()
+          : getDefaultPermissions()
+        setPermissions(defaultPerms)
+        setUser({ ...loggedInUser, permissions: defaultPerms })
+      }
     }
   }, [])
 

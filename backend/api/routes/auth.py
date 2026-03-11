@@ -108,7 +108,9 @@ async def login(
 
     logger.info(f"User '{user.username}' logged in successfully")
 
-    return UserResponse.model_validate(user)
+    user_response = UserResponse.model_validate(user)
+    user_response.permissions = user.get_permissions()
+    return user_response
 
 
 @router.post("/logout", response_model=MessageResponse)
@@ -143,7 +145,9 @@ async def get_me(
     Returns:
         UserResponse: 현재 로그인된 사용자 정보
     """
-    return UserResponse.model_validate(user)
+    user_response = UserResponse.model_validate(user)
+    user_response.permissions = user.get_permissions()
+    return user_response
 
 
 @router.get("/verify", response_model=AuthStatusResponse)
@@ -164,9 +168,11 @@ async def verify_auth(
     if user is None:
         return AuthStatusResponse(authenticated=False, user=None)
 
+    user_response = UserResponse.model_validate(user)
+    user_response.permissions = user.get_permissions()
     return AuthStatusResponse(
         authenticated=True,
-        user=UserResponse.model_validate(user)
+        user=user_response
     )
 
 

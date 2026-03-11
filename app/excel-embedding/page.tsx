@@ -36,6 +36,7 @@ import { motion } from "framer-motion"
 import { API_BASE_URL } from "@/lib/api-config"
 import { CollectionSelector } from "@/components/ui/collection-selector"
 import { QdrantCollection } from "@/app/upload/types"
+import { useRequirePermission } from "@/hooks/useRequirePermission"
 
 interface ExcelPreviewRow {
   row_index: number
@@ -69,6 +70,7 @@ interface EmbeddingResult {
 }
 
 function ExcelEmbeddingContent() {
+  const { isReady } = useRequirePermission("excel", "upload")
   const searchParams = useSearchParams()
   const initialCollection = searchParams.get("collection")
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -344,6 +346,8 @@ function ExcelEmbeddingContent() {
 
   const isEmbedDisabled = isEmbedding || !selectedCollection || !previewData ||
     (textColumns.length === 0 && (!useTemplate || !textTemplate))
+
+  if (!isReady) return null
 
   return (
     <PageContainer maxWidth="wide" className="space-y-4">
