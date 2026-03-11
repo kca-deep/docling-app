@@ -43,6 +43,13 @@ export function getFileIconInfo(filename: string): FileIconInfo {
         bgColor: "rgba(34, 197, 94, 0.1)",
         label: "Excel",
       };
+    case ".csv":
+      return {
+        icon: Sheet,
+        color: "#22C55E", // green-500
+        bgColor: "rgba(34, 197, 94, 0.1)",
+        label: "CSV",
+      };
     case ".ppt":
     case ".pptx":
       return {

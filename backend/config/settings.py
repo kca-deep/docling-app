@@ -305,6 +305,25 @@ class Settings(BaseSettings):
     TEMP_COLLECTION_TTL_MINUTES: int = 60  # 임시 컬렉션 TTL (분) - 1시간
     TEMP_COLLECTION_CLEANUP_INTERVAL: int = 300  # 정리 스케줄러 실행 간격 (초)
 
+    # ===========================================
+    # Code Interpreter (데이터 분석) 설정
+    # ===========================================
+    CODE_SANDBOX_ENABLED: bool = True
+    CODE_SANDBOX_BASE_DIR: str = "/tmp/code_sandbox"
+    CODE_SANDBOX_TIMEOUT: int = 60  # 코드 실행 타임아웃 (초)
+    CODE_SANDBOX_MAX_MEMORY_MB: int = 2048
+    CODE_SANDBOX_MAX_FILE_SIZE_MB: int = 50
+    CODE_SANDBOX_MAX_CONCURRENT: int = 3
+    CODE_SANDBOX_SESSION_TTL: int = 3600  # 세션 유지 시간 (초)
+    CODE_SANDBOX_MAX_RETRIES: int = 3  # 코드 실행 최대 재시도
+    CODE_SANDBOX_MAX_OUTPUT_CHARS: int = 50000
+    CODE_SANDBOX_CLEANUP_INTERVAL: int = 300  # 만료 세션 정리 간격 (초)
+
+    # 데이터 업로드 설정 (Code Interpreter용)
+    DATA_UPLOAD_MAX_SIZE_MB: int = 20
+    DATA_UPLOAD_MAX_ROWS: int = 100000
+    DATA_UPLOAD_ALLOWED_EXTENSIONS: List[str] = [".xlsx", ".xls", ".csv"]
+
     # === Computed Properties ===
     # [P2-3] cached_property 적용: 반복 접근 시 재계산 방지
 

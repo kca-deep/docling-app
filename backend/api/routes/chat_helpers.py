@@ -8,9 +8,10 @@ Chat 헬퍼 모듈
 """
 import json
 import logging
+import re
 import uuid
 import time
-from typing import Optional, Dict, Any, AsyncGenerator
+from typing import Optional, Dict, Any, AsyncGenerator, List
 
 from fastapi import BackgroundTasks, Request
 
@@ -566,6 +567,347 @@ async def process_tool_calls_stream(
 
         except Exception as followup_error:
             logger.warning(f"[TOOL PROCESSING] Follow-up response failed: {followup_error}")
+
+
+# ============================================================================
+# Code Interpreter: 코드 블록 추출 유틸리티
+# ============================================================================
+
+# ```python 코드 블록 패턴 (대소문자 무관, 줄바꿈 유연)
+_CODE_BLOCK_PATTERN = re.compile(r'```[Pp]y(?:thon)?\s*\r?\n(.*?)```', re.DOTALL)
+# 언어 태그 없는 코드 블록 fallback (import/pd./plt. 등 Python 코드 포함 시)
+_CODE_BLOCK_FALLBACK_PATTERN = re.compile(r'```\s*\r?\n(.*?)```', re.DOTALL)
+_PYTHON_INDICATORS = re.compile(r'(?:^import |^from |^df\b|^pd\.|^plt\.|^print\()', re.MULTILINE)
+
+
+def extract_python_code_blocks(text: str) -> List[str]:
+    """
+    LLM 응답 텍스트에서 ```python 코드 블록 추출
+
+    1차: ```python / ```py / ```Python 패턴 매칭
+    2차: 언어 태그 없는 ``` 블록 중 Python 코드 패턴이 있는 것만 추출
+
+    Args:
+        text: LLM 응답 텍스트
+
+    Returns:
+        List[str]: 추출된 Python 코드 블록 목록
+    """
+    # 1차: 명시적 python 태그 블록
+    blocks = _CODE_BLOCK_PATTERN.findall(text)
+    result = [b.strip() for b in blocks if b.strip()]
+    if result:
+        return result
+
+    # 2차: 태그 없는 코드 블록에서 Python 코드 탐색
+    fallback_blocks = _CODE_BLOCK_FALLBACK_PATTERN.findall(text)
+    for b in fallback_blocks:
+        stripped = b.strip()
+        if stripped and _PYTHON_INDICATORS.search(stripped):
+            result.append(stripped)
+
+    return result
+
+
+# ============================================================================
+# Code Interpreter: 코드 실행 스트림
+# ============================================================================
+
+async def process_code_execution_stream(
+    code: str,
+    description: Optional[str],
+    session_id: str,
+    query: str,
+    model: str,
+    data_context: str,
+    llm_service_instance,
+    is_exaone: bool = False,
+) -> AsyncGenerator[str, None]:
+    """
+    Code Interpreter 코드 실행 및 해석 스트리밍
+
+    코드를 샌드박스에서 실행하고, 결과를 SSE 이벤트로 전송한 후,
+    LLM에 해석을 요청하여 스트리밍합니다.
+    자동 재시도 로직 포함.
+
+    Args:
+        code: 실행할 Python 코드
+        description: 코드 설명
+        session_id: 데이터 세션 ID
+        query: 사용자 원본 질문
+        model: LLM 모델 이름
+        data_context: 데이터 컨텍스트 문자열
+        llm_service_instance: LLM 서비스 인스턴스
+        is_exaone: EXAONE 모델 여부
+
+    Yields:
+        str: SSE 형식 청크
+    """
+    from backend.services.code_sandbox_service import code_sandbox_service
+    from backend.services.data_session_service import data_session_service
+    from backend.config.settings import settings as app_settings
+
+    max_retries = app_settings.CODE_SANDBOX_MAX_RETRIES
+
+    current_code = code
+
+    for attempt in range(1, max_retries + 1):
+        # 코드 실행 시작 이벤트
+        yield f'data: {json.dumps({"type": "code_execution", "status": "running", "code": current_code, "description": description, "attempt": attempt}, ensure_ascii=False)}\n\n'
+
+        # 샌드박스에서 코드 실행
+        result = await code_sandbox_service.execute(current_code, session_id)
+
+        if result.success:
+            # 성공: 코드 출력 이벤트
+            yield f'data: {json.dumps({"type": "code_output", "stdout": result.stdout, "images": result.images, "execution_time_ms": result.execution_time_ms}, ensure_ascii=False)}\n\n'
+            yield f'data: {json.dumps({"type": "code_execution", "status": "success", "attempt": attempt, "execution_time_ms": result.execution_time_ms}, ensure_ascii=False)}\n\n'
+
+            # 해석 단계
+            yield f'data: {json.dumps({"type": "stage", "stage": "interpret"})}\n\n'
+
+            # LLM에 결과 해석 요청
+            interpretation_messages = _build_interpretation_messages(
+                query=query,
+                code=current_code,
+                stdout=result.stdout,
+                has_images=len(result.images) > 0,
+                image_count=len(result.images),
+            )
+
+            interpret_collected = {}
+            async for chunk in llm_service_instance.chat_completion_stream(
+                messages=interpretation_messages,
+                model=model,
+                temperature=0.7,
+                max_tokens=2000,
+            ):
+                interpretation_chunks = process_llm_stream_chunk(
+                    chunk=chunk,
+                    is_exaone=is_exaone,
+                    collected_response=interpret_collected,
+                    log_prefix="[CODE INTERPRET]",
+                    debug_logging=False,
+                )
+                for ic in interpretation_chunks:
+                    yield ic
+
+            break  # 성공 시 루프 종료
+
+        else:
+            # 실패: 에러 이벤트
+            yield f'data: {json.dumps({"type": "code_execution", "status": "error", "error": result.error, "stderr": result.stderr, "attempt": attempt}, ensure_ascii=False)}\n\n'
+
+            if attempt < max_retries:
+                # 재시도: LLM에 수정 요청
+                logger.info(f"[CODE INTERPRETER] Attempt {attempt} failed, requesting code fix. Error: {(result.error or result.stderr or 'unknown')[:200]}")
+
+                retry_messages = _build_retry_messages(
+                    query=query,
+                    original_code=current_code,
+                    error=result.error or result.stderr,
+                    data_context=data_context,
+                )
+
+                # LLM에 수정된 코드 요청 (프롬프트 기반)
+                try:
+                    corrected_response = await llm_service_instance.chat_completion(
+                        messages=retry_messages,
+                        model=model,
+                        temperature=0.2,
+                        max_tokens=4000,
+                    )
+
+                    # 응답 텍스트에서 코드 블록 추출
+                    resp_content = corrected_response.get("choices", [{}])[0].get("message", {}).get("content", "")
+                    code_blocks = extract_python_code_blocks(resp_content)
+                    if code_blocks:
+                        current_code = code_blocks[-1]
+                        logger.info(f"[CODE INTERPRETER] Got corrected code for attempt {attempt + 1}")
+                    else:
+                        logger.warning("[CODE INTERPRETER] Could not extract corrected code from response")
+                        break
+                except Exception as e:
+                    logger.error(f"[CODE INTERPRETER] Failed to get corrected code: {e}")
+                    break
+            else:
+                # 최종 실패
+                yield f'data: {json.dumps({"type": "code_execution", "status": "failed", "attempt": attempt}, ensure_ascii=False)}\n\n'
+
+                # LLM에 사과 메시지 생성 요청
+                failure_messages = _build_failure_messages(
+                    query=query,
+                    error=result.error or result.stderr,
+                )
+
+                failure_collected = {}
+                async for chunk in llm_service_instance.chat_completion_stream(
+                    messages=failure_messages,
+                    model=model,
+                    temperature=0.7,
+                    max_tokens=500,
+                ):
+                    failure_chunks = process_llm_stream_chunk(
+                        chunk=chunk,
+                        is_exaone=is_exaone,
+                        collected_response=failure_collected,
+                        log_prefix="[CODE FAILURE]",
+                        debug_logging=False,
+                    )
+                    for fc in failure_chunks:
+                        yield fc
+
+                # EXAONE 모델이 reasoning_content만 생성하고 answer가 없는 경우 fallback
+                if is_exaone and not failure_collected.get("answer") and failure_collected.get("reasoning_content"):
+                    fallback = failure_collected["reasoning_content"]
+                    logger.info(f"[CODE FAILURE] EXAONE fallback: using reasoning_content ({len(fallback)} chars) as answer")
+                    yield f'data: {json.dumps({"choices": [{"delta": {"content": fallback}, "index": 0}]})}\n\n'
+
+
+def _build_interpretation_messages(
+    query: str,
+    code: str,
+    stdout: str,
+    has_images: bool,
+    image_count: int,
+) -> list:
+    """코드 실행 결과 해석용 LLM 메시지 생성"""
+    image_note = f"\n\n참고: {image_count}개의 차트가 생성되어 사용자에게 표시됩니다." if has_images else ""
+
+    # stdout이 긴 경우 잘림 표시
+    max_stdout = 8000
+    stdout_text = stdout[:max_stdout]
+    if len(stdout) > max_stdout:
+        stdout_text += f"\n... (총 {len(stdout)}자 중 {max_stdout}자까지 표시)"
+
+    return [
+        {
+            "role": "system",
+            "content": (
+                "당신은 데이터 분석 결과를 해석하는 전문가입니다.\n"
+                "코드 실행 결과를 바탕으로 한국어로 설명하세요.\n"
+                "규칙:\n"
+                "- 실행 결과의 표/집계 데이터는 모든 행을 빠짐없이 markdown 표로 포함하세요\n"
+                "- 절대 상위 N개만 요약하거나 일부 행을 생략하지 마세요\n"
+                "- 수치 데이터는 정확하게 인용하세요\n"
+                "- 전체 데이터를 표로 보여준 뒤, 핵심 인사이트를 설명하세요\n"
+                "- 차트가 생성된 경우 차트 내용을 설명하세요\n"
+                "- 추가 분석이 유용할 경우 제안하세요\n"
+                "- 코드를 다시 보여주지 마세요"
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                f"사용자 질문: {query}\n\n"
+                f"실행한 코드:\n```python\n{code}\n```\n\n"
+                f"실행 결과:\n{stdout_text}"
+                f"{image_note}\n\n"
+                f"위 결과를 바탕으로 사용자에게 설명해주세요. "
+                f"실행 결과의 모든 행을 빠짐없이 표로 포함해야 합니다."
+            ),
+        },
+    ]
+
+
+def _build_retry_messages(
+    query: str,
+    original_code: str,
+    error: str,
+    data_context: str,
+) -> list:
+    """코드 수정 요청용 LLM 메시지 생성"""
+    # 에러 라인 컨텍스트 추출
+    error_context = ""
+    if "line " in error:
+        import re as _re
+        line_match = _re.search(r"line (\d+)", error)
+        if line_match:
+            err_line = int(line_match.group(1))
+            code_lines = original_code.split("\n")
+            start = max(0, err_line - 3)
+            end = min(len(code_lines), err_line + 2)
+            context_lines = []
+            for i in range(start, end):
+                marker = ">>>" if i + 1 == err_line else "   "
+                context_lines.append(f"{marker} {i + 1}: {code_lines[i]}")
+            error_context = (
+                f"\n\n에러 위치 (line {err_line} 근처):\n"
+                + "\n".join(context_lines)
+            )
+
+    return [
+        {
+            "role": "system",
+            "content": (
+                "이전 Python 코드 실행이 실패했습니다. 에러를 분석하고 수정된 코드를 "
+                "```python 코드 블록으로 작성하세요.\n\n"
+                "주의사항:\n"
+                "- 절대 import os, import sys, import subprocess를 사용하지 마세요 (보안 차단됨)\n"
+                "- 파일 경로는 문자열 그대로 사용하세요 (os.path 불필요)\n"
+                "- 허용 모듈: pandas, numpy, matplotlib, seaborn, math, statistics, collections, "
+                "re, json, csv, datetime, tabulate\n"
+                "- **반드시 모든 괄호 (), [], {}가 올바르게 열리고 닫히는지 확인**하세요\n"
+                "- 여러 줄에 걸친 함수 호출이나 리스트/딕셔너리는 닫는 괄호를 빠뜨리지 마세요\n"
+                "- f-string 안에서는 = 대입을 사용할 수 없습니다\n"
+                "- **코드 블록을 반드시 ``` 로 닫아주세요**\n\n"
+                f"데이터 정보:\n{data_context[:3000]}"
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                f"질문: {query}\n\n"
+                f"이전 코드:\n```python\n{original_code}\n```\n\n"
+                f"에러:\n{error[:2000]}{error_context}\n\n"
+                f"위 에러를 수정하여 완전한 코드를 ```python 코드 블록으로 작성해주세요. "
+                f"코드의 모든 괄호가 올바르게 닫히는지 반드시 확인하세요."
+            ),
+        },
+    ]
+
+
+def _build_failure_messages(query: str, error: str) -> list:
+    """최종 실패 시 사과 메시지용 LLM 메시지 생성"""
+    return [
+        {
+            "role": "system",
+            "content": (
+                "데이터 분석 코드 실행이 실패했습니다. "
+                "사용자에게 정중하게 상황을 설명하고, "
+                "가능한 해결 방법을 제안하세요. 한국어로 응답하세요."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                f"질문: {query}\n\n"
+                f"에러: {error[:1000]}\n\n"
+                f"위 에러로 인해 분석이 실패했습니다. 사용자에게 안내해주세요."
+            ),
+        },
+    ]
+
+
+def _extract_code_from_response(response: dict) -> Optional[str]:
+    """LLM 응답에서 execute_python_code tool_call의 코드 추출"""
+    try:
+        choices = response.get("choices", [])
+        if not choices:
+            return None
+
+        message = choices[0].get("message", {})
+        tool_calls = message.get("tool_calls", [])
+
+        for tc in tool_calls:
+            func = tc.get("function", {})
+            if func.get("name") == "execute_python_code":
+                args = json.loads(func.get("arguments", "{}"))
+                return args.get("code")
+    except (json.JSONDecodeError, KeyError, IndexError):
+        pass
+
+    return None
 
 
 # ============================================================================

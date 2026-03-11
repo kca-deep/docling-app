@@ -115,6 +115,13 @@ async def lifespan(app: FastAPI):
     # 임시 컬렉션 정리 스케줄러 시작 (백그라운드에서 실행)
     cleanup_task = asyncio.create_task(start_temp_collection_cleanup_scheduler())
 
+    # Code Interpreter 샌드박스 디렉토리 생성 및 세션 정리 스케줄러
+    if settings.CODE_SANDBOX_ENABLED:
+        from pathlib import Path as _Path
+        _Path(settings.CODE_SANDBOX_BASE_DIR).mkdir(parents=True, exist_ok=True)
+        data_cleanup_task = asyncio.create_task(start_data_session_cleanup_scheduler())
+        print(f"[OK] Code sandbox base dir: {settings.CODE_SANDBOX_BASE_DIR}")
+
     # BM25 인덱스 프리로딩 (Cold Start 문제 해결)
     if settings.USE_HYBRID_SEARCH and rag_service.hybrid_search_service:
         try:
@@ -136,6 +143,15 @@ async def lifespan(app: FastAPI):
         print("[OK] Scheduler service stopped")
     except Exception as e:
         print(f"[WARN] Scheduler service shutdown error: {e}")
+
+    # 데이터 세션 정리 스케줄러 중지
+    if settings.CODE_SANDBOX_ENABLED:
+        try:
+            data_cleanup_task.cancel()
+            await asyncio.wait_for(asyncio.shield(data_cleanup_task), timeout=2.0)
+        except (asyncio.CancelledError, asyncio.TimeoutError, NameError):
+            pass
+        print("[OK] Data session cleanup scheduler stopped")
 
     # 임시 컬렉션 정리 스케줄러 중지
     try:
@@ -283,6 +299,34 @@ async def aggregate_pending_statistics():
 
     except Exception as e:
         logger.error(f"Failed to aggregate pending statistics: {e}")
+
+
+async def start_data_session_cleanup_scheduler():
+    """데이터 분석 세션 정리 스케줄러"""
+    try:
+        await asyncio.sleep(15)
+
+        from backend.services.data_session_service import data_session_service
+
+        interval = settings.CODE_SANDBOX_CLEANUP_INTERVAL
+        print(f"[OK] Data session cleanup scheduler started (TTL: {settings.CODE_SANDBOX_SESSION_TTL}s, interval: {interval}s)")
+
+        while True:
+            try:
+                deleted = await data_session_service.cleanup_expired()
+                if deleted > 0:
+                    logger.info(f"Data session cleanup: deleted {deleted} sessions")
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.error(f"Data session cleanup error: {e}")
+
+            await asyncio.sleep(interval)
+
+    except asyncio.CancelledError:
+        logger.info("Data session cleanup scheduler cancelled")
+    except Exception as e:
+        logger.error(f"Failed to start data session cleanup scheduler: {e}")
 
 
 async def start_temp_collection_cleanup_scheduler():

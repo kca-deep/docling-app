@@ -25,13 +25,69 @@ import {
 } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { API_BASE_URL } from "@/lib/api-config";
+import type { CodeExecution } from "../types";
 
 type ExportType = "excel" | "docx" | "pdf" | "md" | "txt";
 
 interface ExportMenuProps {
   messageContent: string;
   messageId: string;
+  codeExecutions?: CodeExecution[];
   disabled?: boolean;
+}
+
+/**
+ * 데이터 분석 결과(코드+실행결과+해석)를 하나의 마크다운 문서로 조합
+ * codeExecutions가 없으면 messageContent를 그대로 반환
+ */
+function buildExportContent(
+  messageContent: string,
+  codeExecutions?: CodeExecution[]
+): string {
+  if (!codeExecutions || codeExecutions.length === 0) {
+    return messageContent;
+  }
+
+  // 성공한 실행만 포함 (없으면 코드가 있는 마지막 실행)
+  const successfulExecs = codeExecutions.filter((e) => e.status === "success");
+  const targetExecs =
+    successfulExecs.length > 0
+      ? successfulExecs
+      : codeExecutions.filter((e) => e.code);
+
+  if (targetExecs.length === 0) {
+    return messageContent;
+  }
+
+  const parts: string[] = [];
+
+  for (const exec of targetExecs) {
+    if (exec.code) {
+      parts.push("## 분석 코드\n");
+      parts.push("```python");
+      parts.push(exec.code);
+      parts.push("```\n");
+    }
+
+    if (exec.stdout && exec.stdout.trim()) {
+      parts.push("## 실행 결과\n");
+      parts.push(exec.stdout);
+      parts.push("");
+    }
+
+    if (exec.images && exec.images.length > 0) {
+      parts.push(
+        `> 차트 ${exec.images.length}개가 생성되었습니다.\n`
+      );
+    }
+  }
+
+  if (messageContent.trim()) {
+    parts.push("## 분석\n");
+    parts.push(messageContent);
+  }
+
+  return parts.join("\n");
 }
 
 const EXPORT_OPTIONS: {
@@ -87,6 +143,7 @@ const EXPORT_OPTIONS: {
 export function ExportMenu({
   messageContent,
   messageId,
+  codeExecutions,
   disabled = false,
 }: ExportMenuProps) {
   const [isExporting, setIsExporting] = useState(false);
@@ -94,7 +151,9 @@ export function ExportMenu({
   const [open, setOpen] = useState(false);
 
   const handleExport = async (type: ExportType) => {
-    if (!messageContent.trim()) {
+    const exportContent = buildExportContent(messageContent, codeExecutions);
+
+    if (!exportContent.trim()) {
       toast.error("내보낼 내용이 없습니다.");
       return;
     }
@@ -111,7 +170,7 @@ export function ExportMenu({
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          content: messageContent,
+          content: exportContent,
           filename: `chat_export_${messageId}`,
         }),
       });
@@ -160,13 +219,15 @@ export function ExportMenu({
   };
 
   const handleCopy = async () => {
-    if (!messageContent.trim()) {
+    const exportContent = buildExportContent(messageContent, codeExecutions);
+
+    if (!exportContent.trim()) {
       toast.error("복사할 내용이 없습니다.");
       return;
     }
 
     try {
-      await navigator.clipboard.writeText(messageContent);
+      await navigator.clipboard.writeText(exportContent);
       toast.success("클립보드에 복사되었습니다.");
       setOpen(false);
     } catch (error) {
@@ -181,14 +242,14 @@ export function ExportMenu({
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+          className="h-6 w-6"
           disabled={disabled || isExporting}
           title="내보내기"
         >
           {isExporting ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-3 w-3 animate-spin" />
           ) : (
-            <Download className="h-4 w-4" />
+            <Download className="h-3 w-3" />
           )}
         </Button>
       </PopoverTrigger>

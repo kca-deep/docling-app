@@ -26,8 +26,12 @@ interface DocumentUploadButtonProps {
   multiple?: boolean;
 }
 
-/** 허용되는 파일 확장자 (엑셀 포함) */
-export const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls"];
+/** 데이터 분석용 파일 확장자 (Excel/CSV) */
+export const DATA_EXTENSIONS = [".xlsx", ".xls", ".csv"];
+/** 문서 RAG용 파일 확장자 (PDF/DOCX/PPTX) */
+export const DOC_EXTENSIONS = [".pdf", ".docx", ".doc", ".pptx", ".ppt"];
+/** 허용되는 파일 확장자 (전체) */
+export const ALLOWED_EXTENSIONS = [...DOC_EXTENSIONS, ...DATA_EXTENSIONS];
 
 /**
  * 문서 업로드 버튼 컴포넌트
@@ -131,7 +135,7 @@ export function DocumentUploadButton({
               ? "문서 처리 중..."
               : isReady
               ? "다른 문서 업로드"
-              : "문서 첨부 (PDF, DOCX, PPTX, Excel)"}
+              : "파일 첨부 (PDF, DOCX, PPTX, Excel, CSV)"}
           </p>
         </TooltipContent>
       </Tooltip>

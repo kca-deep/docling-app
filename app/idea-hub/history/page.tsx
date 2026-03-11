@@ -69,12 +69,15 @@ import {
   ChevronLeft,
   ChevronRight,
   MessageSquare,
+  Send,
+  Pencil,
 } from "lucide-react"
 import { motion } from "framer-motion"
 import { useAuth } from "@/components/auth/auth-provider"
 import { FeedbackModal } from "@/components/idea-hub/feedback-modal"
 import { FeedbackStatusIndicator } from "@/components/idea-hub/feedback-status-badge"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { useSubmissionHistory } from "./hooks/useSubmissionHistory"
 import { ITEMS_PER_PAGE } from "./types"
@@ -95,6 +98,7 @@ const itemVariants = {
 
 export default function HistoryPage() {
   const { user, isAuthenticated, isLoading } = useAuth()
+  const router = useRouter()
   const isAdmin = user?.role === "admin"
   const canWriteFeedback = isAdmin || (user?.permissions?.selfcheck?.feedback === true)
 
@@ -117,6 +121,7 @@ export default function HistoryPage() {
     isDownloading, handleDownloadPdf, handleExcelDownload, handleBulkPdfDownload,
     deleteTarget, setDeleteTarget, showBulkDeleteDialog, setShowBulkDeleteDialog,
     isDeleting, handleDelete, handleBulkDelete,
+    submitTarget, setSubmitTarget, isSubmitting, handleSubmit,
     feedbackModalOpen, setFeedbackModalOpen, selectedSubmission, openFeedbackModal,
     currentPage, setCurrentPage, totalPages,
     startPage, endPage, currentBlock,
@@ -302,6 +307,11 @@ export default function HistoryPage() {
                     <span className="text-muted-foreground">검토 불필요</span>
                     <span className="font-semibold text-green-600">{history.filter((h) => !h.requires_review).length}</span>
                   </motion.div>
+                  <motion.div variants={itemVariants} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-xs">
+                    <Send className="w-3 h-3 text-indigo-500" />
+                    <span className="text-muted-foreground">제출완료</span>
+                    <span className="font-semibold text-indigo-600">{history.filter((h) => h.status === "submitted").length}</span>
+                  </motion.div>
                 </motion.div>
 
                 {/* Bulk Download Buttons */}
@@ -352,23 +362,20 @@ export default function HistoryPage() {
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                    {/* 관리자 전용 삭제 버튼 */}
-                    {isAdmin && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 text-xs gap-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
-                        onClick={() => setShowBulkDeleteDialog(true)}
-                        disabled={isDeleting}
-                      >
-                        {isDeleting ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : (
-                          <Trash2 className="w-3 h-3" />
-                        )}
-                        삭제
-                      </Button>
-                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+                      onClick={() => setShowBulkDeleteDialog(true)}
+                      disabled={isDeleting}
+                    >
+                      {isDeleting ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-3 h-3" />
+                      )}
+                      삭제
+                    </Button>
                   </div>
                 )}
               </div>
@@ -406,6 +413,7 @@ export default function HistoryPage() {
                       <TableHead>담당부서</TableHead>
                       <TableHead>담당자</TableHead>
                       <TableHead className="text-center">검토 대상</TableHead>
+                      <TableHead className="text-center">상태</TableHead>
                       <TableHead className="text-center">피드백</TableHead>
                       <TableHead>진단일시</TableHead>
                       <TableHead className="w-[80px]"></TableHead>
@@ -453,6 +461,19 @@ export default function HistoryPage() {
                           )}
                         </TableCell>
                         <TableCell className="text-center">
+                          {item.status === "submitted" ? (
+                            <Badge variant="default" className="gap-1 bg-blue-600 hover:bg-blue-600">
+                              <Send className="w-3 h-3" />
+                              제출완료
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="gap-1">
+                              <Pencil className="w-3 h-3" />
+                              작성중
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
                           <FeedbackStatusIndicator
                             status={item.feedback_status || "none"}
                             onClick={() => openFeedbackModal(item)}
@@ -489,7 +510,28 @@ export default function HistoryPage() {
                                 <Download className="w-4 h-4" />
                                 PDF 다운로드
                               </DropdownMenuItem>
-                              {isAdmin && (
+                              {/* 수정: 최종제출 전에만 가능 */}
+                              {item.status !== "submitted" && (
+                                <DropdownMenuItem
+                                  className="gap-2"
+                                  onClick={() => router.push(`/idea-hub/selfcheck?edit=${item.submission_id}`)}
+                                >
+                                  <Pencil className="w-4 h-4" />
+                                  수정
+                                </DropdownMenuItem>
+                              )}
+                              {/* 최종제출: completed 상태에서만 가능 */}
+                              {item.status === "completed" && (
+                                <DropdownMenuItem
+                                  className="gap-2 text-blue-600 focus:text-blue-600"
+                                  onClick={() => setSubmitTarget({ id: item.submission_id, name: item.project_name })}
+                                >
+                                  <Send className="w-4 h-4" />
+                                  최종제출
+                                </DropdownMenuItem>
+                              )}
+                              {/* 삭제: 관리자는 항상, 일반 사용자는 피드백 완료 건 제외 */}
+                              {(isAdmin || item.feedback_status !== "completed") && (
                                 <>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem
@@ -540,23 +582,36 @@ export default function HistoryPage() {
                       className="mt-1"
                     />
                     <div className="flex-1 min-w-0 space-y-2">
-                      {/* Header: Project Name + Review Badge */}
+                      {/* Header: Project Name + Badges */}
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
                           <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
                           <span className="font-medium truncate">{item.project_name}</span>
                         </div>
-                        {item.requires_review ? (
-                          <Badge variant="destructive" className="gap-1 shrink-0">
-                            <AlertTriangle className="w-3 h-3" />
-                            검토대상
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary" className="gap-1 shrink-0">
-                            <CheckCircle2 className="w-3 h-3" />
-                            불필요
-                          </Badge>
-                        )}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {item.status === "submitted" ? (
+                            <Badge variant="default" className="gap-1 bg-blue-600 hover:bg-blue-600 text-[10px] px-1.5 py-0">
+                              <Send className="w-2.5 h-2.5" />
+                              제출
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="gap-1 text-[10px] px-1.5 py-0">
+                              <Pencil className="w-2.5 h-2.5" />
+                              작성중
+                            </Badge>
+                          )}
+                          {item.requires_review ? (
+                            <Badge variant="destructive" className="gap-1 shrink-0">
+                              <AlertTriangle className="w-3 h-3" />
+                              검토대상
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="gap-1 shrink-0">
+                              <CheckCircle2 className="w-3 h-3" />
+                              불필요
+                            </Badge>
+                          )}
+                        </div>
                       </div>
 
                       {/* Department + Manager */}
@@ -594,7 +649,27 @@ export default function HistoryPage() {
                             <Download className="w-3.5 h-3.5" />
                             PDF
                           </Button>
-                          {isAdmin && (
+                          {item.status !== "submitted" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs gap-1"
+                              onClick={() => router.push(`/idea-hub/selfcheck?edit=${item.submission_id}`)}
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                          {item.status === "completed" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs gap-1 text-blue-600 hover:text-blue-700"
+                              onClick={() => setSubmitTarget({ id: item.submission_id, name: item.project_name })}
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                          {(isAdmin || item.feedback_status !== "completed") && (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -726,6 +801,42 @@ export default function HistoryPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* 최종제출 확인 다이얼로그 */}
+      <AlertDialog open={!!submitTarget} onOpenChange={() => setSubmitTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>최종제출 확인</AlertDialogTitle>
+            <AlertDialogDescription>
+              &quot;{submitTarget?.name}&quot; 과제를 최종제출하시겠습니까?
+              <br />
+              <span className="text-blue-600 font-medium">
+                최종제출 후에는 내용을 수정할 수 없습니다.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSubmitting}>취소</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-blue-600 hover:bg-blue-700"
+              onClick={() => submitTarget && handleSubmit(submitTarget.id)}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  제출 중...
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4 mr-2" />
+                  최종제출
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* 일괄 삭제 확인 다이얼로그 */}
       <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
         <AlertDialogContent>
@@ -737,6 +848,14 @@ export default function HistoryPage() {
               <span className="text-red-500 font-medium">
                 이 작업은 되돌릴 수 없으며, DB와 벡터 DB에서 모두 삭제됩니다.
               </span>
+              {!isAdmin && (
+                <>
+                  <br />
+                  <span className="text-muted-foreground text-xs">
+                    피드백이 등록완료된 건은 자동으로 건너뜁니다.
+                  </span>
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

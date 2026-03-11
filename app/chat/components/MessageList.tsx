@@ -8,7 +8,7 @@ import { ThinkingIndicator } from "./ThinkingIndicator";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import type { Message, Source } from "../types";
+import type { Message, Source, CodeExecution } from "../types";
 import type { UploadStatus } from "../hooks/useDocumentUpload";
 
 interface MessageListProps {
@@ -52,6 +52,8 @@ export const MessageList = memo(function MessageList({
 }: MessageListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const [userScrolled, setUserScrolled] = useState(false);
+  const userScrolledRef = useRef(false); // programmatic scroll과 구분하기 위한 ref
+  const isAutoScrollingRef = useRef(false); // 프로그래밍 스크롤 중 표시
   const prevLoadingRef = useRef(isLoading);
   const prevMessageCountRef = useRef(messages.length);
 
@@ -70,25 +72,31 @@ export const MessageList = memo(function MessageList({
   // 스크롤 하단으로 이동
   const scrollToBottom = useCallback((smooth = true) => {
     if (parentRef.current) {
+      isAutoScrollingRef.current = true;
       parentRef.current.scrollTo({
         top: parentRef.current.scrollHeight,
         behavior: smooth ? 'smooth' : 'auto',
       });
-      setUserScrolled(false);
+      // 프로그래밍 스크롤 완료 후 플래그 리셋
+      requestAnimationFrame(() => {
+        isAutoScrollingRef.current = false;
+      });
     }
   }, []);
 
-  // 자동 스크롤 - 스트리밍 중이거나 사용자가 수동으로 스크롤하지 않았을 때
+  // 자동 스크롤 - 사용자가 수동으로 스크롤하지 않았을 때만
   useEffect(() => {
-    const shouldAutoScroll = isLoading || !userScrolled;
-    if (shouldAutoScroll) {
+    if (!userScrolledRef.current) {
       scrollToBottom(false);
     }
-  }, [messages, isLoading, userScrolled, scrollToBottom]);
+  }, [messages, isLoading, scrollToBottom]);
 
   // 답변 완료 시 (isLoading: true -> false) 자동 스크롤
   useEffect(() => {
     if (prevLoadingRef.current && !isLoading) {
+      // 로딩 완료 시에만 userScrolled 리셋하고 하단으로 스크롤
+      setUserScrolled(false);
+      userScrolledRef.current = false;
       scrollToBottom(true);
       // sources 렌더링 후 재스크롤 (최소 지연)
       const timer = setTimeout(() => {
@@ -99,32 +107,93 @@ export const MessageList = memo(function MessageList({
     prevLoadingRef.current = isLoading;
   }, [isLoading, scrollToBottom]);
 
-  // 새 메시지 추가 시 자동 스크롤 상태 리셋
+  // 새 메시지(사용자 전송) 추가 시에만 스크롤 리셋
+  // 스트리밍 중 메시지 업데이트(코드 실행 등)에서는 리셋하지 않음
   useEffect(() => {
-    if (messages.length > prevMessageCountRef.current) {
+    if (messages.length > prevMessageCountRef.current && !isLoading) {
+      // 로딩 중이 아닐 때만 리셋 (사용자가 새 메시지를 보낸 경우)
       setUserScrolled(false);
+      userScrolledRef.current = false;
     }
     prevMessageCountRef.current = messages.length;
-  }, [messages.length]);
+  }, [messages.length, isLoading]);
 
-  // 스크롤 이벤트 감지
+  // 스크롤 이벤트 감지 - 사용자의 수동 스크롤만 감지
   useEffect(() => {
     const scrollContainer = parentRef.current;
     if (!scrollContainer) return;
 
     const handleScroll = () => {
+      // 프로그래밍 스크롤은 무시
+      if (isAutoScrollingRef.current) return;
+
       const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
-      const isAtBottom = Math.abs(scrollHeight - clientHeight - scrollTop) < 50;
-      setUserScrolled(!isAtBottom);
+      const isAtBottom = Math.abs(scrollHeight - clientHeight - scrollTop) < 100;
+
+      if (!isAtBottom) {
+        // 사용자가 위로 스크롤함
+        setUserScrolled(true);
+        userScrolledRef.current = true;
+      } else {
+        // 사용자가 하단에 도달함
+        setUserScrolled(false);
+        userScrolledRef.current = false;
+      }
     };
 
     scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
     return () => scrollContainer.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const handleCopy = async (content: string) => {
+  /**
+   * 메시지 전체 복사: codeExecutions가 있으면 코드+출력+해석을 모두 포함
+   */
+  const buildMessageCopyContent = (content: string, codeExecutions?: CodeExecution[]): string => {
+    if (!codeExecutions || codeExecutions.length === 0) {
+      return content;
+    }
+
+    const successfulExecs = codeExecutions.filter((e) => e.status === "success");
+    const targetExecs =
+      successfulExecs.length > 0
+        ? successfulExecs
+        : codeExecutions.filter((e) => e.code);
+
+    if (targetExecs.length === 0) {
+      return content;
+    }
+
+    const parts: string[] = [];
+
+    for (const exec of targetExecs) {
+      if (exec.code) {
+        parts.push("```python");
+        parts.push(exec.code);
+        parts.push("```\n");
+      }
+      if (exec.stdout && exec.stdout.trim()) {
+        parts.push("실행 결과:");
+        parts.push(exec.stdout);
+        parts.push("");
+      }
+      if (exec.images && exec.images.length > 0) {
+        parts.push(`(차트 ${exec.images.length}개 생성됨)\n`);
+      }
+    }
+
+    // 해석 텍스트 추가 (코드 블록 제거 후)
+    const interpretation = content.replace(/```python\s*\n[\s\S]*?```/g, "").trim();
+    if (interpretation) {
+      parts.push(interpretation);
+    }
+
+    return parts.join("\n");
+  };
+
+  const handleCopy = async (content: string, codeExecutions?: CodeExecution[]) => {
     try {
-      await navigator.clipboard.writeText(content);
+      const copyContent = buildMessageCopyContent(content, codeExecutions);
+      await navigator.clipboard.writeText(copyContent);
       toast.success("메시지가 복사되었습니다");
     } catch (error) {
       toast.error("복사에 실패했습니다");
@@ -159,8 +228,9 @@ export const MessageList = memo(function MessageList({
         model={message.model}
         sources={message.sources}
         reasoningContent={message.reasoningContent}
+        codeExecutions={message.codeExecutions}
         metadata={message.metadata}
-        onCopy={() => handleCopy(message.content)}
+        onCopy={() => handleCopy(message.content, message.codeExecutions)}
         onRegenerate={() => handleRegenerate(index)}
         onQuote={() => onQuote?.(message)}
         onOpenArtifact={onOpenArtifact}

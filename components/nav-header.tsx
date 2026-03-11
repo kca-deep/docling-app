@@ -178,9 +178,13 @@ export function NavHeader() {
   const filterItems = (items: NavItem[]) => {
     return items.filter((item) => {
       if (item.requiresAuth && !isAuthenticated) return false
-      if (item.adminOnly && user?.role !== "admin") return false
-      // 권한 기반 필터링 (관리자는 항상 접근 가능)
-      if (item.permission && user?.role !== "admin" && !hasPermission(item.permission.category, item.permission.action)) return false
+      // permission이 정의된 경우 permission 기반으로 접근 제어 (admin은 항상 허용)
+      if (item.permission) {
+        if (user?.role !== "admin" && !hasPermission(item.permission.category, item.permission.action)) return false
+      } else if (item.adminOnly && user?.role !== "admin") {
+        // permission 없이 adminOnly만 설정된 경우 role 체크
+        return false
+      }
       return true
     })
   }
@@ -212,7 +216,11 @@ export function NavHeader() {
     ...settingsGroup.items,
   ].filter((item) => {
     if (item.requiresAuth && !isAuthenticated) return false
-    if (item.adminOnly && user?.role !== "admin") return false
+    if (item.permission) {
+      if (user?.role !== "admin" && !hasPermission(item.permission.category, item.permission.action)) return false
+    } else if (item.adminOnly && user?.role !== "admin") {
+      return false
+    }
     return true
   })
 

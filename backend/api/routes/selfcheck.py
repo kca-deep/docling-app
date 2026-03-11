@@ -16,6 +16,7 @@ from backend.models.user import User
 from backend.models.schemas import (
     SelfCheckAnalyzeRequest,
     SelfCheckAnalyzeResponse,
+    SelfCheckUpdateRequest,
     LLMStatusResponse,
     SelfCheckHistoryResponse,
     SelfCheckDetailResponse,
@@ -164,6 +165,100 @@ async def get_submission(
     )
 
 
+@router.put("/{submission_id}")
+async def update_submission(
+    submission_id: str,
+    request: SelfCheckUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    셀프진단 내용 수정 (본인 소유 + 최종제출 전에만 가능)
+
+    과제 정보 및 체크리스트 사용자 답변을 수정합니다.
+    최종제출(submitted) 상태에서는 수정할 수 없습니다.
+
+    Args:
+        submission_id: 진단 ID (UUID)
+        request: 수정할 내용
+
+    Returns:
+        수정 결과
+    """
+    # 소유권 확인 (관리자는 모든 건 수정 가능)
+    submission = selfcheck_service.get_submission_raw(db, submission_id)
+    if not submission:
+        raise HTTPException(status_code=404, detail="진단 결과를 찾을 수 없습니다")
+
+    if current_user.role != "admin" and submission.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="본인이 신청한 과제만 수정할 수 있습니다")
+
+    if submission.status == "submitted":
+        raise HTTPException(status_code=400, detail="최종제출된 건은 수정할 수 없습니다")
+
+    update_data = request.model_dump(exclude={"checklist_items"}, exclude_none=True)
+
+    success = selfcheck_service.update_submission(
+        db=db,
+        submission_id=submission_id,
+        user_id=submission.user_id,
+        update_data=update_data,
+        checklist_items=request.checklist_items
+    )
+
+    if not success:
+        raise HTTPException(status_code=500, detail="수정에 실패했습니다")
+
+    return {
+        "success": True,
+        "message": f"수정 완료: {submission_id}"
+    }
+
+
+@router.post("/{submission_id}/submit")
+async def submit_submission(
+    submission_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    셀프진단 최종제출 (본인 소유만 가능)
+
+    status를 completed -> submitted로 변경합니다.
+    최종제출 후에는 수정할 수 없습니다.
+
+    Args:
+        submission_id: 진단 ID (UUID)
+
+    Returns:
+        제출 결과
+    """
+    submission = selfcheck_service.get_submission_raw(db, submission_id)
+    if not submission:
+        raise HTTPException(status_code=404, detail="진단 결과를 찾을 수 없습니다")
+
+    if current_user.role != "admin" and submission.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="본인이 신청한 과제만 제출할 수 있습니다")
+
+    if submission.status == "submitted":
+        raise HTTPException(status_code=400, detail="이미 최종제출된 건입니다")
+
+    success = selfcheck_service.submit_submission(
+        db=db,
+        submission_id=submission_id,
+        user_id=submission.user_id
+    )
+
+    if not success:
+        raise HTTPException(status_code=500, detail="최종제출에 실패했습니다")
+
+    return {
+        "success": True,
+        "message": f"최종제출 완료: {submission_id}",
+        "status": "submitted"
+    }
+
+
 @router.delete("/{submission_id}")
 async def delete_submission(
     submission_id: str,
@@ -171,7 +266,10 @@ async def delete_submission(
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    셀프진단 결과 삭제 (관리자 전용)
+    셀프진단 결과 삭제 (관리자 또는 본인)
+
+    - 관리자: 모든 건 삭제 가능
+    - 신청자: 본인 건만 삭제 가능 (단, 피드백 등록완료 건은 삭제 불가)
 
     DB와 Qdrant 양쪽에서 삭제합니다.
 
@@ -181,12 +279,26 @@ async def delete_submission(
     Returns:
         삭제 결과
     """
-    # 관리자 권한 체크
+    # 소유권 및 권한 확인
+    submission = selfcheck_service.get_submission_raw(db, submission_id)
+    if not submission:
+        raise HTTPException(status_code=404, detail="진단 결과를 찾을 수 없습니다")
+
     if current_user.role != "admin":
-        raise HTTPException(
-            status_code=403,
-            detail="관리자만 삭제할 수 있습니다"
-        )
+        # 본인 소유 확인
+        if submission.user_id != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="본인이 신청한 과제만 삭제할 수 있습니다"
+            )
+
+        # 피드백 등록완료 건 삭제 불가
+        feedback_status = selfcheck_service.get_feedback_status(db, submission_id)
+        if feedback_status == "completed":
+            raise HTTPException(
+                status_code=403,
+                detail="보안성검토 피드백이 등록완료된 건은 삭제할 수 없습니다"
+            )
 
     result = await selfcheck_service.delete_submission(
         submission_id=submission_id,
@@ -214,7 +326,10 @@ async def delete_submissions_bulk(
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    셀프진단 결과 일괄 삭제 (관리자 전용)
+    셀프진단 결과 일괄 삭제 (관리자 또는 본인)
+
+    - 관리자: 모든 건 삭제 가능
+    - 신청자: 본인 건만 삭제 가능 (피드백 등록완료 건 제외)
 
     선택된 여러 진단 결과를 DB와 Qdrant에서 삭제합니다.
 
@@ -222,32 +337,60 @@ async def delete_submissions_bulk(
         request: 삭제할 submission_ids 목록
 
     Returns:
-        삭제 결과 (성공/실패 건수)
+        삭제 결과 (성공/실패/건너뛴 건수)
     """
-    # 관리자 권한 체크
-    if current_user.role != "admin":
-        raise HTTPException(
-            status_code=403,
-            detail="관리자만 삭제할 수 있습니다"
-        )
-
     if not request.submission_ids:
         raise HTTPException(
             status_code=400,
             detail="삭제할 항목을 선택해주세요"
         )
 
+    deletable_ids = []
+    skipped = []
+
+    if current_user.role == "admin":
+        deletable_ids = request.submission_ids
+    else:
+        # 일반 사용자: 소유권 + 피드백 상태 확인
+        for sid in request.submission_ids:
+            submission = selfcheck_service.get_submission_raw(db, sid)
+            if not submission:
+                skipped.append({"submission_id": sid, "reason": "존재하지 않는 건"})
+                continue
+            if submission.user_id != current_user.id:
+                skipped.append({"submission_id": sid, "reason": "본인 소유가 아닌 건"})
+                continue
+            feedback_status = selfcheck_service.get_feedback_status(db, sid)
+            if feedback_status == "completed":
+                skipped.append({"submission_id": sid, "reason": "피드백 등록완료된 건"})
+                continue
+            deletable_ids.append(sid)
+
+    if not deletable_ids:
+        return {
+            "success": False,
+            "message": "삭제 가능한 항목이 없습니다",
+            "total": len(request.submission_ids),
+            "deleted": 0,
+            "failed": 0,
+            "skipped": len(skipped),
+            "skipped_details": skipped
+        }
+
     result = await selfcheck_service.delete_submissions_bulk(
-        submission_ids=request.submission_ids,
+        submission_ids=deletable_ids,
         db=db
     )
 
     return {
-        "success": result["failed"] == 0,
-        "message": f"총 {result['total']}건 중 {result['success']}건 삭제 완료",
-        "total": result["total"],
+        "success": result["failed"] == 0 and len(skipped) == 0,
+        "message": f"총 {len(request.submission_ids)}건 중 {result['success']}건 삭제 완료"
+                   + (f", {len(skipped)}건 건너뜀" if skipped else ""),
+        "total": len(request.submission_ids),
         "deleted": result["success"],
-        "failed": result["failed"]
+        "failed": result["failed"],
+        "skipped": len(skipped),
+        "skipped_details": skipped
     }
 
 

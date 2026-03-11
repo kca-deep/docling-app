@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, KeyboardEvent, memo } from "react";
+import { useState, useRef, useEffect, KeyboardEvent, memo, useMemo } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,11 +25,14 @@ import {
   Trash2,
   Settings,
   Brain,
+  FileSpreadsheet,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { DocumentUploadButton } from "./DocumentUploadButton";
 import { DocumentContextBar } from "./DocumentContextBar";
 import { cn } from "@/lib/utils";
-import type { QuotedMessage, Collection, ChatSettings } from "../types";
+import type { QuotedMessage, Collection, ChatSettings, DataSessionInfo } from "../types";
 import type { ProcessingStage } from "../hooks/useDocumentUpload";
 
 
@@ -66,6 +69,107 @@ interface InputAreaProps {
   documentError?: string | null;
   documentFilename?: string;
   onClearDocument?: () => void;
+  // 데이터 분석 세션
+  dataSessionInfo?: DataSessionInfo | null;
+  onClearDataSession?: () => void;
+}
+
+
+// 데이터 분석 컨텍스트 바 (접을 수 있는 기초 통계 포함)
+function DataContextBar({
+  dataSessionInfo,
+  onClear,
+}: {
+  dataSessionInfo: DataSessionInfo;
+  onClear: () => void;
+}) {
+  const [statsExpanded, setStatsExpanded] = useState(false);
+  const sheet = dataSessionInfo.sheets[0];
+  const details = sheet?.columnDetails;
+
+  return (
+    <div className="mb-2 rounded-xl overflow-hidden border border-border/40 bg-muted/30">
+      <div className="flex items-center justify-between px-3 py-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <FileSpreadsheet className="h-4 w-4 text-green-500 flex-shrink-0" />
+          <span className="text-sm font-medium truncate">{dataSessionInfo.filename}</span>
+          <span className="text-xs text-muted-foreground flex-shrink-0">
+            {dataSessionInfo.sheets.map(s => `${s.rows}행 x ${s.columns}열`).join(", ")}
+          </span>
+          <div className="hidden sm:flex items-center gap-1 overflow-hidden">
+            {sheet?.columnNames.slice(0, 6).map((col, i) => (
+              <Badge key={i} variant="secondary" className="text-[0.6rem] px-1 py-0 whitespace-nowrap">
+                {col}
+              </Badge>
+            ))}
+            {(sheet?.columnNames.length ?? 0) > 6 && (
+              <span className="text-xs text-muted-foreground">
+                +{(sheet?.columnNames.length ?? 0) - 6}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {details && details.length > 0 && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={() => setStatsExpanded(!statsExpanded)}
+              title={statsExpanded ? "통계 접기" : "통계 보기"}
+            >
+              {statsExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={onClear}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      {/* 접을 수 있는 기초 통계 요약 */}
+      {statsExpanded && details && details.length > 0 && (
+        <div className="border-t border-border/30 px-3 py-2 max-h-[200px] overflow-y-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-muted-foreground">
+                <th className="text-left py-1 pr-3 font-medium">컬럼</th>
+                <th className="text-left py-1 pr-3 font-medium">타입</th>
+                <th className="text-right py-1 pr-3 font-medium">결측률</th>
+                <th className="text-left py-1 font-medium hidden sm:table-cell">샘플값</th>
+              </tr>
+            </thead>
+            <tbody>
+              {details.map((col, i) => (
+                <tr key={i} className="border-t border-border/20">
+                  <td className="py-1 pr-3 font-medium text-foreground/80 truncate max-w-[120px]">
+                    {col.name}
+                  </td>
+                  <td className="py-1 pr-3 text-muted-foreground">
+                    {col.dtype}
+                  </td>
+                  <td className={cn(
+                    "py-1 pr-3 text-right",
+                    col.nullRatio > 0.5 ? "text-red-500" : col.nullRatio > 0.1 ? "text-amber-500" : "text-muted-foreground"
+                  )}>
+                    {(col.nullRatio * 100).toFixed(0)}%
+                  </td>
+                  <td className="py-1 text-muted-foreground truncate max-w-[200px] hidden sm:table-cell">
+                    {col.sampleValues.slice(0, 3).join(", ")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
 }
 
 
@@ -102,6 +206,9 @@ export const InputArea = memo(function InputArea({
   documentError,
   documentFilename,
   onClearDocument,
+  // 데이터 분석 세션
+  dataSessionInfo,
+  onClearDataSession,
 }: InputAreaProps) {
   const [isComposing, setIsComposing] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -168,6 +275,14 @@ export const InputArea = memo(function InputArea({
           </div>
         )}
 
+        {/* 데이터 분석 컨텍스트 바 */}
+        {dataSessionInfo && onClearDataSession && (
+          <DataContextBar
+            dataSessionInfo={dataSessionInfo}
+            onClear={onClearDataSession}
+          />
+        )}
+
         {/* 문서 컨텍스트 바 - 업로드 중이거나 파일이 있거나 에러가 있을 때 표시 */}
         {(isDocumentUploading || uploadedFilenames.length > 0 || documentError) && onClearDocument && (
           <div className="mb-2 rounded-xl overflow-hidden border border-border/40">
@@ -202,7 +317,9 @@ export const InputArea = memo(function InputArea({
                   ? "문서 처리 중... 완료 후 질문하세요"
                   : isLoading
                     ? "응답 생성 중..."
-                    : "메시지를 입력하세요..."
+                    : dataSessionInfo
+                      ? "이 데이터에 대해 무엇이든 물어보세요..."
+                      : "메시지를 입력하세요..."
               }
               disabled={isLoading || isDocumentUploading}
               className={cn(

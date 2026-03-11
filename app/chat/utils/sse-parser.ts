@@ -15,6 +15,8 @@ export type SSEEventType =
   | "tool_calls"    // Function Calling: LLM이 도구 호출을 요청
   | "tool_result"   // Function Calling: 도구 실행 결과
   | "action"        // Function Calling: 클라이언트 액션 (다운로드 등)
+  | "code_execution" // Code Interpreter: 코드 실행 상태
+  | "code_output"    // Code Interpreter: 코드 실행 출력
   | "unknown";
 
 /**
@@ -49,6 +51,28 @@ export interface ToolResultEvent {
 }
 
 /**
+ * Code Interpreter 코드 실행 이벤트
+ */
+export interface CodeExecutionEvent {
+  status: "running" | "success" | "error" | "failed";
+  code?: string;
+  description?: string;
+  attempt?: number;
+  error?: string;
+  stderr?: string;
+  executionTimeMs?: number;
+}
+
+/**
+ * Code Interpreter 코드 출력 이벤트
+ */
+export interface CodeOutputEvent {
+  stdout?: string;
+  images?: string[];  // base64 인코딩된 이미지
+  executionTimeMs?: number;
+}
+
+/**
  * SSE 이벤트 인터페이스
  */
 export interface SSEEvent {
@@ -63,6 +87,8 @@ export interface SSEEvent {
   toolCalls?: ToolCall[];   // type === "tool_calls" 일 때 도구 호출 목록
   action?: ActionEvent;     // type === "action" 일 때 클라이언트 액션
   toolResult?: ToolResultEvent; // type === "tool_result" 일 때 도구 실행 결과
+  codeExecution?: CodeExecutionEvent;  // type === "code_execution" 일 때 코드 실행 상태
+  codeOutput?: CodeOutputEvent;        // type === "code_output" 일 때 코드 실행 출력
   raw?: any;                // 원본 파싱 데이터
 }
 
@@ -70,8 +96,9 @@ export interface SSEEvent {
  * 파싱된 JSON 데이터를 SSEEvent로 변환
  */
 function parseSSEData(parsed: any): SSEEvent {
-  // 0. error 이벤트 (에러 응답)
-  if (parsed.error) {
+  // 0. error 이벤트 (순수 에러 응답만 처리, type이 있는 이벤트는 해당 핸들러에서 처리)
+  // code_execution 등 typed 이벤트가 error 필드를 포함할 수 있으므로 type이 없는 경우만 가로챔
+  if (parsed.error && !parsed.type) {
     return {
       type: "error",
       error: parsed.error,
@@ -133,6 +160,36 @@ function parseSSEData(parsed: any): SSEEvent {
         message: parsed.message
       },
       raw: parsed
+    };
+  }
+
+  // 6.5. code_execution 이벤트 (Code Interpreter - 코드 실행 상태)
+  if (parsed.type === "code_execution") {
+    return {
+      type: "code_execution",
+      codeExecution: {
+        status: parsed.status,
+        code: parsed.code,
+        description: parsed.description,
+        attempt: parsed.attempt,
+        error: parsed.error,
+        stderr: parsed.stderr,
+        executionTimeMs: parsed.execution_time_ms,
+      },
+      raw: parsed,
+    };
+  }
+
+  // 6.6. code_output 이벤트 (Code Interpreter - 코드 실행 출력)
+  if (parsed.type === "code_output") {
+    return {
+      type: "code_output",
+      codeOutput: {
+        stdout: parsed.stdout,
+        images: parsed.images,
+        executionTimeMs: parsed.execution_time_ms,
+      },
+      raw: parsed,
     };
   }
 

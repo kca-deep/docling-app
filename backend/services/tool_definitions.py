@@ -207,6 +207,45 @@ def get_tool_by_format(format_type: str) -> List[Dict[str, Any]]:
     return []
 
 
+# ============================================================================
+# Code Interpreter 도구 정의
+# ============================================================================
+
+CODE_INTERPRETER_TOOL: Dict[str, Any] = {
+    "type": "function",
+    "function": {
+        "name": "execute_python_code",
+        "description": """Python 코드를 실행하여 데이터를 분석합니다.
+[호출 조건] 사용자가 업로드한 데이터에 대해 분석, 통계, 시각화, 필터링 등을 요청할 때 호출.
+[사용 방법] pandas, numpy, matplotlib, seaborn을 사용하여 데이터를 분석하는 Python 코드를 작성합니다.
+[주의사항]
+- print()로 분석 결과를 출력하세요
+- 차트는 matplotlib/seaborn으로 생성하고 plt.show()를 호출하세요
+- 파일 경로는 시스템 프롬프트에 제공된 경로를 사용하세요
+- pd.read_excel() 또는 pd.read_csv()로 데이터를 로드하세요""",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "description": "실행할 Python 코드"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "코드가 수행하는 작업에 대한 간단한 설명"
+                }
+            },
+            "required": ["code"]
+        }
+    }
+}
+
+
+def get_code_interpreter_tools() -> List[Dict[str, Any]]:
+    """Code Interpreter 도구 목록 반환"""
+    return [CODE_INTERPRETER_TOOL]
+
+
 def get_tool_names() -> List[str]:
     """등록된 모든 도구 이름 반환"""
     return [tool["function"]["name"] for tool in CHAT_EXPORT_TOOLS]

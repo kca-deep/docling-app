@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, memo, useMemo } from "react";
-import { Wand2, Search, FileText, Sparkles, ArrowUpDown } from "lucide-react";
+import { Wand2, Search, FileText, Sparkles, ArrowUpDown, Code2, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ThinkingStage {
@@ -68,6 +68,28 @@ const THINKING_STAGES: ThinkingStage[] = [
       "최적의 응답을 도출 중",
     ],
   },
+  {
+    id: "code_execute",
+    label: "코드실행",
+    icon: Code2,
+    colorVar: "var(--chart-1)",
+    hints: [
+      "Python 코드를 실행 중",
+      "데이터를 분석하는 중",
+      "차트를 생성하는 중",
+    ],
+  },
+  {
+    id: "interpret",
+    label: "해석",
+    icon: MessageSquare,
+    colorVar: "var(--chart-3)",
+    hints: [
+      "분석 결과를 해석하는 중",
+      "인사이트를 정리하는 중",
+      "결과를 요약하는 중",
+    ],
+  },
 ];
 
 // 단계 ID -> 인덱스 매핑
@@ -77,6 +99,8 @@ const STAGE_INDEX_MAP: Record<string, number> = {
   rerank: 2,
   generate: 3,
   reasoning: 4,
+  code_execute: 5,
+  interpret: 6,
 };
 
 // 단계별 진행 시간 (ms) - fallback용

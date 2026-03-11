@@ -233,8 +233,6 @@ export function useSubmissionHistory({ isAuthenticated, isAdmin }: UseSubmission
         })
         setDeleteTarget(null)
         toast.success("삭제되었습니다.")
-      } else if (response.status === 403) {
-        toast.error("관리자만 삭제할 수 있습니다.")
       } else {
         const errorData = await response.json().catch(() => ({}))
         toast.error(errorData.detail || "삭제에 실패했습니다.")
@@ -261,14 +259,20 @@ export function useSubmissionHistory({ isAuthenticated, isAdmin }: UseSubmission
 
       if (response.ok) {
         const result = await response.json()
+        // 삭제된 건만 목록에서 제거 (건너뛴 건은 유지)
+        const deletedIds = new Set(
+          result.skipped_details
+            ? Array.from(selectedIds).filter(
+                (id) => !result.skipped_details.some((s: { submission_id: string }) => s.submission_id === id)
+              )
+            : Array.from(selectedIds)
+        )
         setHistory((prev) =>
-          prev.filter((item) => !selectedIds.has(item.submission_id))
+          prev.filter((item) => !deletedIds.has(item.submission_id))
         )
         setSelectedIds(new Set())
         setShowBulkDeleteDialog(false)
         toast.success(result.message)
-      } else if (response.status === 403) {
-        toast.error("관리자만 삭제할 수 있습니다.")
       } else {
         const errorData = await response.json().catch(() => ({}))
         toast.error(errorData.detail || "삭제에 실패했습니다.")
@@ -278,6 +282,43 @@ export function useSubmissionHistory({ isAuthenticated, isAdmin }: UseSubmission
       toast.error("삭제 중 오류가 발생했습니다.")
     } finally {
       setIsDeleting(false)
+    }
+  }
+
+  // =========================================================
+  // Submit (최종제출)
+  // =========================================================
+
+  const [submitTarget, setSubmitTarget] = useState<{ id: string; name: string } | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleSubmit = async (submissionId: string) => {
+    setIsSubmitting(true)
+    try {
+      const response = await fetch(`${apiEndpoints.selfcheck}/${submissionId}/submit`, {
+        method: "POST",
+        credentials: "include",
+      })
+
+      if (response.ok) {
+        setHistory((prev) =>
+          prev.map((item) =>
+            item.submission_id === submissionId
+              ? { ...item, status: "submitted" }
+              : item
+          )
+        )
+        setSubmitTarget(null)
+        toast.success("최종제출이 완료되었습니다.")
+      } else {
+        const errorData = await response.json().catch(() => ({}))
+        toast.error(errorData.detail || "최종제출에 실패했습니다.")
+      }
+    } catch (error) {
+      console.error("Submit error:", error)
+      toast.error("최종제출 중 오류가 발생했습니다.")
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -353,6 +394,8 @@ export function useSubmissionHistory({ isAuthenticated, isAdmin }: UseSubmission
     // Delete
     deleteTarget, setDeleteTarget, showBulkDeleteDialog, setShowBulkDeleteDialog,
     isDeleting, handleDelete, handleBulkDelete,
+    // Submit
+    submitTarget, setSubmitTarget, isSubmitting, handleSubmit,
     // Feedback
     feedbackModalOpen, setFeedbackModalOpen, selectedSubmission, openFeedbackModal,
     // Pagination

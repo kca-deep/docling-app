@@ -335,6 +335,98 @@ class SelfCheckRepository:
             logger.error(f"[SelfCheck] Failed to save submission: {e}")
             return False
 
+    def get_feedback_status(
+        self,
+        db: Session,
+        submission_id: str
+    ) -> Optional[str]:
+        """해당 submission의 피드백 상태 조회"""
+        feedback = db.query(SelfCheckFeedback).filter(
+            SelfCheckFeedback.submission_id == submission_id
+        ).first()
+        return feedback.status if feedback else None
+
+    def update_submission(
+        self,
+        db: Session,
+        submission_id: str,
+        user_id: int,
+        update_data: Dict[str, Any],
+        checklist_items: Optional[List[Any]] = None
+    ) -> bool:
+        """셀프진단 내용 수정 (최종제출 전에만 가능)"""
+        try:
+            submission = db.query(SelfCheckSubmission).filter(
+                SelfCheckSubmission.submission_id == submission_id,
+                SelfCheckSubmission.user_id == user_id
+            ).first()
+
+            if not submission:
+                raise HTTPException(status_code=404, detail="진단 결과를 찾을 수 없습니다.")
+
+            if submission.status == "submitted":
+                raise HTTPException(status_code=400, detail="최종제출된 건은 수정할 수 없습니다.")
+
+            # 과제 정보 업데이트
+            for field, value in update_data.items():
+                if value is not None and hasattr(submission, field):
+                    setattr(submission, field, value)
+
+            # 체크리스트 사용자 답변 업데이트
+            if checklist_items:
+                for item_input in checklist_items:
+                    db_item = db.query(SelfCheckItem).filter(
+                        SelfCheckItem.submission_id == submission_id,
+                        SelfCheckItem.item_number == item_input.item_number
+                    ).first()
+                    if db_item:
+                        if item_input.user_answer is not None:
+                            db_item.user_answer = item_input.user_answer
+                        if item_input.user_details is not None:
+                            db_item.user_details = item_input.user_details
+
+            db.commit()
+            logger.info(f"[SelfCheck] Submission updated: {submission_id}")
+            return True
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            db.rollback()
+            logger.error(f"[SelfCheck] Failed to update submission: {e}")
+            return False
+
+    def submit_submission(
+        self,
+        db: Session,
+        submission_id: str,
+        user_id: int
+    ) -> bool:
+        """셀프진단 최종제출 (status: completed -> submitted)"""
+        try:
+            submission = db.query(SelfCheckSubmission).filter(
+                SelfCheckSubmission.submission_id == submission_id,
+                SelfCheckSubmission.user_id == user_id
+            ).first()
+
+            if not submission:
+                raise HTTPException(status_code=404, detail="진단 결과를 찾을 수 없습니다.")
+
+            if submission.status == "submitted":
+                raise HTTPException(status_code=400, detail="이미 최종제출된 건입니다.")
+
+            submission.status = "submitted"
+            db.commit()
+            logger.info(f"[SelfCheck] Submission finalized: {submission_id}")
+            return True
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            db.rollback()
+            logger.error(f"[SelfCheck] Failed to submit: {e}")
+            return False
+
     def delete_submission(
         self,
         db: Session,

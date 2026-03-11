@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, Suspense } from "react"
 import { PageContainer } from "@/components/page-container"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -17,7 +17,9 @@ import {
   LogIn,
   UserPlus,
   ChevronRight,
+  Save,
 } from "lucide-react"
+import { toast } from "sonner"
 import { motion } from "framer-motion"
 
 // Stagger animation variants
@@ -35,7 +37,7 @@ const itemVariants = {
 }
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/components/auth/auth-provider"
 import { apiEndpoints } from "@/lib/api-config"
 import { ProjectForm, type ProjectFormData } from "@/components/idea-hub/project-form"
@@ -115,15 +117,36 @@ const STEPS = [
 ]
 
 export default function SelfCheckPage() {
+  return (
+    <Suspense fallback={
+      <PageContainer maxWidth="wide" className="py-8">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        </div>
+      </PageContainer>
+    }>
+      <SelfCheckPageContent />
+    </Suspense>
+  )
+}
+
+function SelfCheckPageContent() {
   const { user, isAuthenticated, isLoading: authLoading, checkAuth } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const editSubmissionId = searchParams.get("edit")
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [isEditLoading, setIsEditLoading] = useState(!!editSubmissionId)
+  const [isSaving, setIsSaving] = useState(false)
   const [currentStep, setCurrentStep] = useState(1)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
 
-  // Form data states - 마이그레이션 데이터와 유사한 테스트 과제로 초기화
-  const [projectForm, setProjectForm] = useState<ProjectFormData>({
-    projectName: "AI 기반 자격검정 민원 상담 챗봇 구축",
-    content: `1. 과제 목적: 자격검정 관련 민원인의 반복적인 문의에 대해 24시간 자동 응답 서비스를 제공하여 민원 처리 효율성 향상 및 담당자 업무 부담 경감
+  // 새 진단 시 테스트 데이터, 수정 모드 시 빈 폼 (API에서 로드)
+  const defaultFormData: ProjectFormData = editSubmissionId
+    ? { projectName: "", content: "", department: "", managerName: "", email: "", attachments: [] }
+    : {
+      projectName: "AI 기반 자격검정 민원 상담 챗봇 구축",
+      content: `1. 과제 목적: 자격검정 관련 민원인의 반복적인 문의에 대해 24시간 자동 응답 서비스를 제공하여 민원 처리 효율성 향상 및 담당자 업무 부담 경감
 
 2. 주요 기능:
    - RAG 기반 자격검정 규정·매뉴얼 검색 및 자연어 응답 생성
@@ -144,11 +167,13 @@ export default function SelfCheckPage() {
 - 대국민 서비스: 일반 국민 대상 민원 응답 서비스로 제공 예정
 - 외부 클라우드 AI: Dify 플랫폼 및 OpenAI API 활용
 - 검증 절차: 생성된 답변은 담당자가 검수 후 발송하는 절차 마련`,
-    department: "",
-    managerName: "",
-    email: "",
-    attachments: [],
-  })
+      department: "",
+      managerName: "",
+      email: "",
+      attachments: [],
+    }
+
+  const [projectForm, setProjectForm] = useState<ProjectFormData>(defaultFormData)
 
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>(
     CHECKLIST_QUESTIONS.map((q) => ({
@@ -165,7 +190,7 @@ export default function SelfCheckPage() {
 
   // Update form with user info when authenticated
   useEffect(() => {
-    if (user) {
+    if (user && !editSubmissionId) {
       setProjectForm((prev) => ({
         ...prev,
         department: user.team_name || "",
@@ -173,7 +198,108 @@ export default function SelfCheckPage() {
         email: user.email || "",
       }))
     }
-  }, [user])
+  }, [user, editSubmissionId])
+
+  // Edit mode: fetch existing submission data
+  useEffect(() => {
+    if (!editSubmissionId || !isAuthenticated) return
+
+    setIsEditLoading(true)
+    const fetchSubmission = async () => {
+      try {
+        const response = await fetch(
+          `${apiEndpoints.selfcheck}/${editSubmissionId}`,
+          { credentials: "include" }
+        )
+        if (!response.ok) {
+          toast.error("진단 결과를 불러올 수 없습니다.")
+          router.push("/idea-hub/history")
+          return
+        }
+        const data = await response.json()
+
+        if (data.status === "submitted") {
+          toast.error("최종제출된 건은 수정할 수 없습니다.")
+          router.push("/idea-hub/history")
+          return
+        }
+
+        setIsEditMode(true)
+        setProjectForm({
+          projectName: data.project_name || "",
+          content: data.project_description || "",
+          department: data.department || "",
+          managerName: data.manager_name || "",
+          email: data.email || "",
+          attachments: [],
+        })
+
+        if (data.items && data.items.length > 0) {
+          setChecklistItems(
+            CHECKLIST_QUESTIONS.map((q) => {
+              const existingItem = data.items.find(
+                (item: { item_number: number }) => item.item_number === q.number
+              )
+              return {
+                number: q.number,
+                category: q.category,
+                question: q.question,
+                shortLabel: q.shortLabel,
+                userAnswer: existingItem?.user_answer || null,
+                userDetails: existingItem?.user_details || "",
+              }
+            })
+          )
+        }
+      } catch {
+        toast.error("데이터 로드 중 오류가 발생했습니다.")
+        router.push("/idea-hub/history")
+      } finally {
+        setIsEditLoading(false)
+      }
+    }
+    fetchSubmission()
+  }, [editSubmissionId, isAuthenticated, router])
+
+  // Save changes (edit mode)
+  const handleSave = useCallback(async () => {
+    if (!editSubmissionId) return
+    setIsSaving(true)
+    try {
+      const response = await fetch(
+        `${apiEndpoints.selfcheck}/${editSubmissionId}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            project_name: projectForm.projectName,
+            department: projectForm.department,
+            manager_name: projectForm.managerName,
+            email: projectForm.email,
+            project_description: projectForm.content,
+            checklist_items: checklistItems.map((item) => ({
+              number: item.number,
+              user_answer: item.userAnswer || null,
+              user_details: item.userDetails || null,
+            })),
+          }),
+        }
+      )
+
+      if (response.ok) {
+        toast.success("수정 사항이 저장되었습니다.")
+        router.push("/idea-hub/history")
+      } else {
+        const errorData = await response.json().catch(() => ({}))
+        toast.error(errorData.detail || "저장에 실패했습니다.")
+      }
+    } catch {
+      toast.error("저장 중 오류가 발생했습니다.")
+    } finally {
+      setIsSaving(false)
+    }
+  }, [editSubmissionId, projectForm, checklistItems, router])
 
   // Step validation
   const isStep1Valid = projectForm.projectName && projectForm.content.length >= 50
@@ -370,13 +496,13 @@ export default function SelfCheckPage() {
   }, [user])
 
   // Loading state
-  if (authLoading) {
+  if (authLoading || isEditLoading) {
     return (
       <PageContainer maxWidth="wide" className="py-8">
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="flex items-center gap-3">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-            <span className="text-muted-foreground">로딩 중...</span>
+            <span className="text-muted-foreground">{isEditLoading ? "데이터 로드 중..." : "로딩 중..."}</span>
           </div>
         </div>
       </PageContainer>
@@ -465,12 +591,12 @@ export default function SelfCheckPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold flex items-center gap-2">
           <Shield className="h-5 w-5 text-muted-foreground" />
-          보안성 셀프진단
+          {isEditMode ? "셀프진단 수정" : "보안성 셀프진단"}
         </h1>
-        <Link href="/idea-hub">
+        <Link href={isEditMode ? "/idea-hub/history" : "/idea-hub"}>
           <Button variant="outline" size="sm" className="gap-1.5">
             <Home className="h-4 w-4" />
-            AI Idea Hub
+            {isEditMode ? "이력으로 돌아가기" : "AI Idea Hub"}
           </Button>
         </Link>
       </div>
@@ -579,33 +705,57 @@ export default function SelfCheckPage() {
         <motion.div variants={itemVariants} className="flex justify-between">
           <Button
             variant="outline"
-            onClick={handlePrev}
-            disabled={currentStep === 1 || isAnalyzing}
+            onClick={isEditMode ? () => router.push("/idea-hub/history") : handlePrev}
+            disabled={(!isEditMode && currentStep === 1) || isAnalyzing}
             className="gap-2"
           >
             <ArrowLeft className="w-4 h-4" />
-            이전
+            {isEditMode ? "취소" : "이전"}
           </Button>
 
-          {currentStep < 3 && (
-            <Button
-              onClick={handleNext}
-              disabled={!canProceed() || isAnalyzing}
-              className="gap-2"
-            >
-              {currentStep === 2 ? (
-                <>
-                  AI 검증 시작
-                  <Shield className="w-4 h-4" />
-                </>
-              ) : (
-                <>
-                  다음
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </Button>
-          )}
+          <div className="flex gap-2">
+            {/* 수정 모드: 저장 버튼 */}
+            {isEditMode && currentStep < 3 && (
+              <Button
+                onClick={handleSave}
+                disabled={isSaving}
+                className="gap-2"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    저장 중...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    저장
+                  </>
+                )}
+              </Button>
+            )}
+
+            {currentStep < 3 && (
+              <Button
+                onClick={handleNext}
+                disabled={!canProceed() || isAnalyzing}
+                className="gap-2"
+                variant={isEditMode ? "outline" : "default"}
+              >
+                {currentStep === 2 ? (
+                  <>
+                    AI 재검증
+                    <Shield className="w-4 h-4" />
+                  </>
+                ) : (
+                  <>
+                    다음
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
         </motion.div>
       </motion.div>
     </PageContainer>

@@ -23,6 +23,45 @@ export interface Source {
 }
 
 /**
+ * Code Interpreter 코드 실행 결과
+ */
+export interface CodeExecution {
+  status: "running" | "success" | "error" | "failed";
+  code?: string;
+  description?: string;
+  attempt?: number;
+  stdout?: string;
+  stderr?: string;
+  images?: string[];  // base64 인코딩된 이미지
+  error?: string;
+  executionTimeMs?: number;
+}
+
+/**
+ * 데이터 분석 세션 정보
+ */
+export interface ColumnDetail {
+  name: string;
+  dtype: string;
+  nullRatio: number;
+  sampleValues: string[];
+}
+
+export interface DataSessionInfo {
+  sessionId: string;
+  filename: string;
+  fileSize: number;
+  sheets: {
+    name: string;
+    rows: number;
+    columns: number;
+    columnNames: string[];
+    columnTypes: string[];
+    columnDetails?: ColumnDetail[];
+  }[];
+}
+
+/**
  * 채팅 메시지
  */
 export interface Message {
@@ -33,6 +72,7 @@ export interface Message {
   model?: string;
   sources?: Source[];
   reasoningContent?: string;
+  codeExecutions?: CodeExecution[];  // Code Interpreter 실행 결과
   isError?: boolean;  // 에러 메시지 여부 (컬렉션 만료 등)
   metadata?: {
     tokens?: number;

@@ -17,6 +17,8 @@ import type {
   ChatSettings,
   ArtifactState,
   Collection,
+  DataSessionInfo,
+  CodeExecution,
 } from "../types";
 import { mapRetrievedDocsToSources } from "../utils/source-mapper";
 import { parseSSEStream } from "../utils/sse-parser";
@@ -25,6 +27,7 @@ import { useChatSettings } from "../hooks/useChatSettings";
 import { useArtifactPanel } from "../hooks/useArtifactPanel";
 import { useCollections } from "../hooks/useCollections";
 import { DocumentDropZone } from "./DocumentDropZone";
+import { DATA_EXTENSIONS } from "./DocumentUploadButton";
 
 export function ChatContainer() {
   const searchParams = useSearchParams();
@@ -62,6 +65,7 @@ export function ChatContainer() {
   } = useCollections();
 
   const [messages, setMessages] = useState<Message[]>([]);
+  const [dataSessionInfo, setDataSessionInfo] = useState<DataSessionInfo | null>(null);
 
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -295,6 +299,7 @@ export function ChatContainer() {
           session_id: sessionId,  // 세션 ID 전달
           collection_name: selectedCollection || null,  // 빈 문자열이면 null로 전송 (일상대화 모드)
           temp_collection_name: tempCollectionName || null,  // 임시 컬렉션 (문서 업로드용)
+          data_session_id: dataSessionInfo?.sessionId || null,  // 데이터 분석 세션 (Code Interpreter)
           message: userMessage.content,
           model: settings.model,
           reasoning_level: settings.reasoningLevel,
@@ -488,6 +493,84 @@ export function ChatContainer() {
             }
             break;
 
+          case "code_execution":
+            // Code Interpreter: 코드 실행 상태
+            if (event.codeExecution) {
+              // undefined 필드를 제외하여 기존 값(code 등)이 후속 이벤트에서 덮어씌워지지 않도록 함
+              // (예: status=success 이벤트에는 code가 없으므로 undefined로 기존 code를 지우면 안 됨)
+              const codeExec = Object.fromEntries(
+                Object.entries({
+                  status: event.codeExecution.status,
+                  code: event.codeExecution.code,
+                  description: event.codeExecution.description,
+                  attempt: event.codeExecution.attempt,
+                  error: event.codeExecution.error,
+                  stderr: event.codeExecution.stderr,
+                  executionTimeMs: event.codeExecution.executionTimeMs,
+                }).filter(([, v]) => v !== undefined)
+              ) as Partial<CodeExecution>;
+
+              // 메시지의 codeExecutions 배열에 추가/업데이트
+              const batchMsgId = batch.messageId;
+              if (!batch.messageCreated) {
+                batch.messageCreated = true;
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    id: batchMsgId,
+                    role: "assistant",
+                    content: "",
+                    timestamp: new Date(),
+                    model: settings.model,
+                    codeExecutions: [codeExec as CodeExecution],
+                  },
+                ]);
+              } else {
+                setMessages((prev) =>
+                  prev.map((msg) => {
+                    if (msg.id !== batchMsgId) return msg;
+                    const existing = msg.codeExecutions || [];
+                    // 같은 attempt의 상태 업데이트 (attempt로만 매칭, 상태 변경 이벤트에는 code가 없음)
+                    const idx = existing.findIndex(
+                      (e) => e.attempt === codeExec.attempt
+                    );
+                    if (idx >= 0) {
+                      const updated = [...existing];
+                      updated[idx] = { ...updated[idx], ...codeExec };
+                      return { ...msg, codeExecutions: updated };
+                    }
+                    return { ...msg, codeExecutions: [...existing, codeExec as CodeExecution] };
+                  })
+                );
+              }
+            }
+            break;
+
+          case "code_output":
+            // Code Interpreter: 코드 실행 출력
+            if (event.codeOutput) {
+              const batchMsgId = batch.messageId;
+              setMessages((prev) =>
+                prev.map((msg) => {
+                  if (msg.id !== batchMsgId) return msg;
+                  const existing = msg.codeExecutions || [];
+                  if (existing.length > 0) {
+                    const updated = [...existing];
+                    const lastIdx = updated.length - 1;
+                    updated[lastIdx] = {
+                      ...updated[lastIdx],
+                      stdout: event.codeOutput!.stdout,
+                      images: event.codeOutput!.images,
+                      executionTimeMs: event.codeOutput!.executionTimeMs,
+                    };
+                    return { ...msg, codeExecutions: updated };
+                  }
+                  return msg;
+                })
+              );
+            }
+            break;
+
           case "action":
             // Function Calling: 클라이언트 액션 (다운로드 등)
             if (event.action) {
@@ -608,7 +691,7 @@ export function ChatContainer() {
       abortControllerRef.current = null;
       setAbortController(null);
     }
-  }, [messages, selectedCollection, tempCollectionName, settings, artifactState.isOpen, updateSources, triggerDownload]);
+  }, [messages, selectedCollection, tempCollectionName, dataSessionInfo, settings, artifactState.isOpen, updateSources, triggerDownload]);
 
   const handleSend = useCallback(async () => {
     if (!input.trim()) {
@@ -851,10 +934,119 @@ export function ChatContainer() {
     }
   }, []);
 
-  // 파일 선택 핸들러 (다중 파일 지원)
-  const handleFileSelect = useCallback((files: File[]) => {
-    uploadDocuments(files, sessionId);
-  }, [uploadDocuments, sessionId]);
+  // 데이터 분석 파일 업로드 핸들러
+  const handleDataFileUpload = useCallback(async (file: File) => {
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      toast.info(`"${file.name}" 업로드 중...`);
+
+      const response = await fetch(`${API_BASE_URL}/api/chat/upload-data`, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: "업로드 실패" }));
+        throw new Error(errorData.detail || `업로드 실패: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      setDataSessionInfo({
+        sessionId: data.session_id,
+        filename: data.filename,
+        fileSize: data.file_size,
+        sheets: data.sheets.map((s: any) => ({
+          name: s.name,
+          rows: s.rows,
+          columns: s.columns,
+          columnNames: s.column_names,
+          columnTypes: s.column_types,
+          columnDetails: s.column_details?.map((c: any) => ({
+            name: c.name,
+            dtype: c.dtype,
+            nullRatio: c.null_ratio,
+            sampleValues: c.sample_values || [],
+          })),
+        })),
+      });
+
+      const totalRows = data.sheets.reduce((sum: number, s: any) => sum + s.rows, 0);
+      const totalCols = data.sheets[0]?.columns || 0;
+      toast.success(`"${data.filename}" 준비 완료`, {
+        description: `${totalRows}행 x ${totalCols}열 - 데이터에 대해 질문하세요`,
+        duration: 4000,
+      });
+    } catch (error) {
+      console.error("Data file upload error:", error);
+      toast.error("데이터 파일 업로드 실패", {
+        description: error instanceof Error ? error.message : "알 수 없는 오류",
+      });
+    }
+  }, []);
+
+  // 데이터 세션 삭제 핸들러
+  const handleClearDataSession = useCallback(async () => {
+    if (dataSessionInfo) {
+      try {
+        await fetch(`${API_BASE_URL}/api/chat/data-sessions/${dataSessionInfo.sessionId}`, {
+          method: "DELETE",
+          credentials: "include",
+        });
+      } catch (e) {
+        // 삭제 실패해도 UI에서는 제거
+      }
+      setDataSessionInfo(null);
+      toast.info("데이터 파일이 제거되었습니다");
+    }
+  }, [dataSessionInfo]);
+
+  // 통합 파일 업로드 핸들러 (확장자 기반 자동 라우팅)
+  const handleUnifiedFileUpload = useCallback(async (files: File[]) => {
+    const docFiles: File[] = [];
+    const dataFiles: File[] = [];
+
+    for (const file of files) {
+      const ext = "." + file.name.split(".").pop()?.toLowerCase();
+      if (DATA_EXTENSIONS.includes(ext)) {
+        dataFiles.push(file);
+      } else {
+        docFiles.push(file);
+      }
+    }
+
+    // 문서 파일 -> RAG 파이프라인
+    if (docFiles.length > 0) {
+      uploadDocuments(docFiles, sessionId);
+    }
+
+    // 데이터 파일 -> 데이터 분석 파이프라인
+    if (dataFiles.length > 0) {
+      if (dataFiles.length > 1) {
+        toast.warning("데이터 분석은 한 번에 하나의 파일만 지원합니다", {
+          description: `"${dataFiles[0].name}"만 업로드됩니다.`,
+        });
+      }
+
+      // 기존 세션 정리
+      if (dataSessionInfo) {
+        try {
+          await fetch(
+            `${API_BASE_URL}/api/chat/data-sessions/${dataSessionInfo.sessionId}`,
+            { method: "DELETE", credentials: "include" }
+          );
+        } catch (e) {
+          // 삭제 실패해도 진행
+        }
+        setDataSessionInfo(null);
+      }
+
+      await handleDataFileUpload(dataFiles[0]);
+    }
+  }, [uploadDocuments, sessionId, dataSessionInfo, handleDataFileUpload]);
 
   // 문서 제거 핸들러
   const handleClearDocument = useCallback(async () => {
@@ -890,7 +1082,7 @@ export function ChatContainer() {
 
   const chatContent = (
     <DocumentDropZone
-      onFileDrop={handleFileSelect}
+      onFileDrop={handleUnifiedFileUpload}
       disabled={isLoading || isDocumentUploading}
       className="h-full"
     >
@@ -991,7 +1183,7 @@ export function ChatContainer() {
             // 문서 업로드 관련
             isDocumentUploading={isDocumentUploading}
             isDocumentReady={isDocumentReady}
-            onFileSelect={handleFileSelect}
+            onFileSelect={handleUnifiedFileUpload}
             // 문서 컨텍스트 바용
             uploadedFilenames={uploadedFilenames}
             documentPageCount={documentUploadStatus?.pageCount}
@@ -1000,6 +1192,9 @@ export function ChatContainer() {
             documentError={documentUploadStatus?.error}
             documentFilename={documentUploadStatus?.filename}
             onClearDocument={handleClearDocument}
+            // 데이터 분석 세션
+            dataSessionInfo={dataSessionInfo}
+            onClearDataSession={handleClearDataSession}
             />
           </div>
         </div>

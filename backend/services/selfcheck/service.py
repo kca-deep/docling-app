@@ -151,6 +151,42 @@ class SelfCheckService:
         """기존 DB 프로젝트를 Qdrant로 마이그레이션"""
         return await self.similarity_service.migrate_projects_to_qdrant(db, batch_size)
 
+    # === 수정/제출 관련 메서드 ===
+
+    def get_feedback_status(
+        self,
+        db: Session,
+        submission_id: str
+    ) -> Optional[str]:
+        """피드백 상태 조회"""
+        return self.repository.get_feedback_status(db, submission_id)
+
+    def update_submission(
+        self,
+        db: Session,
+        submission_id: str,
+        user_id: int,
+        update_data: Dict[str, Any],
+        checklist_items=None
+    ) -> bool:
+        """셀프진단 내용 수정"""
+        return self.repository.update_submission(
+            db=db,
+            submission_id=submission_id,
+            user_id=user_id,
+            update_data=update_data,
+            checklist_items=checklist_items
+        )
+
+    def submit_submission(
+        self,
+        db: Session,
+        submission_id: str,
+        user_id: int
+    ) -> bool:
+        """셀프진단 최종제출"""
+        return self.repository.submit_submission(db, submission_id, user_id)
+
     # === 삭제 관련 메서드 ===
 
     async def delete_submission(

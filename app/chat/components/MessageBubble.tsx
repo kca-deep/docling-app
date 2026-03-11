@@ -6,9 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Wand2, User, FileText, Copy, Check, RefreshCw, Reply, StopCircle, ChevronRight, Download } from "lucide-react";
 import { ExportMenu } from "./ExportMenu";
+import { CodeExecutionBlock } from "./CodeExecutionBlock";
 import { MarkdownMessage } from "@/components/markdown-message";
 import { cn } from "@/lib/utils";
-import { useState, memo, useEffect } from "react";
+import { useState, memo, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Collapsible,
@@ -24,7 +25,7 @@ import {
 import { ChevronDown, ChevronUp, ExternalLink, Link, Brain } from "lucide-react";
 import { SourceArtifactModal } from "./SourceArtifactModal";
 import { FeedbackButton } from "./FeedbackButton";
-import type { Source, FeedbackRating } from "../types";
+import type { Source, FeedbackRating, CodeExecution } from "../types";
 
 interface MessageBubbleProps {
   messageId: string;
@@ -34,6 +35,7 @@ interface MessageBubbleProps {
   model?: string; // 메시지를 생성한 모델 정보
   sources?: Source[];
   reasoningContent?: string; // GPT-OSS 추론 과정
+  codeExecutions?: CodeExecution[]; // Code Interpreter 실행 결과
   metadata?: {
     tokens?: number;
     processingTime?: number;
@@ -61,6 +63,7 @@ export const MessageBubble = memo(function MessageBubble({
   model,
   sources,
   reasoningContent,
+  codeExecutions,
   metadata,
   onCopy,
   onRegenerate,
@@ -78,6 +81,15 @@ export const MessageBubble = memo(function MessageBubble({
   const [reasoningExpanded, setReasoningExpanded] = useState(false); // 추론 과정 (GPT-OSS, EXAONE 공통)
   const [openTooltipId, setOpenTooltipId] = useState<string | null>(null);
   const [mobileModalOpen, setMobileModalOpen] = useState(false);
+
+  // Code Interpreter: codeExecutions가 있으면 content에서 python 코드 블록 제거
+  // (코드는 CodeExecutionBlock에서 별도로 표시되므로 중복 방지)
+  const displayContent = useMemo(() => {
+    if (!codeExecutions || codeExecutions.length === 0 || !content) return content;
+    // ```python ... ``` 블록 제거
+    const stripped = content.replace(/```python\s*\n[\s\S]*?```/g, "").trim();
+    return stripped;
+  }, [content, codeExecutions]);
 
   // Debug: reasoningContent 확인
   if (role === "assistant" && reasoningContent) {
@@ -228,12 +240,23 @@ export const MessageBubble = memo(function MessageBubble({
                   </div>
                 </Collapsible>
 
-                {/* 답변 (content가 있을 때만 표시) */}
-                {content && <MarkdownMessage content={content} />}
+                {/* Code Interpreter 실행 결과 */}
+                {codeExecutions && codeExecutions.length > 0 && (
+                  <CodeExecutionBlock executions={codeExecutions} />
+                )}
+
+                {/* 답변 (코드 블록 제거된 content 표시) */}
+                {displayContent && <MarkdownMessage content={displayContent} />}
+              </div>
+            ) : role === "assistant" && codeExecutions && codeExecutions.length > 0 ? (
+              // Code Interpreter 결과 + 마크다운 (코드 블록 제거)
+              <div className="space-y-3">
+                <CodeExecutionBlock executions={codeExecutions} />
+                {displayContent && <MarkdownMessage content={displayContent} />}
               </div>
             ) : role === "assistant" || role === "system" ? (
               // 기본 마크다운 렌더링
-              <MarkdownMessage content={content} />
+              <MarkdownMessage content={displayContent || content} />
             ) : (
               // 사용자 메시지
               <p className="text-sm whitespace-pre-wrap break-words">
@@ -431,6 +454,7 @@ export const MessageBubble = memo(function MessageBubble({
                   <ExportMenu
                     messageContent={content}
                     messageId={messageId}
+                    codeExecutions={codeExecutions}
                     disabled={isStreaming}
                   />
                   {isLast && (

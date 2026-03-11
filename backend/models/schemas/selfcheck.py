@@ -100,6 +100,17 @@ class SelfCheckSubmitRequest(BaseModel):
     items: List[SelfCheckItemResult]  # 사용자 확인 후 최종 결과
 
 
+class SelfCheckUpdateRequest(BaseModel):
+    """셀프진단 내용 수정 요청 (최종제출 전)"""
+    project_name: Optional[str] = None
+    department: Optional[str] = None
+    manager_name: Optional[str] = None
+    contact: Optional[str] = None
+    email: Optional[str] = None
+    project_description: Optional[str] = None
+    checklist_items: Optional[List[SelfCheckItemInput]] = None  # 사용자 답변 수정
+
+
 class SelfCheckHistoryItem(BaseModel):
     """셀프진단 이력 항목"""
     id: int
