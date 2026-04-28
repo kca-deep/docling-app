@@ -77,9 +77,10 @@ docs/*.jpg
 docs/*.png
 docs/*.md
 
-# Docs subfolders - ignore all except service
+# Docs subfolders - ignore all except service, design
 docs/*/
 !docs/service/
+!docs/design/
 
 # docs/service - exclude server-specific files
 docs/service/*.py
