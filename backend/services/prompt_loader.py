@@ -132,8 +132,9 @@ class PromptLoader:
 {doc_list}{more_text}
 
 **지시사항:**
-- 사용자가 "어떤 문서", "뭘 알고 있어" 등을 물으면 위 문서 목록을 안내하세요.
+- 이 목록은 사용자가 "어떤 문서가 있는지", "뭘 알고 있어" 등을 물을 때만 안내하세요.
 - 문서 내용을 기반으로 분석, 개선안 제시, 비교 등 적극적으로 수행하세요.
+- **출처 인용 주의:** 답변의 출처를 언급할 때 이 목록의 문서명을 임의로 사용하지 마세요. 출처는 반드시 아래 [참고 문서]에 제공된 문서의 출처 정보(파일명, 페이지 등)만 인용하세요.
 """
             prompt_content += documents_section
             logger.info(f"[PromptLoader] Appended {len(unique_docs)} documents to prompt")
