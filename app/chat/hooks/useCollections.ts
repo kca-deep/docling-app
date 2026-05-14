@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { toast } from "sonner";
 import { API_BASE_URL } from "@/lib/api-config";
 import type { Collection } from "../types";
 
@@ -26,13 +25,10 @@ export function useCollections() {
             a.name.localeCompare(b.name, 'ko-KR')
           );
           setCollections(sortedCollections);
-          if (sortedCollections.length > 0) {
-            toast.success(`${sortedCollections.length}개의 컬렉션을 불러왔습니다`);
-          }
+
         }
       } catch (error) {
         console.error("Failed to fetch collections:", error);
-        toast.error("컬렉션 목록을 불러오는데 실패했습니다");
       } finally {
         setIsLoading(false);
       }

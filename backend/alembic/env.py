@@ -28,6 +28,7 @@ from backend.models.qdrant_collection import QdrantCollection
 from backend.models.qdrant_upload_history import QdrantUploadHistory
 from backend.models.dify_config import DifyConfig
 from backend.models.dify_upload_history import DifyUploadHistory
+from backend.models.rbac import Role, Permission, RolePermission, UserRole, UserPermissionOverride
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -15,7 +15,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { toast } from "sonner";
 import { API_BASE_URL } from "@/lib/api-config";
 import type {
   FeedbackRating,
@@ -97,10 +96,8 @@ export function FeedbackButton({
       }
 
       setRating(feedbackRating);
-      toast.success("피드백이 제출되었습니다");
     } catch (error) {
       console.error("피드백 제출 오류:", error);
-      toast.error("피드백 제출에 실패했습니다");
     } finally {
       setIsSubmitting(false);
       setIsPopoverOpen(false);

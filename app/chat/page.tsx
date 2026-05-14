@@ -18,7 +18,7 @@ function ChatFallback() {
 
 export default function ChatPage() {
   return (
-    <PageContainer maxWidth="wide" className="py-6 h-screen flex flex-col">
+    <PageContainer maxWidth="wide" className="py-6 h-full flex flex-col">
       <div className="flex-1 overflow-hidden">
         <Suspense fallback={<ChatFallback />}>
           <ChatContainer />

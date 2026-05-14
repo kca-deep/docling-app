@@ -21,7 +21,6 @@ import {
   Link,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
 import { useState } from "react";
 import { MarkdownMessage } from "@/components/markdown-message";
 import { cleanSourceContent } from "@/lib/content-sanitizer";
@@ -107,10 +106,9 @@ export function SourceArtifactPanel({
     try {
       await navigator.clipboard.writeText(activeSource.content);
       setCopiedId(activeSource.id);
-      toast.success("내용이 복사되었습니다");
       setTimeout(() => setCopiedId(null), 2000);
     } catch {
-      toast.error("복사에 실패했습니다");
+      // 복사 실패
     }
   };
 

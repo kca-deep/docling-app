@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.config.settings import settings
 from backend.services.auth_service import auth_service, AuthenticationError
+from backend.services.rbac_service import rbac_service
 from backend.dependencies.auth import (
     get_current_user,
     get_current_active_user,
@@ -109,7 +110,7 @@ async def login(
     logger.info(f"User '{user.username}' logged in successfully")
 
     user_response = UserResponse.model_validate(user)
-    user_response.permissions = user.get_permissions()
+    user_response.permissions = rbac_service.get_user_permissions(db, user.id, user.role)
     return user_response
 
 
@@ -135,6 +136,7 @@ async def logout(response: Response):
 
 @router.get("/me", response_model=UserResponse)
 async def get_me(
+    db: Session = Depends(get_db),
     user: User = Depends(get_current_active_user)
 ):
     """
@@ -146,7 +148,7 @@ async def get_me(
         UserResponse: 현재 로그인된 사용자 정보
     """
     user_response = UserResponse.model_validate(user)
-    user_response.permissions = user.get_permissions()
+    user_response.permissions = rbac_service.get_user_permissions(db, user.id, user.role)
     return user_response
 
 
@@ -169,7 +171,7 @@ async def verify_auth(
         return AuthStatusResponse(authenticated=False, user=None)
 
     user_response = UserResponse.model_validate(user)
-    user_response.permissions = user.get_permissions()
+    user_response.permissions = rbac_service.get_user_permissions(db, user.id, user.role)
     return AuthStatusResponse(
         authenticated=True,
         user=user_response
@@ -543,8 +545,49 @@ async def delete_user(
 
 
 # =========================================
-# 권한 관리 엔드포인트
+# 역할/권한 관리 엔드포인트
 # =========================================
+
+@router.get("/roles")
+async def list_roles(
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin)
+):
+    """모든 역할과 기본 권한 목록 조회 (관리자 전용)"""
+    return {"roles": rbac_service.get_roles_with_permissions(db)}
+
+
+@router.put("/users/{user_id}/role")
+async def update_user_role(
+    user_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin)
+):
+    """사용자 역할 변경 (관리자 전용)"""
+    role_name = body.get("role")
+    if role_name not in ("admin", "operator", "user"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="역할은 admin, operator, user 중 하나여야 합니다."
+        )
+
+    target_user = auth_service.get_user_by_id(db, user_id)
+    if not target_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="사용자를 찾을 수 없습니다.")
+
+    try:
+        rbac_service.set_user_role(db, user_id, role_name, assigned_by=admin.id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    return {
+        "success": True,
+        "user_id": user_id,
+        "role": role_name,
+        "message": f"사용자 역할이 '{role_name}'으로 변경되었습니다."
+    }
+
 
 @router.get("/users/{user_id}/permissions", response_model=PermissionsResponse)
 async def get_user_permissions(
@@ -572,7 +615,7 @@ async def get_user_permissions(
         user_id=user.id,
         username=user.username,
         role=user.role,
-        permissions=user.get_permissions()
+        permissions=rbac_service.get_user_permissions(db, user.id, user.role)
     )
 
 
@@ -612,7 +655,7 @@ async def update_user_permissions(
         success=True,
         user_id=user.id,
         message=f"사용자 '{user.username}'의 권한이 업데이트되었습니다.",
-        permissions=user.get_permissions()
+        permissions=rbac_service.get_user_permissions(db, user.id, user.role)
     )
 
 
@@ -651,12 +694,13 @@ async def reset_user_permissions(
         success=True,
         user_id=user.id,
         message=f"사용자 '{user.username}'의 권한이 기본값으로 초기화되었습니다.",
-        permissions=user.get_permissions()
+        permissions=rbac_service.get_user_permissions(db, user.id, user.role)
     )
 
 
 @router.get("/me/permissions", response_model=PermissionsResponse)
 async def get_my_permissions(
+    db: Session = Depends(get_db),
     user: User = Depends(get_current_active_user)
 ):
     """
@@ -669,7 +713,7 @@ async def get_my_permissions(
         user_id=user.id,
         username=user.username,
         role=user.role,
-        permissions=user.get_permissions()
+        permissions=rbac_service.get_user_permissions(db, user.id, user.role)
     )
 
 

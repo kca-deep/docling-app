@@ -80,6 +80,8 @@ function LoginForm() {
         setError("가입 승인 대기 중입니다. 관리자 승인 후 로그인할 수 있습니다.")
       } else if (error.errorCode === "REJECTED") {
         setError("가입이 거절되었습니다. 관리자에게 문의하세요.")
+      } else if (error.errorCode === "ACCOUNT_LOCKED") {
+        setError(error.message || "로그인 시도가 너무 많아 계정이 잠겼습니다. 잠시 후 다시 시도해주세요.")
       } else {
         setError(error.message || "로그인에 실패했습니다.")
       }

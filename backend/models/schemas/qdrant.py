@@ -18,6 +18,7 @@ class QdrantCollectionInfo(BaseModel):
     description: Optional[str] = None
     owner_id: Optional[int] = None
     is_owner: bool = False  # 현재 사용자가 소유자인지 여부
+    can_manage_docs: bool = False  # 문서 추가/삭제 가능 여부 (소유자, admin, qdrant.collections 권한)
     allowed_users: Optional[List[int]] = None  # 공유 허용 사용자 ID 목록 (visibility=shared일 때)
 
 

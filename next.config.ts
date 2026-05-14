@@ -7,6 +7,11 @@ const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
 
 const nextConfig: NextConfig = {
 
+  // 외부 도메인(ai.kca.kr)에서 dev 서버 접근 허용
+  ...(!isProduction && {
+    allowedDevOrigins: ['ai.kca.kr', '*.kca.kr'],
+  }),
+
   // /api와 /health를 백엔드로 프록시 (개발/프로덕션 모두)
   async rewrites() {
     return [

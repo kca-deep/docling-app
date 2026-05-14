@@ -23,7 +23,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { toast } from "sonner";
 import { API_BASE_URL } from "@/lib/api-config";
 import type { CodeExecution } from "../types";
 
@@ -154,7 +153,6 @@ export function ExportMenu({
     const exportContent = buildExportContent(messageContent, codeExecutions);
 
     if (!exportContent.trim()) {
-      toast.error("내보낼 내용이 없습니다.");
       return;
     }
 
@@ -202,16 +200,10 @@ export function ExportMenu({
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
 
-        toast.success("다운로드 완료", {
-          description: data.filename,
-        });
         setOpen(false);
       }
     } catch (error) {
       console.error("Export error:", error);
-      toast.error("내보내기 실패", {
-        description: error instanceof Error ? error.message : "알 수 없는 오류",
-      });
     } finally {
       setIsExporting(false);
       setExportType(null);
@@ -222,17 +214,14 @@ export function ExportMenu({
     const exportContent = buildExportContent(messageContent, codeExecutions);
 
     if (!exportContent.trim()) {
-      toast.error("복사할 내용이 없습니다.");
       return;
     }
 
     try {
       await navigator.clipboard.writeText(exportContent);
-      toast.success("클립보드에 복사되었습니다.");
       setOpen(false);
     } catch (error) {
       console.error("Copy error:", error);
-      toast.error("복사 실패");
     }
   };
 

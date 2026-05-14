@@ -21,6 +21,7 @@ import {
   hasPermission as checkPermission,
   getDefaultPermissions,
   getAdminPermissions,
+  getOperatorPermissions,
 } from "@/lib/auth"
 
 // === 타입 정의 ===
@@ -108,10 +109,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
             setPermissions(permResponse.permissions)
             setUser(userWithPerms)
           } catch {
-            // 권한 조회 실패 시 기본값 사용
+            // 권한 조회 실패 시 역할별 기본값 사용
             const defaultPerms = status.user.role === 'admin'
               ? getAdminPermissions()
-              : getDefaultPermissions()
+              : status.user.role === 'operator'
+                ? getOperatorPermissions()
+                : getDefaultPermissions()
             const userWithPerms = { ...status.user, permissions: defaultPerms }
             setPermissions(defaultPerms)
             setUser(userWithPerms)
@@ -150,7 +153,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       } catch {
         const defaultPerms = loggedInUser.role === 'admin'
           ? getAdminPermissions()
-          : getDefaultPermissions()
+          : loggedInUser.role === 'operator'
+            ? getOperatorPermissions()
+            : getDefaultPermissions()
         setPermissions(defaultPerms)
         setUser({ ...loggedInUser, permissions: defaultPerms })
       }

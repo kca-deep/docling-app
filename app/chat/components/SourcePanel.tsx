@@ -20,7 +20,6 @@ import {
   Check,
   AlertCircle,
 } from "lucide-react";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { cleanSourceContent } from "@/lib/content-sanitizer";
 import { applyMarkdownHighlighting } from "@/lib/markdown-highlighter";
@@ -51,10 +50,9 @@ export function SourcePanel({ sources }: SourcePanelProps) {
     try {
       await navigator.clipboard.writeText(content);
       setCopiedId(id);
-      toast.success("내용이 복사되었습니다");
       setTimeout(() => setCopiedId(null), 2000);
     } catch (error) {
-      toast.error("복사에 실패했습니다");
+      // 복사 실패
     }
   };
 

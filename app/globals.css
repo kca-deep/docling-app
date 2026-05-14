@@ -3,481 +3,27 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Custom Animations */
-@keyframes fade-in {
-  0% {
-    opacity: 0;
-  }
-  100% {
-    opacity: 1;
-  }
-}
-
-.animate-fade-in {
-  animation: fade-in 0.8s ease-out;
-}
-
-/* Fade In Down Animation */
-@keyframes fade-in-down {
-  0% {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-fade-in-down {
-  animation: fade-in-down 0.5s ease-out both;
-}
-
-/* Fade In Up Animation */
-@keyframes fade-in-up {
-  0% {
-    opacity: 0;
-    transform: translateY(20px) scale(0.95);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.animate-fade-in-up {
-  animation: fade-in-up 0.6s ease-out 0.1s both;
-}
-
-/* Aurora Background Animation - Enhanced */
-@keyframes aurora-1 {
-  0%, 100% {
-    transform: translate(0%, 0%) rotate(0deg) scale(1);
-    opacity: 0.5;
-  }
-  20% {
-    transform: translate(15%, -10%) rotate(72deg) scale(1.15);
-    opacity: 0.6;
-  }
-  40% {
-    transform: translate(-5%, 20%) rotate(144deg) scale(0.9);
-    opacity: 0.4;
-  }
-  60% {
-    transform: translate(-20%, -5%) rotate(216deg) scale(1.1);
-    opacity: 0.55;
-  }
-  80% {
-    transform: translate(10%, -15%) rotate(288deg) scale(0.95);
-    opacity: 0.45;
-  }
-}
-
-@keyframes aurora-2 {
-  0%, 100% {
-    transform: translate(0%, 0%) rotate(0deg) scale(1);
-    opacity: 0.45;
-  }
-  16% {
-    transform: translate(-15%, 10%) rotate(-60deg) scale(1.2);
-    opacity: 0.55;
-  }
-  33% {
-    transform: translate(20%, 15%) rotate(-120deg) scale(0.85);
-    opacity: 0.4;
-  }
-  50% {
-    transform: translate(5%, -20%) rotate(-180deg) scale(1.1);
-    opacity: 0.5;
-  }
-  66% {
-    transform: translate(-10%, -10%) rotate(-240deg) scale(0.95);
-    opacity: 0.45;
-  }
-  83% {
-    transform: translate(15%, 5%) rotate(-300deg) scale(1.05);
-    opacity: 0.5;
-  }
-}
-
-@keyframes aurora-3 {
-  0%, 100% {
-    transform: translate(0%, 0%) rotate(0deg) scale(1);
-    opacity: 0.4;
-  }
-  25% {
-    transform: translate(-20%, -15%) rotate(90deg) scale(1.15);
-    opacity: 0.5;
-  }
-  50% {
-    transform: translate(15%, 20%) rotate(180deg) scale(0.9);
-    opacity: 0.35;
-  }
-  75% {
-    transform: translate(10%, -10%) rotate(270deg) scale(1.1);
-    opacity: 0.45;
-  }
-}
-
-@keyframes aurora-4 {
-  0%, 100% {
-    transform: translate(0%, 0%) rotate(0deg) scale(1);
-    opacity: 0.35;
-  }
-  20% {
-    transform: translate(25%, 10%) rotate(72deg) scale(1.1);
-    opacity: 0.45;
-  }
-  40% {
-    transform: translate(-15%, -20%) rotate(144deg) scale(0.95);
-    opacity: 0.3;
-  }
-  60% {
-    transform: translate(-25%, 15%) rotate(216deg) scale(1.15);
-    opacity: 0.4;
-  }
-  80% {
-    transform: translate(10%, -5%) rotate(288deg) scale(1);
-    opacity: 0.35;
-  }
-}
-
-@keyframes aurora-5 {
-  0%, 100% {
-    transform: translate(0%, 0%) rotate(0deg) scale(1);
-    opacity: 0.3;
-  }
-  33% {
-    transform: translate(-10%, 25%) rotate(120deg) scale(1.2);
-    opacity: 0.4;
-  }
-  66% {
-    transform: translate(20%, -15%) rotate(240deg) scale(0.9);
-    opacity: 0.35;
-  }
-}
-
-@keyframes aurora-pulse {
-  0%, 100% {
-    opacity: 0.3;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.5;
-    transform: scale(1.1);
-  }
-}
-
-.animate-aurora-1 {
-  animation: aurora-1 12s ease-in-out infinite;
-  will-change: transform, opacity;
-}
-
-.animate-aurora-2 {
-  animation: aurora-2 15s ease-in-out infinite;
-  will-change: transform, opacity;
-}
-
-.animate-aurora-3 {
-  animation: aurora-3 18s ease-in-out infinite;
-  will-change: transform, opacity;
-}
-
-.animate-aurora-4 {
-  animation: aurora-4 14s ease-in-out infinite;
-  will-change: transform, opacity;
-}
-
-.animate-aurora-5 {
-  animation: aurora-5 20s ease-in-out infinite;
-  will-change: transform, opacity;
-}
-
-.animate-aurora-pulse {
-  animation: aurora-pulse 4s ease-in-out infinite;
-  will-change: transform, opacity;
-}
-
-/* Reduced motion preference - disable heavy animations and blur effects */
-@media (prefers-reduced-motion: reduce) {
-  /* Aurora animations */
-  .animate-aurora-1,
-  .animate-aurora-2,
-  .animate-aurora-3,
-  .animate-aurora-4,
-  .animate-aurora-5,
-  .animate-aurora-pulse {
-    animation: none !important;
-    will-change: auto !important;
-    opacity: 0.2 !important;
-  }
-
-  /* Wave animations */
-  .animate-wave-slow,
-  .animate-wave-fast,
-  .animate-wave-bar,
-  .animate-pulse-wave,
-  .animate-gradient-x,
-  .animate-shimmer-border {
-    animation: none !important;
-    will-change: auto !important;
-  }
-
-  /* Fade animations */
-  .animate-fade-in,
-  .animate-fade-in-down,
-  .animate-fade-in-up {
-    animation: none !important;
-    opacity: 1 !important;
-    transform: none !important;
-  }
-
-  /* Reduce blur effects for better performance */
-  [class*="blur-["],
-  [class*="blur-"] {
-    filter: blur(10px) !important;
-  }
-
-  /* Disable backdrop blur */
-  [class*="backdrop-blur"] {
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
-
-  /* Disable Framer Motion animations */
-  [data-framer-motion],
-  [style*="will-change"] {
-    animation: none !important;
-    transition: none !important;
-    will-change: auto !important;
-  }
-
-  /* Disable all CSS transitions for smoother experience */
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-/* Wave Header Animations */
-@keyframes wave-slow {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-50%);
-  }
-}
-
-@keyframes wave-fast {
-  0% {
-    transform: translateX(-50%);
-  }
-  100% {
-    transform: translateX(0);
-  }
-}
-
-@keyframes wave-bar {
-  0%, 100% {
-    transform: scaleY(0.3);
-    opacity: 0.4;
-  }
-  50% {
-    transform: scaleY(1);
-    opacity: 1;
-  }
-}
-
-@keyframes pulse-wave {
-  0%, 100% {
-    transform: scaleY(0.5);
-    opacity: 0.3;
-  }
-  50% {
-    transform: scaleY(1.2);
-    opacity: 0.6;
-  }
-}
-
-@keyframes gradient-x {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
-}
-
-.animate-wave-slow {
-  animation: wave-slow 8s linear infinite;
-}
-
-.animate-wave-fast {
-  animation: wave-fast 6s linear infinite;
-}
-
-.animate-wave-bar {
-  animation: wave-bar 1.2s ease-in-out infinite;
-}
-
-.animate-pulse-wave {
-  animation: pulse-wave 1.5s ease-in-out infinite;
-}
-
-.animate-gradient-x {
-  animation: gradient-x 3s ease infinite;
-}
-
-/* Drag & Drop shimmer animation */
-@keyframes shimmer-border {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
-}
-
-.animate-shimmer-border {
-  animation: shimmer-border 2s linear infinite;
-}
-
-/* Auth Page Background Animations (CSS-only for better performance) */
-@keyframes auth-gradient-1 {
-  0%, 100% {
-    transform: scale(1) rotate(0deg) translate(0, 0);
-  }
-  50% {
-    transform: scale(1.2) rotate(90deg) translate(-100px, -50px);
-  }
-}
-
-@keyframes auth-gradient-2 {
-  0%, 100% {
-    transform: scale(1) rotate(0deg) translate(0, 0);
-  }
-  50% {
-    transform: scale(1.2) rotate(-90deg) translate(100px, 50px);
-  }
-}
-
-@keyframes auth-shine {
-  0% {
-    transform: translateX(-100%);
-    opacity: 0;
-  }
-  50% {
-    opacity: 0.2;
-  }
-  100% {
-    transform: translateX(200%);
-    opacity: 0;
-  }
-}
-
-.animate-auth-gradient-1 {
-  animation: auth-gradient-1 20s ease-in-out infinite;
-  will-change: transform;
-}
-
-.animate-auth-gradient-2 {
-  animation: auth-gradient-2 25s ease-in-out infinite;
-  animation-delay: 2s;
-  will-change: transform;
-}
-
-.animate-auth-shine {
-  animation: auth-shine 6s ease-in-out infinite;
-  animation-delay: 4s;
-}
-
-/* Reduced motion preference - disable auth animations */
-@media (prefers-reduced-motion: reduce) {
-  .animate-auth-gradient-1,
-  .animate-auth-gradient-2,
-  .animate-auth-shine {
-    animation: none !important;
-    will-change: auto !important;
-    opacity: 0.3 !important;
-  }
-}
-
-/* Hero Content Animations */
-@keyframes hero-fade-in-up {
-  0% {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes hero-scale-in {
-  0% {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.animate-hero-fade-in-up {
-  animation: hero-fade-in-up 0.8s ease-out forwards;
-}
-
-.animate-hero-fade-in-up-delay-1 {
-  animation: hero-fade-in-up 0.8s ease-out 0.2s forwards;
-  opacity: 0;
-}
-
-.animate-hero-fade-in-up-delay-2 {
-  animation: hero-fade-in-up 0.8s ease-out 0.4s forwards;
-  opacity: 0;
-}
-
-.animate-hero-fade-in-up-delay-3 {
-  animation: hero-fade-in-up 0.8s ease-out 0.6s forwards;
-  opacity: 0;
-}
-
-.animate-hero-scale-in {
-  animation: hero-scale-in 0.5s ease-out 0.8s forwards;
-  opacity: 0;
-}
-
-.animate-hero-scale-in-delay {
-  animation: hero-scale-in 0.8s ease-out 1.0s forwards;
-  opacity: 0;
-}
-
-/* Reduced motion preference - disable hero animations */
-@media (prefers-reduced-motion: reduce) {
-  .animate-hero-fade-in-up,
-  .animate-hero-fade-in-up-delay-1,
-  .animate-hero-fade-in-up-delay-2,
-  .animate-hero-fade-in-up-delay-3,
-  .animate-hero-scale-in,
-  .animate-hero-scale-in-delay {
-    animation: none !important;
-    opacity: 1 !important;
-    transform: none !important;
-  }
-}
-
 :root {
   /* Chat content max-width */
   --chat-content-max-width: 56rem;
+
+  /* KCA brand gradient colors */
+  --kca-logo-from: #06b6d4;
+  --kca-logo-via: #3b82f6;
+  --kca-logo-to: #1e3a8a;
+  --kca-brand-from: #0066cc;
+  --kca-brand-via: #00a651;
+  --kca-brand-to: #ed1c24;
+
+  /* Chat input emerald accent */
+  --chat-input-border: rgba(16, 185, 129, 0.65);
+  --chat-input-ring: rgba(16, 185, 129, 0.35);
+  --chat-input-border-hover: rgba(52, 211, 153, 0.80);
+  --chat-input-ring-hover: rgba(52, 211, 153, 0.50);
+  --chat-input-glow-hover: rgba(16, 185, 129, 0.25);
+  --chat-input-border-focus: rgba(16, 185, 129, 0.90);
+  --chat-input-ring-focus: rgba(52, 211, 153, 0.65);
+  --chat-input-glow-focus: rgba(16, 185, 129, 0.35);
 
   /* Collection category colors - Light mode */
   --category-hr: #3b82f6;
@@ -488,20 +34,6 @@
   --category-admin-bg: rgba(245, 158, 11, 0.1);
   --category-general: #64748b;
   --category-general-bg: rgba(100, 116, 139, 0.1);
-
-  /* Aurora background colors - Light mode */
-  --aurora-1: oklch(0.65 0.22 230);
-  --aurora-1-end: oklch(0.55 0.18 210);
-  --aurora-2: oklch(0.72 0.2 160);
-  --aurora-2-end: oklch(0.6 0.15 140);
-  --aurora-3: oklch(0.6 0.22 300);
-  --aurora-3-end: oklch(0.5 0.18 320);
-  --aurora-4: oklch(0.75 0.18 80);
-  --aurora-4-end: oklch(0.65 0.15 60);
-  --aurora-5: oklch(0.55 0.2 260);
-  --aurora-5-end: oklch(0.45 0.18 280);
-  --aurora-6: oklch(0.7 0.15 350);
-  --aurora-6-end: oklch(0.6 0.12 330);
 
   --background: oklch(0.985 0 0);
   --foreground: oklch(0.20 0 0);
@@ -567,20 +99,6 @@
   --category-admin-bg: rgba(251, 191, 36, 0.15);
   --category-general: #94a3b8;
   --category-general-bg: rgba(148, 163, 184, 0.15);
-
-  /* Aurora background colors - Dark mode (higher lightness for visibility) */
-  --aurora-1: oklch(0.75 0.25 230);
-  --aurora-1-end: oklch(0.65 0.21 210);
-  --aurora-2: oklch(0.82 0.23 160);
-  --aurora-2-end: oklch(0.70 0.18 140);
-  --aurora-3: oklch(0.70 0.25 300);
-  --aurora-3-end: oklch(0.60 0.21 320);
-  --aurora-4: oklch(0.85 0.21 80);
-  --aurora-4-end: oklch(0.75 0.18 60);
-  --aurora-5: oklch(0.65 0.23 260);
-  --aurora-5-end: oklch(0.55 0.21 280);
-  --aurora-6: oklch(0.80 0.18 350);
-  --aurora-6-end: oklch(0.70 0.15 330);
 
   --background: oklch(0.10 0 0);
   --foreground: oklch(0.93 0 0);
@@ -739,29 +257,47 @@
   }
 }
 
-/* 마크다운 메시지 스타일 */
 @layer components {
   /* KCA 3색 Gradient (방송/통신/전파) */
   .kca-tri-gradient {
     background: linear-gradient(90deg,
-      rgb(37, 99, 235) 0%,     /* blue-600: 방송 */
-      rgb(16, 185, 129) 50%,   /* emerald-500: 통신 */
-      rgb(239, 68, 68) 100%);  /* red-500: 전파 */
+      rgb(37, 99, 235) 0%,
+      rgb(16, 185, 129) 50%,
+      rgb(239, 68, 68) 100%);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
   }
 
-  /* 전체화면 채팅 모드에서 모든 Radix Portal 컴포넌트 z-index 강제 증가 */
-  body.chat-fullscreen-active [data-radix-popper-content-wrapper],
-  body.chat-fullscreen-active [data-radix-select-viewport],
-  body.chat-fullscreen-active [data-radix-select-content],
-  body.chat-fullscreen-active [data-radix-dialog-overlay],
-  body.chat-fullscreen-active [data-radix-dialog-content],
-  body.chat-fullscreen-active [role="dialog"],
-  body.chat-fullscreen-active [role="listbox"],
-  body.chat-fullscreen-active [data-radix-portal] {
-    z-index: 9999 !important;
+  /* KCA 로고 그라디언트 (모바일 상단 바) */
+  .kca-logo-gradient {
+    background: linear-gradient(to bottom right, var(--kca-logo-from), var(--kca-logo-via), var(--kca-logo-to));
+  }
+
+  /* KCA 브랜드 텍스트 그라디언트 (AI-Hub 텍스트) */
+  .kca-brand-text {
+    background: linear-gradient(to right, var(--kca-brand-from), var(--kca-brand-via), var(--kca-brand-to));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* 채팅 입력창 에메랄드 글로우 보더 */
+  .chat-input-card {
+    border: 1px solid var(--chat-input-border);
+    border-radius: 2rem;
+    box-shadow: 0 2px 24px rgba(0, 0, 0, 0.45), 0 0 0 1px var(--chat-input-ring);
+    transition: all 300ms;
+  }
+
+  .chat-input-card:hover {
+    border-color: var(--chat-input-border-hover);
+    box-shadow: 0 2px 24px rgba(0, 0, 0, 0.45), 0 0 0 1px var(--chat-input-ring-hover), 0 0 22px var(--chat-input-glow-hover);
+  }
+
+  .chat-input-card:focus-within {
+    border-color: var(--chat-input-border-focus);
+    box-shadow: 0 2px 28px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--chat-input-ring-focus), 0 0 32px var(--chat-input-glow-focus);
   }
 
   .markdown-content {
@@ -802,28 +338,24 @@
     word-break: keep-all;
   }
 
-  /* 테이블 래퍼 스크롤 */
   .markdown-content > div {
     max-width: 100%;
     overflow-x: auto;
     width: 100%;
   }
 
-  /* 긴 단어나 URL 강제 줄바꿈 */
   .markdown-content a,
   .markdown-content code {
     word-break: break-all;
     overflow-wrap: anywhere;
   }
 
-  /* 리스트 아이템 내부 텍스트 줄바꿈 */
   .markdown-content li {
     word-wrap: break-word;
     overflow-wrap: break-word;
     word-break: break-word;
   }
 
-  /* 제목 줄바꿈 */
   .markdown-content h1,
   .markdown-content h2,
   .markdown-content h3,
@@ -832,7 +364,6 @@
     overflow-wrap: break-word;
   }
 
-  /* 모든 텍스트 요소 줄바꿈 */
   .markdown-content p,
   .markdown-content span,
   .markdown-content div {
@@ -840,7 +371,6 @@
     overflow-wrap: break-word;
   }
 
-  /* 이모지와 특수 문자 */
   .markdown-content img[src*="emoji"] {
     display: inline;
     height: 1em;
@@ -849,7 +379,6 @@
     vertical-align: -0.1em;
   }
 
-  /* 리스트 아이템 내부 p 태그 margin 제거 - bullet과 텍스트 분리 방지 */
   .markdown-content li > p:first-child {
     margin-top: 0;
   }
@@ -860,7 +389,6 @@
     margin: 0;
   }
 
-  /* Tiptap 리치 텍스트 에디터 스타일 */
   .ProseMirror {
     outline: none;
   }
@@ -873,7 +401,6 @@
     pointer-events: none;
   }
 
-  /* 에디터 내부 리스트 스타일 */
   .ProseMirror ul {
     list-style-type: disc;
     padding-left: 1.5rem;
@@ -894,7 +421,6 @@
     margin: 0.25rem 0;
   }
 
-  /* 다크 모드 대응 */
   .dark .ProseMirror {
     color: hsl(var(--foreground));
   }

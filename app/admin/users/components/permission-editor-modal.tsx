@@ -31,11 +31,19 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   UserListItem,
   UserPermissions,
   getUserPermissions,
   updateUserPermissions,
   resetUserPermissions,
+  updateUserRole,
   getDefaultPermissions,
 } from "@/lib/auth"
 
@@ -148,14 +156,17 @@ export function PermissionEditorModal({
 }: PermissionEditorModalProps) {
   const [permissions, setPermissions] = useState<UserPermissions | null>(null)
   const [originalPermissions, setOriginalPermissions] = useState<UserPermissions | null>(null)
+  const [selectedRole, setSelectedRole] = useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isChangingRole, setIsChangingRole] = useState(false)
 
   // Fetch permissions when modal opens
   const fetchPermissions = useCallback(async () => {
     if (!user) return
 
     setIsLoading(true)
+    setSelectedRole(user.role)
     try {
       const response = await getUserPermissions(user.id)
       setPermissions(response.permissions)
@@ -163,7 +174,6 @@ export function PermissionEditorModal({
     } catch (error) {
       console.error("Failed to fetch permissions:", error)
       toast.error("권한 정보를 불러오는데 실패했습니다.")
-      // 기본값 사용
       const defaultPerms = getDefaultPermissions()
       setPermissions(defaultPerms)
       setOriginalPermissions(defaultPerms)
@@ -177,6 +187,28 @@ export function PermissionEditorModal({
       fetchPermissions()
     }
   }, [open, user, fetchPermissions])
+
+  const handleRoleChange = async (newRole: string) => {
+    if (!user || newRole === user.role) return
+
+    setIsChangingRole(true)
+    try {
+      await updateUserRole(user.id, newRole)
+      setSelectedRole(newRole)
+      // 역할이 바뀌면 권한도 새로 조회
+      const response = await getUserPermissions(user.id)
+      setPermissions(response.permissions)
+      setOriginalPermissions(response.permissions)
+      toast.success(`역할이 '${newRole}'으로 변경되었습니다.`)
+      onUpdated?.()
+    } catch (error) {
+      console.error("Failed to change role:", error)
+      toast.error("역할 변경에 실패했습니다.")
+      setSelectedRole(user.role)
+    } finally {
+      setIsChangingRole(false)
+    }
+  }
 
   // Check if permissions have changed
   const hasChanges = JSON.stringify(permissions) !== JSON.stringify(originalPermissions)
@@ -261,6 +293,23 @@ export function PermissionEditorModal({
             )}
           </DialogDescription>
         </DialogHeader>
+
+        {/* 역할 선택 (관리자 변경 불가) */}
+        {user && user.role !== "admin" && (
+          <div className="flex items-center gap-3 py-2 px-1 rounded-lg bg-muted/40 border border-border/50">
+            <span className="text-sm font-medium text-muted-foreground min-w-fit">역할</span>
+            <Select value={selectedRole} onValueChange={handleRoleChange} disabled={isChangingRole}>
+              <SelectTrigger className="h-8 text-sm flex-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="user">사용자 (채팅/셀프체크)</SelectItem>
+                <SelectItem value="operator">운영자 (임베딩/파싱/컬렉션)</SelectItem>
+              </SelectContent>
+            </Select>
+            {isChangingRole && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+          </div>
+        )}
 
         {user?.role === "admin" ? (
           <div className="py-8 text-center text-muted-foreground">

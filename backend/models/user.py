@@ -5,36 +5,33 @@
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Dict, Any
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, JSON
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text
 from backend.database import Base
 
 
-def get_default_permissions() -> Dict[str, Any]:
-    """기본 사용자 권한 템플릿 반환"""
-    return {
-        "selfcheck": {"execute": True, "history": True, "feedback": False},
-        "documents": {"parse": True, "view": True, "delete": False},
-        "qdrant": {"upload": True, "collections": False},
-        "dify": {"upload": True, "config": False},
-        "chat": {"use": True, "all_collections": False},
-        "analytics": {"view": False},
-        "excel": {"upload": True},
-        "admin": {"users": False, "system": False}
-    }
+# user 역할 기본 권한 (Phase 2에서 DB 조회로 대체)
+_USER_ROLE_DEFAULTS: Dict[str, Dict[str, bool]] = {
+    "chat":      {"use": True,  "all_collections": False},
+    "selfcheck": {"execute": True, "history": True, "feedback": False},
+    "documents": {"parse": True, "view": True, "delete": False},
+    "qdrant":    {"upload": True, "collections": False},
+    "excel":     {"upload": True},
+    "dify":      {"upload": True, "config": False},
+    "analytics": {"view": False},
+    "admin":     {"users": False, "system": False},
+}
 
-
-def get_admin_permissions() -> Dict[str, Any]:
-    """관리자 권한 템플릿 반환 (모든 권한 활성화)"""
-    return {
-        "selfcheck": {"execute": True, "history": True, "feedback": True},
-        "documents": {"parse": True, "view": True, "delete": True},
-        "qdrant": {"upload": True, "collections": True},
-        "dify": {"upload": True, "config": True},
-        "chat": {"use": True, "all_collections": True},
-        "analytics": {"view": True},
-        "excel": {"upload": True},
-        "admin": {"users": True, "system": True}
-    }
+# operator 역할 기본 권한
+_OPERATOR_ROLE_DEFAULTS: Dict[str, Dict[str, bool]] = {
+    "chat":      {"use": False, "all_collections": False},
+    "selfcheck": {"execute": False, "history": False, "feedback": False},
+    "documents": {"parse": True, "view": True, "delete": True},
+    "qdrant":    {"upload": True, "collections": True},
+    "excel":     {"upload": True},
+    "dify":      {"upload": False, "config": False},
+    "analytics": {"view": False},
+    "admin":     {"users": False, "system": False},
+}
 
 
 class UserStatus(str, Enum):
@@ -66,9 +63,6 @@ class User(Base):
     # 브루트포스 공격 방어 필드
     failed_login_attempts = Column(Integer, default=0, nullable=False)
     locked_until = Column(DateTime, nullable=True)  # 계정 잠금 해제 시간
-
-    # 세분화된 권한 관리 필드
-    permissions = Column(JSON, nullable=True, default=get_default_permissions)
 
     def __repr__(self):
         return f"<User(id={self.id}, username='{self.username}', email='{self.email}', status='{self.status}')>"
@@ -112,18 +106,16 @@ class User(Base):
         return max(0, int(remaining))
 
     def get_permissions(self) -> Dict[str, Any]:
-        """사용자 권한 반환 (admin은 모든 권한)"""
+        """역할별 기본 권한 반환 (Phase 2에서 DB 조회로 대체)"""
         if self.role == "admin":
-            return get_admin_permissions()
-        if self.permissions is None:
-            return get_default_permissions()
-        return self.permissions
+            return {cat: {act: True for act in actions} for cat, actions in _USER_ROLE_DEFAULTS.items()}
+        if self.role == "operator":
+            return _OPERATOR_ROLE_DEFAULTS
+        return _USER_ROLE_DEFAULTS
 
     def has_permission(self, category: str, action: str) -> bool:
-        """특정 권한 보유 여부 확인"""
-        # 관리자는 모든 권한 보유
+        """특정 권한 보유 여부 확인 (Phase 2에서 rbac_service DB 조회로 대체)"""
         if self.role == "admin":
             return True
-        permissions = self.get_permissions()
-        category_permissions = permissions.get(category, {})
-        return category_permissions.get(action, False)
+        defaults = _OPERATOR_ROLE_DEFAULTS if self.role == "operator" else _USER_ROLE_DEFAULTS
+        return defaults.get(category, {}).get(action, False)

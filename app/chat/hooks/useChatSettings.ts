@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { toast } from "sonner";
 import { API_BASE_URL } from "@/lib/api-config";
 import type { ChatSettings } from "../types";
 
@@ -70,14 +69,12 @@ export function useChatSettings() {
             useReranking: data.use_reranking,
           }));
           setSettingsLoaded(true);
-          toast.success(`설정 로드 완료 (max_tokens: ${data.max_tokens})`);
         } else {
           console.error('[Settings] Failed to load, using fallback defaults');
           setSettingsLoaded(true);
         }
       } catch (error) {
         console.error('[Settings] Error loading settings:', error);
-        toast.error('설정 로드 실패 - 기본값 사용');
         setSettingsLoaded(true);
       }
     };

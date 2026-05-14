@@ -470,7 +470,7 @@ export async function resetUserPassword(
 }
 
 /**
- * 기본 사용자 권한 템플릿
+ * 역할별 기본 권한 템플릿 (API 실패 시 fallback)
  */
 export function getDefaultPermissions(): UserPermissions {
   return {
@@ -485,9 +485,19 @@ export function getDefaultPermissions(): UserPermissions {
   }
 }
 
-/**
- * 관리자 권한 템플릿
- */
+export function getOperatorPermissions(): UserPermissions {
+  return {
+    selfcheck: { execute: false, history: false, feedback: false },
+    documents: { parse: true, view: true, delete: true },
+    qdrant: { upload: true, collections: true },
+    dify: { upload: false, config: false },
+    chat: { use: false, all_collections: false },
+    analytics: { view: false },
+    excel: { upload: true },
+    admin: { users: false, system: false }
+  }
+}
+
 export function getAdminPermissions(): UserPermissions {
   return {
     selfcheck: { execute: true, history: true, feedback: true },
@@ -519,4 +529,39 @@ export function hasPermission(
   if (!categoryPermissions) return false
 
   return categoryPermissions[action] ?? false
+}
+
+/**
+ * 사용자 역할 변경 (관리자 전용)
+ */
+export async function updateUserRole(userId: number, role: string): Promise<{ success: boolean; role: string; message: string }> {
+  const response = await fetch(`${API_BASE_URL}/api/auth/users/${userId}/role`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ role }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to update user role')
+  }
+
+  return response.json()
+}
+
+/**
+ * 역할 목록 조회 (관리자 전용)
+ */
+export async function getRoles(): Promise<{ roles: Array<{ id: number; name: string; description: string; permissions: UserPermissions }> }> {
+  const response = await fetch(`${API_BASE_URL}/api/auth/roles`, {
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to get roles')
+  }
+
+  return response.json()
 }

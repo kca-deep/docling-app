@@ -3,11 +3,9 @@
 import { useEffect, useRef, useState, memo, useCallback } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { MessageBubble } from "./MessageBubble";
-import { SuggestedPrompts } from "./SuggestedPrompts";
 import { ThinkingIndicator } from "./ThinkingIndicator";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
 import type { Message, Source, CodeExecution } from "../types";
 import type { UploadStatus } from "../hooks/useDocumentUpload";
 
@@ -18,7 +16,6 @@ interface MessageListProps {
   onRegenerate?: (messageIndex: number) => void;
   onQuote?: (message: Message) => void;
   collectionName?: string;
-  onPromptSelect?: (prompt: string) => void;
   onOpenArtifact?: (sources: Source[], messageId: string) => void;
   currentStage?: string;
   documentUploadStatus?: UploadStatus | null;
@@ -40,7 +37,6 @@ export const MessageList = memo(function MessageList({
   onRegenerate,
   onQuote,
   collectionName,
-  onPromptSelect,
   onOpenArtifact,
   currentStage,
   documentUploadStatus,
@@ -194,9 +190,8 @@ export const MessageList = memo(function MessageList({
     try {
       const copyContent = buildMessageCopyContent(content, codeExecutions);
       await navigator.clipboard.writeText(copyContent);
-      toast.success("메시지가 복사되었습니다");
     } catch (error) {
-      toast.error("복사에 실패했습니다");
+      // 복사 실패
     }
   };
 
@@ -295,14 +290,6 @@ export const MessageList = memo(function MessageList({
               <div className="divide-y divide-border/20">
                 {messages.map((message, index) => renderMessage(message, index))}
               </div>
-            )}
-
-            {/* 초기 화면 추천 질문 */}
-            {messages.length === 0 && !isLoading && !documentUploadStatus && onPromptSelect && (
-              <SuggestedPrompts
-                collectionName={collectionName || ""}
-                onSelect={onPromptSelect}
-              />
             )}
 
             {/* 로딩 인디케이터 */}

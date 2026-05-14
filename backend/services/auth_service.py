@@ -13,7 +13,7 @@ from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from backend.config.settings import settings
-from backend.models.user import User, UserStatus, get_default_permissions, get_admin_permissions
+from backend.models.user import User, UserStatus
 
 logger = logging.getLogger(__name__)
 
@@ -452,15 +452,9 @@ class AuthService:
         user.approved_at = datetime.now(timezone.utc)
         user.approved_by = admin_id
 
-        # 템플릿 사용자(zephyr23)의 권한 복사
-        template_user = self.get_user_by_username(db, "zephyr23")
-        if template_user and template_user.permissions:
-            user.permissions = template_user.permissions.copy()
-            logger.info(f"Copied permissions from template user 'zephyr23' to '{user.username}'")
-        else:
-            # 템플릿 사용자가 없으면 기본 권한 사용
-            user.permissions = get_default_permissions()
-            logger.warning(f"Template user 'zephyr23' not found, using default permissions for '{user.username}'")
+        # user_roles 엔트리 생성 (없는 경우)
+        from backend.services.rbac_service import rbac_service
+        rbac_service.ensure_user_role(db, user.id, user.role, assigned_by=admin_id)
 
         db.commit()
         db.refresh(user)
@@ -661,26 +655,13 @@ class AuthService:
         if not user:
             raise AuthenticationError("사용자를 찾을 수 없습니다.", "USER_NOT_FOUND")
 
-        # 관리자 권한은 수정 불가 (역할 기반으로 자동 적용)
-        if user.role == "admin":
-            raise AuthenticationError(
-                "관리자 계정의 권한은 역할에 의해 자동으로 결정됩니다.",
-                "ADMIN_PERMISSION_IMMUTABLE"
-            )
+        from backend.services.rbac_service import rbac_service
+        try:
+            rbac_service.update_overrides(db, user_id, permissions, admin_id)
+        except ValueError as e:
+            raise AuthenticationError(str(e), "PERMISSION_UPDATE_ERROR")
 
-        # 권한 유효성 검사
-        valid_categories = {"selfcheck", "documents", "qdrant", "dify", "chat", "analytics", "excel", "admin"}
-        for category in permissions.keys():
-            if category not in valid_categories:
-                raise AuthenticationError(
-                    f"유효하지 않은 권한 카테고리: {category}",
-                    "INVALID_PERMISSION_CATEGORY"
-                )
-
-        user.permissions = permissions
-        db.commit()
         db.refresh(user)
-
         logger.info(f"User '{user.username}' permissions updated by admin ID {admin_id}")
         return user
 
@@ -706,10 +687,10 @@ class AuthService:
                 "ADMIN_PERMISSION_IMMUTABLE"
             )
 
-        user.permissions = get_default_permissions()
-        db.commit()
-        db.refresh(user)
+        from backend.services.rbac_service import rbac_service
+        rbac_service.reset_overrides(db, user_id, admin_id)
 
+        db.refresh(user)
         logger.info(f"User '{user.username}' permissions reset to default by admin ID {admin_id}")
         return user
 

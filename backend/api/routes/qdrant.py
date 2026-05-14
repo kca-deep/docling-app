@@ -148,6 +148,12 @@ async def get_collections(
         for qdrant_col in qdrant_collections:
             if qdrant_col.name in metadata_map:
                 meta = metadata_map[qdrant_col.name]
+                _is_owner = user_id is not None and meta.owner_id == user_id
+                _can_manage_docs = (
+                    _is_owner
+                    or (current_user is not None and current_user.role == "admin")
+                    or (current_user is not None and current_user.has_permission("qdrant", "collections"))
+                )
                 result_collections.append(QdrantCollectionInfo(
                     name=qdrant_col.name,
                     documents_count=qdrant_col.documents_count,
@@ -157,8 +163,9 @@ async def get_collections(
                     visibility=meta.visibility,
                     description=meta.description,
                     owner_id=meta.owner_id,
-                    is_owner=user_id is not None and meta.owner_id == user_id,
-                    allowed_users=meta.allowed_users if meta.visibility == "shared" else None
+                    is_owner=_is_owner,
+                    allowed_users=meta.allowed_users if meta.visibility == "shared" else None,
+                    can_manage_docs=_can_manage_docs
                 ))
 
         return QdrantCollectionsResponse(
@@ -401,8 +408,9 @@ async def update_collection_settings(
                 detail=f"컬렉션 '{collection_name}'의 메타데이터를 찾을 수 없습니다"
             )
 
-        # 소유권 확인
-        if collection_meta.owner_id != current_user.id:
+        # 소유권 확인 (관리자는 모든 컬렉션 설정 변경 가능)
+        is_admin = current_user.role == "admin"
+        if collection_meta.owner_id != current_user.id and not is_admin:
             raise HTTPException(
                 status_code=403,
                 detail="컬렉션 설정 변경 권한이 없습니다. 소유자만 변경할 수 있습니다."
@@ -478,12 +486,13 @@ async def get_collection_documents(
                 detail=f"Collection '{collection_name}'이 존재하지 않습니다"
             )
 
-        # 권한 확인 (소유자 또는 관리자)
+        # 권한 확인 (소유자, 관리자, 또는 qdrant.collections 권한 보유자)
         collection_meta = collection_crud.get_by_name(db, collection_name)
         if collection_meta:
             is_owner = collection_meta.owner_id == current_user.id
             is_admin = current_user.role == "admin"
-            if not is_owner and not is_admin:
+            has_doc_perm = current_user.has_permission("qdrant", "collections")
+            if not is_owner and not is_admin and not has_doc_perm:
                 raise HTTPException(
                     status_code=403,
                     detail="문서 목록 조회 권한이 없습니다"
@@ -549,12 +558,13 @@ async def delete_collection_documents(
                 detail=f"Collection '{collection_name}'이 존재하지 않습니다"
             )
 
-        # 권한 확인 (소유자 또는 관리자)
+        # 권한 확인 (소유자, 관리자, 또는 qdrant.collections 권한 보유자)
         collection_meta = collection_crud.get_by_name(db, collection_name)
         if collection_meta:
             is_owner = collection_meta.owner_id == current_user.id
             is_admin = current_user.role == "admin"
-            if not is_owner and not is_admin:
+            has_doc_perm = current_user.has_permission("qdrant", "collections")
+            if not is_owner and not is_admin and not has_doc_perm:
                 raise HTTPException(
                     status_code=403,
                     detail="문서 삭제 권한이 없습니다"

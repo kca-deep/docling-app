@@ -33,7 +33,6 @@ import {
   ComposedChart, Area, Line
 } from "recharts"
 import { getCollectionDisplayName } from "@/lib/collection-utils"
-import { ServiceHealthBanner } from "@/components/service-health-banner"
 import { ChatHistoryModal } from "./components/ChatHistoryModal"
 import { useAnalyticsData } from "./hooks/useAnalyticsData"
 import { timelineChartConfig, calculateMovingAverage, metricColors, feedbackCategoryLabels } from "./constants"
@@ -156,9 +155,6 @@ export default function AnalyticsPage() {
 
   return (
     <PageContainer maxWidth="wide" className="space-y-4">
-      {/* Service Health Banner */}
-      <ServiceHealthBanner showDetails />
-
       {/* Page Header */}
       <div className="flex items-center">
         <h1 className="text-lg font-semibold flex items-center gap-2">
@@ -172,7 +168,7 @@ export default function AnalyticsPage() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.2 }}
-        className="sticky top-16 z-30 mb-4"
+        className="sticky top-0 z-30 mb-4"
       >
         <div className="p-2 sm:p-3 rounded-xl bg-background/60 backdrop-blur-xl border border-border/50 shadow-lg supports-[backdrop-filter]:bg-background/40 space-y-2 sm:space-y-0">
           {/* 1줄: 컬렉션 + 버튼들 + 활성세션 */}

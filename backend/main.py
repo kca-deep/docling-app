@@ -33,6 +33,7 @@ from backend.models import chat_session, chat_statistics  # Import Chat models
 from backend.models import user as user_model  # Import User model for auth
 from backend.models import selfcheck as selfcheck_model  # Import SelfCheck models
 from backend.models import feedback as feedback_model  # Import Feedback model
+from backend.models import rbac as rbac_model  # Import RBAC models
 from backend.services.hybrid_logging_service import hybrid_logging_service
 from backend.services.statistics_service import statistics_service
 from backend.services.auth_service import auth_service
@@ -249,7 +250,7 @@ async def warmup_ai_models():
         try:
             from backend.services.embedding_service import embedding_service
             start = time.time()
-            await embedding_service.get_embedding("워밍업 테스트")
+            await embedding_service.get_embeddings("워밍업 테스트")
             elapsed = time.time() - start
             warmup_results.append(f"Embedding: {elapsed:.2f}s")
         except Exception as e:
@@ -492,19 +493,6 @@ async def health_live():
     """Liveness probe - 앱 자체 상태 확인"""
     return await health_service.get_simple_health()
 
-
-@app.get("/health/ready")
-async def health_ready():
-    """
-    Readiness probe - 모든 의존성 서비스 확인
-
-    Returns:
-        200: 모든 서비스 정상
-        503: 필수 서비스 장애
-    """
-    result = await health_service.get_full_health()
-    status_code = 200 if result["status"] in ["healthy", "degraded"] else 503
-    return JSONResponse(content=result, status_code=status_code)
 
 
 @app.get("/health/llm-models")

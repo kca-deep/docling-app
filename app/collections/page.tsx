@@ -69,6 +69,7 @@ interface Collection {
   description?: string
   owner_id?: number
   is_owner?: boolean
+  can_manage_docs?: boolean
   created_at?: string
 }
 
@@ -397,7 +398,7 @@ export default function CollectionsPage() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.3 }}
-        className="sticky top-16 z-30 mb-4"
+        className="sticky top-0 z-30 mb-4"
       >
         <div className="p-3 rounded-xl bg-background/60 backdrop-blur-xl border border-border/50 shadow-lg supports-[backdrop-filter]:bg-background/40 space-y-2.5">
           {/* 첫 번째 줄: 검색 + 정렬 + 새로고침 */}

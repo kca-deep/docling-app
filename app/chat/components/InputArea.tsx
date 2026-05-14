@@ -45,7 +45,6 @@ interface InputAreaProps {
   quotedMessage?: QuotedMessage | null;
   onClearQuote?: () => void;
   onClearChat?: () => void;
-  isFullscreen?: boolean;
   selectedCollection: string;
   onCollectionChange: (collection: string) => void;
   collections: Collection[];
@@ -184,7 +183,6 @@ export const InputArea = memo(function InputArea({
   isStreaming = false,
   onStopStreaming,
   onClearChat,
-  isFullscreen,
   selectedCollection,
   onCollectionChange,
   collections,
@@ -299,7 +297,7 @@ export const InputArea = memo(function InputArea({
         )}
 
         {/* ChatGPT 스타일 입력 카드 - Glassmorphism Floating Style */}
-        <div className="bg-background/90 border border-border/30 rounded-[2rem] shadow-2xl transition-all duration-300 hover:shadow-primary/10 group relative overflow-hidden ring-1 ring-border/20 hover:ring-border/30">
+        <div className="bg-background/90 chat-input-card group relative overflow-hidden">
           {/* Background Gradient Blend */}
           <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-transparent opacity-50 pointer-events-none" />
 
@@ -324,7 +322,7 @@ export const InputArea = memo(function InputArea({
               disabled={isLoading || isDocumentUploading}
               className={cn(
                 "min-h-[44px] sm:min-h-[60px] max-h-[150px] sm:max-h-[300px] resize-none border-0 focus-visible:ring-0 shadow-none pr-14 px-3 py-2 bg-transparent text-sm sm:text-base",
-                "placeholder:text-muted-foreground/60 selection:bg-primary/20",
+                "placeholder:text-muted-foreground/80 selection:bg-primary/20",
                 disabled && "opacity-50 cursor-not-allowed"
               )}
             />

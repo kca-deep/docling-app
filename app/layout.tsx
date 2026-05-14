@@ -3,8 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/components/auth/auth-provider";
-import { NavHeader } from "@/components/nav-header";
-import { Toaster } from "@/components/ui/sonner";
+import { SideNav, SideNavMobileBar } from "@/components/side-nav";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -26,16 +25,18 @@ export default function RootLayout({
       <body className={`${inter.variable} font-sans antialiased tracking-tight bg-noise selection:bg-purple-500/30`}>
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
-          enableSystem
+          defaultTheme="dark"
+          forcedTheme="dark"
           disableTransitionOnChange
         >
           <AuthProvider>
-            <div className="min-h-screen bg-background">
-              <NavHeader />
-              <main className="w-full overflow-x-hidden">{children}</main>
+            <div className="flex h-screen overflow-hidden bg-background">
+              <SideNav />
+              <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+                <SideNavMobileBar />
+                <main className="flex-1 overflow-y-auto overflow-x-hidden">{children}</main>
+              </div>
             </div>
-            <Toaster />
           </AuthProvider>
         </ThemeProvider>
       </body>

@@ -87,6 +87,7 @@ import {
 import { toast } from "sonner"
 import { API_BASE_URL } from "@/lib/api-config"
 import { cn } from "@/lib/utils"
+import { useAuth } from "@/components/auth/auth-provider"
 
 // 통합 아이콘 옵션 (15개)
 const ICON_OPTIONS: { value: string; label: string; icon: LucideIcon }[] = [
@@ -144,6 +145,7 @@ interface Collection {
   description?: string
   owner_id?: number
   is_owner?: boolean
+  can_manage_docs?: boolean
   allowed_users?: number[]
 }
 
@@ -181,6 +183,10 @@ export function CollectionModal({
   onSuccess,
   onDelete,
 }: CollectionModalProps) {
+  const { user } = useAuth()
+  const canDeleteCollection = !!(collection?.is_owner || user?.role === "admin")
+  const canManageDocs = !!(collection?.can_manage_docs)
+
   // 공통 상태
   const [name, setName] = useState("")
   const [koreanName, setKoreanName] = useState("")
@@ -765,39 +771,39 @@ export function CollectionModal({
             {/* 푸터 */}
             <div className="flex items-center justify-between px-5 py-3 border-t bg-muted/30 flex-shrink-0">
               <div className="flex gap-1.5">
-                {mode === "edit" && (
-                  <>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant={docsPanelOpen ? "secondary" : "ghost"}
-                            size="sm"
-                            className="h-8 px-3"
-                            onClick={openDocsPanel}
-                          >
-                            <FolderCog className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>문서 관리</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 px-3 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => setDeleteDialogOpen(true)}
-                          >
-                            <AlertTriangle className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>컬렉션 삭제</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </>
+                {mode === "edit" && canManageDocs && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant={docsPanelOpen ? "secondary" : "ghost"}
+                          size="sm"
+                          className="h-8 px-3"
+                          onClick={openDocsPanel}
+                        >
+                          <FolderCog className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>문서 관리</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+                {mode === "edit" && canDeleteCollection && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-3 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => setDeleteDialogOpen(true)}
+                        >
+                          <AlertTriangle className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>컬렉션 삭제</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
               </div>
               <div className="flex gap-2">

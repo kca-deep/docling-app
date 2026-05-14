@@ -190,6 +190,13 @@ export default function AdminUsersPage() {
         </Badge>
       )
     }
+    if (role === "operator") {
+      return (
+        <Badge variant="secondary" className="bg-blue-500/10 text-blue-600 border-blue-500/30">
+          운영자
+        </Badge>
+      )
+    }
     return (
       <Badge variant="outline" className="text-muted-foreground">
         사용자
