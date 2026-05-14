@@ -189,7 +189,7 @@ export function PermissionEditorModal({
   }, [open, user, fetchPermissions])
 
   const handleRoleChange = async (newRole: string) => {
-    if (!user || newRole === user.role) return
+    if (!user || newRole === selectedRole) return
 
     setIsChangingRole(true)
     try {
