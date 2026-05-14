@@ -28,6 +28,7 @@ import {
   Settings,
   ClipboardCheck,
   ExternalLink,
+  CheckCircle2,
 } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -51,7 +52,7 @@ interface PermissionEditorModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   user: UserListItem | null
-  onUpdated?: () => void
+  onUpdated?: () => void | Promise<void>
 }
 
 interface PermissionCategory {
@@ -66,7 +67,18 @@ interface PermissionCategory {
   }[]
 }
 
+// 카테고리 순서: 사용자 주요 기능 → 운영 기능 → 관리 기능
 const PERMISSION_CATEGORIES: PermissionCategory[] = [
+  {
+    key: "chat",
+    label: "AI 채팅",
+    icon: <MessageSquare className="h-4 w-4" />,
+    description: "RAG 기반 AI 채팅",
+    actions: [
+      { key: "use", label: "채팅 사용", description: "AI 채팅 사용 가능" },
+      { key: "all_collections", label: "전체 컬렉션 접근", description: "모든 컬렉션에 접근 가능 (미설정 시 공유된 컬렉션만)" },
+    ],
+  },
   {
     key: "selfcheck",
     label: "셀프진단",
@@ -75,6 +87,7 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
     actions: [
       { key: "execute", label: "진단 실행", description: "셀프진단 실행 가능" },
       { key: "history", label: "이력 조회", description: "본인 진단 이력 조회" },
+      { key: "feedback", label: "피드백", description: "진단 결과 피드백 제출 가능" },
     ],
   },
   {
@@ -83,9 +96,9 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
     icon: <FileText className="h-4 w-4" />,
     description: "문서 파싱 및 관리",
     actions: [
-      { key: "parse", label: "문서 파싱", description: "문서 변환 실행 가능" },
-      { key: "view", label: "문서 조회", description: "파싱된 문서 조회 가능" },
-      { key: "delete", label: "문서 삭제", description: "문서 삭제 가능" },
+      { key: "parse", label: "문서 파싱", description: "문서 변환(파싱) 실행 가능" },
+      { key: "view", label: "문서 조회", description: "파싱된 문서 목록 및 내용 조회" },
+      { key: "delete", label: "문서 삭제", description: "파싱된 문서 삭제 가능" },
     ],
   },
   {
@@ -94,8 +107,17 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
     icon: <Database className="h-4 w-4" />,
     description: "Qdrant 벡터 데이터베이스",
     actions: [
-      { key: "upload", label: "업로드", description: "벡터 임베딩 업로드 가능" },
-      { key: "collections", label: "컬렉션 관리", description: "컬렉션 생성/삭제 가능" },
+      { key: "upload", label: "임베딩 업로드", description: "문서를 벡터로 변환 후 업로드 가능" },
+      { key: "collections", label: "컬렉션 관리", description: "컬렉션 생성 및 삭제 가능" },
+    ],
+  },
+  {
+    key: "excel",
+    label: "엑셀 임베딩",
+    icon: <Sheet className="h-4 w-4" />,
+    description: "엑셀 파일 처리 및 임베딩",
+    actions: [
+      { key: "upload", label: "엑셀 업로드", description: "엑셀 파일 업로드 및 임베딩 가능" },
     ],
   },
   {
@@ -104,49 +126,36 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
     icon: <ExternalLink className="h-4 w-4" />,
     description: "Dify AI 플랫폼 연동",
     actions: [
-      { key: "upload", label: "업로드", description: "Dify 문서 업로드 가능" },
-      { key: "config", label: "설정 관리", description: "Dify 설정 변경 가능" },
-    ],
-  },
-  {
-    key: "chat",
-    label: "AI 채팅",
-    icon: <MessageSquare className="h-4 w-4" />,
-    description: "RAG 기반 AI 채팅",
-    actions: [
-      { key: "use", label: "채팅 사용", description: "AI 채팅 사용 가능" },
-      { key: "all_collections", label: "전체 컬렉션", description: "모든 컬렉션 접근 가능" },
+      { key: "upload", label: "문서 업로드", description: "Dify 지식베이스에 문서 업로드 가능" },
+      { key: "config", label: "연동 설정", description: "Dify API 설정 변경 가능" },
     ],
   },
   {
     key: "analytics",
-    label: "분석",
+    label: "통계 분석",
     icon: <BarChart3 className="h-4 w-4" />,
     description: "사용 통계 및 분석",
     actions: [
-      { key: "view", label: "통계 조회", description: "사용 통계 조회 가능" },
-    ],
-  },
-  {
-    key: "excel",
-    label: "엑셀 임베딩",
-    icon: <Sheet className="h-4 w-4" />,
-    description: "엑셀 파일 처리",
-    actions: [
-      { key: "upload", label: "엑셀 업로드", description: "엑셀 파일 업로드 가능" },
+      { key: "view", label: "통계 조회", description: "사용 통계 대시보드 조회 가능" },
     ],
   },
   {
     key: "admin",
     label: "관리자",
     icon: <Settings className="h-4 w-4" />,
-    description: "시스템 관리 기능",
+    description: "시스템 관리 기능 (부여 시 관리자 수준 접근 허용)",
     actions: [
-      { key: "users", label: "사용자 관리", description: "사용자 관리 가능" },
-      { key: "system", label: "시스템 설정", description: "시스템 설정 변경 가능" },
+      { key: "users", label: "사용자 관리", description: "사용자 목록 조회 및 승인/거절 가능" },
+      { key: "system", label: "시스템 설정", description: "시스템 전체 설정 변경 가능" },
     ],
   },
 ]
+
+const ROLE_LABELS: Record<string, string> = {
+  user: "사용자",
+  operator: "운영자",
+  admin: "관리자",
+}
 
 export function PermissionEditorModal({
   open,
@@ -160,13 +169,14 @@ export function PermissionEditorModal({
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isChangingRole, setIsChangingRole] = useState(false)
+  const [savedAt, setSavedAt] = useState<Date | null>(null)
 
-  // Fetch permissions when modal opens
   const fetchPermissions = useCallback(async () => {
     if (!user) return
 
     setIsLoading(true)
     setSelectedRole(user.role)
+    setSavedAt(null)
     try {
       const response = await getUserPermissions(user.id)
       setPermissions(response.permissions)
@@ -192,15 +202,16 @@ export function PermissionEditorModal({
     if (!user || newRole === selectedRole) return
 
     setIsChangingRole(true)
+    setSavedAt(null)
     try {
       await updateUserRole(user.id, newRole)
       setSelectedRole(newRole)
-      // 역할이 바뀌면 권한도 새로 조회
+      // 역할 변경 후 새 역할의 권한 조회
       const response = await getUserPermissions(user.id)
       setPermissions(response.permissions)
       setOriginalPermissions(response.permissions)
-      toast.success(`역할이 '${newRole}'으로 변경되었습니다.`)
-      onUpdated?.()
+      toast.success(`역할이 '${ROLE_LABELS[newRole] ?? newRole}'으로 변경되었습니다.`)
+      await onUpdated?.()
     } catch (error) {
       console.error("Failed to change role:", error)
       toast.error("역할 변경에 실패했습니다.")
@@ -210,13 +221,11 @@ export function PermissionEditorModal({
     }
   }
 
-  // Check if permissions have changed
   const hasChanges = JSON.stringify(permissions) !== JSON.stringify(originalPermissions)
 
-  // Toggle permission
   const togglePermission = (category: keyof UserPermissions, action: string) => {
     if (!permissions) return
-
+    setSavedAt(null)
     setPermissions({
       ...permissions,
       [category]: {
@@ -226,17 +235,16 @@ export function PermissionEditorModal({
     })
   }
 
-  // Save permissions
   const handleSave = async () => {
     if (!user || !permissions) return
 
     setIsSaving(true)
     try {
       await updateUserPermissions(user.id, permissions)
-      toast.success(`${user.username} 사용자의 권한이 저장되었습니다.`)
       setOriginalPermissions(permissions)
-      onUpdated?.()
-      onOpenChange(false)
+      setSavedAt(new Date())
+      toast.success(`${user.username} 사용자의 권한이 저장되었습니다.`)
+      await onUpdated?.()
     } catch (error) {
       console.error("Failed to save permissions:", error)
       toast.error("권한 저장에 실패했습니다.")
@@ -245,17 +253,18 @@ export function PermissionEditorModal({
     }
   }
 
-  // Reset to default
   const handleReset = async () => {
     if (!user) return
 
     setIsSaving(true)
+    setSavedAt(null)
     try {
       const response = await resetUserPermissions(user.id)
       setPermissions(response.permissions)
       setOriginalPermissions(response.permissions)
+      setSavedAt(new Date())
       toast.success(`${user.username} 사용자의 권한이 기본값으로 초기화되었습니다.`)
-      onUpdated?.()
+      await onUpdated?.()
     } catch (error) {
       console.error("Failed to reset permissions:", error)
       toast.error("권한 초기화에 실패했습니다.")
@@ -264,12 +273,13 @@ export function PermissionEditorModal({
     }
   }
 
-  // Get permission value
   const getPermissionValue = (category: keyof UserPermissions, action: string): boolean => {
     if (!permissions) return false
     const categoryPerms = permissions[category] as Record<string, boolean> | undefined
     return categoryPerms?.[action] ?? false
   }
+
+  const isAdminUser = user?.role === "admin"
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -279,72 +289,68 @@ export function PermissionEditorModal({
             <Shield className="h-5 w-5 text-primary" />
             권한 설정
           </DialogTitle>
-          <DialogDescription>
-            {user && (
-              <span className="flex items-center gap-2">
-                <span className="font-medium text-foreground">{user.username}</span>
-                <Badge variant="outline">{user.name || "-"}</Badge>
-                {user.role === "admin" && (
-                  <Badge className="bg-purple-500/10 text-purple-600 border-purple-500/30">
-                    관리자
-                  </Badge>
-                )}
-              </span>
-            )}
+          <DialogDescription asChild>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="font-medium text-foreground">{user?.username}</span>
+              {user?.name && <Badge variant="outline">{user.name}</Badge>}
+              {user?.team_name && (
+                <span className="text-xs text-muted-foreground">{user.team_name}</span>
+              )}
+            </div>
           </DialogDescription>
         </DialogHeader>
 
-        {/* 역할 선택 (관리자 변경 불가) */}
-        {user && user.role !== "admin" && (
-          <div className="flex items-center gap-3 py-2 px-1 rounded-lg bg-muted/40 border border-border/50">
+        {/* 역할 선택 */}
+        {!isAdminUser && (
+          <div className="flex items-center gap-3 py-2 px-3 rounded-lg bg-muted/40 border border-border/50 flex-shrink-0">
             <span className="text-sm font-medium text-muted-foreground min-w-fit">역할</span>
-            <Select value={selectedRole} onValueChange={handleRoleChange} disabled={isChangingRole}>
+            <Select value={selectedRole} onValueChange={handleRoleChange} disabled={isChangingRole || isSaving}>
               <SelectTrigger className="h-8 text-sm flex-1">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="user">사용자 (채팅/셀프체크)</SelectItem>
-                <SelectItem value="operator">운영자 (임베딩/파싱/컬렉션)</SelectItem>
+                <SelectItem value="user">사용자 — 채팅 · 셀프진단</SelectItem>
+                <SelectItem value="operator">운영자 — 파싱 · 임베딩 · 컬렉션</SelectItem>
               </SelectContent>
             </Select>
-            {isChangingRole && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+            {isChangingRole && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground flex-shrink-0" />}
           </div>
         )}
 
-        {user?.role === "admin" ? (
+        {/* 권한 목록 */}
+        {isAdminUser ? (
           <div className="py-8 text-center text-muted-foreground">
             <Shield className="h-12 w-12 mx-auto mb-4 text-purple-500/50" />
             <p className="font-medium text-foreground mb-2">관리자 계정</p>
             <p className="text-sm">
               관리자는 모든 권한을 자동으로 보유합니다.
               <br />
-              권한 설정은 일반 사용자에게만 적용됩니다.
+              권한 설정은 일반 사용자 · 운영자에게만 적용됩니다.
             </p>
           </div>
         ) : isLoading ? (
           <div className="space-y-4 py-4">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="space-y-2">
-                <Skeleton className="h-6 w-32" />
-                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-5 w-28" />
+                <Skeleton className="h-9 w-full" />
               </div>
             ))}
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto py-2">
-            <div className="space-y-4">
+          <div className="flex-1 overflow-y-auto py-1 min-h-0">
+            <div className="space-y-3">
               {PERMISSION_CATEGORIES.map((category, idx) => (
                 <div key={category.key}>
-                  {idx > 0 && <Separator className="mb-4" />}
+                  {idx > 0 && <Separator className="mb-3" />}
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2 mb-2" title={category.description}>
-                      <div className="p-1 rounded bg-muted text-muted-foreground">
+                    <div className="flex items-center gap-2 mb-1.5" title={category.description}>
+                      <div className="p-1 rounded bg-muted text-muted-foreground flex-shrink-0">
                         {category.icon}
                       </div>
                       <h4 className="font-medium text-sm">{category.label}</h4>
                     </div>
-
-                    <div className="flex flex-col gap-0.5 ml-6">
+                    <div className="flex flex-col gap-0 ml-7">
                       {category.actions.map((action) => (
                         <div
                           key={`${category.key}-${action.key}`}
@@ -353,7 +359,7 @@ export function PermissionEditorModal({
                         >
                           <Label
                             htmlFor={`${category.key}-${action.key}`}
-                            className="text-sm cursor-pointer"
+                            className="text-sm cursor-pointer text-muted-foreground"
                           >
                             {action.label}
                           </Label>
@@ -361,7 +367,7 @@ export function PermissionEditorModal({
                             id={`${category.key}-${action.key}`}
                             checked={getPermissionValue(category.key, action.key)}
                             onCheckedChange={() => togglePermission(category.key, action.key)}
-                            disabled={isSaving}
+                            disabled={isSaving || isChangingRole}
                           />
                         </div>
                       ))}
@@ -373,33 +379,40 @@ export function PermissionEditorModal({
           </div>
         )}
 
+        {/* 푸터 */}
         <DialogFooter className="flex-shrink-0 pt-3 border-t">
-          {user?.role !== "admin" && (
+          {!isAdminUser ? (
             <div className="flex w-full items-center justify-between gap-2">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleReset}
-                disabled={isSaving || isLoading}
+                disabled={isSaving || isLoading || isChangingRole}
                 className="gap-1.5 text-muted-foreground hover:text-foreground"
-                title="기본값으로 초기화"
+                title="역할 기본값으로 초기화"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
                 초기화
               </Button>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
+                {savedAt && !hasChanges && (
+                  <span className="flex items-center gap-1 text-xs text-green-600">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    저장됨
+                  </span>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => onOpenChange(false)}
                   disabled={isSaving}
                 >
-                  취소
+                  닫기
                 </Button>
                 <Button
                   size="sm"
                   onClick={handleSave}
-                  disabled={isSaving || isLoading || !hasChanges}
+                  disabled={isSaving || isLoading || isChangingRole || !hasChanges}
                   className="gap-1.5"
                 >
                   {isSaving ? (
@@ -411,8 +424,7 @@ export function PermissionEditorModal({
                 </Button>
               </div>
             </div>
-          )}
-          {user?.role === "admin" && (
+          ) : (
             <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
               닫기
             </Button>

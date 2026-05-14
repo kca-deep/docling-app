@@ -127,6 +127,14 @@ export default function AdminUsersPage() {
     }
   }, [user, fetchUsers])
 
+  // users 목록이 갱신되면 selectedUser도 최신 데이터로 동기화
+  useEffect(() => {
+    if (selectedUser) {
+      const updated = users.find((u) => u.id === selectedUser.id)
+      if (updated) setSelectedUser(updated)
+    }
+  }, [users])
+
   // Filter users based on search and status
   useEffect(() => {
     let result = users
