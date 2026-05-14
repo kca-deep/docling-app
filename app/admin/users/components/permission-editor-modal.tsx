@@ -46,6 +46,7 @@ import {
   resetUserPermissions,
   updateUserRole,
   getDefaultPermissions,
+  getOperatorPermissions,
 } from "@/lib/auth"
 
 interface PermissionEditorModalProps {
@@ -67,7 +68,6 @@ interface PermissionCategory {
   }[]
 }
 
-// 카테고리 순서: 사용자 주요 기능 → 운영 기능 → 관리 기능
 const PERMISSION_CATEGORIES: PermissionCategory[] = [
   {
     key: "chat",
@@ -154,7 +154,12 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
 const ROLE_LABELS: Record<string, string> = {
   user: "사용자",
   operator: "운영자",
-  admin: "관리자",
+}
+
+/** 역할명에 해당하는 기본 권한 반환 (API 호출 없음) */
+function getRoleDefaultPermissions(role: string): UserPermissions {
+  if (role === "operator") return getOperatorPermissions()
+  return getDefaultPermissions()
 }
 
 export function PermissionEditorModal({
@@ -165,17 +170,19 @@ export function PermissionEditorModal({
 }: PermissionEditorModalProps) {
   const [permissions, setPermissions] = useState<UserPermissions | null>(null)
   const [originalPermissions, setOriginalPermissions] = useState<UserPermissions | null>(null)
-  const [selectedRole, setSelectedRole] = useState<string>("")
+  // pendingRole: 드롭다운에서 선택된 값 (미저장 가능)
+  const [pendingRole, setPendingRole] = useState<string>("")
+  // savedRole: DB에 실제 저장된 역할
+  const [savedRole, setSavedRole] = useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [isChangingRole, setIsChangingRole] = useState(false)
   const [savedAt, setSavedAt] = useState<Date | null>(null)
 
   const fetchPermissions = useCallback(async () => {
     if (!user) return
-
     setIsLoading(true)
-    setSelectedRole(user.role)
+    setPendingRole(user.role)
+    setSavedRole(user.role)
     setSavedAt(null)
     try {
       const response = await getUserPermissions(user.id)
@@ -198,30 +205,19 @@ export function PermissionEditorModal({
     }
   }, [open, user, fetchPermissions])
 
-  const handleRoleChange = async (newRole: string) => {
-    if (!user || newRole === selectedRole) return
-
-    setIsChangingRole(true)
+  /** 역할 드롭다운 변경: 로컬 상태만 업데이트, API 호출 없음 */
+  const handleRoleComboChange = (newRole: string) => {
+    if (newRole === pendingRole) return
+    setPendingRole(newRole)
     setSavedAt(null)
-    try {
-      await updateUserRole(user.id, newRole)
-      setSelectedRole(newRole)
-      // 역할 변경 후 새 역할의 권한 조회
-      const response = await getUserPermissions(user.id)
-      setPermissions(response.permissions)
-      setOriginalPermissions(response.permissions)
-      toast.success(`역할이 '${ROLE_LABELS[newRole] ?? newRole}'으로 변경되었습니다.`)
-      await onUpdated?.()
-    } catch (error) {
-      console.error("Failed to change role:", error)
-      toast.error("역할 변경에 실패했습니다.")
-      setSelectedRole(user.role)
-    } finally {
-      setIsChangingRole(false)
-    }
+    // 선택한 역할의 기본 권한을 미리보기로 표시
+    setPermissions(getRoleDefaultPermissions(newRole))
   }
 
-  const hasChanges = JSON.stringify(permissions) !== JSON.stringify(originalPermissions)
+  // 역할 변경 여부 또는 권한 변경 여부 중 하나라도 있으면 저장 가능
+  const hasChanges =
+    pendingRole !== savedRole ||
+    JSON.stringify(permissions) !== JSON.stringify(originalPermissions)
 
   const togglePermission = (category: keyof UserPermissions, action: string) => {
     if (!permissions) return
@@ -237,9 +233,14 @@ export function PermissionEditorModal({
 
   const handleSave = async () => {
     if (!user || !permissions) return
-
     setIsSaving(true)
     try {
+      // 역할이 변경된 경우 먼저 역할 저장
+      if (pendingRole !== savedRole) {
+        await updateUserRole(user.id, pendingRole)
+        setSavedRole(pendingRole)
+      }
+      // 권한 오버라이드 저장
       await updateUserPermissions(user.id, permissions)
       setOriginalPermissions(permissions)
       setSavedAt(new Date())
@@ -255,7 +256,6 @@ export function PermissionEditorModal({
 
   const handleReset = async () => {
     if (!user) return
-
     setIsSaving(true)
     setSavedAt(null)
     try {
@@ -300,11 +300,15 @@ export function PermissionEditorModal({
           </DialogDescription>
         </DialogHeader>
 
-        {/* 역할 선택 */}
+        {/* 역할 선택: 저장 버튼 클릭 전까지 미반영 */}
         {!isAdminUser && (
           <div className="flex items-center gap-3 py-2 px-3 rounded-lg bg-muted/40 border border-border/50 flex-shrink-0">
             <span className="text-sm font-medium text-muted-foreground min-w-fit">역할</span>
-            <Select value={selectedRole} onValueChange={handleRoleChange} disabled={isChangingRole || isSaving}>
+            <Select
+              value={pendingRole}
+              onValueChange={handleRoleComboChange}
+              disabled={isSaving}
+            >
               <SelectTrigger className="h-8 text-sm flex-1">
                 <SelectValue />
               </SelectTrigger>
@@ -313,7 +317,11 @@ export function PermissionEditorModal({
                 <SelectItem value="operator">운영자 — 파싱 · 임베딩 · 컬렉션</SelectItem>
               </SelectContent>
             </Select>
-            {isChangingRole && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground flex-shrink-0" />}
+            {pendingRole !== savedRole && (
+              <Badge variant="outline" className="text-xs text-amber-600 border-amber-500/40 bg-amber-500/10 whitespace-nowrap flex-shrink-0">
+                미저장
+              </Badge>
+            )}
           </div>
         )}
 
@@ -367,7 +375,7 @@ export function PermissionEditorModal({
                             id={`${category.key}-${action.key}`}
                             checked={getPermissionValue(category.key, action.key)}
                             onCheckedChange={() => togglePermission(category.key, action.key)}
-                            disabled={isSaving || isChangingRole}
+                            disabled={isSaving}
                           />
                         </div>
                       ))}
@@ -387,7 +395,7 @@ export function PermissionEditorModal({
                 variant="ghost"
                 size="sm"
                 onClick={handleReset}
-                disabled={isSaving || isLoading || isChangingRole}
+                disabled={isSaving || isLoading}
                 className="gap-1.5 text-muted-foreground hover:text-foreground"
                 title="역할 기본값으로 초기화"
               >
@@ -412,7 +420,7 @@ export function PermissionEditorModal({
                 <Button
                   size="sm"
                   onClick={handleSave}
-                  disabled={isSaving || isLoading || isChangingRole || !hasChanges}
+                  disabled={isSaving || isLoading || !hasChanges}
                   className="gap-1.5"
                 >
                   {isSaving ? (
