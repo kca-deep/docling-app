@@ -28,6 +28,7 @@ ALL_PERMISSIONS = [
     ("analytics", "view"),
     ("admin",     "users"),
     ("admin",     "system"),
+    ("showcase",  "contribute"),
 ]
 
 # 역할별 기본 권한 (DB 접근 불가 시 fallback)
@@ -43,6 +44,7 @@ _ROLE_DEFAULTS: Dict[str, Dict[str, Dict[str, bool]]] = {
         "dify":      {"upload": False, "config": False},
         "analytics": {"view": False},
         "admin":     {"users": False, "system": False},
+        "showcase":  {"contribute": True},
     },
     "user": {
         "chat":      {"use": True, "all_collections": False},
@@ -53,6 +55,7 @@ _ROLE_DEFAULTS: Dict[str, Dict[str, Dict[str, bool]]] = {
         "dify":      {"upload": True, "config": False},
         "analytics": {"view": False},
         "admin":     {"users": False, "system": False},
+        "showcase":  {"contribute": True},
     },
 }
 # admin fallback 보정: 모든 항목 True

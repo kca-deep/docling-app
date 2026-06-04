@@ -114,16 +114,16 @@ export function SourceArtifactPanel({
 
   // 점수에 따른 프로그레스 바 색상
   const getScoreBarColor = (score: number) => {
-    if (score >= 0.8) return "bg-emerald-500";
-    if (score >= 0.6) return "bg-amber-500";
-    return "bg-red-500";
+    if (score >= 0.8) return "bg-success";
+    if (score >= 0.6) return "bg-warning";
+    return "bg-danger";
   };
 
   // 점수에 따른 배지 색상
   const getScoreBadgeColor = (score: number) => {
-    if (score >= 0.8) return "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30";
-    if (score >= 0.6) return "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30";
-    return "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30";
+    if (score >= 0.8) return "bg-success/15 text-success border-success/30";
+    if (score >= 0.6) return "bg-warning/15 text-warning border-warning/30";
+    return "bg-danger/15 text-danger border-danger/30";
   };
 
   // 점수에 따른 라벨
@@ -145,9 +145,9 @@ export function SourceArtifactPanel({
 
   // 점수에 따른 텍스트 색상 (관련도 표시용)
   const getScoreTextColor = (score: number) => {
-    if (score >= 0.8) return "text-emerald-600 dark:text-emerald-400 font-semibold";
-    if (score >= 0.6) return "text-amber-600 dark:text-amber-400 font-medium";
-    return "text-red-500 dark:text-red-400";
+    if (score >= 0.8) return "text-success font-semibold";
+    if (score >= 0.6) return "text-warning font-medium";
+    return "text-danger";
   };
 
   if (sources.length === 0) {

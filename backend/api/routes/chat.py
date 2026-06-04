@@ -28,6 +28,7 @@ from backend.utils.exaone_utils import is_exaone_model
 from backend.utils.error_handler import get_http_error_detail, get_sse_error_response
 from backend.utils.token_counter import count_chat_tokens
 from backend.services.tool_executor_service import tool_executor
+from backend.services.health_service import health_service
 from backend.services.chat_excel_export_service import chat_excel_export_service
 from backend.services.chat_docx_export_service import chat_docx_export_service
 from backend.services.chat_pdf_export_service import chat_pdf_export_service
@@ -752,7 +753,7 @@ async def get_default_settings():
         logger.info("[GET DEFAULT SETTINGS] Returning default settings from .env")
 
         return DefaultSettingsResponse(
-            model=settings.LLM_MODEL,
+            model=health_service.get_active_llm_model(),
             reasoning_level=settings.RAG_DEFAULT_REASONING_LEVEL,
             temperature=settings.LLM_DEFAULT_TEMPERATURE,
             max_tokens=settings.LLM_DEFAULT_MAX_TOKENS,

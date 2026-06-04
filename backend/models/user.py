@@ -19,6 +19,7 @@ _USER_ROLE_DEFAULTS: Dict[str, Dict[str, bool]] = {
     "dify":      {"upload": True, "config": False},
     "analytics": {"view": False},
     "admin":     {"users": False, "system": False},
+    "showcase":  {"contribute": True},
 }
 
 # operator 역할 기본 권한
@@ -31,6 +32,7 @@ _OPERATOR_ROLE_DEFAULTS: Dict[str, Dict[str, bool]] = {
     "dify":      {"upload": False, "config": False},
     "analytics": {"view": False},
     "admin":     {"users": False, "system": False},
+    "showcase":  {"contribute": True},
 }
 
 

@@ -5,9 +5,9 @@ import { motion } from "framer-motion"
 // 셀프진단 테마 색상
 const kcaTheme = {
   primary: "#3B82F6",     // blue-500
-  secondary: "#10B981",   // emerald-500
+  secondary: "#a3be8c",   // Nord success
   accent: "#EF4444",      // red-500
-  gradient: "conic-gradient(from 0deg, #3B82F6, #10B981, #EF4444, #3B82F6)",
+  gradient: "conic-gradient(from 0deg, #3B82F6, #a3be8c, #EF4444, #3B82F6)",
 }
 
 // KCA-i 애니메이션 로고 컴포넌트

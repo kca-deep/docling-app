@@ -44,8 +44,8 @@ export function DocumentActiveCard({
           <div
             className={cn(
               "flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-2xl rounded-br-md",
-              "bg-emerald-500/10 dark:bg-emerald-500/15",
-              "border border-emerald-500/30",
+              "bg-primary/10",
+              "border border-primary/20",
               "text-foreground"
             )}
           >
@@ -55,7 +55,7 @@ export function DocumentActiveCard({
                 {filenames.slice(0, 3).map((name, i) => (
                   <div
                     key={i}
-                    className="relative w-6 h-6 rounded bg-emerald-500/20 flex items-center justify-center"
+                    className="relative w-6 h-6 rounded bg-primary/20 flex items-center justify-center"
                     style={{ zIndex: 3 - i }}
                   >
                     <FileIcon filename={name} size="sm" />
@@ -63,7 +63,7 @@ export function DocumentActiveCard({
                 ))}
               </div>
             ) : (
-              <div className="hidden sm:flex w-8 h-8 rounded-lg bg-emerald-500/20 items-center justify-center flex-shrink-0">
+              <div className="hidden sm:flex w-8 h-8 rounded-lg bg-primary/20 items-center justify-center flex-shrink-0">
                 <FileIcon filename={firstFilename} size="sm" />
               </div>
             )}
@@ -84,7 +84,7 @@ export function DocumentActiveCard({
             </div>
 
             {/* 완료 체크 */}
-            <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-500 flex-shrink-0" />
+            <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary flex-shrink-0" />
 
             {/* 삭제 버튼 */}
             <Button

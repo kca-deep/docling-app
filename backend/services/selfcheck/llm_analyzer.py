@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # LLM 모델 우선순위
-LLM_PRIORITY_ORDER = ["gpt-oss-20b", "exaone-4.0-32b"]
+LLM_PRIORITY_ORDER = ["exaone-4.0-32b", "gpt-oss-20b"]
 
 # 체크리스트 항목 정의
 CHECKLIST_ITEMS = [

@@ -22,7 +22,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans antialiased tracking-tight bg-noise selection:bg-purple-500/30`}>
+      <body className={`${inter.variable} font-sans bg-noise`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"
@@ -32,9 +32,9 @@ export default function RootLayout({
           <AuthProvider>
             <div className="flex h-screen overflow-hidden bg-background">
               <SideNav />
-              <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+              <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
                 <SideNavMobileBar />
-                <main className="flex-1 overflow-y-auto overflow-x-hidden">{children}</main>
+                <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">{children}</main>
               </div>
             </div>
           </AuthProvider>

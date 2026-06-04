@@ -23,7 +23,7 @@ logging.basicConfig(
     datefmt=LOG_DATE_FORMAT,
     level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
 )
-from backend.api.routes import document, dify, qdrant, qdrant_excel, chat, chat_export, chat_data, analytics, analytics_export, auth, prompts, selfcheck, selfcheck_attachments, chat_documents, feedback
+from backend.api.routes import document, dify, qdrant, qdrant_excel, chat, chat_export, chat_data, analytics, analytics_export, auth, prompts, selfcheck, selfcheck_attachments, chat_documents, feedback, showcase
 from backend.database import init_db, get_db, SessionLocal
 from backend.models import document as document_model  # Import to register models
 from backend.models import dify_upload_history, dify_config  # Import Dify models
@@ -34,6 +34,8 @@ from backend.models import user as user_model  # Import User model for auth
 from backend.models import selfcheck as selfcheck_model  # Import SelfCheck models
 from backend.models import feedback as feedback_model  # Import Feedback model
 from backend.models import rbac as rbac_model  # Import RBAC models
+from backend.models import showcase as showcase_model  # Import Showcase models
+from backend.services.showcase_crud import showcase_crud
 from backend.services.hybrid_logging_service import hybrid_logging_service
 from backend.services.statistics_service import statistics_service
 from backend.services.auth_service import auth_service
@@ -72,6 +74,14 @@ async def lifespan(app: FastAPI):
     try:
         auth_service.ensure_admin_exists(db)
         print("[OK] Admin user verified")
+    finally:
+        db.close()
+
+    # 쇼케이스 카테고리 시드
+    db = SessionLocal()
+    try:
+        showcase_crud.seed_categories(db)
+        print("[OK] Showcase categories seeded")
     finally:
         db.close()
 
@@ -135,9 +145,24 @@ async def lifespan(app: FastAPI):
     # AI 모델 워밍업 (Cold Start 문제 해결)
     asyncio.create_task(warmup_ai_models())
 
+    # 활성 LLM 자동 감지 (초기 1회 실행 후 백그라운드 워처 시작)
+    try:
+        detected = await health_service.detect_active_llm()
+        print(f"[OK] Active LLM detected: {detected}")
+    except Exception as e:
+        logger.warning(f"[WARN] LLM auto-detect failed at startup: {e}")
+    llm_watcher_task = asyncio.create_task(health_service.start_llm_watcher(interval=30))
+
     yield  # 애플리케이션 실행
 
     # ========== SHUTDOWN ==========
+    # LLM 워처 태스크 중지
+    try:
+        llm_watcher_task.cancel()
+        await asyncio.wait_for(asyncio.shield(llm_watcher_task), timeout=2.0)
+    except (asyncio.CancelledError, asyncio.TimeoutError):
+        pass
+
     # 스케줄러 서비스 중지
     try:
         await scheduler_service.stop()
@@ -470,6 +495,7 @@ app.include_router(selfcheck.router)  # 셀프진단
 app.include_router(selfcheck_attachments.router)  # 셀프진단 첨부파일
 app.include_router(chat_documents.router)  # 채팅 문서 업로드
 app.include_router(feedback.router)  # 피드백
+app.include_router(showcase.router)  # AI 쇼케이스
 
 
 @app.get("/")

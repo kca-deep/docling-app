@@ -253,7 +253,7 @@ export function NavHeader() {
                 <span className="font-extrabold tracking-tight">
                   KCA
                   <span className="text-primary">-</span>
-                  <span className="italic text-emerald-500">i</span>
+                  <span className="italic text-success">i</span>
                 </span>
               </Link>
             )
@@ -452,7 +452,7 @@ export function NavHeader() {
                       <span className="font-extrabold tracking-tight">
                         KCA
                         <span className="text-primary">-</span>
-                        <span className="italic text-emerald-500">i</span>
+                        <span className="italic text-success">i</span>
                       </span>
                     </Link>
                   )

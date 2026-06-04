@@ -1,5 +1,6 @@
 "use client"
 
+import React from "react"
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { usePathname } from "next/navigation"
@@ -21,6 +22,7 @@ import {
   History,
   User,
   FileText,
+  Sparkles,
 } from "lucide-react"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
@@ -163,7 +165,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
+      <nav className="flex-1 min-h-0 overflow-y-auto px-2 py-3 space-y-0.5">
         {/* KCA-i */}
         <Link
           href={chatItem.href}
@@ -178,11 +180,11 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           <MessageSquare className="h-4 w-4 flex-shrink-0" />
           <span className="font-extrabold tracking-tight">
             KCA<span className="text-primary">-</span>
-            <span className="italic text-emerald-500">i</span>
+            <span className="italic text-success">i</span>
           </span>
         </Link>
 
-        {/* Groups */}
+        {/* Groups (ideaHub 이후에 AI 쇼케이스 삽입) */}
         {groups.map((group) => {
           if (!shouldShowGroup(group)) return null
           const items = filterItems(group.items)
@@ -190,61 +192,79 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           const GroupIcon = group.icon
 
           return (
-            <div key={group.id}>
-              <button
-                onClick={() => toggleGroup(group.id)}
-                className={cn(
-                  "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-                  isGroupActive(group)
-                    ? "text-foreground"
-                    : "text-foreground/85 hover:bg-muted hover:text-foreground"
-                )}
-              >
-                <GroupIcon className="h-4 w-4 flex-shrink-0" />
-                <span className="flex-1 text-left">{group.label}</span>
-                <ChevronDown
+            <React.Fragment key={group.id}>
+              <div>
+                <button
+                  onClick={() => toggleGroup(group.id)}
                   className={cn(
-                    "h-3.5 w-3.5 opacity-50 transition-transform duration-200",
-                    isOpen ? "rotate-0" : "-rotate-90"
+                    "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                    isGroupActive(group)
+                      ? "text-foreground"
+                      : "text-foreground/85 hover:bg-muted hover:text-foreground"
                   )}
-                />
-              </button>
+                >
+                  <GroupIcon className="h-4 w-4 flex-shrink-0" />
+                  <span className="flex-1 text-left">{group.label}</span>
+                  <ChevronDown
+                    className={cn(
+                      "h-3.5 w-3.5 opacity-50 transition-transform duration-200",
+                      isOpen ? "rotate-0" : "-rotate-90"
+                    )}
+                  />
+                </button>
 
-              <AnimatePresence initial={false}>
-                {isOpen && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.18, ease: "easeInOut" }}
-                    className="overflow-hidden"
-                  >
-                    <div className="ml-3 pl-3 border-l border-border/40 mt-0.5 mb-1 space-y-0.5">
-                      {items.map((item) => {
-                        const Icon = item.icon
-                        const active = isItemActive(item.href)
-                        return (
-                          <Link
-                            key={item.href}
-                            href={item.href}
-                            onClick={onNavigate}
-                            className={cn(
-                              "flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm transition-colors",
-                              active
-                                ? "bg-primary/10 text-primary font-medium"
-                                : "text-foreground/85 hover:bg-muted hover:text-foreground"
-                            )}
-                          >
-                            <Icon className="h-3.5 w-3.5 flex-shrink-0" />
-                            <span>{item.label}</span>
-                          </Link>
-                        )
-                      })}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+                <AnimatePresence initial={false}>
+                  {isOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.18, ease: "easeInOut" }}
+                      className="overflow-hidden"
+                    >
+                      <div className="ml-3 pl-3 border-l border-border/40 mt-0.5 mb-1 space-y-0.5">
+                        {items.map((item) => {
+                          const Icon = item.icon
+                          const active = isItemActive(item.href)
+                          return (
+                            <Link
+                              key={item.href}
+                              href={item.href}
+                              onClick={onNavigate}
+                              className={cn(
+                                "flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm transition-colors",
+                                active
+                                  ? "bg-primary/10 text-primary font-medium"
+                                  : "text-foreground/85 hover:bg-muted hover:text-foreground"
+                              )}
+                            >
+                              <Icon className="h-3.5 w-3.5 flex-shrink-0" />
+                              <span>{item.label}</span>
+                            </Link>
+                          )
+                        })}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {group.id === "ideaHub" && (
+                <Link
+                  href="/showcase"
+                  onClick={onNavigate}
+                  className={cn(
+                    "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors font-medium",
+                    isItemActive("/showcase")
+                      ? "bg-primary/10 text-primary font-semibold"
+                      : "text-foreground/85 hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  <Sparkles className="h-4 w-4 flex-shrink-0" />
+                  <span>AI 쇼케이스</span>
+                </Link>
+              )}
+            </React.Fragment>
           )
         })}
       </nav>
@@ -301,7 +321,7 @@ export function SideNav() {
   if (pathname === "/login" || pathname === "/register") return null
 
   return (
-    <aside className="hidden md:flex flex-col w-60 border-r bg-background sticky top-0 h-screen flex-shrink-0 z-40">
+    <aside className="hidden md:flex flex-col w-60 border-r bg-background h-full flex-shrink-0 z-40">
       <SidebarContent />
     </aside>
   )

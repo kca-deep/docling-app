@@ -160,7 +160,7 @@ function StepDot({
 }) {
   if (isCompleted) {
     return (
-      <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center">
+      <div className="w-6 h-6 rounded-full bg-success flex items-center justify-center">
         <CheckCircle2 className="w-4 h-4 text-white" />
       </div>
     )
@@ -251,12 +251,11 @@ export function AnalysisProgress({
           }}
         />
 
-        {/* Aurora wave 2 - Secondary emerald */}
+        {/* Aurora wave 2 - Secondary */}
         <motion.div
           className={cn(
             "absolute top-[20%] -right-[5%] w-[60%] h-[50%]",
-            "bg-gradient-to-l from-emerald-400/25 via-teal-400/20 to-green-400/15",
-            "dark:from-emerald-500/20 dark:via-teal-500/15 dark:to-green-500/12",
+            "bg-gradient-to-l from-[#a3be8c]/20 via-[#88c0d0]/15 to-[#a3be8c]/10",
             "blur-[70px] rounded-full"
           )}
           animate={{
@@ -394,7 +393,7 @@ export function AnalysisProgress({
                 <span
                   className={cn(
                     "text-xs font-medium transition-colors whitespace-nowrap",
-                    isCompleted && "text-emerald-600 dark:text-emerald-400",
+                    isCompleted && "text-success",
                     isCurrent && "text-primary",
                     !isCompleted && !isCurrent && "text-muted-foreground/50"
                   )}
@@ -409,7 +408,7 @@ export function AnalysisProgress({
                 <div
                   className={cn(
                     "w-8 sm:w-12 h-0.5 mx-1 mt-[-14px] transition-colors",
-                    isCompleted ? "bg-emerald-500" : "bg-muted-foreground/20"
+                    isCompleted ? "bg-success" : "bg-muted-foreground/20"
                   )}
                 />
               )}

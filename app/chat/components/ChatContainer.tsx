@@ -920,7 +920,7 @@ export function ChatContainer() {
               <div className="w-full max-w-[56rem] space-y-3">
                 <h2 className="text-2xl font-semibold text-center">
                   <span className="font-extrabold tracking-tight">
-                    KCA<span className="text-primary">-</span><span className="italic text-emerald-500">i</span>
+                    KCA<span className="text-primary">-</span><span className="italic text-success">i</span>
                   </span>
                   <span className="text-foreground ml-2">무엇을 도와드릴까요?</span>
                 </h2>

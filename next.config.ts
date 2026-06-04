@@ -7,6 +7,8 @@ const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
 
 const nextConfig: NextConfig = {
 
+
+
   // 외부 도메인(ai.kca.kr)에서 dev 서버 접근 허용
   ...(!isProduction && {
     allowedDevOrigins: ['ai.kca.kr', '*.kca.kr'],

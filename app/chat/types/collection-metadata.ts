@@ -21,8 +21,8 @@ export const CATEGORY_COLORS: Record<string, { color: string; bg: string }> = {
     bg: "rgba(59, 130, 246, 0.1)",
   },
   welfare: {
-    color: "#10b981",  // emerald-500
-    bg: "rgba(16, 185, 129, 0.1)",
+    color: "#a3be8c",  // Nord success
+    bg: "rgba(163, 190, 140, 0.1)",
   },
   admin: {
     color: "#f59e0b",  // amber-500

@@ -145,7 +145,7 @@ export function DocumentContextBar({
         ) : isReady ? (
           <Badge
             variant="outline"
-            className="hidden sm:flex items-center gap-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-xs"
+            className="hidden sm:flex items-center gap-1 bg-primary/10 text-primary border-primary/30 text-xs"
           >
             <CheckCircle className="h-3 w-3" />
             준비완료

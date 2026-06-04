@@ -280,10 +280,6 @@ class PDFService:
         if submission.project_description:
             elements.append(Paragraph("2. 사용자 입력 과제 내용", styles["heading1"]))
 
-            # 과제 내용을 박스 안에 표시
-            safe_desc = submission.project_description.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-            safe_desc = safe_desc.replace('\n', '<br/>')
-
             desc_box_style = ParagraphStyle(
                 "desc_box",
                 parent=styles["normal"],
@@ -294,17 +290,29 @@ class PDFService:
                 rightIndent=3,
             )
 
-            desc_data = [[Paragraph(safe_desc, desc_box_style)]]
-            desc_table = Table(desc_data, colWidths=[430])
-            desc_table.setStyle(TableStyle([
+            # 긴 내용도 페이지 분할 가능하도록 줄 단위로 다중 행 테이블로 구성
+            raw_lines = submission.project_description.split('\n')
+            desc_rows = []
+            for line in raw_lines:
+                safe_line = line.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                desc_rows.append([Paragraph(safe_line if safe_line.strip() else ' ', desc_box_style)])
+
+            desc_table = Table(desc_rows, colWidths=[430])
+            table_style_cmds = [
                 ("FONTNAME", (0, 0), (-1, -1), self.font_name),
                 ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
-                ("BOX", (0, 0), (-1, -1), 0.75, colors.HexColor("#cbd5e1")),
+                ("LINEBEFORE", (0, 0), (0, -1), 0.75, colors.HexColor("#cbd5e1")),
+                ("LINEAFTER", (-1, 0), (-1, -1), 0.75, colors.HexColor("#cbd5e1")),
+                ("LINEABOVE", (0, 0), (-1, 0), 0.75, colors.HexColor("#cbd5e1")),
+                ("LINEBELOW", (0, -1), (-1, -1), 0.75, colors.HexColor("#cbd5e1")),
                 ("LEFTPADDING", (0, 0), (-1, -1), 10),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-                ("TOPPADDING", (0, 0), (-1, -1), 8),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-            ]))
+                ("TOPPADDING", (0, 0), (-1, 0), 8),
+                ("BOTTOMPADDING", (0, -1), (-1, -1), 8),
+                ("TOPPADDING", (0, 1), (-1, -2), 1),
+                ("BOTTOMPADDING", (0, 1), (-1, -2), 1),
+            ]
+            desc_table.setStyle(TableStyle(table_style_cmds))
             elements.append(desc_table)
             elements.append(Spacer(1, 8))
 
