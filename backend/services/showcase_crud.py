@@ -51,11 +51,37 @@ def _item_to_summary(db: Session, item: ShowcaseItem) -> ShowcaseItemSummary:
         tags=item.tags or [],
         author_name=item.author_name,
         author_id=item.author_id,
+        thumbnail_url=item.thumbnail_url,
+        image_urls=item.image_urls or [],
         view_count=item.view_count,
         is_featured=item.is_featured,
         is_published=item.is_published,
         created_at=item.created_at,
     )
+
+
+def _normalize_images(data) -> tuple:
+    """image_urls/thumbnail_url 정합성 보정.
+
+    - image_urls 정리(공백/중복 제거)
+    - 대표(thumbnail_url)가 비었거나 갤러리에 없으면 첫 이미지로 보정
+    - 갤러리가 비면 대표는 None
+    반환: (image_urls: list, thumbnail_url: Optional[str])
+    """
+    seen = set()
+    images = []
+    for u in (data.image_urls or []):
+        u = (u or "").strip()
+        if u and u not in seen:
+            seen.add(u)
+            images.append(u)
+    thumb = (data.thumbnail_url or "").strip() or None
+    if images:
+        if thumb not in images:
+            thumb = images[0]
+    else:
+        thumb = None
+    return images, thumb
 
 
 def _item_to_detail(db: Session, item: ShowcaseItem) -> ShowcaseItemDetail:
@@ -70,9 +96,11 @@ def _item_to_detail(db: Session, item: ShowcaseItem) -> ShowcaseItemDetail:
         tags=item.tags or [],
         author_name=item.author_name,
         author_id=item.author_id,
+        thumbnail_url=item.thumbnail_url,
         view_count=item.view_count,
         is_featured=item.is_featured,
         is_published=item.is_published,
+        image_urls=item.image_urls or [],
         created_at=item.created_at,
         content=item.content,
         install_command=item.install_command,
@@ -130,7 +158,7 @@ class ShowcaseCrud:
     def get_items(
         self,
         db: Session,
-        category: Optional[str] = None,
+        category: Optional[List[str]] = None,
         item_type: Optional[str] = None,
         difficulty: Optional[str] = None,
         search: Optional[str] = None,
@@ -147,7 +175,7 @@ class ShowcaseCrud:
         if not include_unpublished:
             query = query.filter(ShowcaseItem.is_published == True)
         if category:
-            query = query.filter(ShowcaseItem.category_key == category)
+            query = query.filter(ShowcaseItem.category_key.in_(category))
         if item_type:
             query = query.filter(ShowcaseItem.item_type == item_type)
         if difficulty:
@@ -159,6 +187,7 @@ class ShowcaseCrud:
                 or_(
                     ShowcaseItem.title.ilike(f"%{search}%"),
                     ShowcaseItem.summary.ilike(f"%{search}%"),
+                    ShowcaseItem.content.ilike(f"%{search}%"),
                     ShowcaseItem.tags.cast(String).ilike(f"%{search}%"),
                 )
             )
@@ -221,6 +250,7 @@ class ShowcaseCrud:
         if not cat:
             raise HTTPException(status_code=400, detail="존재하지 않는 카테고리입니다.")
 
+        images, thumb = _normalize_images(data)
         item = ShowcaseItem(
             category_key=data.category_key,
             title=data.title,
@@ -233,6 +263,8 @@ class ShowcaseCrud:
             author_name=user.name or user.username,
             install_command=data.install_command,
             source_url=data.source_url,
+            thumbnail_url=thumb,
+            image_urls=images,
             is_published=data.is_published,
         )
         db.add(item)
@@ -253,8 +285,13 @@ class ShowcaseCrud:
             raise HTTPException(status_code=400, detail="존재하지 않는 카테고리입니다.")
 
         for field in ("category_key", "title", "summary", "content", "item_type",
-                      "difficulty", "tags", "install_command", "source_url", "is_published"):
+                      "difficulty", "tags", "install_command", "source_url",
+                      "is_published"):
             setattr(item, field, getattr(data, field))
+
+        images, thumb = _normalize_images(data)
+        item.image_urls = images
+        item.thumbnail_url = thumb
 
         db.commit()
         db.refresh(item)

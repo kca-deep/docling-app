@@ -38,6 +38,8 @@ class ShowcaseItem(Base):
     author_name     = Column(String(100), nullable=True)
     install_command = Column(String(500), nullable=True)
     source_url      = Column(String(500), nullable=True)
+    thumbnail_url   = Column(String(500), nullable=True)        # 대표 이미지 (image_urls 중 하나)
+    image_urls      = Column(JSON, default=list)                # 첨부 이미지 갤러리 (URL 목록)
     view_count      = Column(Integer, default=0)
     is_published    = Column(Boolean, default=True)
     is_featured     = Column(Boolean, default=False)

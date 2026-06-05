@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { toast } from "sonner"
-import { ArrowLeft, Edit2, Trash2, Star, ExternalLink, Eye, Calendar, User, Link2, Check } from "lucide-react"
+import { ArrowLeft, Edit2, Trash2, Star, Eye, Calendar, User, Link2, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
@@ -13,12 +13,10 @@ import {
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { getItemDetail, deleteItem, toggleFeatured, getItems, ShowcaseItemDetail, ShowcaseItem } from "@/lib/showcase"
+import { getItemDetail, deleteItem, toggleFeatured, getItems, showcaseImageUrl, ShowcaseItemDetail, ShowcaseItem } from "@/lib/showcase"
 import { useAuth } from "@/components/auth/auth-provider"
 import { CategoryBadge } from "../components/CategoryBadge"
 import { ItemTypeBadge } from "../components/ItemTypeBadge"
-import { DifficultyBadge } from "../components/DifficultyBadge"
-import { CodeBlock } from "../components/CodeBlock"
 import { MarkdownPreview } from "../components/MarkdownPreview"
 import { ShowcaseCard } from "../components/ShowcaseCard"
 import { CommentSection } from "../components/CommentSection"
@@ -35,6 +33,7 @@ export default function ShowcaseDetailPage() {
   const [categories, setCategories] = useState<ShowcaseCategory[]>([])
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
+  const [selectedImage, setSelectedImage] = useState<string | null>(null)
 
   useEffect(() => {
     const numId = Number(id)
@@ -113,11 +112,47 @@ export default function ShowcaseDetailPage() {
       <div className="grid lg:grid-cols-[1fr_280px] gap-6 pb-20 lg:pb-0">
         {/* Main content */}
         <div className="space-y-5 min-w-0">
+          {/* 대표 이미지 + 갤러리 */}
+          {(() => {
+            const gallery = item.image_urls?.length
+              ? item.image_urls
+              : item.thumbnail_url
+              ? [item.thumbnail_url]
+              : []
+            const main = selectedImage ?? item.thumbnail_url ?? gallery[0]
+            if (!main) return null
+            return (
+              <div className="space-y-2">
+                <div className="aspect-[16/9] w-full overflow-hidden rounded-xl border bg-muted">
+                  <img
+                    src={showcaseImageUrl(main)}
+                    alt={item.title}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+                {gallery.length > 1 && (
+                  <div className="flex flex-wrap gap-2">
+                    {gallery.map((url) => (
+                      <button
+                        key={url}
+                        type="button"
+                        onClick={() => setSelectedImage(url)}
+                        className={`h-16 w-16 overflow-hidden rounded-md border-2 transition-colors ${
+                          main === url ? "border-primary" : "border-border hover:border-primary/50"
+                        }`}
+                      >
+                        <img src={showcaseImageUrl(url)} alt="" className="h-full w-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-3">
               <CategoryBadge name={item.category_name} color={colorMap[item.category_key] ?? "blue"} />
               <ItemTypeBadge type={item.item_type} />
-              <DifficultyBadge difficulty={item.difficulty} />
               {item.is_featured && (
                 <Badge variant="secondary" className="gap-1 text-xs">
                   <Star className="h-3 w-3 fill-current text-warning" />
@@ -131,13 +166,6 @@ export default function ShowcaseDetailPage() {
             <h1 className="text-2xl font-bold leading-snug">{item.title}</h1>
             <p className="mt-2 text-muted-foreground text-sm">{item.summary}</p>
           </div>
-
-          {item.install_command && (
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-1.5">복사하기</p>
-              <CodeBlock code={item.install_command} className="text-sm" />
-            </div>
-          )}
 
           <Separator />
 
@@ -160,17 +188,6 @@ export default function ShowcaseDetailPage() {
               <Eye className="h-3.5 w-3.5 flex-shrink-0" />
               <span>{item.view_count.toLocaleString()} 조회</span>
             </div>
-            {item.source_url && (
-              <a
-                href={item.source_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 text-primary hover:underline"
-              >
-                <ExternalLink className="h-3.5 w-3.5 flex-shrink-0" />
-                <span>참고 링크</span>
-              </a>
-            )}
             <button
               onClick={handleCopyLink}
               className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors w-full text-left"
@@ -200,9 +217,6 @@ export default function ShowcaseDetailPage() {
               </div>
             </div>
           )}
-
-          {/* Comments */}
-          <CommentSection itemId={item.id} currentUser={user ?? null} />
 
           {/* Actions */}
           {(canEdit || isAdmin) && (
@@ -264,6 +278,11 @@ export default function ShowcaseDetailPage() {
           )}
         </aside>
       </div>
+
+      {/* 문의 - 전체 너비 섹션 */}
+      <section className="mt-8 pb-20 lg:pb-0">
+        <CommentSection itemId={item.id} currentUser={user ?? null} />
+      </section>
 
       {/* 모바일 sticky action bar */}
       {canEdit && (

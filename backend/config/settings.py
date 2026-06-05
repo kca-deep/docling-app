@@ -261,6 +261,8 @@ class Settings(BaseSettings):
     RATE_LIMIT_CHAT: str = "30/minute"
     RATE_LIMIT_UPLOAD: str = "10/minute"
     RATE_LIMIT_SEARCH: str = "60/minute"
+    # 쇼케이스 문서 추출 (LLM+파서 비용 보호용 보수적 한도)
+    RATE_LIMIT_SHOWCASE_EXTRACT: str = "10/minute"
     # Rate Limit 저장소 URI
     # - 단일 인스턴스 (개발): memory://
     # - 다중 인스턴스 (프로덕션): redis://localhost:6379
@@ -324,6 +326,28 @@ class Settings(BaseSettings):
     DATA_UPLOAD_MAX_ROWS: int = 100000
     DATA_UPLOAD_ALLOWED_EXTENSIONS: List[str] = [".xlsx", ".xls", ".csv"]
 
+    # ===========================================
+    # 쇼케이스 문서 업로드 자동 추출 설정
+    # (hwp/hwpx/pdf/docx → kordoc CLI 파싱 → LLM 항목 추출 → 폼 프리필)
+    # ===========================================
+    # kordoc Node CLI 호출 설정 (모든 포맷 단일 파서)
+    KORDOC_BIN: str = "kordoc"          # 실행 파일명/경로 (미지정 시 PATH에서 resolve)
+    KORDOC_TIMEOUT: int = 60            # subprocess 타임아웃 (초)
+    KORDOC_MAX_CONCURRENT: int = 2      # 동시 파싱 실행 수 제한 (세마포어)
+
+    # 추출 입력 검증
+    SHOWCASE_EXTRACT_ALLOWED_EXTENSIONS: List[str] = [".hwp", ".hwpx", ".pdf", ".docx"]
+    SHOWCASE_EXTRACT_MAX_UPLOAD_SIZE_MB: int = 20  # MB 단위
+    SHOWCASE_EXTRACT_MD_CHAR_LIMIT: int = 12000    # LLM에 주입할 마크다운 최대 문자 수
+
+    # 추출 LLM 설정
+    SHOWCASE_EXTRACT_MODEL: str = ""               # 빈 값이면 기본 LLM_MODEL 사용
+    SHOWCASE_EXTRACT_TEMPERATURE: float = 0.2
+    SHOWCASE_EXTRACT_MAX_TOKENS: int = 1500
+
+    # 쇼케이스 아이템당 첨부 이미지(갤러리) 최대 개수
+    SHOWCASE_MAX_IMAGES: int = 10
+
     # === Computed Properties ===
     # [P2-3] cached_property 적용: 반복 접근 시 재계산 방지
 
@@ -341,6 +365,16 @@ class Settings(BaseSettings):
     def ALLOWED_EXTENSIONS_SET(self) -> set:
         """Set 형태로 변환된 허용 확장자"""
         return set(self.ALLOWED_EXTENSIONS)
+
+    @cached_property
+    def SHOWCASE_EXTRACT_ALLOWED_EXTENSIONS_SET(self) -> set:
+        """Set 형태로 변환된 쇼케이스 추출 허용 확장자 (소문자)"""
+        return {ext.lower() for ext in self.SHOWCASE_EXTRACT_ALLOWED_EXTENSIONS}
+
+    @cached_property
+    def SHOWCASE_EXTRACT_MAX_UPLOAD_SIZE(self) -> int:
+        """바이트 단위로 변환된 쇼케이스 추출 최대 업로드 크기"""
+        return self.SHOWCASE_EXTRACT_MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
     @cached_property
     def DOCLING_ASYNC_API_URL(self) -> str:

@@ -6,7 +6,7 @@ import { Trash2, MessageSquare, Send, Loader2, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
-import { Separator } from "@/components/ui/separator"
+import { cn } from "@/lib/utils"
 import {
   AlertDialog,
   AlertDialogContent,
@@ -50,6 +50,7 @@ export function CommentSection({ itemId, currentUser }: CommentSectionProps) {
   const [authorName, setAuthorName] = useState("")
   const [content, setContent] = useState("")
   const [password, setPassword] = useState("")
+  const [focused, setFocused] = useState(false)
 
   // 삭제 모달 상태
   const [deleteTarget, setDeleteTarget] = useState<ShowcaseComment | null>(null)
@@ -114,6 +115,7 @@ export function CommentSection({ itemId, currentUser }: CommentSectionProps) {
       setComments((prev) => [...prev, created])
       setTotal((prev) => prev + 1)
       setContent("")
+      setFocused(false)
       if (!currentUser) {
         setAuthorName("")
         setPassword("")
@@ -180,119 +182,134 @@ export function CommentSection({ itemId, currentUser }: CommentSectionProps) {
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })
 
+  // 평소엔 컴팩트, 포커스/작성 중일 때만 확장 (idle 공간 최소화)
+  const expanded = focused || content.trim().length > 0
+
   return (
     <>
-      <div className="rounded-lg border p-4 space-y-3" ref={formRef}>
+      <div className="rounded-lg border p-4 sm:p-5" ref={formRef}>
         {/* 헤더 */}
-        <div className="flex items-center gap-1.5">
-          <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
-          <p className="text-xs font-medium text-muted-foreground">
-            문의 {total > 0 ? `${total}개` : ""}
-          </p>
+        <div className="flex items-center gap-2 mb-3">
+          <MessageSquare className="h-4 w-4 text-muted-foreground" />
+          <p className="text-sm font-semibold">문의 {total}개</p>
         </div>
 
-        {/* 댓글 목록 */}
-        {loading ? (
-          <div className="flex justify-center py-2">
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          </div>
-        ) : comments.length === 0 ? (
-          <p className="text-xs text-muted-foreground text-center py-2">
-            첫 문의를 남겨보세요
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {comments.map((c) => (
-              <div key={c.id} className="space-y-0.5">
-                <div className="flex items-center justify-between gap-1">
-                  <div className="flex items-center gap-1 min-w-0">
-                    <span className="text-xs font-medium truncate">{c.author_name}</span>
-                    <span className="text-xs text-muted-foreground flex-shrink-0">
-                      · {formatDate(c.created_at)}
-                    </span>
-                    {c.has_password && !c.author_id && (
-                      <Lock className="h-2.5 w-2.5 text-muted-foreground flex-shrink-0" />
-                    )}
-                  </div>
-                  {canDelete(c) && (
-                    <button
-                      onClick={() => handleDeleteClick(c)}
-                      className="text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
-                      aria-label="삭제"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  )}
-                </div>
-                <p className="text-xs text-foreground/80 break-words whitespace-pre-wrap leading-relaxed">
-                  {c.content}
-                </p>
+        {/* 2단: 좌(목록) / 우(입력 폼) */}
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+          {/* 목록 */}
+          <div className="min-w-0">
+            {loading ? (
+              <div className="flex min-h-[80px] items-center justify-center">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
-            ))}
-
-            {hasNext && (
-              <button
-                onClick={handleLoadMore}
-                disabled={loadingMore}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors w-full text-center py-1 disabled:opacity-50"
-              >
-                {loadingMore ? "로딩 중..." : "더 보기"}
-              </button>
-            )}
-          </div>
-        )}
-
-        <Separator />
-
-        {/* 입력 폼 */}
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-muted-foreground">문의 남기기</p>
-          {currentUser ? (
-            <div className="text-xs text-muted-foreground px-0.5">
-              {currentUser.name || currentUser.username} 으로 등록됩니다
-            </div>
-          ) : (
-            <>
-              <Input
-                placeholder="이름"
-                value={authorName}
-                onChange={(e) => setAuthorName(e.target.value)}
-                className="h-7 text-xs"
-                maxLength={100}
-              />
-              <div className="relative">
-                <Input
-                  type="password"
-                  placeholder="비밀번호 (삭제 시 필요, 선택)"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="h-7 text-xs pr-7"
-                  maxLength={100}
-                />
-                <Lock className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
+            ) : comments.length === 0 ? (
+              <div className="flex min-h-[80px] items-center justify-center">
+                <p className="text-sm text-muted-foreground">첫 문의를 남겨보세요</p>
               </div>
-            </>
-          )}
-          <Textarea
-            placeholder="문의 내용을 입력하세요"
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            className="text-xs resize-none min-h-[72px]"
-            maxLength={2000}
-          />
-          <Button
-            size="sm"
-            className="w-full h-7 text-xs gap-1"
-            onClick={handleSubmit}
-            disabled={submitting}
-          >
-            {submitting ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
             ) : (
-              <Send className="h-3 w-3" />
+              <div className="space-y-4">
+                {comments.map((c) => (
+                  <div key={c.id} className="space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-sm font-medium truncate">{c.author_name}</span>
+                        <span className="text-xs text-muted-foreground flex-shrink-0">
+                          · {formatDate(c.created_at)}
+                        </span>
+                        {c.has_password && !c.author_id && (
+                          <Lock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                        )}
+                      </div>
+                      {canDelete(c) && (
+                        <button
+                          onClick={() => handleDeleteClick(c)}
+                          className="text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
+                          aria-label="삭제"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-sm text-foreground/80 break-words whitespace-pre-wrap leading-relaxed">
+                      {c.content}
+                    </p>
+                  </div>
+                ))}
+
+                {hasNext && (
+                  <button
+                    onClick={handleLoadMore}
+                    disabled={loadingMore}
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors w-full text-center py-1.5 disabled:opacity-50"
+                  >
+                    {loadingMore ? "로딩 중..." : "더 보기"}
+                  </button>
+                )}
+              </div>
             )}
-            {submitting ? "등록 중..." : "등록"}
-          </Button>
+          </div>
+
+          {/* 입력 폼 (focus-expand: 평소 컴팩트, 작성 시 확장) */}
+          <div className="space-y-2 border-t pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-6">
+            <Textarea
+              placeholder="문의를 남겨보세요"
+              aria-label="문의 내용"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              onFocus={() => setFocused(true)}
+              className={cn(
+                "text-sm resize-none transition-[min-height] duration-150",
+                expanded ? "min-h-[80px]" : "min-h-[40px]"
+              )}
+              maxLength={2000}
+            />
+            {expanded && (
+              <>
+                {!currentUser && (
+                  <div className="space-y-2">
+                    <Input
+                      placeholder="이름"
+                      value={authorName}
+                      onChange={(e) => setAuthorName(e.target.value)}
+                      className="h-9 text-sm"
+                      maxLength={100}
+                    />
+                    <div className="relative">
+                      <Input
+                        type="password"
+                        placeholder="비밀번호 (삭제 시 필요, 선택)"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="h-9 text-sm pr-8"
+                        maxLength={100}
+                      />
+                      <Lock className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                    </div>
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  {currentUser && (
+                    <span className="text-[11px] text-muted-foreground truncate">
+                      {currentUser.name || currentUser.username} 으로 등록
+                    </span>
+                  )}
+                  <Button
+                    size="sm"
+                    className="ml-auto h-8 text-sm gap-1.5"
+                    onClick={handleSubmit}
+                    disabled={submitting}
+                  >
+                    {submitting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                    {submitting ? "등록 중..." : "등록"}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 

@@ -24,6 +24,8 @@ export interface ShowcaseItem {
   tags: string[]
   author_name?: string
   author_id?: number
+  thumbnail_url?: string
+  image_urls?: string[]
   view_count: number
   is_featured: boolean
   is_published: boolean
@@ -62,8 +64,13 @@ export interface ShowcaseItemCreate {
   tags: string[]
   install_command?: string
   source_url?: string
+  thumbnail_url?: string
+  image_urls: string[]
   is_published: boolean
 }
+
+/** 쇼케이스 아이템당 첨부 이미지(갤러리) 최대 개수 (UX 가드 — 서버가 최종 권위) */
+export const SHOWCASE_MAX_IMAGES = 10
 
 export interface ShowcaseItemsParams {
   category?: string
@@ -85,6 +92,88 @@ async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
     throw new Error(body.detail || `HTTP ${res.status}`)
   }
   if (res.status === 204) return undefined as T
+  return res.json()
+}
+
+/** 상대 이미지 경로(/api/showcase/images/...)를 절대 URL로 변환 */
+export function showcaseImageUrl(path?: string | null): string | undefined {
+  if (!path) return undefined
+  if (/^https?:\/\//.test(path)) return path
+  return `${API_BASE_URL}${path}`
+}
+
+// === 문서 업로드 자동 추출 (보조 입력) ===
+// 클라이언트 1차 검증/UX 가드용 상수 (서버가 최종 권위 — backend SHOWCASE_EXTRACT_*)
+export const EXTRACT_ACCEPT = ".hwp,.hwpx,.pdf,.docx"
+export const EXTRACT_ALLOWED_EXTS = [".hwp", ".hwpx", ".pdf", ".docx"]
+export const EXTRACT_MAX_MB = 20
+export const EXTRACT_TIMEOUT_MS = 120_000
+
+export interface ShowcaseExtractSuggestion {
+  category_key?: string
+  title?: string
+  summary?: string
+  content?: string
+  item_type?: string
+  difficulty?: string
+  tags?: string[]
+}
+
+export interface ShowcaseExtractResponse {
+  suggestion: ShowcaseExtractSuggestion
+  warnings: string[]
+  parser_used: string
+  llm_used: boolean
+  source_markdown?: string
+}
+
+/** 문서를 업로드해 입력항목 제안값을 받는다 (DB 미변경, 폼 프리필용). */
+export async function extractFromFile(
+  file: File,
+  signal?: AbortSignal
+): Promise<ShowcaseExtractResponse> {
+  const fd = new FormData()
+  fd.append("file", file)
+  const res = await fetch(`${BASE}/extract`, {
+    method: "POST",
+    credentials: "include",
+    body: fd,
+    signal,
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail || `HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function uploadShowcaseImage(file: File): Promise<{ url: string }> {
+  const fd = new FormData()
+  fd.append("file", file)
+  const res = await fetch(`${BASE}/upload-image`, {
+    method: "POST",
+    credentials: "include",
+    body: fd,
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail || `HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function uploadShowcaseImages(files: File[]): Promise<{ urls: string[] }> {
+  const fd = new FormData()
+  files.forEach((f) => fd.append("files", f))
+  const res = await fetch(`${BASE}/upload-images`, {
+    method: "POST",
+    credentials: "include",
+    body: fd,
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail || `HTTP ${res.status}`)
+  }
   return res.json()
 }
 

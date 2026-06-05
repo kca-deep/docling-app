@@ -5,9 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation"
 import { getCategories, getItems, getStats, ShowcaseCategory, ShowcaseItem, ShowcaseStatsResponse } from "@/lib/showcase"
 import { useAuth } from "@/components/auth/auth-provider"
 import { ShowcaseHero } from "./components/ShowcaseHero"
-import { CategoryTabs } from "./components/CategoryTabs"
-import { FilterBar } from "./components/FilterBar"
-import { SearchInput } from "./components/SearchInput"
+import { ShowcaseFilters } from "./components/ShowcaseFilters"
 import { ShowcaseGrid } from "./components/ShowcaseGrid"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight } from "lucide-react"
@@ -25,7 +23,9 @@ function ShowcaseContent() {
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
 
-  const [category, setCategory] = useState<string | null>(searchParams.get("category"))
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(
+    searchParams.get("category")?.split(",").filter(Boolean) ?? []
+  )
   const [type, setType] = useState(searchParams.get("type") ?? "all")
   const [difficulty, setDifficulty] = useState(searchParams.get("difficulty") ?? "all")
   const [search, setSearch] = useState(searchParams.get("search") ?? "")
@@ -43,7 +43,7 @@ function ShowcaseContent() {
     setLoading(true)
     try {
       const res = await getItems({
-        category: category ?? undefined,
+        category: selectedCategories.length ? selectedCategories.join(",") : undefined,
         type: type !== "all" ? type : undefined,
         difficulty: difficulty !== "all" ? difficulty : undefined,
         search: search || undefined,
@@ -59,7 +59,7 @@ function ShowcaseContent() {
     } finally {
       setLoading(false)
     }
-  }, [category, type, difficulty, search, sort, page])
+  }, [selectedCategories, type, difficulty, search, sort, page])
 
   useEffect(() => { fetchItems() }, [fetchItems])
 
@@ -72,10 +72,36 @@ function ShowcaseContent() {
     router.replace(`/showcase?${q}`, { scroll: false })
   }, [searchParams, router])
 
-  const handleCategory = (key: string | null) => {
-    setCategory(key)
+  const handleToggleCategory = (key: string) => {
+    const next = selectedCategories.includes(key)
+      ? selectedCategories.filter((k) => k !== key)
+      : [...selectedCategories, key]
+    setSelectedCategories(next)
     setPage(1)
-    updateUrl({ category: key, page: null })
+    updateUrl({ category: next.length ? next.join(",") : null, page: null })
+  }
+
+  const handleClearCategories = () => {
+    setSelectedCategories([])
+    setPage(1)
+    updateUrl({ category: null, page: null })
+  }
+
+  const handleReset = () => {
+    setSelectedCategories([])
+    setType("all")
+    setDifficulty("all")
+    setSort("created_at")
+    setSearch("")
+    setPage(1)
+    updateUrl({
+      category: null,
+      type: null,
+      difficulty: null,
+      sort: null,
+      search: null,
+      page: null,
+    })
   }
 
   const handleType = (v: string) => {
@@ -104,29 +130,44 @@ function ShowcaseContent() {
 
   const totalPages = Math.ceil(total / PAGE_SIZE)
 
+  const filterProps = {
+    categories,
+    selectedCategories,
+    type,
+    difficulty,
+    sort,
+    search,
+    onToggleCategory: handleToggleCategory,
+    onClearCategories: handleClearCategories,
+    onTypeChange: handleType,
+    onDifficultyChange: handleDifficulty,
+    onSortChange: handleSort,
+    onSearch: handleSearch,
+    onReset: handleReset,
+  }
+
   return (
     <>
-      <ShowcaseHero stats={stats} isAuthenticated={isAuthenticated} />
+      <ShowcaseHero
+        stats={stats}
+        isAuthenticated={isAuthenticated}
+        filterSlot={
+          <div className="hidden lg:block">
+            <ShowcaseFilters {...filterProps} variant="hero" />
+          </div>
+        }
+      />
     <div className="container max-w-7xl mx-auto px-4 py-6 space-y-5">
 
-      <CategoryTabs categories={categories} selected={category} onSelect={handleCategory} />
-
-      <div className="flex flex-wrap gap-2 items-center justify-between">
-        <FilterBar
-          type={type}
-          difficulty={difficulty}
-          sort={sort}
-          onTypeChange={handleType}
-          onDifficultyChange={handleDifficulty}
-          onSortChange={handleSort}
-        />
-        <SearchInput value={search} onSearch={handleSearch} />
+      {/* 모바일/태블릿: 히어로 아래 기본 필터 (lg에서는 히어로 우측 상단에 통합) */}
+      <div className="lg:hidden">
+        <ShowcaseFilters {...filterProps} />
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="h-48 rounded-lg bg-muted animate-pulse" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-[150px] rounded-xl bg-muted animate-pulse" />
           ))}
         </div>
       ) : (
@@ -134,7 +175,7 @@ function ShowcaseContent() {
           items={items}
           categories={categories}
           search={search || undefined}
-          activeCategory={category}
+          activeCategory={selectedCategories.length === 1 ? selectedCategories[0] : null}
           isAuthenticated={isAuthenticated}
         />
       )}

@@ -3,7 +3,7 @@
 import { useEditor, EditorContent } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Placeholder from "@tiptap/extension-placeholder"
-import { Markdown } from "tiptap-markdown"
+import { Markdown, type MarkdownStorage } from "tiptap-markdown"
 import { useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import {
@@ -11,6 +11,9 @@ import {
   Italic,
   List,
   ListOrdered,
+  Heading2,
+  Heading3,
+  SquareCode,
   Undo,
   Redo,
 } from "lucide-react"
@@ -23,6 +26,18 @@ interface RichTextEditorProps {
   disabled?: boolean
   className?: string
   minHeight?: string
+  /**
+   * 출력/동기화 포맷.
+   * - "html" (기본): editor.getHTML() 반환 (기존 사용처 호환)
+   * - "markdown": tiptap-markdown으로 마크다운 문자열 반환
+   */
+  format?: "html" | "markdown"
+  /**
+   * 제목(H2/H3)·코드 블록 등 리치 블록 지원 여부 (옵트인).
+   * - false (기본): 기존 동작 그대로 (heading/codeBlock 비활성, 추가 버튼 없음)
+   * - true: StarterKit의 heading(H2/H3)·codeBlock 활성화 및 툴바 버튼 추가
+   */
+  enableRichBlocks?: boolean
 }
 
 export function RichTextEditor({
@@ -32,13 +47,28 @@ export function RichTextEditor({
   disabled = false,
   className,
   minHeight = "120px",
+  format = "html",
+  enableRichBlocks = false,
 }: RichTextEditorProps) {
+  // 현재 에디터 내용을 지정된 포맷 문자열로 반환
+  const serialize = (ed: NonNullable<ReturnType<typeof useEditor>>) =>
+    format === "markdown"
+      ? (ed.storage as unknown as { markdown: MarkdownStorage }).markdown.getMarkdown()
+      : ed.getHTML()
   const editor = useEditor({
+    immediatelyRender: false, // Next.js SSR 하이드레이션 불일치 방지
     extensions: [
-      StarterKit.configure({
-        heading: false,
-        codeBlock: false,
-      }),
+      StarterKit.configure(
+        enableRichBlocks
+          ? {
+              heading: { levels: [2, 3] },
+              codeBlock: {},
+            }
+          : {
+              heading: false,
+              codeBlock: false,
+            }
+      ),
       Placeholder.configure({
         placeholder,
       }),
@@ -54,15 +84,14 @@ export function RichTextEditor({
     content: value,
     editable: !disabled,
     onUpdate: ({ editor }) => {
-      // HTML로 출력 (서식 유지)
-      onChange(editor.getHTML())
+      onChange(serialize(editor))
     },
   })
 
   // 외부에서 value가 변경되면 에디터 내용도 업데이트
   // Markdown 확장 덕분에 마크다운 텍스트도 자동 파싱됨
   useEffect(() => {
-    if (editor && value !== editor.getHTML()) {
+    if (editor && value !== serialize(editor)) {
       editor.commands.setContent(value)
     }
   }, [editor, value])
@@ -130,6 +159,36 @@ export function RichTextEditor({
           >
             <ListOrdered className="h-4 w-4" />
           </ToolbarButton>
+
+          {enableRichBlocks && (
+            <>
+              <div className="w-px h-4 bg-border mx-1" />
+
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+                isActive={editor.isActive("heading", { level: 2 })}
+                title="제목2"
+              >
+                <Heading2 className="h-4 w-4" />
+              </ToolbarButton>
+
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+                isActive={editor.isActive("heading", { level: 3 })}
+                title="제목3"
+              >
+                <Heading3 className="h-4 w-4" />
+              </ToolbarButton>
+
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+                isActive={editor.isActive("codeBlock")}
+                title="코드 블록"
+              >
+                <SquareCode className="h-4 w-4" />
+              </ToolbarButton>
+            </>
+          )}
 
           <div className="w-px h-4 bg-border mx-1" />
 
